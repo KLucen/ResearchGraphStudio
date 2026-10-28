@@ -1,0 +1,19 @@
+{
+  "name": "researchgraph-studio",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "dev": "pnpm --dir apps/desktop tauri dev",
+    "build:web": "pnpm --dir apps/desktop build",
+    "test": "pnpm --dir apps/desktop test",
+    "check": "pnpm --dir apps/desktop check",
+    "format:check": "prettier --check apps/desktop/src apps/desktop/*.json apps/desktop/*.ts package.json pnpm-workspace.yaml",
+    "format": "prettier --write apps/desktop/src apps/desktop/*.json apps/desktop/*.ts package.json pnpm-workspace.yaml",
+    "contracts": "openapi-typescript packages/contracts/openapi.json -o packages/contracts/generated.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.0.0",
+    "prettier": "^3.0.0"
+  }
+}

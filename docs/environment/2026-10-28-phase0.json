@@ -1,0 +1,71 @@
+{
+  "recorded_at": "2026-10-28T09:57:25.3723970+08:00",
+  "stage": "Phase 0",
+  "product_version": "0.0.1",
+  "platform": "Windows 11 Home x64 10.0.26200",
+  "python_environment": "researchgraph-studio",
+  "python": "3.12.16",
+  "node": "24.20.0",
+  "pnpm": "12.5.1",
+  "rust": "1.99.1 x86_64-pc-windows-msvc",
+  "visual_studio_build_tools": "17.14.37824.6",
+  "windows_sdk": "10.0.26100.0",
+  "webview2": "155.0.4283.62",
+  "checks": {
+    "python_tests_passed": 11,
+    "react_tests_passed": 3,
+    "rust_tests_passed": 1,
+    "python_types_lint": "passed",
+    "typescript_lint": "passed",
+    "contract_generation": "passed",
+    "rust_fmt_clippy": "passed",
+    "pip_check": "passed",
+    "release_build": "passed",
+    "installed_engine_smoke": "passed",
+    "native_project_create_and_readback": "passed",
+    "native_diagnostics": "passed",
+    "single_instance": "passed",
+    "engine_crash_reconnect": "passed",
+    "host_crash_no_orphan": "passed",
+    "normal_exit_no_orphan": "passed",
+    "installer_exit": 0,
+    "uninstaller_exit": 0,
+    "uninstall_preserves_database": "passed",
+    "reinstall_readback": "passed",
+    "minimal_child_path": "System32 only",
+    "clean_windows_G0": "not_tested",
+    "missing_webview2_install": "not_tested",
+    "github_actions": "not_run",
+    "final_installer_disconnected_health_display": "passed",
+    "source_document_hashes": "5 unchanged",
+    "local_markdown_links": "98 passed across 21 files"
+  },
+  "installer": {
+    "path": "apps/desktop/src-tauri/target/release/bundle/nsis/ResearchGraph Studio_0.0.1_x64-setup.exe",
+    "bytes": 23999729,
+    "sha256": "E36DB25CA2614643956C07C759EEAF00E339D852114ACDBD83D894669A4E5C59",
+    "code_signed": false,
+    "test_install_directory": ".local/安装验证 ResearchGraph"
+  },
+  "lock_sha256": {
+    "conda-win-64.lock": "09DF918EE61F0A287691AE57B413A5563D4A5BE653368B5BC7604E51B0A07F0D",
+    "requirements-win-64.lock": "32FE82CF27A3EBACA831CE14B6CC543977E42A9EDA5FABFF00051C00CBE6F585",
+    "pnpm-lock.yaml": "C1D15530CCACB348CE303AC9A69C8B01B091E4E2203C7871236DACE81F2CB55F",
+    "apps/desktop/src-tauri/Cargo.lock": "6B8954A644CB381924D7ABFB5275E760B970876A69AD59A51EFCC6B60EBBBD61"
+  },
+  "limitations": [
+    "Developer machine tests do not establish clean Windows compatibility.",
+    "Existing WebView2 runtime; bootstrapper path not exercised.",
+    "No model, paper, Zotero library or Obsidian vault accessed.",
+    "Starlette TestClient emits one httpx deprecation warning.",
+    "Repository changes not committed or pushed."
+  ],
+  "logs": [
+    ".local/phase0-check-final.log",
+    ".local/rust-check.log",
+    ".local/rust-test.log",
+    ".local/tauri-build-final.log",
+    ".local/installed-engine-smoke.json",
+    ".local/native-lifecycle.json"
+  ]
+}

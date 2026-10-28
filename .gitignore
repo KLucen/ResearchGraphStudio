@@ -1,0 +1,50 @@
+# JavaScript
+node_modules/
+.pnpm-store/
+dist/
+out/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# Rust / Tauri build output
+target/
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/gen/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+
+# Private configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local research data and artifacts
+.local/
+data/
+models/
+artifacts/
+experiments/runs/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.log
+
+# Editors / OS
+.idea/
+.DS_Store
+Thumbs.db

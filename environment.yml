@@ -1,0 +1,9 @@
+name: researchgraph-studio
+channels:
+  - https://repo.anaconda.com/pkgs/main
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - --require-hashes
+      - -r requirements-win-64.lock

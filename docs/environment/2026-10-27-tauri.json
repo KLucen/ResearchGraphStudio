@@ -1,0 +1,18 @@
+{
+  "observedOn": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "scope": "Read-only Tauri prerequisites check after QA.md design alignment",
+  "rustCommandsOnPath": [],
+  "knownRustFiles": [
+    {"path": "C:\\Users\\KLucen\\.cargo\\bin\\rustup.exe", "exists": false},
+    {"path": "C:\\Users\\KLucen\\.cargo\\bin\\cargo.exe", "exists": false}
+  ],
+  "vswhere": {
+    "path": "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
+    "exists": false
+  },
+  "cppBuildToolsStatus": "Not confirmed; known discovery utility was absent",
+  "webView2": {"name": "Microsoft Edge WebView2 Runtime", "version": "155.0.4283.62", "source": "EdgeUpdate Clients registry"},
+  "qaSha256": "7C60305037E7CF9BA367F405A28756C4367BB927C9FC4B4E92E2C154493F3279",
+  "limits": ["No tools installed", "No Tauri application compiled", "PATH and known paths are not a complete software inventory"]
+}

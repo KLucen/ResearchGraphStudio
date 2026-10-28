@@ -1,0 +1,87 @@
+name: Phase 0 Windows
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: phase0-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.20.0'
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-activate-base: false
+          activate-environment: ''
+      - name: Reproduce the Conda and pip environments
+        shell: pwsh
+        run: |
+          conda create --yes --name researchgraph-studio --file conda-win-64.lock
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          conda run -n researchgraph-studio python -m pip install --require-hashes -r requirements-win-64.lock
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          npm install --global pnpm@12.5.1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Validate contracts, engine and UI
+        shell: pwsh
+        run: |
+          ./scripts/check-phase0.ps1
+          git diff --exit-code -- packages/contracts
+      - name: Build and verify the packaged engine
+        shell: pwsh
+        run: |
+          ./scripts/build-engine.ps1
+          conda run -n researchgraph-studio python scripts/smoke-engine.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Check Rust and build installer
+        shell: pwsh
+        run: |
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          pnpm build:web
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          pnpm --dir apps/desktop tauri build --bundles nsis
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: researchgraph-phase0-windows
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+  installed-app:
+    needs: windows
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: researchgraph-phase0-windows
+          path: installer
+      - name: Verify installed application using Windows PowerShell only
+        shell: powershell
+        run: |
+          $setup = Get-ChildItem installer/*.exe | Select-Object -First 1
+          ./scripts/verify-windows-install.ps1 -Installer $setup.FullName -VerifyDesktop -OutputRoot (Join-Path $env:RUNNER_TEMP 'rgs-installed-verification')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: researchgraph-installed-verification
+          path: ${{ runner.temp }}/rgs-installed-verification/verification.json

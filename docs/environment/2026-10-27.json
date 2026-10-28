@@ -1,0 +1,180 @@
+{
+  "checkedAt": "2026-10-27T12:43:01+08:00",
+  "timezone": "Asia/Shanghai",
+  "projectRoot": "C:\\Users\\KLucen\\Desktop\\AI科研知识推理平台",
+  "powershell": "7.6.5",
+  "os": {
+    "name": "Microsoft Windows 11 家庭版 中文版",
+    "version": "10.0.26200",
+    "ramGiB": 15.7
+  },
+  "cpu": {
+    "Name": "Intel(R) Core(TM) i9-14900HX",
+    "NumberOfCores": 24,
+    "NumberOfLogicalProcessors": 32
+  },
+  "drives": [
+    {
+      "Name": "C",
+      "Root": "C:\\",
+      "freeGiB": 136.5
+    },
+    {
+      "Name": "D",
+      "Root": "D:\\",
+      "freeGiB": 196.9
+    }
+  ],
+  "gpu": {
+    "available": true,
+    "path": "C:\\Windows\\system32\\nvidia-smi.exe",
+    "output": "NVIDIA GeForce RTX 5060 Laptop GPU, 8151 MiB, 617.42",
+    "exitCode": 0
+  },
+  "tools": {
+    "git": {
+      "available": true,
+      "path": "C:\\Program Files\\Git\\cmd\\git.exe",
+      "output": "git version 2.55.0.windows.5",
+      "exitCode": 0
+    },
+    "node": {
+      "available": true,
+      "path": "C:\\Users\\KLucen\\AppData\\Local\\Author Software\\nvm\\\\.nodejs\\node.exe",
+      "output": "v24.20.0",
+      "exitCode": 0
+    },
+    "npm": {
+      "available": true,
+      "path": "C:\\Users\\KLucen\\AppData\\Local\\Author Software\\nvm\\\\.nodejs\\npm.exe",
+      "output": "11.19.0",
+      "exitCode": 0
+    },
+    "pnpm": {
+      "available": true,
+      "path": "C:\\Users\\KLucen\\AppData\\Local\\Author Software\\nvm\\\\.nodejs\\pnpm.exe",
+      "output": "12.5.1",
+      "exitCode": 0
+    },
+    "python": {
+      "available": true,
+      "path": "C:\\Users\\KLucen\\anaconda3\\python.exe",
+      "output": "Python 3.14.6",
+      "exitCode": 0
+    },
+    "uv": {
+      "available": true,
+      "path": "C:\\Users\\KLucen\\.local\\bin\\uv.exe",
+      "output": "uv 0.12.19 (bea138450 2026-09-24 x86_64-pc-windows-msvc)",
+      "exitCode": 0
+    },
+    "docker": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "podman": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "psql": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "redis-server": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "rustc": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "cargo": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    },
+    "cmake": {
+      "available": false,
+      "note": "Not found on PATH; not proof of absence."
+    }
+  },
+  "installedPython": {
+    "available": true,
+    "path": "C:\\Users\\KLucen\\.local\\bin\\uv.exe",
+    "output": "cpython-3.14.6-windows-x86_64-none     C:\\Users\\KLucen\\anaconda3\\python.exe\r\ncpython-3.12.14-windows-x86_64-none    C:\\Users\\KLucen\\AppData\\Roaming\\uv\\python\\cpython-3.12-windows-x86_64-none\\python.exe",
+    "exitCode": 0
+  },
+  "wsl": {
+    "available": true,
+    "path": "C:\\Windows\\system32\\wsl.exe",
+    "output": " NAME      STATE           VERSION\r\n\r\n* Ubuntu    Stopped         2\r\n\r\n",
+    "exitCode": 0
+  },
+  "gitRoot": {
+    "available": true,
+    "path": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "output": "C:/Users/KLucen/Desktop/AI科研知识推理平台",
+    "exitCode": 0
+  },
+  "gitBranch": {
+    "available": true,
+    "path": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "output": "main",
+    "exitCode": 0
+  },
+  "services": [],
+  "checkedPorts": [
+    3000,
+    5173,
+    8000,
+    5432,
+    6379,
+    7474,
+    7687,
+    11434,
+    23119
+  ],
+  "listeners": [],
+  "knownApplicationPaths": [
+    {
+      "path": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe",
+      "exists": false
+    },
+    {
+      "path": "C:\\Program Files\\Zotero\\zotero.exe",
+      "exists": false
+    },
+    {
+      "path": "C:\\Program Files (x86)\\Zotero\\zotero.exe",
+      "exists": false
+    },
+    {
+      "path": "C:\\Users\\KLucen\\AppData\\Local\\Programs\\Zotero\\zotero.exe",
+      "exists": false
+    },
+    {
+      "path": "C:\\Users\\KLucen\\AppData\\Local\\Programs\\Obsidian\\Obsidian.exe",
+      "exists": true
+    }
+  ],
+  "networkChecks": [
+    {
+      "url": "https://registry.npmjs.org/-/ping",
+      "httpStatus": 200
+    },
+    {
+      "url": "https://pypi.org/simple/",
+      "httpStatus": 200
+    },
+    {
+      "url": "https://github.com",
+      "httpStatus": 200
+    }
+  ],
+  "limits": [
+    "PATH and known paths are not a full installed-software inventory.",
+    "No WSL distribution was started or inspected internally.",
+    "No packages were installed and no model or application workload was benchmarked.",
+    "Successful HTTP HEAD checks do not verify package installation or model API access.",
+    "Secrets and personal research libraries were not inspected."
+  ]
+}
