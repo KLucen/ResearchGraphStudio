@@ -1,0 +1,28 @@
+{
+  "recorded_at": "2026-10-29T11:22:02.0859447+08:00",
+  "run_id": 40809339440,
+  "url": "https://github.com/KLucen/ResearchGraphStudio/actions/runs/40809339440",
+  "head_sha": "8df4e1e4d8e25391b650fb1eb6db87c55e57f87d",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 123235685379,
+      "name": "windows",
+      "conclusion": "success"
+    },
+    {
+      "id": 123239847093,
+      "name": "installed-app",
+      "conclusion": "success"
+    }
+  ],
+  "installer_sha256": "9EC242A883044079E02DFDEF5BF3E25D730EC93C7E1146AA9CFD4B0FF4B4E437",
+  "installer_bytes": 23976140,
+  "clean_windows_G0": "pending: hosted runner has preinstalled developer tools",
+  "artifacts": {
+    "installer_id": 12870142503,
+    "verification_id": 12870107766,
+    "installer_zip_sha256": "E971D9021159850DB4ED82E06E8AE8B92A98ADE72F1ADDE2A0403FA92C71D67A",
+    "verification_zip_sha256": "5A507BF0D7B3570B77C4E5E16F6E355846F58CF0CF4F2453C44CA05D09EA122F"
+  }
+}

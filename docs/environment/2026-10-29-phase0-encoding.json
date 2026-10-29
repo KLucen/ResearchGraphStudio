@@ -1,0 +1,28 @@
+{
+  "recorded_at": "2026-10-29T11:07:01.5530487+08:00",
+  "source_run": "https://github.com/KLucen/ResearchGraphStudio/actions/runs/40686890045",
+  "installer_sha256": "C75CB4949954BF563A92564CEC89F7D1ED07C40D153539239C35B7B5B0CA799A",
+  "unmodified_script_utf8_console": "failed: engine JSONDecodeError",
+  "fixed_script_utf8_console": {
+    "recorded_at": "2026-10-29T10:56:14.0773942+08:00",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "powershell": "5.1.26100.9444",
+    "result": "passed",
+    "clean_windows_G0": "not_certified_by_this_script",
+    "developer_commands_on_host": [
+      "python",
+      "node",
+      "conda"
+    ],
+    "child_path": "System32 only",
+    "checks": {
+      "authentication": "passed",
+      "diagnostics": "passed",
+      "project_idempotency_restart": "passed",
+      "engine_eof_exit": "passed"
+    }
+  },
+  "fixed_script_default_console": "passed",
+  "console_encoding_restored": true,
+  "existing_user_install_modified": false
+}

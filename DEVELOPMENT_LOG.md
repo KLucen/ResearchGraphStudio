@@ -230,6 +230,15 @@
 
 - 推送修复并跟进 CI，更新验收材料。独立 Windows 10/11 无开发环境及缺 WebView2 的 G0 仍待真实测试机执行，CI runner 不替代该关卡。
 
+### 2026-10-29 11:23 验收与推送补记
+
+- 修复提交 `8df4e1e4d8e25391b650fb1eb6db87c55e57f87d` 已普通推送 main。[CI 40809339440](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40809339440) 已完成且 success：windows 构建与 installed-app 独立安装两个 job 全部成功。
+- 远端完成锁定依赖重建、11 项 Python / 3 项 React / 1 项 Rust 测试、静态检查、契约漂移检查、生产构建、打包引擎测试和 NSIS 生成。安装 runner 通过安装、鉴权、诊断、项目幂等及重启持久化、EOF 退出、桌面 Sidecar 启动、单实例、正常关闭、崩溃清理、卸载及数据保留。
+- 本机附加验证脚本运行后恢复调用方 UTF-8 编码及 BOM 设置；结果、CI 摘要和原始安装报告分别保存为 docs/environment/2026-10-29-phase0-encoding.json、2026-10-29-phase0-ci.json、2026-10-29-phase0-installed.json。
+- 已下载 CI 安装器与报告，校验两份 artifact ZIP 官方 SHA-256，安装器哈希与验收报告一致：`9EC242A883044079E02DFDEF5BF3E25D730EC93C7E1146AA9CFD4B0FF4B4E437`，23,976,140 字节。更新 `.local/phase0-acceptance-kit.zip`，其中包含该产物、修复脚本及说明；没有覆盖本机现有安装或提交二进制、数据库、密钥。
+- 同步 README、环境报告、开发流程入口与 Phase 0 验证记录；文档与机器报告作为收尾提交推送 main。G0 仍未关闭：Windows 10/11 无开发工具、缺失 WebView2 和人工 UI/离线场景需独立机器验收；当前系统无现成 Sandbox/VM，未另行安装虚拟化组件。之后开展 Phase 1 PDF 来源/附件版本与证据锚定，保留 G0 发布门槛。
+- 收尾检查：21 份 Markdown、103 个本地链接、五份原文哈希通过；三份新增 JSON 可解析，PowerShell 语法检查通过，git diff --check 通过。推送前 fetch 确认本地与 origin/main 同步。
+
 ## 后续条目模板
 
 ```markdown

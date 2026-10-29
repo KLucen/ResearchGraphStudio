@@ -2,7 +2,7 @@
 
 初次检查时间：2026-10-27 12:43（Asia/Shanghai）；同日根据用户补充更新 Conda、Zotero 和 GitHub 状态。机器可读证据：[最新快照](environment/2026-10-27-conda.json)、[初次快照](environment/2026-10-27.json)。
 
-最新结论（2026-10-28）：**Conda 业务环境、Rust/MSVC/SDK 已准备；Tauri release 和 Python Sidecar 已编译并实际启动，安装器验收推进中。** 最新实施结果见 [Phase 0 验证记录](phase0-verification.md)。下文 2026-10-27 的只读快照保留为历史，不代表当前缺少构建工具。模型与 Zotero 接入尚未执行。
+最新结论（2026-10-29）：**Conda 业务环境、Rust/MSVC/SDK 已准备；本机与远端 Windows runner 已按锁文件重建并完成检查、构建，独立 runner 的安装生命周期验收通过。** 最新实施结果见 [Phase 0 验证记录](phase0-verification.md)和 [CI 摘要](environment/2026-10-29-phase0-ci.json)。干净 Windows G0 仍待验证。下文 2026-10-27 的只读快照保留为历史，不代表当前缺少构建工具。模型与 Zotero 接入尚未执行。
 
 ## 2026-10-28 Phase 0 环境增量
 

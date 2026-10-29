@@ -1,0 +1,26 @@
+﻿{
+    "recorded_at":  "2026-10-29T11:11:00.4910126+08:00",
+    "os":  "Microsoft Windows NT 10.0.20348.0",
+    "powershell":  "5.1.20348.5756",
+    "result":  "passed",
+    "clean_windows_G0":  "not_certified_by_this_script",
+    "developer_commands_on_host":  [
+                                       "python",
+                                       "node",
+                                       "cargo"
+                                   ],
+    "child_path":  "System32 only",
+    "checks":  {
+                   "install":  "passed",
+                   "authentication":  "passed",
+                   "diagnostics":  "passed",
+                   "project_idempotency_restart":  "passed",
+                   "engine_eof_exit":  "passed",
+                   "desktop_sidecar_startup":  "passed",
+                   "single_instance":  "passed",
+                   "desktop_normal_exit":  "passed",
+                   "desktop_crash_cleanup":  "passed",
+                   "uninstall":  "passed"
+               },
+    "installer_sha256":  "9EC242A883044079E02DFDEF5BF3E25D730EC93C7E1146AA9CFD4B0FF4B4E437"
+}

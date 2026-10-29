@@ -1,6 +1,6 @@
 # Phase 0 交付与验证
 
-更新时间：2026-10-28（Asia/Shanghai）。产品探针版本 0.0.1。完整范围以[计划 v0.4](development-plan-v0.4.md)为准。
+更新时间：2026-10-29（Asia/Shanghai）。产品探针版本 0.0.1。完整范围以[计划 v0.4](development-plan-v0.4.md)为准。
 
 ## 当前实现
 
@@ -25,7 +25,8 @@
 | 故障与生命周期 | 重复启动只有一个实例；引擎异常终止后 UI 报错并可重连；强制终止宿主后子引擎在 15 秒等待窗口内退出；正常关闭后无残留进程 |
 | 本机卸载/重装 | 静默卸载退出 0，程序移除、数据库保留；最终安装包重装退出 0，原项目仍可读回 |
 | 干净 Windows G0 | 未执行，仍为发布关卡 |
-| GitHub Actions | main 首次推送 d1a39fa 已触发运行；远端依赖、业务测试、契约和打包引擎已通过，安装构建进行中，最终结果见后续验收记录 |
+| GitHub Actions | [运行 40809339440](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40809339440) 全部通过，代码提交 8df4e1e；构建与独立 runner 安装验证均成功 |
+| 独立 runner 安装生命周期 | Windows Server 2022 / PowerShell 5.1：安装、鉴权、诊断、幂等/重启读回、EOF 退出、桌面 Sidecar、单实例、正常/崩溃退出及卸载后保留数据全部通过 |
 
 本机 Windows 11 已有开发环境及 WebView2。移除子进程 PATH 中的 Python/Node/Conda 能验证随包解释器，但不能证明一台没有系统运行库的电脑也可安装。不得据此关闭 G0。
 
@@ -35,11 +36,11 @@
 
 | 任务 | 状态与剩余工作 |
 | --- | --- |
-| RG-001 构建环境与锁定 | 已实现并在本机编译验证；第二台机器重建未验证 |
+| RG-001 构建环境与锁定 | 已实现；本机及 GitHub windows-2022 runner 按锁文件重建、检查和构建通过 |
 | RG-002 桌面最小界面 | 已实现并通过真实窗口操作 |
 | RG-003 Sidecar 与 Job | 已实现；鉴权/版本/任务/重连/退出已验证 |
 | RG-004 存储与契约 | 已实现；幂等/并发/持久化/失败迁移备份已验证 |
-| RG-005 安装与 CI | 安装器和 CI 工作流已实现；本机安装通过，干净 Windows G0 与远端 CI 待执行 |
+| RG-005 安装与 CI | 本机安装与远端构建/独立 runner 安装验证均通过；干净 Windows G0 仍待执行 |
 
 ## 复现命令
 
@@ -57,9 +58,15 @@ pwsh -File scripts/build-windows.ps1
 
 构建输出：`apps/desktop/src-tauri/target/release/bundle/nsis/`。默认安装仅当前用户，安装器没有代码签名。若目标机缺少 WebView2，当前配置联网下载其官方 bootstrapper，不能视为完全离线安装包。
 
-本次最终安装器：`ResearchGraph Studio_0.0.1_x64-setup.exe`，约 22.89 MiB；SHA-256：`E36DB25CA2614643956C07C759EEAF00E339D852114ACDBD83D894669A4E5C59`。本机测试安装目录为项目下 `.local/安装验证 ResearchGraph`，安装的应用及自造项目保留供查看。复核摘要见[机器可读记录](environment/2026-10-28-phase0.json)。
+2026-10-29 CI 验收安装器：`ResearchGraph Studio_0.0.1_x64-setup.exe`，23,976,140 字节；SHA-256：`9EC242A883044079E02DFDEF5BF3E25D730EC93C7E1146AA9CFD4B0FF4B4E437`。从上方 Actions 运行的 `researchgraph-phase0-windows` artifact 下载。本机 `.local/phase0-acceptance-kit.zip` 包含该安装器、修复后的脚本和使用说明，未提交二进制到源码仓库。
+
+完整通过结果见 [CI 摘要](environment/2026-10-29-phase0-ci.json)和[安装验收原始报告](environment/2026-10-29-phase0-installed.json)。下载后的两个 artifact ZIP 均按 GitHub 公布的 SHA-256 校验，安装器再次匹配验收报告中的哈希。
+
+本机日常查看用的 `.local/安装验证 ResearchGraph` 仍保留 2026-10-28 安装的应用及自造项目，未覆盖更新；对应旧安装器 SHA-256 为 `E36DB25CA2614643956C07C759EEAF00E339D852114ACDBD83D894669A4E5C59`，历史验证见[机器可读记录](environment/2026-10-28-phase0.json)。
 
 ## G0 待执行清单
+
+首次 CI 运行 40686890045 的构建成功，安装后引擎就绪检查失败。2026-10-29 修复验收脚本的管道编码：Windows PowerShell 5.1 在 UTF-8 控制台下会在创建 stdin writer 时输出 BOM，导致引擎无法解析启动 JSON。本机使用同一 CI 安装产物复现，修复后在 UTF-8 和默认控制台编码下均通过，另验证调用方编码恢复（[回归记录](environment/2026-10-29-phase0-encoding.json)）。脚本只在创建管道期间设置无 BOM UTF-8 并恢复编码；失败报告包含退出码和 stderr，CI 同时保留 engine-stderr.txt。应用协议、数据库和用户安装均未改动。修复后的完整 CI 已通过。
 
 2026-10-28 20:17 新增 `scripts/verify-windows-install.ps1`，兼容 Windows 自带 PowerShell 5.1。只复制安装器和该脚本即可在独立机器运行，脚本不调用 Python/Node/Conda；子进程 PATH 限为 System32。已有安装、运行窗口或用户数据时拒绝桌面安装测试，避免影响日常工作区。以下 ExecutionPolicy 仅对当前测试进程生效，不修改系统策略：
 
