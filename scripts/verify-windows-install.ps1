@@ -50,17 +50,35 @@ function Start-ProbeProcess([string]$File, [string]$Arguments, [bool]$Pipes = $f
         $info.EnvironmentVariables[$key] = [Environment]::GetEnvironmentVariable($key)
     }
     $info.EnvironmentVariables['PATH'] = Join-Path $env:SystemRoot 'System32'
-    [Diagnostics.Process]::Start($info)
+    # .NET Framework has no ProcessStartInfo.StandardInputEncoding. It creates
+    # and flushes the stdin writer during Start, using Console.InputEncoding.
+    $priorInputEncoding = [Console]::InputEncoding
+    try {
+        if ($Pipes) { [Console]::InputEncoding = New-Object Text.UTF8Encoding($false) }
+        [Diagnostics.Process]::Start($info)
+    } finally {
+        if ($Pipes) { [Console]::InputEncoding = $priorInputEncoding }
+    }
 }
 
 function Start-ProbeEngine {
     $script:engine = Start-ProbeProcess $EnginePath ('--data-dir "{0}"' -f $dataPath) $true
     $script:stderr = $script:engine.StandardError.ReadToEndAsync()
-    $script:engine.StandardInput.WriteLine((@{token = $script:token} | ConvertTo-Json -Compress))
-    $script:engine.StandardInput.Flush()
+    # Windows PowerShell inherits the console encoding. Its StreamWriter can
+    # prepend a BOM under CI's UTF-8 console; the private JSON protocol has none.
+    $configuration = (@{token = $script:token} | ConvertTo-Json -Compress) + "`n"
+    $bytes = [Text.Encoding]::UTF8.GetBytes($configuration)
+    $script:engine.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+    $script:engine.StandardInput.BaseStream.Flush()
     $line = $script:engine.StandardOutput.ReadLineAsync()
     Assert-Probe ($line.Wait(45000)) 'Engine readiness timed out.'
-    Assert-Probe ($null -ne $line.Result -and $line.Result.StartsWith('RGS_READY ')) 'Engine did not report readiness.'
+    if ($null -eq $line.Result -or -not $line.Result.StartsWith('RGS_READY ')) {
+        $detail = 'Engine did not report readiness.'
+        if ($script:engine.WaitForExit(1000)) {
+            $detail += ' Exit code: ' + $script:engine.ExitCode + '. ' + $script:stderr.Result
+        }
+        throw $detail
+    }
     $ready = $line.Result.Substring(10) | ConvertFrom-Json
     Assert-Probe ($ready.protocol -eq 1) 'Engine protocol mismatch.'
     $script:baseUrl = 'http://127.0.0.1:' + $ready.port + '/api/v1'

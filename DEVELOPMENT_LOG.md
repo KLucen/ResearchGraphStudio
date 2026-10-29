@@ -206,6 +206,30 @@
 
 首次提交并推送 main，跟进远端构建与安装验收；如失败就地修复。独立 Windows UI、缺 WebView2 安装仍为 G0 待验收项。
 
+### 2026-10-28 20:25 推送与 CI 补记
+
+- 首次提交 d1a39fa006b1ded5c7e7f7decf941414b65c41a5 经 SSH 443 普通推送到 origin/main，建立上游跟踪；远端此前为空，没有覆盖已有历史。已验证提交中的 QA.md 字节哈希保持原值。
+- [CI 运行 40686890045](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40686890045) 已执行；截至本条记录，环境重建、Python/React 测试、契约漂移检查、打包引擎验证通过，Rust/安装器构建运行中。GitHub 连接工具的日志读取出现传输层 403，改用官方公开 REST 查询，未接触凭据。
+- Windows PowerShell 5.1 复核摘要入库为 docs/environment/2026-10-28-phase0-powershell.json；已有安装保护实测生效。已在 .local/phase0-acceptance-kit.zip 准备本地安装器、验收脚本和说明，未将二进制包放入源码提交。
+
+## 2026-10-29 10:57 · DEV-0007 · 修复 Windows CI 安装验收的管道编码
+
+### 目标与改动
+
+- 继续 Phase 0 安装验收，按授权修复 CI 并普通推送 main。
+- 首次远端运行 40686890045 的构建 job 全部通过；独立安装 job 在安装成功后，引擎启动配置解析失败。下载该运行的安装产物到 `.local`，只解包，不覆盖本机日常安装。
+- `scripts/verify-windows-install.ps1`：Windows PowerShell 5.1 / .NET Framework 在 UTF-8 控制台下创建 stdin writer 时会写入 BOM。临时使用无 BOM UTF-8 创建管道并恢复原编码，配置按 UTF-8 字节写入；启动失败附带退出码和 stderr。
+- `.github/workflows/phase0.yml`：失败时额外上传 engine-stderr.txt，保留定位依据。
+
+### 验证
+
+- 同一 CI 安装产物在本机原控制台编码下通过；切换 UTF-8 控制台后复现 JSONDecodeError；修复后 Windows PowerShell 5.1 复测通过鉴权、诊断、项目幂等/重启、EOF 退出。结果在 `.local/ci-reproduce-utf8-fixed2/verification.json`。
+- 本次没有修改应用协议或数据库，仅修复验收工具；远端完整构建及安装重验结果待补记。
+
+### 问题与下一步
+
+- 推送修复并跟进 CI，更新验收材料。独立 Windows 10/11 无开发环境及缺 WebView2 的 G0 仍待真实测试机执行，CI runner 不替代该关卡。
+
 ## 后续条目模板
 
 ```markdown

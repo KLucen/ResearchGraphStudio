@@ -84,4 +84,6 @@ jobs:
         if: always()
         with:
           name: researchgraph-installed-verification
-          path: ${{ runner.temp }}/rgs-installed-verification/verification.json
+          path: |
+            ${{ runner.temp }}/rgs-installed-verification/verification.json
+            ${{ runner.temp }}/rgs-installed-verification/engine-stderr.txt

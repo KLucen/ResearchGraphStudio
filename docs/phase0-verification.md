@@ -25,7 +25,7 @@
 | 故障与生命周期 | 重复启动只有一个实例；引擎异常终止后 UI 报错并可重连；强制终止宿主后子引擎在 15 秒等待窗口内退出；正常关闭后无残留进程 |
 | 本机卸载/重装 | 静默卸载退出 0，程序移除、数据库保留；最终安装包重装退出 0，原项目仍可读回 |
 | 干净 Windows G0 | 未执行，仍为发布关卡 |
-| GitHub Actions | 工作流已编写，未推送/远端运行 |
+| GitHub Actions | main 首次推送 d1a39fa 已触发运行；远端依赖、业务测试、契约和打包引擎已通过，安装构建进行中，最终结果见后续验收记录 |
 
 本机 Windows 11 已有开发环境及 WebView2。移除子进程 PATH 中的 Python/Node/Conda 能验证随包解释器，但不能证明一台没有系统运行库的电脑也可安装。不得据此关闭 G0。
 
@@ -69,7 +69,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify-windows-install
 
 OutputRoot 必须是新目录，报告保存为 verification.json。脚本检查安装、鉴权、中文/空格路径、项目幂等/持久化、诊断、EOF 退出；`-VerifyDesktop` 再检查原生宿主启动 Sidecar、单实例、正常/异常退出和卸载后数据保留。脚本不自动认证整套 G0：UI 人工操作、独立机器无开发环境及缺 WebView2 安装仍需记录。CI 的第二个 windows-2022 runner 与构建工作区隔离，但系统预装工具，不能等同干净 Windows。
 
-本机已有安装，因此本轮只使用 `-EnginePath` 模式做 PowerShell 5.1 验证（实际通过），不覆盖已安装应用。完整安装模式交由新 CI runner 执行。本机 Windows 11 Home / CoreCountrySpecific 25H2，没有 WindowsSandbox.exe，也未发现现成 VM 控制工具；本轮未安装或启用虚拟化组件。
+本机已有安装，因此本轮只使用 `-EnginePath` 模式做 PowerShell 5.1 验证（[实际通过记录](environment/2026-10-28-phase0-powershell.json)），不覆盖已安装应用。另以已有安装做拒绝测试，确认脚本在启动安装器前停止并记录失败。完整安装模式交由新 CI runner 执行。本机 Windows 11 Home / CoreCountrySpecific 25H2，没有 WindowsSandbox.exe，也未发现现成 VM 控制工具；本轮未安装或启用虚拟化组件。
 
 在独立 Windows 10/11 x64 虚拟机或测试机（没有 Python/Node/Conda/Rust）记录系统版本、安装器 SHA-256 和 WebView2 初始状态：
 
