@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { api, type Project } from "./api";
+import { Papers } from "./Papers";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -110,7 +111,7 @@ export default function App() {
           </span>
         </div>
         <div className="version">
-          PHASE 0 <span>0.0.1</span>
+          PHASE 1 <span>0.0.1</span>
         </div>
       </aside>
       <main>
@@ -169,7 +170,11 @@ export default function App() {
                   <dd className="mono">{selected.id}</dd>
                 </dl>
               </div>
-              <p className="quiet-note">论文导入和证据审核将在后续阶段开放。</p>
+              <Papers
+                key={selected.id}
+                projectId={selected.id}
+                connected={connected}
+              />
             </section>
           ) : (
             <>
@@ -512,52 +517,56 @@ function Settings({
         )}
         <div className="job-list">
           {jobs.data?.length ? (
-            jobs.data.map((job) => (
-              <div className="job" key={job.id}>
-                <div className="job-symbol">
-                  {job.status === "succeeded" ? (
-                    <Check size={18} />
-                  ) : (
-                    <CircleDot size={18} />
-                  )}
+            jobs.data
+              .filter((job) => job.kind === "diagnostics")
+              .map((job) => (
+                <div className="job" key={job.id}>
+                  <div className="job-symbol">
+                    {job.status === "succeeded" ? (
+                      <Check size={18} />
+                    ) : (
+                      <CircleDot size={18} />
+                    )}
+                  </div>
+                  <div>
+                    <strong>存储诊断 · {names[job.status]}</strong>
+                    <small>
+                      {date(job.created_at)} · 第 {job.attempt} 次执行
+                    </small>
+                    {job.error && <p className="error-text">{job.error}</p>}
+                  </div>
+                  {["queued", "running"].includes(job.status) ? (
+                    <button
+                      className="text-button"
+                      disabled={action.isPending}
+                      onClick={() =>
+                        action.mutate({ id: job.id, kind: "cancel" })
+                      }
+                    >
+                      取消
+                    </button>
+                  ) : ["failed", "interrupted", "cancelled"].includes(
+                      job.status,
+                    ) && job.attempt < 3 ? (
+                    <button
+                      className="text-button"
+                      disabled={action.isPending}
+                      onClick={() =>
+                        action.mutate({ id: job.id, kind: "retry" })
+                      }
+                    >
+                      重试
+                    </button>
+                  ) : null}
                 </div>
-                <div>
-                  <strong>存储诊断 · {names[job.status]}</strong>
-                  <small>
-                    {date(job.created_at)} · 第 {job.attempt} 次执行
-                  </small>
-                  {job.error && <p className="error-text">{job.error}</p>}
-                </div>
-                {["queued", "running"].includes(job.status) ? (
-                  <button
-                    className="text-button"
-                    disabled={action.isPending}
-                    onClick={() =>
-                      action.mutate({ id: job.id, kind: "cancel" })
-                    }
-                  >
-                    取消
-                  </button>
-                ) : ["failed", "interrupted", "cancelled"].includes(
-                    job.status,
-                  ) && job.attempt < 3 ? (
-                  <button
-                    className="text-button"
-                    disabled={action.isPending}
-                    onClick={() => action.mutate({ id: job.id, kind: "retry" })}
-                  >
-                    重试
-                  </button>
-                ) : null}
-              </div>
-            ))
+              ))
           ) : (
             <p className="muted">尚未运行诊断。</p>
           )}
         </div>
       </section>
       <p className="quiet-note">
-        当前版本仅提供本地项目管理。模型、文献和知识图谱功能将在后续阶段开放。
+        当前支持本地项目与 PDF 原文导入。模型和知识图谱功能将在后续阶段开放。
       </p>
     </>
   );

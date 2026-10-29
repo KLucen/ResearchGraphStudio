@@ -1,6 +1,6 @@
 # ResearchGraph Studio 开发计划 v0.4
 
-日期：2026-10-27（Asia/Shanghai）。文档状态：整合设计基线；2026-10-28 更新 Phase 0 实施说明，实际进度见[验证记录](phase0-verification.md)。这里的 **v0.4 是计划版本**，产品交付版本仍为 v0.1 和 v1.0。
+日期：2026-10-27（Asia/Shanghai）。设计基线保留；2026-10-29 更新实施状态：G0 已按用户决定放行，正在开发 Phase 1，实际进度见 [Phase 1 记录](phase1-verification.md)。这里的 **v0.4 是计划版本**，产品交付版本仍为 v0.1 和 v1.0。
 
 本计划结合 QA.md、BG.md、《ResearchGraph Studio：Zotero、Obsidian 与软件的职责划分》《AI在流程中的工作》和桌面 development_plan.md，并保留当前项目协作约定。它可独立用于评审开发范围、任务依赖和验收条件。来源位置、行号和哈希见[来源登记](design/source-register.md)，需求编号见[需求基线](design/requirements-baseline.md)。
 
@@ -109,7 +109,7 @@ packages/contracts/                      OpenAPI 与生成的 TypeScript 类型
 tests/fixtures/                          自造或可分发小样本
 experiments/datasets/ baselines/ evaluation/
 docs/design/ decisions/ environment/      当前设计、裁定与环境证据
-scripts/ .github/workflows/               构建、检查、CI（Phase 0 已建立，远端 CI 待跑）
+  scripts/ .github/workflows/               构建、检查、CI（Phase 0 远端构建与安装已通过）
 ```
 
 这些是规划路径，不一次性生成所有目录和空模块。运行数据库、PDF/模型缓存、个人笔记和原始模型响应不进入源码提交；开发数据使用被忽略的 .local/，安装版使用应用用户数据目录。SQLite 数据不放入 Obsidian Vault。
@@ -260,7 +260,7 @@ Phase 4 内部顺序：Zotero/笔记的受限来源适配 → Wiki 模板与一�
 
 ## 10. 首批实施任务与依赖
 
-下表是新的本地任务基线，全部待办；没有创建 GitHub Issues。编号与附件相近但内容以本表为准。
+下表为任务范围基线；RG-001–005 已完成实现及本机/CI 验证，G0 按用户决定放行；RG-006 开发中、RG-007 尚待完整证据锚定。没有创建 GitHub Issues。编号与附件相近但内容以本表为准。
 
 | ID | 任务 | 依赖 | 完成证据 |
 | --- | --- | --- | --- |
@@ -282,7 +282,7 @@ Phase 4 内部顺序：Zotero/笔记的受限来源适配 → Wiki 模板与一�
 
 旧任务映射：T101→RG-001；T102→RG-002/003；T103→RG-004/006 的数据部分；T104→RG-006；T105→RG-007；T106 拆成 RG-005 的 G0 和 RG-007 的 M1。
 
-下一轮具体实施范围建议只选 RG-001–RG-005：可安装桌面 → Sidecar → 项目存储 → 退出/重启。不要同时搭建未接通的 AI、图谱或 Wiki 页面。第一步先确认构建工具，随后加入最小业务依赖和锁文件；无需等待模型、论文或 Vault 才能开始骨架。
+当前实施 RG-006–007：先完成可安装 PDF 导入、来源/附件版本、页码原文块查看，再补充跨页 Evidence、归一化映射及人工校正。具体边界与 G0 放行依据见 [ADR 0004](decisions/0004-g0-waiver-phase1.md)。不同时搭建未接通的 AI、图谱或 Wiki 页面。
 
 ## 11. 研究评测与发布验证
 
@@ -316,7 +316,7 @@ CI 使用自造 PDF、Fake Zotero、mock Provider、临时 Vault；真实模型�
 | 依赖/风险 | 何时必须解决 | 可继续的独立工作 |
 | --- | --- | --- |
 | Rust/MSVC/SDK 与中文路径构建 | Phase 0 构建前 | 契约与 fixture 设计 |
-| 干净 Windows 验证环境 | G0/M1 前 | 开发机构建只能记开发验证，保留关卡待验 |
+| 干净 Windows 验证环境 | 按用户决定放行 G0，正式发布前补测 | 继续 Phase 1，不把放行写成机器实测 |
 | 5 篇有使用权的相关论文 | Phase 1–2 | 自造 PDF 验证定位边界 |
 | 模型供应商、能力、预算/数据发送配置 | Phase 2 真实调用前 | mock 接口、审核与错误流程 |
 | Zotero 本机 API 权限/选定 Collection | Phase 4 | Fake adapter 和 PDF 来源 |
@@ -324,4 +324,4 @@ CI 使用自造 PDF、Fake Zotero、mock Provider、临时 Vault；真实模型�
 | 标注者、用户任务参与者 | Phase 2 开始安排；Phase 6 正式研究前 | 先导协议/评估代码；不能伪造人工结果 |
 | 多个新模块造成排期增长 | 每阶段复盘 | 优先保证 v0.1，再按 Phase 4–6 逐个纵向交付 |
 
-2026-10-27 计划轮交付文档；用户随后授权实施 Phase 0。当前代码已包含 Tauri/React、打包 Sidecar、Project/Job、迁移和契约。最小引擎按 app/models/schemas/storage 组织，目录随功能增长拆分。实现入口见 README，RG-001–RG-005 的实测进度与剩余 G0 关卡见[Phase 0 记录](phase0-verification.md)。不以开发机成功代替独立 Windows 验收；后续排期在 G0 完成后重估。
+2026-10-27 交付设计，随后实施 Phase 0。2026-10-29 用户决定 G0 默认通过并进入 Phase 1；实现新增 ingest 模块和来源/附件迁移。历史实测见[Phase 0 记录](phase0-verification.md)，新范围及剩余工作见[Phase 1 记录](phase1-verification.md)。阶段排期按实际进度重估，流程放行不替代未执行的环境实测。

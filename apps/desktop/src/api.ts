@@ -5,6 +5,9 @@ export type Project = components["schemas"]["ProjectView"];
 export type Job = components["schemas"]["JobView"];
 export type Health = components["schemas"]["Health"];
 export type ProjectList = components["schemas"]["ProjectList"];
+export type PaperList = components["schemas"]["PaperList"];
+export type PaperDetail = components["schemas"]["PaperDetail"];
+export type ChunkList = components["schemas"]["ChunkList"];
 
 export interface HostStatus {
   running: boolean;
@@ -34,6 +37,24 @@ export async function request<T>(
   }
 }
 export const api = {
+  importPdf: (projectId: string, mode: "reference" | "managed") =>
+    invoke<Job | null>("import_pdf_file", {
+      projectId,
+      mode,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  papers: (projectId: string, cursor = 0) =>
+    request<PaperList>(
+      "GET",
+      `/api/v1/projects/${projectId}/papers?cursor=${cursor}&limit=50`,
+    ),
+  paper: (paperId: string) =>
+    request<PaperDetail>("GET", `/api/v1/papers/${paperId}`),
+  chunks: (revisionId: string, cursor = 0) =>
+    request<ChunkList>(
+      "GET",
+      `/api/v1/revisions/${revisionId}/chunks?cursor=${cursor}&limit=50`,
+    ),
   host: () => invoke<HostStatus>("host_status"),
   restart: () => invoke<HostStatus>("restart_engine"),
   health: () => request<Health>("GET", "/api/v1/health"),

@@ -8,7 +8,7 @@
 - v1.0：Zotero 默认只读入口、授权笔记回流、受控 Wiki 与 Ingest/Query/Lint、增量演化、批量实验和正式发布。
 - Tauri 2 + React/TypeScript、Conda Python/FastAPI Sidecar、SQLite/FTS5、React Flow；不改用 uv。
 - Phase 0–6 逐阶段纵向交付；v0.1 约 5–8 周，完整 v1.0 约 12–19 周，均为范围估算。
-- 当前 RG-001–RG-004 已实现并验证；RG-005 的远端构建和独立 runner 安装生命周期验证于 2026-10-29 通过，G0 尚待无开发环境的 Windows 10/11 实机/虚拟机。实际状态以 [Phase 0 记录](phase0-verification.md)为准。
+- 当前进入 RG-006/007：G0 已按用户决定放行（[ADR 0004](decisions/0004-g0-waiver-phase1.md)），未执行的实机项目保留至发布检查；首轮实现 PDF 导入、附件版本和原文块查看，后续完善证据锚定。实际状态见 [Phase 1 记录](phase1-verification.md)。
 - 开发结束后自动提交并推送 `main`（用户 2026-10-28 授权），跟进 CI 失败；禁止强推覆盖。RG-005 增加独立 runner 的已安装产物验收与可携带 PowerShell 脚本，完整 G0 仍单独记录。
 
 ## 配套记录

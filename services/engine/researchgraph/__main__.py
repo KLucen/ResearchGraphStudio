@@ -12,8 +12,19 @@ from researchgraph.app import create_app
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", type=Path, required=True)
+    parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--parse-pdf", type=Path)
+    parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
+    if args.parse_pdf:
+        if not args.output_dir or args.data_dir:
+            parser.error("PDF worker requires only --parse-pdf and --output-dir")
+        from researchgraph.ingest import parse_pdf
+
+        parse_pdf(str(args.parse_pdf), str(args.output_dir))
+        return
+    if not args.data_dir or args.output_dir:
+        parser.error("Engine requires --data-dir")
     # Token is passed on a private pipe, never on the command line or in a URL.
     configuration = json.loads(sys.stdin.readline())
     token = configuration["token"]

@@ -633,6 +633,99 @@ main {
 .spin {
   animation: spin 1s linear infinite;
 }
+.paper-workbench {
+  margin-top: 32px;
+}
+.import-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.paper-workbench select {
+  max-width: 100%;
+  padding: 8px;
+  margin: 8px 0;
+  border: 1px solid #d8dfd5;
+  border-radius: 6px;
+  background: white;
+  color: #34452f;
+}
+.paper-columns {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr);
+  gap: 24px;
+  margin-top: 24px;
+  align-items: start;
+}
+.paper-item {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 8px;
+  text-align: left;
+  border: 1px solid #dde3d8;
+  border-radius: 8px;
+  background: white;
+  color: #34452f;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.paper-item.selected {
+  border-color: #536d46;
+  background: #eff4ea;
+}
+.paper-reading {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #dde3d8;
+  border-radius: 12px;
+  background: white;
+}
+.paper-reading h3 {
+  margin-top: 0;
+}
+.small {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.quality-note {
+  padding: 9px 12px;
+  background: #fbf5e8;
+  color: #745719;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.source-path {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.text-chunk {
+  margin: 18px 0;
+  border-top: 1px solid #e6e9e2;
+  padding-top: 14px;
+}
+.text-chunk header {
+  font-size: 12px;
+  color: #687660;
+}
+.text-chunk pre {
+  font-family: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.paper-workbench summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #687660;
+}
+@media (max-width: 1050px) {
+  .paper-columns {
+    grid-template-columns: 1fr;
+  }
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);

@@ -90,6 +90,24 @@ def run(executable: Path) -> dict[str, object]:
                     break
                 time.sleep(0.1)
             assert job["status"] == "succeeded", job
+            fixture = Path(__file__).resolve().parents[1] / "tests/fixtures/pdf/two-pages.pdf"
+            pdf = request(
+                port,
+                f"/projects/{project['id']}/papers/import/pdf",
+                "POST",
+                {"path": str(fixture), "mode": "managed"},
+            )
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                pdf = request(port, "/jobs/" + pdf["id"])
+                if pdf["status"] not in {"queued", "running"}:
+                    break
+                time.sleep(0.1)
+            assert pdf["status"] == "succeeded", pdf
+            revision_id = pdf["result"]["revision_id"]
+            chunks = request(port, f"/revisions/{revision_id}/chunks")["items"]
+            assert {chunk["page_index"] for chunk in chunks} == {0, 1}
+            assert any("72%" in chunk["text"] for chunk in chunks)
         finally:
             process.stdin.close()
             try:
@@ -101,6 +119,7 @@ def run(executable: Path) -> dict[str, object]:
         process, port = start()
         try:
             assert request(port, "/projects")["items"] == [project]
+            assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
         finally:
             process.stdin.close()
             try:
@@ -114,6 +133,7 @@ def run(executable: Path) -> dict[str, object]:
         "authentication": "passed",
         "idempotency": "passed",
         "diagnostic_job": "passed",
+        "pdf_import_and_restart": "passed",
         "restart_persistence": "passed",
         "stdin_eof_exit": "passed",
         "unicode_space_path": "passed",

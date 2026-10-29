@@ -19,14 +19,33 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
-from researchgraph.models import Event, Idempotency, Job, Project, now
+from researchgraph.ingest import import_pdf
+from researchgraph.models import (
+    AttachmentRevision,
+    Chunk,
+    Event,
+    Idempotency,
+    Job,
+    Paper,
+    PaperSource,
+    Project,
+    now,
+)
 from researchgraph.schemas import (
+    ChunkList,
+    ChunkView,
     Health,
     JobCreate,
     JobView,
+    PaperDetail,
+    PaperList,
+    PaperView,
+    PdfImport,
     ProjectCreate,
     ProjectList,
     ProjectView,
+    RevisionView,
+    SourceView,
 )
 from researchgraph.storage import SCHEMA_HEAD, diagnostics, make_engine, migrate
 
@@ -57,13 +76,15 @@ def remember(session: Session, key: str, body: dict[str, Any], response: dict[st
     )
 
 
-async def worker(engine: Engine) -> None:
+async def worker(engine: Engine, data_dir: Path) -> None:
     while True:
         job_id: str | None = None
+        kind = "diagnostics"
         with Session(engine) as session, session.begin():
             job = session.scalar(select(Job).where(Job.status == "queued").order_by(Job.created_at))
             if job:
                 job_id = job.id
+                kind = job.kind
                 job.status, job.updated_at = "running", now()
                 job.attempt += 1
         if job_id is None:
@@ -72,9 +93,16 @@ async def worker(engine: Engine) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "pdf_import":
+                await import_pdf(engine, job_id, data_dir)
+                continue
             result = await asyncio.to_thread(diagnostics, engine)
-        except Exception:
-            error = "存储诊断失败，请检查数据库权限或恢复备份"
+        except Exception as exc:
+            error = (
+                str(exc)
+                if kind == "pdf_import" and isinstance(exc, ValueError)
+                else "任务失败，请检查文件或数据库权限"
+            )
         with Session(engine) as session, session.begin():
             current = session.get(Job, job_id)
             if current and current.status == "running":
@@ -112,7 +140,7 @@ def create_app(
                         )
                     )
                 if start_worker:
-                    task = asyncio.create_task(worker(engine))
+                    task = asyncio.create_task(worker(engine, data_dir))
                 if ready:
                     ready()
                 yield
@@ -285,5 +313,97 @@ def create_app(
             response = JobView.model_validate(job)
             remember(session, key, payload, response.model_dump())
             return response
+
+    @app.post(
+        "/api/v1/projects/{project_id}/papers/import/pdf", response_model=JobView, status_code=202
+    )
+    def queue_pdf(project_id: str, body: PdfImport, idempotency_key: Key) -> JobView:
+        path = Path(body.path)
+        if not path.is_absolute() or path.suffix.lower() != ".pdf":
+            raise failure(422, "INVALID_PDF_PATH", "请选择绝对路径的 PDF 文件")
+        payload = {"path": str(path.resolve()), "mode": body.mode, "project_id": project_id}
+        key = f"pdf-import:{idempotency_key}"
+        with Session(engine()) as session, session.begin():
+            if not session.get(Project, project_id):
+                raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            previous = remembered(session, key, payload)
+            if previous:
+                return JobView.model_validate(previous)
+            job = Job(
+                id=str(uuid4()),
+                kind="pdf_import",
+                project_id=project_id,
+                payload=payload,
+                status="queued",
+                attempt=0,
+                created_at=now(),
+                updated_at=now(),
+            )
+            session.add(job)
+            response = JobView.model_validate(job)
+            remember(session, key, payload, response.model_dump())
+            return response
+
+    @app.get("/api/v1/projects/{project_id}/papers", response_model=PaperList)
+    def papers(
+        project_id: str, cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)
+    ) -> PaperList:
+        with Session(engine()) as session:
+            if not session.get(Project, project_id):
+                raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            rows = session.scalars(
+                select(Paper)
+                .where(Paper.project_id == project_id)
+                .order_by(Paper.created_at.desc(), Paper.id)
+                .offset(cursor)
+                .limit(limit + 1)
+            ).all()
+            return PaperList(
+                items=[PaperView.model_validate(p) for p in rows[:limit]],
+                next_cursor=cursor + limit if len(rows) > limit else None,
+            )
+
+    @app.get("/api/v1/papers/{paper_id}", response_model=PaperDetail)
+    def paper_detail(paper_id: str) -> PaperDetail:
+        with Session(engine()) as session:
+            paper = session.get(Paper, paper_id)
+            if not paper:
+                raise failure(404, "PAPER_NOT_FOUND", "文献不存在")
+            return PaperDetail(
+                paper=PaperView.model_validate(paper),
+                revisions=[
+                    RevisionView.model_validate(r)
+                    for r in session.scalars(
+                        select(AttachmentRevision)
+                        .where(AttachmentRevision.paper_id == paper_id)
+                        .order_by(AttachmentRevision.created_at.desc(), AttachmentRevision.id)
+                    )
+                ],
+                sources=[
+                    SourceView.model_validate(s)
+                    for s in session.scalars(
+                        select(PaperSource).where(PaperSource.paper_id == paper_id)
+                    )
+                ],
+            )
+
+    @app.get("/api/v1/revisions/{revision_id}/chunks", response_model=ChunkList)
+    def chunks(
+        revision_id: str, cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)
+    ) -> ChunkList:
+        with Session(engine()) as session:
+            if not session.get(AttachmentRevision, revision_id):
+                raise failure(404, "REVISION_NOT_FOUND", "附件修订不存在")
+            rows = session.scalars(
+                select(Chunk)
+                .where(Chunk.revision_id == revision_id)
+                .order_by(Chunk.page_index, Chunk.block_index)
+                .offset(cursor)
+                .limit(limit + 1)
+            ).all()
+            return ChunkList(
+                items=[ChunkView.model_validate(c) for c in rows[:limit]],
+                next_cursor=cursor + limit if len(rows) > limit else None,
+            )
 
     return app

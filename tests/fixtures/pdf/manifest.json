@@ -1,0 +1,30 @@
+[
+  {
+    "file": "broken.pdf",
+    "sha256": "27791E883DA34365BF2B5F07A8B48636861A75F5D6A1FD41F52775A1DF1F49E3",
+    "bytes": 24,
+    "source": "synthetic",
+    "license": "CC0-1.0"
+  },
+  {
+    "file": "encrypted.pdf",
+    "sha256": "8FBCF98BBE5FE486E2689BB02D58B2D8FAD9172012A79BB0829FCA98F8A89CC4",
+    "bytes": 2273,
+    "source": "synthetic",
+    "license": "CC0-1.0"
+  },
+  {
+    "file": "image-only.pdf",
+    "sha256": "8C577C1DA8EEA58156D0C35F769F43D4E6ECAEAD7374AC52E5ABDEA6773CF5AA",
+    "bytes": 603506,
+    "source": "synthetic",
+    "license": "CC0-1.0"
+  },
+  {
+    "file": "two-pages.pdf",
+    "sha256": "AAD44214519A16988186CB2040AF0D0E0D79A5053A8D1A210070E2BD38E1980F",
+    "bytes": 1597,
+    "source": "synthetic",
+    "license": "CC0-1.0"
+  }
+]

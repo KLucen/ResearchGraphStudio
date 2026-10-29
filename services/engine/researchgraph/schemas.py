@@ -39,6 +39,7 @@ class JobView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     kind: str
+    project_id: str | None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]
     attempt: int
     error: str | None
@@ -54,3 +55,62 @@ class Health(BaseModel):
     schema_version: str
     database: Literal["ready"] = "ready"
     fts5: bool
+
+
+class PdfImport(InputModel):
+    path: str = Field(min_length=1, max_length=4096)
+    mode: Literal["reference", "managed"] = "reference"
+
+
+class PaperView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    title: str
+    created_at: str
+
+
+class PaperList(BaseModel):
+    items: list[PaperView]
+    next_cursor: int | None
+
+
+class RevisionView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    paper_id: str
+    sha256: str
+    parser_version: str
+    page_count: int
+    warnings: list[str]
+    created_at: str
+
+
+class SourceView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    revision_id: str
+    path: str
+    mode: Literal["reference", "managed"]
+
+
+class PaperDetail(BaseModel):
+    paper: PaperView
+    revisions: list[RevisionView]
+    sources: list[SourceView]
+
+
+class ChunkView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    revision_id: str
+    page_index: int
+    page_label: str
+    block_index: int
+    text: str
+    bbox: list[float]
+
+
+class ChunkList(BaseModel):
+    items: list[ChunkView]
+    next_cursor: int | None

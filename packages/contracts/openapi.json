@@ -293,10 +293,307 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{project_id}/papers/import/pdf": {
+      "post": {
+        "summary": "Queue Pdf",
+        "operationId": "queue_pdf_api_v1_projects__project_id__papers_import_pdf_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PdfImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/papers": {
+      "get": {
+        "summary": "Papers",
+        "operationId": "papers_api_v1_projects__project_id__papers_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}": {
+      "get": {
+        "summary": "Paper Detail",
+        "operationId": "paper_detail_api_v1_papers__paper_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revisions/{revision_id}/chunks": {
+      "get": {
+        "summary": "Chunks",
+        "operationId": "chunks_api_v1_revisions__revision_id__chunks_get",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ChunkList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChunkView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ChunkList"
+      },
+      "ChunkView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "page_index": {
+            "type": "integer",
+            "title": "Page Index"
+          },
+          "page_label": {
+            "type": "string",
+            "title": "Page Label"
+          },
+          "block_index": {
+            "type": "integer",
+            "title": "Block Index"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "page_index",
+          "page_label",
+          "block_index",
+          "text",
+          "bbox"
+        ],
+        "title": "ChunkView"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -373,6 +670,17 @@
             "type": "string",
             "title": "Kind"
           },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -434,6 +742,7 @@
         "required": [
           "id",
           "kind",
+          "project_id",
           "status",
           "attempt",
           "error",
@@ -442,6 +751,115 @@
           "updated_at"
         ],
         "title": "JobView"
+      },
+      "PaperDetail": {
+        "properties": {
+          "paper": {
+            "$ref": "#/components/schemas/PaperView"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/RevisionView"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceView"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paper",
+          "revisions",
+          "sources"
+        ],
+        "title": "PaperDetail"
+      },
+      "PaperList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaperView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "PaperList"
+      },
+      "PaperView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "title",
+          "created_at"
+        ],
+        "title": "PaperView"
+      },
+      "PdfImport": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "managed"
+            ],
+            "title": "Mode",
+            "default": "reference"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "PdfImport"
       },
       "ProjectCreate": {
         "properties": {
@@ -524,6 +942,84 @@
           "created_at"
         ],
         "title": "ProjectView"
+      },
+      "RevisionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "parser_version": {
+            "type": "string",
+            "title": "Parser Version"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "sha256",
+          "parser_version",
+          "page_count",
+          "warnings",
+          "created_at"
+        ],
+        "title": "RevisionView"
+      },
+      "SourceView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "managed"
+            ],
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "path",
+          "mode"
+        ],
+        "title": "SourceView"
       },
       "ValidationError": {
         "properties": {

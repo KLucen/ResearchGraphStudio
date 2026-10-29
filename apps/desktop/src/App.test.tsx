@@ -13,6 +13,7 @@ vi.mock("./api", () => ({
     createProject: vi.fn(),
     jobs: vi.fn(),
     restart: vi.fn(),
+    papers: vi.fn(),
   },
 }));
 beforeEach(() => {
@@ -31,6 +32,8 @@ beforeEach(() => {
     fts5: true,
   });
   vi.mocked(api.projects).mockResolvedValue({ items: [], next_cursor: null });
+  vi.mocked(api.papers).mockResolvedValue({ items: [], next_cursor: null });
+  vi.mocked(api.jobs).mockResolvedValue([]);
 });
 function mount() {
   return render(

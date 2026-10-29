@@ -145,7 +145,7 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0001" {
+        if health["protocol_version"] != 1 || health["schema_version"] != "0002" {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
@@ -154,6 +154,31 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    if method == "GET" {
+        let (route, query) = path.split_once('?').unwrap_or((path, ""));
+        let parts: Vec<_> = route.split('/').collect();
+        let paginated = (parts.len() == 6 && parts[1] == "api" && parts[2] == "v1")
+            && ((parts[3] == "projects" && parts[5] == "papers")
+                || (parts[3] == "revisions" && parts[5] == "chunks"))
+            && uuid::Uuid::parse_str(parts[4]).is_ok();
+        let detail = parts.len() == 5
+            && parts[1..4] == ["api", "v1", "papers"]
+            && uuid::Uuid::parse_str(parts[4]).is_ok()
+            && query.is_empty();
+        if detail
+            || (paginated
+                && (query.is_empty()
+                    || query.split('&').all(|part| {
+                        part.split_once('=').is_some_and(|(k, v)| {
+                            matches!(k, "cursor" | "limit")
+                                && !v.is_empty()
+                                && v.chars().all(|c| c.is_ascii_digit())
+                        })
+                    })))
+        {
+            return true;
+        }
+    }
     if method == "GET" {
         if matches!(path, "/api/v1/health" | "/api/v1/projects" | "/api/v1/jobs") {
             return true;
@@ -180,6 +205,55 @@ fn allowed(method: &str, path: &str) -> bool {
             || (method == "POST" && parts.len() == 2 && matches!(parts[1], "cancel" | "retry"));
     }
     false
+}
+
+#[tauri::command]
+async fn import_pdf_file(
+    state: State<'_, Shared>,
+    project_id: String,
+    mode: String,
+    idempotency_key: String,
+) -> Result<Option<Value>, String> {
+    uuid::Uuid::parse_str(&project_id).map_err(|_| "无效项目")?;
+    if !matches!(mode.as_str(), "reference" | "managed") {
+        return Err("无效导入模式".into());
+    }
+    // Paths come only from this native picker, never from web content or arbitrary IPC.
+    let chosen = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("PDF", &["pdf"])
+            .pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(path) = chosen else { return Ok(None) };
+    let (port, token) = {
+        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+        (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
+    };
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?
+        .post(format!(
+            "http://127.0.0.1:{port}/api/v1/projects/{project_id}/papers/import/pdf"
+        ))
+        .bearer_auth(token)
+        .header("Idempotency-Key", idempotency_key)
+        .json(&json!({"path":path.to_string_lossy(), "mode":mode}))
+        .send()
+        .await
+        .map_err(|_| "提交导入任务失败，请检查引擎连接")?;
+    let success = response.status().is_success();
+    let value: Value = response.json().await.map_err(|_| "引擎返回无效响应")?;
+    if !success {
+        return Err(value["error"]["message"]
+            .as_str()
+            .unwrap_or("导入失败")
+            .into());
+    }
+    Ok(Some(value))
 }
 
 #[tauri::command]
@@ -295,6 +369,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             host_status,
             restart_engine,
+            import_pdf_file,
             engine_request
         ])
         .build(tauri::generate_context!())
@@ -315,6 +390,24 @@ mod tests {
     fn rejects_unscoped_routes_and_traversal() {
         assert!(allowed("GET", "/api/v1/projects?cursor=0&limit=50"));
         assert!(allowed("POST", "/api/v1/projects"));
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/papers?cursor=0&limit=50")
+        ));
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/revisions/{id}/chunks?limit=10")
+        ));
+        assert!(!allowed(
+            "POST",
+            &format!("/api/v1/projects/{id}/papers/import/pdf")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/revisions/{id}/chunks?path=C:/private")
+        ));
+        assert!(!allowed("GET", "/api/v1/papers/../../private"));
         for path in [
             "http://evil.test",
             "/api/v1/../admin",

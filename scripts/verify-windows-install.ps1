@@ -5,6 +5,7 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Engine')][string]$EnginePath,
     [Parameter(ParameterSetName = 'Installer')][string]$ExpectedSha256,
     [Parameter(ParameterSetName = 'Installer')][switch]$VerifyDesktop,
+    [string]$PdfFixture,
     [string]$OutputRoot = (Join-Path $env:TEMP ('rgs-acceptance-' + [guid]::NewGuid().ToString('N')))
 )
 $ErrorActionPreference = 'Stop'
@@ -175,7 +176,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0001') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0002') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
@@ -193,11 +194,32 @@ try {
     } while ([DateTime]::UtcNow -lt $deadline)
     Assert-Probe ($job.status -eq 'succeeded') 'Storage diagnostic failed.'
     $report.checks['diagnostics'] = 'passed'
+    if ($PdfFixture) {
+        $fixturePath = (Resolve-Path -LiteralPath $PdfFixture).Path
+        $pdfJob = Invoke-ProbeApi ('/projects/' + $project.id + '/papers/import/pdf') 'POST' @{path = $fixturePath; mode = 'managed'}
+        $deadline = [DateTime]::UtcNow.AddSeconds(40)
+        do {
+            $pdfJob = Invoke-ProbeApi ('/jobs/' + $pdfJob.id)
+            if ($pdfJob.status -notin @('queued', 'running')) { break }
+            Start-Sleep -Milliseconds 100
+        } while ([DateTime]::UtcNow -lt $deadline)
+        Assert-Probe ($pdfJob.status -eq 'succeeded') ('PDF import failed: ' + $pdfJob.error)
+        $revisionId = $pdfJob.result.revision_id
+        $pdfChunks = Invoke-ProbeApi ('/revisions/' + $revisionId + '/chunks')
+        Assert-Probe (@($pdfChunks.items | Where-Object { $_.text.Contains('72%') }).Count -gt 0) 'PDF text was not preserved.'
+        Assert-Probe (@($pdfChunks.items | Select-Object -ExpandProperty page_index -Unique).Count -eq 2) 'PDF page anchors mismatch.'
+        $report.checks['pdf_import'] = 'passed'
+    }
     Stop-ProbeEngine
     Start-ProbeEngine
     $saved = Invoke-ProbeApi '/projects'
     Assert-Probe ($saved.items.Count -eq 1 -and $saved.items[0].id -eq $project.id) 'Project was not persisted exactly once.'
     $report.checks['project_idempotency_restart'] = 'passed'
+    if ($PdfFixture) {
+        $restored = Invoke-ProbeApi ('/revisions/' + $revisionId + '/chunks')
+        Assert-Probe (($restored | ConvertTo-Json -Depth 8 -Compress) -eq ($pdfChunks | ConvertTo-Json -Depth 8 -Compress)) 'PDF chunks changed after restart.'
+        $report.checks['pdf_restart_persistence'] = 'passed'
+    }
     Stop-ProbeEngine
     $report.checks['engine_eof_exit'] = 'passed'
     if ($VerifyDesktop) {

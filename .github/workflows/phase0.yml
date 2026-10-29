@@ -1,4 +1,4 @@
-name: Phase 0 Windows
+name: Windows build and acceptance
 on:
   push:
     branches: [main]
@@ -79,7 +79,7 @@ jobs:
         shell: powershell
         run: |
           $setup = Get-ChildItem installer/*.exe | Select-Object -First 1
-          ./scripts/verify-windows-install.ps1 -Installer $setup.FullName -VerifyDesktop -OutputRoot (Join-Path $env:RUNNER_TEMP 'rgs-installed-verification')
+          ./scripts/verify-windows-install.ps1 -Installer $setup.FullName -VerifyDesktop -PdfFixture tests/fixtures/pdf/two-pages.pdf -OutputRoot (Join-Path $env:RUNNER_TEMP 'rgs-installed-verification')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

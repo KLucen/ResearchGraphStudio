@@ -2,7 +2,7 @@
 
 AI 辅助科研桌面工作台：实验条件约束的证据推理、人工知识审核与增量知识演化。
 
-当前正在交付 **Phase 0 / 0.0.1 安装探针**，已实现本地项目创建/保存、引擎连接和存储诊断；远端 Windows 构建及独立 runner 安装生命周期验证已通过。采用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5。PDF、AI、React Flow 图谱和人工审核按后续阶段开发；干净 Windows 的 G0 验收仍待执行。实际结果见[Phase 0 验证记录](docs/phase0-verification.md)。
+当前进入 **Phase 1 来源与证据开发**，首轮加入 PDF 引用/托管导入、附件修订、页码原文块查看及任务取消/重试。采用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5。G0 于 2026-10-29 按用户决定放行；未补造干净机实测结果。当前范围和剩余工作见 [Phase 1 记录](docs/phase1-verification.md)，历史安装结果见 [Phase 0 记录](docs/phase0-verification.md)。AI、图谱和人工知识审核尚未实现。
 
 开发目录：`C:\Users\KLucen\Desktop\AI科研知识推理平台`。开发远端：[KLucen/ResearchGraphStudio](https://github.com/KLucen/ResearchGraphStudio)，本地 origin 已关联。
 

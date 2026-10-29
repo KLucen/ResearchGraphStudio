@@ -91,10 +91,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/papers/import/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue Pdf */
+        post: operations["queue_pdf_api_v1_projects__project_id__papers_import_pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Papers */
+        get: operations["papers_api_v1_projects__project_id__papers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paper Detail */
+        get: operations["paper_detail_api_v1_papers__paper_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/revisions/{revision_id}/chunks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chunks */
+        get: operations["chunks_api_v1_revisions__revision_id__chunks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ChunkList */
+        ChunkList: {
+            /** Items */
+            items: components["schemas"]["ChunkView"][];
+            /** Next Cursor */
+            next_cursor: number | null;
+        };
+        /** ChunkView */
+        ChunkView: {
+            /** Id */
+            id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Page Index */
+            page_index: number;
+            /** Page Label */
+            page_label: string;
+            /** Block Index */
+            block_index: number;
+            /** Text */
+            text: string;
+            /** Bbox */
+            bbox: number[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -138,6 +230,8 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            /** Project Id */
+            project_id: string | null;
             /**
              * Status
              * @enum {string}
@@ -155,6 +249,43 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** PaperDetail */
+        PaperDetail: {
+            paper: components["schemas"]["PaperView"];
+            /** Revisions */
+            revisions: components["schemas"]["RevisionView"][];
+            /** Sources */
+            sources: components["schemas"]["SourceView"][];
+        };
+        /** PaperList */
+        PaperList: {
+            /** Items */
+            items: components["schemas"]["PaperView"][];
+            /** Next Cursor */
+            next_cursor: number | null;
+        };
+        /** PaperView */
+        PaperView: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: string;
+            /** Title */
+            title: string;
+            /** Created At */
+            created_at: string;
+        };
+        /** PdfImport */
+        PdfImport: {
+            /** Path */
+            path: string;
+            /**
+             * Mode
+             * @default reference
+             * @enum {string}
+             */
+            mode: "reference" | "managed";
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -186,6 +317,37 @@ export interface components {
             id: string;
             /** Created At */
             created_at: string;
+        };
+        /** RevisionView */
+        RevisionView: {
+            /** Id */
+            id: string;
+            /** Paper Id */
+            paper_id: string;
+            /** Sha256 */
+            sha256: string;
+            /** Parser Version */
+            parser_version: string;
+            /** Page Count */
+            page_count: number;
+            /** Warnings */
+            warnings: string[];
+            /** Created At */
+            created_at: string;
+        };
+        /** SourceView */
+        SourceView: {
+            /** Id */
+            id: string;
+            /** Revision Id */
+            revision_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "reference" | "managed";
         };
         /** ValidationError */
         ValidationError: {
@@ -403,6 +565,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_pdf_api_v1_projects__project_id__papers_import_pdf_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PdfImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    papers_api_v1_projects__project_id__papers_get: {
+        parameters: {
+            query?: {
+                cursor?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    paper_detail_api_v1_papers__paper_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chunks_api_v1_revisions__revision_id__chunks_get: {
+        parameters: {
+            query?: {
+                cursor?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkList"];
                 };
             };
             /** @description Validation Error */

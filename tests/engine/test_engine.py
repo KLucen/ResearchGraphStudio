@@ -122,9 +122,9 @@ def test_migration_failure_rolls_back_and_preserves_backup(tmp_path):
     source = Path(__file__).parents[2] / "services/engine/researchgraph/migrations"
     migrations = tmp_path / "migrations"
     shutil.copytree(source, migrations)
-    (migrations / "versions/0002_failure.py").write_text(
+    (migrations / "versions/0003_failure.py").write_text(
         "from alembic import op\nimport sqlalchemy as sa\n"
-        "revision='0002'\ndown_revision='0001'\n"
+        "revision='0003'\ndown_revision='0002'\n"
         "def upgrade():\n    op.create_table('half_written',sa.Column('id',sa.Integer()))\n"
         "    raise RuntimeError('injected migration failure')\n",
         encoding="utf-8",
@@ -134,7 +134,7 @@ def test_migration_failure_rolls_back_and_preserves_backup(tmp_path):
         migrate(engine, data, migrations)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT name FROM projects")) == "Keep me"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
         assert not connection.scalar(
             text("SELECT name FROM sqlite_master WHERE name='half_written'")
         )

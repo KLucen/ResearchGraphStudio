@@ -4,3 +4,4 @@ QA.md -text
 *.png binary
 *.ico binary
 *.icns binary
+*.pdf binary

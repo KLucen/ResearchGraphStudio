@@ -239,6 +239,33 @@
 - 同步 README、环境报告、开发流程入口与 Phase 0 验证记录；文档与机器报告作为收尾提交推送 main。G0 仍未关闭：Windows 10/11 无开发工具、缺失 WebView2 和人工 UI/离线场景需独立机器验收；当前系统无现成 Sandbox/VM，未另行安装虚拟化组件。之后开展 Phase 1 PDF 来源/附件版本与证据锚定，保留 G0 发布门槛。
 - 收尾检查：21 份 Markdown、103 个本地链接、五份原文哈希通过；三份新增 JSON 可解析，PowerShell 语法检查通过，git diff --check 通过。推送前 fetch 确认本地与 origin/main 同步。
 
+## 2026-10-29 19:18 · DEV-0008 · G0 用户放行与 Phase 1 PDF 导入首轮
+
+### 目标
+
+用户明确默认 G0 通过并开始 Phase 1，随后要求继续开发。按 ADR 0004 放行流程，保留未执行的实机测试事实；交付 RG-006 的首个纵向增量，不提前宣称 RG-007/M1 全部完成。
+
+### 实际改动
+
+- 迁移 0002 新增 Paper、PaperSource、AttachmentRevision、Chunk；Job 保存项目/输入。新增 ingest 子进程、来源哈希去重、托管快照、版本追加与事务事件。前端支持原生文件选择、引用/托管、任务取消/重试、修订/原文块查看；IPC 白名单不开放任意路径导入。
+- PyMuPDF 1.26.7 安装在 researchgraph-studio 环境，依赖及哈希锁已更新；Rust rfd 原生选择器及 Cargo.lock 更新。生成四个 CC0 自造 PDF fixture 与哈希清单，原始设计材料未改。
+- 扩展冻结引擎和 PowerShell 验收加入 PDF 导入/重启检查，CI 的安装 runner 也运行该检查；新增 ADR 0004、Phase 1 实施/剩余工作文档，同步 README、计划、接口和基线。
+
+### 已执行验证
+
+- 20 项 Python 测试、7 项 React 测试通过；ruff/mypy/TypeScript/ESLint/契约/生产 Web 构建通过。保留 Starlette httpx 弃用提示。Rust 初次 fmt/clippy/test 通过，新增白名单断言后继续复核。
+- 冻结 multiprocessing 路径曾导致导入任务保持 running；改为明确的内部解析 CLI 子进程后，打包引擎 smoke 通过 PDF 导入、页码/原文、托管及重启持久化，子进程无开发工具 PATH。PowerShell 5.1 同样通过。开发环境的成功没有冒充此失败尝试完成。
+- PDF 自造文本页已渲染检查；原生窗口使用独立应用标识/数据目录验证，避免迁移现有安装数据。界面操作和远端 CI 尚待本条末补记。
+
+### 问题与下一步
+
+完成原生窗口与远端安装检查，按授权提交并推送 main。随后完善 RG-006 的来源检查/缓存回收/进度，再实现 RG-007 Evidence、多 span、原页高亮及人工校正。当前块级文本与坐标不是已审核科学证据；未接入 AI/Zotero/Vault，未扫描用户论文库。
+
+### 2026-10-30 02:24 本机验收补记
+
+- 续接本轮工作；Rust 新增路由断言后的 test 与 clippy 均通过。原生调试窗口使用独立数据目录，成功读回之前的项目/样本，原生文件选择器再次导入同一自造 PDF 后保持一篇文献，两个任务均完成。详情显示两页原文、S-1/S-2 标签、72%/81% 数值、哈希和解析限制。
+- 文档检查通过 23 份 Markdown、111 个本地链接和五份原始材料 SHA-256。补充 Phase 1 实测说明及任务历史显示范围；远端 fetch 确认与 origin/main 同步。接下来提交本轮实现并跟进 Windows 构建/安装 CI。
+
 ## 后续条目模板
 
 ```markdown
