@@ -2,7 +2,7 @@
 
 初次检查时间：2026-10-27 12:43（Asia/Shanghai）；同日根据用户补充更新 Conda、Zotero 和 GitHub 状态。机器可读证据：[最新快照](environment/2026-10-27-conda.json)、[初次快照](environment/2026-10-27.json)。
 
-最新结论（2026-10-29）：**Phase 0 本机/CI 构建与安装已通过；G0 按用户决定放行，正在实施 Phase 1。** Conda 环境新增固定版本 PyMuPDF 1.26.7 并维护哈希锁文件，分发引擎的 PDF 导入已通过本机测试。当前状态见 [Phase 1 记录](phase1-verification.md)，历史见 [Phase 0 记录](phase0-verification.md)和 [CI 摘要](environment/2026-10-29-phase0-ci.json)。干净机测试未补做。下文历史快照不代表当前缺少工具；模型与 Zotero 接入尚未执行。
+最新结论（2026-10-30）：**Phase 1 首轮的本机与 Windows CI 构建/安装/PDF 导入验证已通过；G0 按用户决定放行。** Conda 环境新增固定版本 PyMuPDF 1.26.7 并维护哈希锁文件。当前范围及剩余工作见 [Phase 1 记录](phase1-verification.md)和 [CI 摘要](environment/2026-10-30-phase1-ci.json)，历史见 [Phase 0 记录](phase0-verification.md)。干净机测试未补做。下文历史快照不代表当前缺少工具；模型与 Zotero 接入尚未执行。
 
 ## 2026-10-28 Phase 0 环境增量
 

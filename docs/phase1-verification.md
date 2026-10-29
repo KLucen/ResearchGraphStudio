@@ -20,7 +20,11 @@
 
 本机已通过：20 项 Python 测试（含从 0001 升级与备份、故障回滚、跨页块定位、去重、历史修订、项目隔离、失败不留半成品、取消后重试、运行中取消/退出终止子进程）、7 项 React 测试、1 项 Rust 路由测试及 fmt/clippy；冻结引擎在仅系统 PATH 下完成托管导入和重启文本读回，[Windows PowerShell 5.1 报告](environment/2026-10-29-phase1-powershell.json)亦通过 PDF 导入/重启和 EOF 退出。
 
-2026-10-30 原生窗口复核：使用独立标识 `com.researchgraph.studio.phase1test` 启动调试构建，读回此前保存的验收项目和样本。通过原生文件选择器再次导入 two-pages.pdf 后，两次任务均完成，项目仍只有一篇文献；详情显示一致的 SHA-256、两页原文、S-1/S-2 页标签及 72%/81% 样本数值。此结果来自开发机，不代替干净 Windows 验收。远端完整构建和安装结果待补记。
+2026-10-30 原生窗口复核：使用独立标识 `com.researchgraph.studio.phase1test` 启动调试构建，读回此前保存的验收项目和样本。通过原生文件选择器再次导入 two-pages.pdf 后，两次任务均完成，项目仍只有一篇文献；详情显示一致的 SHA-256、两页原文、S-1/S-2 页标签及 72%/81% 样本数值。此结果来自开发机，不代替干净 Windows 验收。
+
+[CI 40930522934](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40930522934) 已全部通过，对应实现提交 `9b7a306be1e73e0392e81b6a576706d3aa712042`：Windows runner 重建依赖并通过 20 项 Python、7 项 React、1 项 Rust 测试、静态检查、契约和打包引擎验证，生成 NSIS；另一 runner 通过安装、PDF 导入、项目/原文重启读回、鉴权、诊断、宿主启动/单实例/正常退出/崩溃清理及卸载。见 [CI 摘要](environment/2026-10-30-phase1-ci.json)和[原始安装报告](environment/2026-10-30-phase1-installed.json)。
+
+CI 安装器 37,606,027 字节，SHA-256 `DBE45D7678F387D3B28AAC1D762BC86BEF9A2ED5BF64A13760682FE45B87FC89`；已下载并核对官方 artifact ZIP 摘要与安装报告。开发机 `.local/phase1-acceptance-kit.zip` 保存该安装器、样本、脚本和说明，未提交二进制；未覆盖原有本机安装。
 
 解析实现依据 [PyMuPDF 官方文本抽取文档](https://pymupdf.readthedocs.io/en/latest/recipes-text.html)，版本固定为 1.26.7；原文块阅读顺序可能受 PDF 排版影响，不能视为语义阅读顺序已验证。
 

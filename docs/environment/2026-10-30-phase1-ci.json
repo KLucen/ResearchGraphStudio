@@ -1,0 +1,21 @@
+{
+  "recorded_at": "2026-10-30T02:40:00+08:00",
+  "run_id": 40930522934,
+  "url": "https://github.com/KLucen/ResearchGraphStudio/actions/runs/40930522934",
+  "head_sha": "9b7a306be1e73e0392e81b6a576706d3aa712042",
+  "conclusion": "success",
+  "jobs": [
+    { "id": 123647413485, "name": "windows", "conclusion": "success" },
+    { "id": 123654724885, "name": "installed-app", "conclusion": "success" }
+  ],
+  "tests": { "python_passed": 20, "python_warnings": 1, "react_passed": 7, "rust_passed": 1 },
+  "installer_sha256": "DBE45D7678F387D3B28AAC1D762BC86BEF9A2ED5BF64A13760682FE45B87FC89",
+  "installer_bytes": 37606027,
+  "clean_windows_G0": "user_waived_for_Phase1; clean-machine scenarios not tested by this hosted runner",
+  "artifacts": {
+    "installer_id": 12922144978,
+    "verification_id": 12923701162,
+    "installer_zip_sha256": "99A175BA5BE9EECE0B28717AAEC1E8D5919A2883D62923565094ECB729A9EB64",
+    "verification_zip_sha256": "3F69EEFB9B2C15E6542A953EBAEAA16E7191CD14E5166F3EBA1FE7DBD53DA265"
+  }
+}

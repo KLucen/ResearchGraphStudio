@@ -31,7 +31,7 @@ Tauri 启动随安装包分发的 Python 引擎，通过私有 stdin 传入随�
 
 ## 持久化和恢复
 
-Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设置页实际显示路径为准。`researchgraph.sqlite3` 保存 projects、jobs、events、idempotency 和 Alembic 版本；项目创建、PROJECT_CREATED 事件和幂等记录在一个事务中提交。Phase 0 尚无科研主张审核，后续 Review/KnowledgeEvent 不得省略或用运行任务状态替代。
+Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设置页实际显示路径为准。`researchgraph.sqlite3` 保存 projects、jobs、events、idempotency、papers、paper_sources、attachment_revisions、chunks 和 Alembic 版本；项目创建、PROJECT_CREATED 事件和幂等记录在一个事务中提交。PDF 结果、来源、文本块、PDF_IMPORTED 事件和任务成功状态也在一个事务中提交。当前尚无科研主张审核，后续 Review/KnowledgeEvent 不得省略或用运行任务状态替代。
 
 仅引擎写数据库，文件锁防止多个引擎同时打开同一工作区。SQLite 启用外键、5 秒 busy timeout 与显式事务。迁移既有数据库前使用 SQLite backup API 留存快照；失败迁移回滚，禁止自动降级。恢复备份应先退出应用，并同时保留故障文件；用户恢复界面将在后续阶段实现。
 
