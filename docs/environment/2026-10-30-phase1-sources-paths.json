@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-10-30T16:12:00+08:00",
+  "purpose": "Windows path-alias regression in packaged source relocation verification",
+  "failed_ci": {
+    "run_id": 40995909703,
+    "head_sha": "d16ad837d779f16f1572298e8f04439ec6976fa0",
+    "job_id": 123868862334,
+    "step": "Build and verify the packaged engine",
+    "failure": "smoke-engine.py compared an unresolved temporary path with the API's resolved path; installer steps did not run"
+  },
+  "fix_commit": "4410ef380633a603ec3b221f439259a4b879894b",
+  "local_regression": {
+    "input": "Windows 8.3 alias for an isolated ignored directory, used as TEMP and TMP",
+    "before_fix": "same path-comparison assertion failed",
+    "after_fix": "all packaged engine smoke checks passed, including source relocation and restart",
+    "ordinary_temp_after_fix": "all packaged engine smoke checks passed",
+    "validation": "canonical path, actual file identity and unchanged attachment revision checked separately",
+    "application_or_database_changes": false
+  },
+  "powershell_short_path_probe": {
+    "recorded_at": "2026-10-30T16:10:31.8002258+08:00",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "powershell": "5.1.26100.9444",
+    "script_changes_needed": false,
+    "result": "passed",
+    "child_path": "System32 only",
+    "checks": {
+      "authentication": "passed",
+      "diagnostics": "passed",
+      "pdf_import": "passed",
+      "source_check_relocate": "passed",
+      "project_idempotency_restart": "passed",
+      "pdf_restart_persistence": "passed",
+      "source_restart_persistence": "passed",
+      "engine_eof_exit": "passed"
+    }
+  },
+  "clean_windows_G0": "not_tested; user waiver remains in effect"
+}

@@ -26,7 +26,11 @@
 
 原生调试窗口在独立测试数据目录中完成升级读回、点击检查、显示内容一致及时间、通过原生选择器重定位到同内容自造副本；文献仍为一篇，附件哈希与两页原文保持不变。
 
-首轮 [CI 40995909703](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40995909703) 的 Python/React 与静态检查通过，打包 smoke 因 Windows 短路径与 API 规范化路径直接比较而失败，未进入安装验收。本机以 8.3 短路径复现后，修正验收脚本并核对实际文件身份，复测通过；PowerShell 5.1 的短路径验收原样通过。修复后的远端构建与安装结果待补记。
+首轮 [CI 40995909703](https://github.com/KLucen/ResearchGraphStudio/actions/runs/40995909703) 的 Python/React 与静态检查通过，打包 smoke 因 Windows 短路径与 API 规范化路径直接比较而失败，未进入安装验收。本机以 8.3 短路径复现后，修正验收脚本并核对实际文件身份，复测通过；PowerShell 5.1 的短路径验收原样通过。见[路径回归记录](environment/2026-10-30-phase1-sources-paths.json)。
+
+修复提交 `4410ef380633a603ec3b221f439259a4b879894b` 的 [CI 41024830613](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41024830613) 已全部成功：32 项 Python / 12 项 React / 1 项 Rust 测试、静态/契约/生产构建、打包引擎和 NSIS 构建通过；另一 runner 完成安装、PDF 导入、原文件丢失/托管副本可用、同内容重新定位、来源/原文重启持久化、鉴权、诊断、桌面启动/单实例/正常退出/崩溃清理及卸载。详见 [CI 摘要](environment/2026-10-30-phase1-sources-ci.json)和[原始安装报告](environment/2026-10-30-phase1-sources-installed.json)。
+
+本轮安装器 37,623,738 字节，SHA-256 `7F6CF7463FCB0C4F39DFBD492A5EF83CDED330D95D0297D9924ED2D0F8DE6B17`；两个下载 artifact 的官方 ZIP 哈希均匹配，安装器哈希与安装报告一致。开发机 `.local/phase1-sources-acceptance-kit.zip` 保存本轮安装器、脚本、CC0 样本、校验清单、说明及原始报告，六个条目和文件字节已核对，未覆盖既有安装。CI 成功不代表未执行的干净 Windows / 缺 WebView2 场景已测试。
 
 ### PDF 导入首轮（历史验收）
 
@@ -49,3 +53,10 @@ CI 安装器 37,606,027 字节，SHA-256 `DBE45D7678F387D3B28AAC1D762BC86BEF9A2E
 3. M1：完整安装版导入与证据定位验收；G0 未执行的干净 Windows 和缺 WebView2 实测留在发布检查中。
 
 当前原文块可回看，但尚不能创建或接受 Claim/Relation；不能把“导入完成”理解为证据审核通过。
+
+### RG-006 下一轮实施边界（计划，尚未实现）
+
+- 先处理 `import-work` 崩溃残留：取得引擎独占锁后识别本应用的临时任务目录，确认没有仍在写入的子进程；拒绝沿目录链接或 Windows junction 清理外部位置。清理失败应记录并允许下次重试，不让已完成的导入退回失败。
+- 托管附件单独处理：当前 PaperSource 不再指向某个文件，不代表历史 AttachmentRevision 不再需要它。历史版本、共享内容哈希、原文件、数据库及备份必须保留；不能直接对 attachments 执行“当前来源未引用即删除”。回收规则及恢复方案确定后再实现。
+- 任务进度只显示真实阶段（等待、读取/检查、解析、保存），不猜测百分比。分页历史保留项目隔离、确定顺序和取消/重试入口；重复请求与任务状态变化不应使列表遗漏。
+- 验证包括异常终止后重启、文件占用/拒绝访问、重复回收、外部目录链接、旧附件与共享附件保留、取消后重试，以及安装版的同一流程。更多真实论文的版式质量验收另行记录，自造样本不代表真实语料效果。
