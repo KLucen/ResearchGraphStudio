@@ -148,7 +148,11 @@ def run(executable: Path) -> dict[str, object]:
                 ),
             )
             relocated = request(port, f"/papers/{paper_id}")["sources"][0]
-            assert relocated["path"] == str(moved) and relocated["revision_id"] == revision_id
+            # Windows TEMP may use an 8.3 alias (e.g. RUNNER~1). The API stores
+            # resolved paths, so compare canonical names, then verify file identity.
+            assert relocated["path"] == str(moved.resolve()), relocated
+            assert Path(relocated["path"]).samefile(moved), relocated
+            assert relocated["revision_id"] == revision_id, relocated
             assert relocated["last_check"]["original"]["state"] == "available"
         finally:
             process.stdin.close()
