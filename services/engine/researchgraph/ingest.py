@@ -16,8 +16,8 @@ from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from researchgraph.models import AttachmentRevision, Chunk, Event, Job, Paper, PaperSource, now
+from researchgraph.source_files import MAX_BYTES, publish_source_check
 
-MAX_BYTES = 50 * 1024 * 1024
 MAX_PAGES = 300
 MAX_TEXT = 2_000_000
 
@@ -148,6 +148,8 @@ def publish_pdf(
         source = PaperSource(id=str(uuid4()), paper_id=paper.id, path=path, mode=mode)
         session.add(source)
     source.revision_id, source.managed_path = revision.id, managed_path
+    source.generation = (source.generation or 0) + 1
+    source.last_check = None
     session.add(
         Event(
             event_id=str(uuid4()),
@@ -165,11 +167,11 @@ def publish_pdf(
     return {"paper_id": paper.id, "revision_id": revision.id, "reused": reused}
 
 
-async def import_pdf(engine: Engine, job_id: str, data: Path) -> None:
+async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
     with Session(engine) as session:
         job = session.get(Job, job_id)
         assert job and job.payload
-        path = job.payload["path"]
+        payload, kind = job.payload, job.kind
     work = data / "import-work" / str(uuid4())
     work.mkdir(parents=True)
     command = [sys.executable]
@@ -177,7 +179,13 @@ async def import_pdf(engine: Engine, job_id: str, data: Path) -> None:
     if not getattr(sys, "frozen", False):
         command += ["-m", "researchgraph"]
         child_environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
-    command += ["--parse-pdf", path, "--output-dir", str(work)]
+    if kind == "pdf_import":
+        command += ["--parse-pdf", payload["path"]]
+    else:
+        request_file = work / "request.json"
+        request_file.write_text(json.dumps(payload), encoding="utf-8")
+        command += ["--check-source", str(request_file)]
+    command += ["--output-dir", str(work)]
     process = None
     try:
         # An explicit worker CLI avoids frozen multiprocessing bootstrap and keeps
@@ -197,17 +205,21 @@ async def import_pdf(engine: Engine, job_id: str, data: Path) -> None:
                 if current is None or current.status != "running":
                     return
             if time.monotonic() > deadline:
-                raise ValueError("PDF 解析超时（120 秒），请缩小文件或检查内容")
+                raise ValueError("文件处理超时（120 秒），请检查文件或连接")
             await asyncio.sleep(0.1)
         if (work / "error.txt").exists():
             raise ValueError((work / "error.txt").read_text(encoding="utf-8"))
         if process.returncode != 0 or not (work / "result.json").exists():
-            raise ValueError("PDF 解析进程异常退出，可重试或检查原文件")
+            raise ValueError("文件处理进程异常退出，可重试或检查原文件")
         result = json.loads((work / "result.json").read_text(encoding="utf-8"))
         with Session(engine) as session, session.begin():
             current = session.get(Job, job_id)
             if current and current.status == "running":
-                current.result = publish_pdf(session, current, result, work, data)
+                current.result = (
+                    publish_pdf(session, current, result, work, data)
+                    if kind == "pdf_import"
+                    else publish_source_check(session, current, result)
+                )
                 current.status, current.updated_at = "succeeded", now()
     finally:
         if process is not None and process.poll() is None:

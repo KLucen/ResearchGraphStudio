@@ -1,6 +1,6 @@
 # 证据、关系与知识审核的实施约定
 
-版本：v0.2；依据：[QA.md](../../QA.md) 第 437–576 行，以及[补充材料 S2–S4](source-register.md)。与[计划 v0.4](../development-plan-v0.4.md)一致。以下是后续 schema/API 约束，尚未创建数据库或运行代码。
+版本：v0.2；依据：[QA.md](../../QA.md) 第 437–576 行，以及[补充材料 S2–S4](source-register.md)。与[计划 v0.4](../development-plan-v0.4.md)一致。以下为分阶段领域约束；当前项目、任务、来源/修订/原文块及来源检查已经实现，其余对象按阶段推进。实际接口见 [API](../api.md)。
 
 ## 数据对象
 
@@ -90,6 +90,8 @@ v0.1 就记录审核与修订事件，事务性维护当前知识表；v1.0 再�
 Zotero 身份按 server_id 或来源配置 ID、library_type/library_id、item_key、attachment_key 分区；对象本地版本与附件哈希分开。DOI/文件名不能作为覆盖历史的唯一标识。paper_sources 可有多个来源，重复文件复用解析时不丢来源映射。
 
 source_availability 与 evidence_validity 独立保存，不额外添加知识审核状态。来源离线不删除已接受历史；附件变化创建新修订并标记依赖陈旧。证据指向历史文本仍可回看，当前有效视图应提示变化并触发复核。
+
+Phase 1 当前用 PaperSource.last_check 保存带时间的文件可用性观察，原文件和托管副本分别核对；generation 防止旧文件任务覆盖新来源。它不是附件修订号或知识审核态，详见 [ADR 0005](../decisions/0005-source-check-relocation.md)。
 
 RELATED_TO 仅属于概念关联，不扩展五类主张关系。主张、关系、概念合并涉及科学含义的修改均须审核；验证语法/引用通过不意味着语义成立。
 

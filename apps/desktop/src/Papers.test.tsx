@@ -9,6 +9,7 @@ vi.mock("./api", () => ({
   api: {
     papers: vi.fn(),
     jobs: vi.fn(),
+    projectJobs: vi.fn().mockResolvedValue([]),
     importPdf: vi.fn(),
     paper: vi.fn(),
     chunks: vi.fn(),

@@ -145,7 +145,7 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0002" {
+        if health["protocol_version"] != 1 || health["schema_version"] != "0003" {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
@@ -154,6 +154,15 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    let parts: Vec<_> = path.split('/').collect();
+    if parts.len() == 6
+        && parts[1..3] == ["api", "v1"]
+        && uuid::Uuid::parse_str(parts[4]).is_ok()
+        && ((method == "POST" && parts[3] == "sources" && parts[5] == "check")
+            || (method == "GET" && parts[3] == "projects" && parts[5] == "jobs"))
+    {
+        return true;
+    }
     if method == "GET" {
         let (route, query) = path.split_once('?').unwrap_or((path, ""));
         let parts: Vec<_> = route.split('/').collect();
@@ -218,6 +227,38 @@ async fn import_pdf_file(
     if !matches!(mode.as_str(), "reference" | "managed") {
         return Err("无效导入模式".into());
     }
+    picked_pdf_request(
+        state,
+        format!("/api/v1/projects/{project_id}/papers/import/pdf"),
+        json!({"mode":mode}),
+        idempotency_key,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn relocate_source_file(
+    state: State<'_, Shared>,
+    source_id: String,
+    expected_generation: u64,
+    idempotency_key: String,
+) -> Result<Option<Value>, String> {
+    uuid::Uuid::parse_str(&source_id).map_err(|_| "无效来源")?;
+    picked_pdf_request(
+        state,
+        format!("/api/v1/sources/{source_id}/relocate"),
+        json!({"expected_generation":expected_generation}),
+        idempotency_key,
+    )
+    .await
+}
+
+async fn picked_pdf_request(
+    state: State<'_, Shared>,
+    route: String,
+    mut body: Value,
+    idempotency_key: String,
+) -> Result<Option<Value>, String> {
     // Paths come only from this native picker, never from web content or arbitrary IPC.
     let chosen = tauri::async_runtime::spawn_blocking(|| {
         rfd::FileDialog::new()
@@ -227,6 +268,7 @@ async fn import_pdf_file(
     .await
     .map_err(|e| e.to_string())?;
     let Some(path) = chosen else { return Ok(None) };
+    body["path"] = json!(path.to_string_lossy());
     let (port, token) = {
         let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
         (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
@@ -236,15 +278,13 @@ async fn import_pdf_file(
         .timeout(Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?
-        .post(format!(
-            "http://127.0.0.1:{port}/api/v1/projects/{project_id}/papers/import/pdf"
-        ))
+        .post(format!("http://127.0.0.1:{port}{route}"))
         .bearer_auth(token)
         .header("Idempotency-Key", idempotency_key)
-        .json(&json!({"path":path.to_string_lossy(), "mode":mode}))
+        .json(&body)
         .send()
         .await
-        .map_err(|_| "提交导入任务失败，请检查引擎连接")?;
+        .map_err(|_| "提交文件任务失败，请检查引擎连接")?;
     let success = response.status().is_success();
     let value: Value = response.json().await.map_err(|_| "引擎返回无效响应")?;
     if !success {
@@ -370,6 +410,7 @@ fn main() {
             host_status,
             restart_engine,
             import_pdf_file,
+            relocate_source_file,
             engine_request
         ])
         .build(tauri::generate_context!())
@@ -391,6 +432,13 @@ mod tests {
         assert!(allowed("GET", "/api/v1/projects?cursor=0&limit=50"));
         assert!(allowed("POST", "/api/v1/projects"));
         let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        assert!(allowed("POST", &format!("/api/v1/sources/{id}/check")));
+        assert!(allowed("GET", &format!("/api/v1/projects/{id}/jobs")));
+        assert!(!allowed("POST", &format!("/api/v1/sources/{id}/relocate")));
+        assert!(!allowed(
+            "POST",
+            &format!("/api/v1/sources/{id}/check?path=private")
+        ));
         assert!(allowed(
             "GET",
             &format!("/api/v1/projects/{id}/papers?cursor=0&limit=50")

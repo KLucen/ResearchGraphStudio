@@ -14,14 +14,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--parse-pdf", type=Path)
+    parser.add_argument("--check-source", type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
-    if args.parse_pdf:
-        if not args.output_dir or args.data_dir:
-            parser.error("PDF worker requires only --parse-pdf and --output-dir")
-        from researchgraph.ingest import parse_pdf
+    if args.parse_pdf or args.check_source:
+        if not args.output_dir or args.data_dir or (args.parse_pdf and args.check_source):
+            parser.error("File worker requires one operation and --output-dir")
+        if args.parse_pdf:
+            from researchgraph.ingest import parse_pdf
 
-        parse_pdf(str(args.parse_pdf), str(args.output_dir))
+            parse_pdf(str(args.parse_pdf), str(args.output_dir))
+        else:
+            from researchgraph.source_files import check_source_file
+
+            check_source_file(args.check_source, args.output_dir)
         return
     if not args.data_dir or args.output_dir:
         parser.error("Engine requires --data-dir")

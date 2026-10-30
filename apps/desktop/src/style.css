@@ -633,6 +633,26 @@ main {
 .spin {
   animation: spin 1s linear infinite;
 }
+.source-files {
+  margin: 18px 0;
+}
+.source-file {
+  border: 1px solid #dde2d8;
+  border-radius: 8px;
+  padding: 14px;
+  margin: 10px 0;
+}
+.source-file p {
+  margin: 6px 0;
+}
+.source-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
 .paper-workbench {
   margin-top: 32px;
 }

@@ -8,6 +8,7 @@ export type ProjectList = components["schemas"]["ProjectList"];
 export type PaperList = components["schemas"]["PaperList"];
 export type PaperDetail = components["schemas"]["PaperDetail"];
 export type ChunkList = components["schemas"]["ChunkList"];
+export type Source = components["schemas"]["SourceView"];
 
 export interface HostStatus {
   running: boolean;
@@ -37,6 +38,21 @@ export async function request<T>(
   }
 }
 export const api = {
+  checkSource: (source: Source) =>
+    request<Job>(
+      "POST",
+      `/api/v1/sources/${source.id}/check`,
+      { expected_generation: source.generation },
+      crypto.randomUUID(),
+    ),
+  relocateSource: (source: Source) =>
+    invoke<Job | null>("relocate_source_file", {
+      sourceId: source.id,
+      expectedGeneration: source.generation,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  projectJobs: (projectId: string) =>
+    request<Job[]>("GET", `/api/v1/projects/${projectId}/jobs`),
   importPdf: (projectId: string, mode: "reference" | "managed") =>
     invoke<Job | null>("import_pdf_file", {
       projectId,

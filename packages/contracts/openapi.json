@@ -196,6 +196,49 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/jobs": {
+      "get": {
+        "summary": "Project Jobs",
+        "operationId": "project_jobs_api_v1_projects__project_id__jobs_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobView"
+                  },
+                  "title": "Response Project Jobs Api V1 Projects  Project Id  Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs/{job_id}": {
       "get": {
         "summary": "Get Job",
@@ -326,6 +369,126 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PdfImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}/check": {
+      "post": {
+        "summary": "Check Source",
+        "operationId": "check_source_api_v1_sources__source_id__check_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{source_id}/relocate": {
+      "post": {
+        "summary": "Relocate Source",
+        "operationId": "relocate_source_api_v1_sources__source_id__relocate_post",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceRelocate"
               }
             }
           }
@@ -593,6 +756,39 @@
           "bbox"
         ],
         "title": "ChunkView"
+      },
+      "FileCheck": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "changed",
+              "missing",
+              "unreadable",
+              "too_large",
+              "unstable"
+            ],
+            "title": "State"
+          },
+          "observed_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "observed_sha256"
+        ],
+        "title": "FileCheck"
       },
       "HTTPValidationError": {
         "properties": {
@@ -989,6 +1185,71 @@
         ],
         "title": "RevisionView"
       },
+      "SourceAction": {
+        "properties": {
+          "expected_generation": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_generation"
+        ],
+        "title": "SourceAction"
+      },
+      "SourceCheck": {
+        "properties": {
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          },
+          "original": {
+            "$ref": "#/components/schemas/FileCheck"
+          },
+          "managed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "checked_at",
+          "original",
+          "managed"
+        ],
+        "title": "SourceCheck"
+      },
+      "SourceRelocate": {
+        "properties": {
+          "expected_generation": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Generation"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_generation",
+          "path"
+        ],
+        "title": "SourceRelocate"
+      },
       "SourceView": {
         "properties": {
           "id": {
@@ -1010,6 +1271,20 @@
               "managed"
             ],
             "title": "Mode"
+          },
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          },
+          "last_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1017,7 +1292,9 @@
           "id",
           "revision_id",
           "path",
-          "mode"
+          "mode",
+          "generation",
+          "last_check"
         ],
         "title": "SourceView"
       },

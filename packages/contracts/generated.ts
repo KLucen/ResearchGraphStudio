@@ -57,6 +57,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Project Jobs */
+        get: operations["project_jobs_api_v1_projects__project_id__jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -102,6 +119,40 @@ export interface paths {
         put?: never;
         /** Queue Pdf */
         post: operations["queue_pdf_api_v1_projects__project_id__papers_import_pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check Source */
+        post: operations["check_source_api_v1_sources__source_id__check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{source_id}/relocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Relocate Source */
+        post: operations["relocate_source_api_v1_sources__source_id__relocate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -186,6 +237,16 @@ export interface components {
             text: string;
             /** Bbox */
             bbox: number[];
+        };
+        /** FileCheck */
+        FileCheck: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "changed" | "missing" | "unreadable" | "too_large" | "unstable";
+            /** Observed Sha256 */
+            observed_sha256: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -335,6 +396,25 @@ export interface components {
             /** Created At */
             created_at: string;
         };
+        /** SourceAction */
+        SourceAction: {
+            /** Expected Generation */
+            expected_generation: number;
+        };
+        /** SourceCheck */
+        SourceCheck: {
+            /** Checked At */
+            checked_at: string;
+            original: components["schemas"]["FileCheck"];
+            managed: components["schemas"]["FileCheck"] | null;
+        };
+        /** SourceRelocate */
+        SourceRelocate: {
+            /** Expected Generation */
+            expected_generation: number;
+            /** Path */
+            path: string;
+        };
         /** SourceView */
         SourceView: {
             /** Id */
@@ -348,6 +428,9 @@ export interface components {
              * @enum {string}
              */
             mode: "reference" | "managed";
+            /** Generation */
+            generation: number;
+            last_check: components["schemas"]["SourceCheck"] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -513,6 +596,37 @@ export interface operations {
             };
         };
     };
+    project_jobs_api_v1_projects__project_id__jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_job_api_v1_jobs__job_id__get: {
         parameters: {
             query?: never;
@@ -592,6 +706,80 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PdfImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_source_api_v1_sources__source_id__check_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    relocate_source_api_v1_sources__source_id__relocate_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceRelocate"];
             };
         };
         responses: {

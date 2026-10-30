@@ -1,6 +1,6 @@
-# 本地接口（Phase 1 首轮）
+# 本地接口（Phase 1）
 
-版本：0.0.1 开发增量；协议：1；Schema：0002。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
+版本：0.0.1 开发增量；协议：1；Schema：0003。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
 
 ## 连接和权限
 
@@ -16,6 +16,7 @@ Tauri 启动随安装包分发的 Python 引擎，通过私有 stdin 传入随�
 | GET `/api/v1/projects?cursor=0&limit=50` | items、next_cursor；当前 cursor 是偏移量，limit 为 1–100 |
 | POST `/api/v1/projects` | name（去空白后 1–120 字符）、description（最多 4000）；201 返回项目 |
 | GET `/api/v1/jobs` | 最近 50 个任务 |
+| GET `/api/v1/projects/{id}/jobs` | 本项目最近 50 个任务；桌面展示最近 10 项文献任务 |
 | POST `/api/v1/jobs` | 当前只接受 `{"kind":"diagnostics"}`；202 返回任务 |
 | GET `/api/v1/jobs/{id}` | 获取任务；不存在返回 404 |
 | POST `/api/v1/jobs/{id}/cancel` | 取消 queued/running 任务 |
@@ -24,6 +25,10 @@ Tauri 启动随安装包分发的 Python 引擎，通过私有 stdin 传入随�
 | GET `/api/v1/papers/{id}` | 文献、全部已保存附件修订和来源路径；路径是登记记录，不保证当前可读取 |
 | GET `/api/v1/revisions/{id}/chunks?cursor=0&limit=50` | 不可变文本块、0 起始页索引、page label、块索引与 bbox |
 | POST `/api/v1/jobs/{id}/retry` | failed/interrupted/cancelled 重排队；最多执行 3 次 |
+| POST `/api/v1/sources/{id}/check` | expected_generation；202 返回来源检查 Job，原文件与托管副本分别核对 |
+| POST `/api/v1/sources/{id}/relocate` | expected_generation、path；仅原生 relocate_source_file 选择器提交；202 返回重定位 Job，普通桥禁止此路由 |
+
+SourceView 包含 generation 与 last_check。last_check 为空表示尚未检查当前来源；否则包含 checked_at、original 和可选 managed，每项为 state 与 observed_sha256。状态为 available（内容一致）、changed、missing、unreadable、too_large 或 unstable；不是持续可用性承诺，也不是证据审核结果。重定位必须匹配来源绑定的修订哈希；排队后 generation 改变时任务失败且不应用结果。详见 [ADR 0005](decisions/0005-source-check-relocation.md)。
 
 所有 POST 必须带 8–120 字符的 `Idempotency-Key`。相同操作/标识/内容返回首次保存的响应，不重复写入；同标识不同内容返回 409。任务响应可能是首次提交时的状态，应再次查询取得最新状态。项目列表按创建时间降序，当前偏移分页在并发插入时可能重复；Phase 1 若增加持续导入，应换成稳定游标。
 

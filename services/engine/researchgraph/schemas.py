@@ -86,12 +86,33 @@ class RevisionView(BaseModel):
     created_at: str
 
 
+class SourceAction(InputModel):
+    expected_generation: int = Field(ge=0)
+
+
+class SourceRelocate(SourceAction):
+    path: str = Field(min_length=1, max_length=4096)
+
+
+class FileCheck(BaseModel):
+    state: Literal["available", "changed", "missing", "unreadable", "too_large", "unstable"]
+    observed_sha256: str | None
+
+
+class SourceCheck(BaseModel):
+    checked_at: str
+    original: FileCheck
+    managed: FileCheck | None
+
+
 class SourceView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     revision_id: str
     path: str
     mode: Literal["reference", "managed"]
+    generation: int
+    last_check: SourceCheck | None
 
 
 class PaperDetail(BaseModel):

@@ -148,7 +148,7 @@ def test_upgrade_0001_preserves_project_and_backup(tmp_path):
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT name FROM projects")) == "Keep project"
         assert connection.scalar(text("SELECT status FROM jobs")) == "succeeded"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
     (backup,) = (tmp_path / "backups").glob("*.sqlite3")
     with sqlite3.connect(backup) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0001"
@@ -156,7 +156,17 @@ def test_upgrade_0001_preserves_project_and_backup(tmp_path):
 
 
 @pytest.mark.parametrize("action", ["cancel", "shutdown"])
-def test_running_parser_is_terminated_without_publishing(tmp_path, monkeypatch, action):
+@pytest.mark.parametrize("kind", ["pdf_import", "source_check", "source_relocate"])
+def test_running_parser_is_terminated_without_publishing(tmp_path, monkeypatch, action, kind):
+    if kind != "pdf_import":
+        with client(tmp_path, worker=True) as api:
+            project = post(api, "/projects", {"name": "source lifecycle"}).json()["id"]
+            imported = wait_job(
+                api, queue(api, project, FIXTURES / "two-pages.pdf", "initial-import")
+            )
+            source = api.get(f"/api/v1/papers/{imported['result']['paper_id']}").json()["sources"][
+                0
+            ]
     original = subprocess.Popen
     children = []
 
@@ -168,8 +178,16 @@ def test_running_parser_is_terminated_without_publishing(tmp_path, monkeypatch, 
 
     monkeypatch.setattr(ingest.subprocess, "Popen", slow_child)
     with client(tmp_path, worker=True) as api:
-        project = post(api, "/projects", {"name": "cancel running"}).json()["id"]
-        job = queue(api, project, FIXTURES / "two-pages.pdf", "running-key")
+        if kind == "pdf_import":
+            project = post(api, "/projects", {"name": "cancel running"}).json()["id"]
+            job = queue(api, project, FIXTURES / "two-pages.pdf", "running-key")
+        else:
+            body = {"expected_generation": source["generation"]}
+            if kind == "source_relocate":
+                body["path"] = str(FIXTURES / "two-pages.pdf")
+            job = post(
+                api, f"/sources/{source['id']}/{kind.removeprefix('source_')}", body, "running-key"
+            ).json()
         deadline = time.monotonic() + 5
         while not children and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -185,4 +203,9 @@ def test_running_parser_is_terminated_without_publishing(tmp_path, monkeypatch, 
         assert api.get(f"/api/v1/jobs/{job['id']}").json()["status"] == (
             "cancelled" if action == "cancel" else "interrupted"
         )
-        assert api.get(f"/api/v1/projects/{project}/papers").json()["items"] == []
+        papers = api.get(f"/api/v1/projects/{project}/papers").json()["items"]
+        if kind == "pdf_import":
+            assert papers == []
+        else:
+            assert len(papers) == 1
+            assert api.get(f"/api/v1/papers/{papers[0]['id']}").json()["sources"][0] == source

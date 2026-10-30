@@ -6,14 +6,20 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api } from "./api";
+import { SourceFiles } from "./SourceFiles";
 
 const statusNames: Record<string, string> = {
-  queued: "等待解析",
-  running: "解析中",
-  succeeded: "导入完成",
-  failed: "导入失败",
+  queued: "等待处理",
+  running: "处理中",
+  succeeded: "已完成",
+  failed: "失败",
   cancelled: "已取消",
   interrupted: "已中断",
+};
+const jobNames: Record<string, string> = {
+  pdf_import: "PDF 导入",
+  source_check: "来源检查",
+  source_relocate: "重新定位",
 };
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -38,8 +44,8 @@ export function Papers({
     refetchInterval: 2000,
   });
   const jobs = useQuery({
-    queryKey: ["jobs"],
-    queryFn: api.jobs,
+    queryKey: ["jobs", projectId],
+    queryFn: () => api.projectJobs(projectId),
     enabled: connected,
     refetchInterval: 1000,
   });
@@ -59,7 +65,7 @@ export function Papers({
   const items = papers.data?.pages.flatMap((page) => page.items) ?? [];
   const imports =
     jobs.data?.filter(
-      (job) => job.kind === "pdf_import" && job.project_id === projectId,
+      (job) => job.kind in jobNames && job.project_id === projectId,
     ) ?? [];
   return (
     <section className="paper-workbench" aria-label="项目文献">
@@ -101,11 +107,14 @@ export function Papers({
           </p>
         ))}
       {imports.length > 0 && (
-        <div className="job-list" aria-label="导入任务">
+        <div className="job-list" aria-label="文献任务">
+          <p className="muted">本项目最近 10 项文献任务</p>
           {imports.slice(0, 10).map((job) => (
             <div className="job" key={job.id}>
               <div>
-                <strong>{statusNames[job.status]}</strong>
+                <strong>
+                  {jobNames[job.kind]} · {statusNames[job.status]}
+                </strong>
                 <small>第 {job.attempt} 次执行</small>
                 {job.error && <p className="error-text">{job.error}</p>}
               </div>
@@ -240,15 +249,12 @@ function PaperText({
               ))}
             </>
           )}
-          <details>
-            <summary>登记的来源路径（导入时确认）</summary>
-            {detail.data.sources.map((source) => (
-              <p className="source-path" key={source.id}>
-                {source.mode === "managed" ? "托管副本" : "文件引用"} ·{" "}
-                {source.path}
-              </p>
-            ))}
-          </details>
+          <SourceFiles
+            sources={detail.data.sources}
+            paperId={paperId}
+            selectedRevisionId={revisionId}
+            connected={connected}
+          />
           <p className="quiet-note">
             以下为解析原文。页序从 1
             开始；坐标为解析器文本块边界，不代表已审核证据。

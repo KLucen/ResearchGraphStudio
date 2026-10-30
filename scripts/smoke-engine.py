@@ -5,6 +5,7 @@ import json
 import os
 import queue
 import secrets
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -54,8 +55,8 @@ def run(executable: Path) -> dict[str, object]:
                 raise RuntimeError("Packaged engine not ready: " + stderr[-4000:]) from None
             return process, ready["port"]
 
-        def request(port, path, method="GET", body=None, authorized=True):
-            headers = {"Content-Type": "application/json", "Idempotency-Key": "smoke-request-001"}
+        def request(port, path, method="GET", body=None, authorized=True, key="smoke-request-001"):
+            headers = {"Content-Type": "application/json", "Idempotency-Key": key}
             if authorized:
                 headers["Authorization"] = "Bearer " + token
             req = urllib.request.Request(
@@ -66,6 +67,16 @@ def run(executable: Path) -> dict[str, object]:
             )
             with opener.open(req, timeout=5) as response:
                 return json.load(response)
+
+        def completed(port, job):
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                job = request(port, "/jobs/" + job["id"])
+                if job["status"] not in {"queued", "running"}:
+                    break
+                time.sleep(0.1)
+            assert job["status"] == "succeeded", job
+            return job
 
         process, port = start()
         try:
@@ -91,11 +102,13 @@ def run(executable: Path) -> dict[str, object]:
                 time.sleep(0.1)
             assert job["status"] == "succeeded", job
             fixture = Path(__file__).resolve().parents[1] / "tests/fixtures/pdf/two-pages.pdf"
+            original = Path(directory) / "original.pdf"
+            shutil.copyfile(fixture, original)
             pdf = request(
                 port,
                 f"/projects/{project['id']}/papers/import/pdf",
                 "POST",
-                {"path": str(fixture), "mode": "managed"},
+                {"path": str(original), "mode": "managed"},
             )
             deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
@@ -108,6 +121,35 @@ def run(executable: Path) -> dict[str, object]:
             chunks = request(port, f"/revisions/{revision_id}/chunks")["items"]
             assert {chunk["page_index"] for chunk in chunks} == {0, 1}
             assert any("72%" in chunk["text"] for chunk in chunks)
+            paper_id = pdf["result"]["paper_id"]
+            source = request(port, f"/papers/{paper_id}")["sources"][0]
+            moved = Path(directory) / "relocated.pdf"
+            original.rename(moved)
+            check = completed(
+                port,
+                request(
+                    port,
+                    f"/sources/{source['id']}/check",
+                    "POST",
+                    {"expected_generation": source["generation"]},
+                    key="source-check",
+                ),
+            )
+            assert check["result"]["original_state"] == "missing"
+            assert check["result"]["managed_state"] == "available"
+            completed(
+                port,
+                request(
+                    port,
+                    f"/sources/{source['id']}/relocate",
+                    "POST",
+                    {"expected_generation": source["generation"], "path": str(moved)},
+                    key="source-relocate",
+                ),
+            )
+            relocated = request(port, f"/papers/{paper_id}")["sources"][0]
+            assert relocated["path"] == str(moved) and relocated["revision_id"] == revision_id
+            assert relocated["last_check"]["original"]["state"] == "available"
         finally:
             process.stdin.close()
             try:
@@ -120,6 +162,7 @@ def run(executable: Path) -> dict[str, object]:
         try:
             assert request(port, "/projects")["items"] == [project]
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
+            assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
         finally:
             process.stdin.close()
             try:
@@ -134,6 +177,7 @@ def run(executable: Path) -> dict[str, object]:
         "idempotency": "passed",
         "diagnostic_job": "passed",
         "pdf_import_and_restart": "passed",
+        "source_check_relocate_restart": "passed",
         "restart_persistence": "passed",
         "stdin_eof_exit": "passed",
         "unicode_space_path": "passed",

@@ -81,6 +81,8 @@ class PaperSource(Base):
     path: Mapped[str] = mapped_column(Text)
     mode: Mapped[str] = mapped_column(String(20))
     managed_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
+    last_check: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class Chunk(Base):

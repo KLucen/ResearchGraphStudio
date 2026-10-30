@@ -19,7 +19,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
-from researchgraph.ingest import import_pdf
+from researchgraph.ingest import run_file_job
 from researchgraph.models import (
     AttachmentRevision,
     Chunk,
@@ -45,6 +45,8 @@ from researchgraph.schemas import (
     ProjectList,
     ProjectView,
     RevisionView,
+    SourceAction,
+    SourceRelocate,
     SourceView,
 )
 from researchgraph.storage import SCHEMA_HEAD, diagnostics, make_engine, migrate
@@ -93,14 +95,14 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
-            if kind == "pdf_import":
-                await import_pdf(engine, job_id, data_dir)
+            if kind in {"pdf_import", "source_check", "source_relocate"}:
+                await run_file_job(engine, job_id, data_dir)
                 continue
             result = await asyncio.to_thread(diagnostics, engine)
         except Exception as exc:
             error = (
                 str(exc)
-                if kind == "pdf_import" and isinstance(exc, ValueError)
+                if kind != "diagnostics" and isinstance(exc, ValueError)
                 else "任务失败，请检查文件或数据库权限"
             )
         with Session(engine) as session, session.begin():
@@ -259,6 +261,21 @@ def create_app(
                 for j in session.scalars(select(Job).order_by(Job.created_at.desc()).limit(50))
             ]
 
+    @app.get("/api/v1/projects/{project_id}/jobs", response_model=list[JobView])
+    def project_jobs(project_id: str) -> list[JobView]:
+        with Session(engine()) as session:
+            if not session.get(Project, project_id):
+                raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            return [
+                JobView.model_validate(j)
+                for j in session.scalars(
+                    select(Job)
+                    .where(Job.project_id == project_id)
+                    .order_by(Job.created_at.desc(), Job.id)
+                    .limit(50)
+                )
+            ]
+
     @app.post("/api/v1/jobs", response_model=JobView, status_code=202)
     def create_job(body: JobCreate, idempotency_key: Key) -> JobView:
         key, payload = f"job:{idempotency_key}", body.model_dump()
@@ -343,6 +360,57 @@ def create_app(
             response = JobView.model_validate(job)
             remember(session, key, payload, response.model_dump())
             return response
+
+    def queue_source(
+        source_id: str, body: SourceAction, kind: str, key: str, path: str | None = None
+    ) -> JobView:
+        request_body = {"source_id": source_id, "kind": kind, **body.model_dump()}
+        key = f"source-action:{key}"
+        with Session(engine()) as session, session.begin():
+            previous = remembered(session, key, request_body)
+            if previous:
+                return JobView.model_validate(previous)
+            source = session.get(PaperSource, source_id)
+            if not source:
+                raise failure(404, "SOURCE_NOT_FOUND", "来源不存在")
+            if source.generation != body.expected_generation:
+                raise failure(409, "SOURCE_CHANGED", "来源已更新，请刷新后重新操作")
+            paper = session.get(Paper, source.paper_id)
+            revision = session.get(AttachmentRevision, source.revision_id)
+            assert paper and revision
+            job = Job(
+                id=str(uuid4()),
+                kind=kind,
+                project_id=paper.project_id,
+                payload={
+                    "source_id": source.id,
+                    "generation": source.generation,
+                    "path": path or source.path,
+                    "sha256": revision.sha256,
+                    "managed_path": source.managed_path,
+                },
+                status="queued",
+                attempt=0,
+                created_at=now(),
+                updated_at=now(),
+            )
+            session.add(job)
+            response = JobView.model_validate(job)
+            remember(session, key, request_body, response.model_dump())
+            return response
+
+    @app.post("/api/v1/sources/{source_id}/check", response_model=JobView, status_code=202)
+    def check_source(source_id: str, body: SourceAction, idempotency_key: Key) -> JobView:
+        return queue_source(source_id, body, "source_check", idempotency_key)
+
+    @app.post("/api/v1/sources/{source_id}/relocate", response_model=JobView, status_code=202)
+    def relocate_source(source_id: str, body: SourceRelocate, idempotency_key: Key) -> JobView:
+        path = Path(body.path)
+        if not path.is_absolute() or path.suffix.lower() != ".pdf":
+            raise failure(422, "INVALID_PDF_PATH", "请选择绝对路径的 PDF 文件")
+        return queue_source(
+            source_id, body, "source_relocate", idempotency_key, str(path.resolve())
+        )
 
     @app.get("/api/v1/projects/{project_id}/papers", response_model=PaperList)
     def papers(

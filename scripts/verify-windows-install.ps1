@@ -99,14 +99,14 @@ function Stop-ProbeEngine {
     }
 }
 
-function Invoke-ProbeApi([string]$Path, [string]$Method = 'GET', $Body = $null, [bool]$Authorized = $true) {
+function Invoke-ProbeApi([string]$Path, [string]$Method = 'GET', $Body = $null, [bool]$Authorized = $true, [string]$Key = 'windows-acceptance-001') {
     $request = [Net.HttpWebRequest]::Create($script:baseUrl + $Path)
     $request.Proxy = $null
     $request.Timeout = 5000
     $request.ReadWriteTimeout = 5000
     $request.Method = $Method
     $request.ContentType = 'application/json; charset=utf-8'
-    $request.Headers['Idempotency-Key'] = 'windows-acceptance-001'
+    $request.Headers['Idempotency-Key'] = $Key
     if ($Authorized) { $request.Headers['Authorization'] = 'Bearer ' + $script:token }
     if ($Method -ne 'GET') {
         $bytes = [Text.Encoding]::UTF8.GetBytes(($Body | ConvertTo-Json -Compress))
@@ -176,7 +176,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0002') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0003') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
@@ -196,7 +196,9 @@ try {
     $report.checks['diagnostics'] = 'passed'
     if ($PdfFixture) {
         $fixturePath = (Resolve-Path -LiteralPath $PdfFixture).Path
-        $pdfJob = Invoke-ProbeApi ('/projects/' + $project.id + '/papers/import/pdf') 'POST' @{path = $fixturePath; mode = 'managed'}
+        $originalPath = Join-Path $OutputRoot 'original.pdf'
+        Copy-Item -LiteralPath $fixturePath -Destination $originalPath
+        $pdfJob = Invoke-ProbeApi ('/projects/' + $project.id + '/papers/import/pdf') 'POST' @{path = $originalPath; mode = 'managed'}
         $deadline = [DateTime]::UtcNow.AddSeconds(40)
         do {
             $pdfJob = Invoke-ProbeApi ('/jobs/' + $pdfJob.id)
@@ -209,6 +211,28 @@ try {
         Assert-Probe (@($pdfChunks.items | Where-Object { $_.text.Contains('72%') }).Count -gt 0) 'PDF text was not preserved.'
         Assert-Probe (@($pdfChunks.items | Select-Object -ExpandProperty page_index -Unique).Count -eq 2) 'PDF page anchors mismatch.'
         $report.checks['pdf_import'] = 'passed'
+        $paperId = $pdfJob.result.paper_id
+        $source = (Invoke-ProbeApi ('/papers/' + $paperId)).sources[0]
+        $movedPath = Join-Path $OutputRoot 'relocated.pdf'
+        Move-Item -LiteralPath $originalPath -Destination $movedPath
+        foreach ($action in @('check', 'relocate')) {
+            $body = @{expected_generation = $source.generation}
+            if ($action -eq 'relocate') { $body['path'] = $movedPath }
+            $fileJob = Invoke-ProbeApi ('/sources/' + $source.id + '/' + $action) 'POST' $body -Key ('source-' + $action)
+            $deadline = [DateTime]::UtcNow.AddSeconds(40)
+            do {
+                $fileJob = Invoke-ProbeApi ('/jobs/' + $fileJob.id)
+                if ($fileJob.status -notin @('queued', 'running')) { break }
+                Start-Sleep -Milliseconds 100
+            } while ([DateTime]::UtcNow -lt $deadline)
+            Assert-Probe ($fileJob.status -eq 'succeeded') ('Source action failed: ' + $fileJob.error)
+            if ($action -eq 'check') {
+                Assert-Probe ($fileJob.result.original_state -eq 'missing' -and $fileJob.result.managed_state -eq 'available') 'Source availability mismatch.'
+            }
+        }
+        $relocated = (Invoke-ProbeApi ('/papers/' + $paperId)).sources[0]
+        Assert-Probe ($relocated.path -eq $movedPath -and $relocated.revision_id -eq $revisionId -and $relocated.last_check.original.state -eq 'available') 'Source relocation mismatch.'
+        $report.checks['source_check_relocate'] = 'passed'
     }
     Stop-ProbeEngine
     Start-ProbeEngine
@@ -219,6 +243,9 @@ try {
         $restored = Invoke-ProbeApi ('/revisions/' + $revisionId + '/chunks')
         Assert-Probe (($restored | ConvertTo-Json -Depth 8 -Compress) -eq ($pdfChunks | ConvertTo-Json -Depth 8 -Compress)) 'PDF chunks changed after restart.'
         $report.checks['pdf_restart_persistence'] = 'passed'
+        $restoredSource = (Invoke-ProbeApi ('/papers/' + $paperId)).sources[0]
+        Assert-Probe (($restoredSource | ConvertTo-Json -Depth 8 -Compress) -eq ($relocated | ConvertTo-Json -Depth 8 -Compress)) 'Relocated source changed after restart.'
+        $report.checks['source_restart_persistence'] = 'passed'
     }
     Stop-ProbeEngine
     $report.checks['engine_eof_exit'] = 'passed'
