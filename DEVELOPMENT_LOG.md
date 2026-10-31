@@ -455,6 +455,28 @@
 - 保留修复后原生窗口加载第 2 页历史为待验收项；并保留 M1 安装版证据定位、干净 Windows、缺失 WebView2 和真实 PDF 版式质量验收。G0 仍按用户决定放行，不将放行记成测试通过。
 - 文档检查通过后，按既有授权普通提交并推送 `main`；此文档提交不触发应用 CI。RG-006 交付收尾后进入 RG-007：Evidence/span、跨页引用、归一化映射、原页面高亮与人工校正版本。
 
+## 2026-10-31 22:19 · DEV-0015 · RG-006 提交推送核验
+
+### 目标
+
+- 记录 DEV-0014 文档提交的实际推送结果，并核验代码提交对应的安装 CI 与本地验收包。
+
+### 实际改动
+
+- DEV-0014 的文档收尾提交 `c104a0156ca40c9e576f984ec99b87f059f1b33d` 已经通过项目约定的 SSH 443 通道普通推送至 `origin/main`；推送前 fetch 确认远端仍为其父提交 `5a3c124254192a418af8bc5c4de5d1b1f9c1f32d`，推送后本地与远端一致。
+- 文档提交没有改动应用代码，CI 的 `paths-ignore` 排除 Markdown 与 `docs/**`，因此该提交没有触发新构建；RG-006 代码提交 `5a3c124` 对应的安装 CI 与验收证据已在 DEV-0014 记录。
+
+### 验证
+
+- GitHub API 核验 Actions run [41206071801](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41206071801)：`windows` 与 `installed-app` 均 completed/success。
+- 本地忽略目录中的验收包 `.local/phase1-jobs-acceptance-kit-41206071801.zip` 存在，大小 37,621,633 字节；重新计算 SHA-256 与 DEV-0014 记录一致：`5D0D497C533DB85FE1CE7EE05A79CF0619DB6A2796CA2BC12B5C3E52BE7E25EA`。验收包不进入源码提交。
+- 文档提交推送后再次 fetch，`HEAD` 与 `origin/main` 均为 `c104a0156ca40c9e576f984ec99b87f059f1b33d`，工作区干净。
+
+### 问题与下一步
+
+- 修复后的原生窗口任务历史第二页仍未复测；Computer Use 曾在应用枚举阶段被物理 Escape 中止，本轮不把先前原生记录、引擎测试或安装 CI 替代为桌面分页通过。
+- RG-006 的自动化与 CI 交付证据已归档；下一功能阶段为 RG-007 证据锚定、高亮与人工校正。M1 证据定位、干净 Windows、缺失 WebView2 与真实 PDF 版式质量仍须分别验收。
+
 ## 后续条目模板
 
 ```markdown
