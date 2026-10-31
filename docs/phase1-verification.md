@@ -1,6 +1,6 @@
 # Phase 1 来源与证据开发记录
 
-更新时间：2026-10-31（Asia/Shanghai）。G0 已按用户决定放行，依据 [ADR 0004](decisions/0004-g0-waiver-phase1.md)。RG-006 的 PDF 导入、来源检查、临时工作区回收、任务阶段和历史分页增量已完成引擎/自动化验收；桌面分页桥接修复后的原生复测仍待完成，M1 安装版证据定位和干净环境也未完成。
+更新时间：2026-10-31（Asia/Shanghai）。G0 已按用户决定放行，依据 [ADR 0004](decisions/0004-g0-waiver-phase1.md)。RG-006 的 PDF 导入、来源检查、临时工作区回收、任务阶段和历史分页已通过本机自动化及远端 Windows 构建/安装 CI；桌面分页桥接修复后的原生复测仍待完成，M1 安装版证据定位和干净环境也未完成。
 
 ## 本轮范围
 
@@ -22,13 +22,15 @@ Job Schema 0004 增加实际阶段 `starting`、`reading`、`parsing`、`checkin
 
 本轮新增实现和约束见 [ADR 0006](decisions/0006-job-history-workspace-recovery.md)，API Schema 说明见 [接口文档](api.md)。
 
-此前独立原生验收使用应用标识 `com.researchgraph.studio.phase1test`、数据目录 `C:\Users\KLucen\AppData\Local\com.researchgraph.studio.phase1test` 和仓库 `.local/native-phase1-synthetic.pdf`，操作前将旧测试目录备份到 `.local/native-phase1test-backup-20261031-195549`。验收报告记录了旧 Schema 0003 升级、取消/重试、来源检查、回收统计及重启后仍可查看的两页/四块原文。
+此前独立原生验收使用应用标识 `com.researchgraph.studio.phase1test`、数据目录 `%LOCALAPPDATA%/com.researchgraph.studio.phase1test` 和仓库 `.local/native-phase1-synthetic.pdf`，操作前将旧测试目录备份到 `.local/native-phase1test-backup-20261031-195549`。验收报告记录了旧 Schema 0003 升级、取消/重试、来源检查、回收统计及重启后仍可查看的两页/四块原文。
 
-本轮代码复核发现 Tauri `engine_request` 白名单仍将任务分页 `cursor` 当作 UUID 校验，而引擎实际返回 Base64URL 不透明游标。因此此前报告中的“加载更早任务后 13 条可见”无法通过当时的桌面桥接实现，该条已撤销，不作为通过证据。Rust 白名单已改为只允许 1–512 位 ASCII Base64URL 字符，并新增边界回归测试。修复后原生窗口复测未完成：Computer Use 两次在 `list_apps` 枚举阶段被物理 Escape 中止；最近一次没有触碰应用窗口。旧库升级、重试、回收统计和原文保留仅沿用此前独立数据记录，本轮不声称重新操作验证。
+本轮代码复核发现 Tauri `engine_request` 白名单仍将任务分页 `cursor` 当作 UUID 校验，而引擎实际返回 Base64URL 不透明游标。因此此前报告中的“加载更早任务后 13 条可见”无法通过当时的桌面桥接实现，该条已撤销，不作为通过证据。Rust 白名单已改为只允许 1–512 位 ASCII Base64URL 字符，并新增边界回归测试。修复后原生窗口复测未完成：Computer Use 三次在 `list_apps` 枚举阶段被物理 Escape 中止；最近一次没有触碰应用窗口。旧库升级、重试、回收统计和原文保留仅沿用此前独立数据记录，本轮不声称重新操作验证。
 
-原生验收报告见 [2026-10-31 RG-006 窗口报告](environment/2026-10-31-phase1-jobs-native.json)。它是开发机调试构建和自造 PDF 结果，不替代修复后桌面分页复测、远端新安装包、干净 Windows、缺失 WebView2 或真实论文质量验收。
+原生验收报告见 [2026-10-31 RG-006 窗口报告](environment/2026-10-31-phase1-jobs-native.json)。它是开发机调试构建和自造 PDF 结果；其中旧库升级、取消/重试、回收统计和原文保留沿用修复前的独立窗口记录，修复后分页没有原生窗口通过证据。
 
-交付前复核再次通过 45 项 Python（1 项平台能力跳过）、16 项 React、1 项 Rust、静态/格式/契约/生产构建、冻结引擎重建与 smoke。PowerShell 5.1 引擎模式报告为通过，证据在本机忽略目录 `.local/phase1-jobs-ps51-final-010d4454e00545d4b916df0912f72621/verification.json`；报告仍将干净 Windows 标为未认证。原生分页和新安装器验收单独待完成，不能由这些引擎检查替代。
+交付前复核再次通过 45 项 Python（1 项平台能力跳过）、16 项 React、1 项 Rust、静态/格式/契约/生产构建、冻结引擎重建与 smoke。PowerShell 5.1 引擎模式报告为通过，证据在本机忽略目录 `.local/phase1-jobs-ps51-final-010d4454e00545d4b916df0912f72621/verification.json`；报告仍将干净 Windows 标为未认证。
+
+远端 [CI 41206071801](environment/2026-10-31-phase1-jobs-ci.json) 的 `windows` 与 `installed-app` 两个 job 均成功。独立 Windows PowerShell 报告见 [安装验收原始报告](environment/2026-10-31-phase1-jobs-installed.json)，报告及安装器 SHA-256、artifact 摘要和本地验收包路径记录于 CI 摘要。安装验收覆盖 Schema 0004、任务分页/阶段、暂存回收、来源/托管附件重启保留和桌面 Sidecar 生命周期；没有覆盖修复后的原生窗口分页。干净 Windows 与缺失 WebView2 未认证。
 
 ## 验证与样本
 
@@ -64,7 +66,7 @@ CI 安装器 37,606,027 字节，SHA-256 `DBE45D7678F387D3B28AAC1D762BC86BEF9A2E
 
 ## 剩余工作
 
-1. RG-006 桌面收尾：在可继续使用 Computer Use 的原生窗口重新加载第 2 页任务历史，确认 Base64URL 游标可经 Tauri 白名单到达引擎；当前修复后的窗口复测因物理 Escape 中止而未执行。
+1. RG-006 桌面收尾：在可用的原生窗口重新加载第 2 页任务历史，确认 Base64URL 游标可经 Tauri 白名单到达引擎；本轮 Computer Use 在进入应用窗口前被物理 Escape 停止，修复后的窗口复测仍未执行。
 2. RG-007：Evidence/span 对象、跨页引用、断词及归一化映射、原页面高亮、人工校正的新版本和原因记录。
 3. M1：完整安装版导入与证据定位验收；G0 未执行的干净 Windows 和缺 WebView2 实测留在发布检查中。
 4. 使用更多真实、可分发的 PDF 做版式质量验收；自造样本只证明工程边界，不代表科学语料效果。
@@ -76,4 +78,4 @@ CI 安装器 37,606,027 字节，SHA-256 `DBE45D7678F387D3B28AAC1D762BC86BEF9A2E
 - `import-work` 崩溃残留已按应用 marker 和独占锁回收；迟启动子进程在再次校验后失败，目录链接或 Windows junction 不会触及外部位置。清理失败保留 marker 并在下次启动重试，不让已完成的导入退回失败。
 - 托管附件单独处理：当前 PaperSource 不再指向某个文件，不代表历史 AttachmentRevision 不再需要它。历史版本、共享内容哈希、原文件、数据库及备份必须保留；不能直接对 attachments 执行“当前来源未引用即删除”。回收规则及恢复方案确定后再实现。
 - 任务进度只显示真实阶段（等待、读取/检查、解析、保存），不猜测百分比。分页历史保留项目隔离、确定顺序和取消/重试入口；重复请求与任务状态变化不应使列表遗漏，已由 keyset 游标和测试覆盖。
-- 验证包括异常终止后重启、文件占用/拒绝访问、重复回收、外部目录链接、旧附件与共享附件保留、取消后重试，以及开发机原生窗口的同一流程。安装版的本轮新验收尚待远端 CI；更多真实论文的版式质量验收另行记录，自造样本不代表真实语料效果。
+- 验证包括异常终止后重启、文件占用/拒绝访问、重复回收、外部目录链接、旧附件与共享附件保留、取消后重试，以及 CI 安装版的同类流程。开发机原生窗口的分页桥接修复后复测仍待执行；更多真实论文的版式质量验收另行记录，自造样本不代表真实语料效果。

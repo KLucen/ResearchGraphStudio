@@ -429,6 +429,32 @@
 - 当前工作区改动尚未提交；下一步在本条日志落盘后执行普通提交并推送 `main`，等待新 CI。CI 若失败，继续修复并普通推送；成功后下载并核验新安装器、安装报告与 SHA-256，建立独立验收包并补记结果。
 - 本轮交付后进入 RG-007：Evidence/span 对象、跨页引用、归一化映射、原页面高亮和人工校正版本。干净 Windows、缺失 WebView2、修复后原生分页和真实论文版式质量仍是待验收项。
 
+## 2026-10-31 22:14 · DEV-0014 · RG-006 CI 验收与交付收尾
+
+### 目标
+
+- 接续 RG-006 已推送实现，收齐远端 Windows 安装 CI 证据，更新验收文档并完成普通提交/推送。
+- 对本轮原生窗口分页、四份补充材料及干净环境验收限制如实留档。
+
+### 实际改动
+
+- 新增 [CI 验收摘要](docs/environment/2026-10-31-phase1-jobs-ci.json)，更新 [原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)、[Phase 1 记录](docs/phase1-verification.md)、ADR 0006、API/计划入口相关状态和 README。CI 通过、原生分页未复测、M1/干净环境未完成分别记录。
+- 保留 GitHub artifact 内的原始安装报告副本 [安装验收报告](docs/environment/2026-10-31-phase1-jobs-installed.json)，SHA-256 `D2F3F06B031B2C6B7C3D65E968E50DBBD2CB5FFF0D762732D82C46291BFD6842`。验收包 `.local/phase1-jobs-acceptance-kit-41206071801.zip` 含安装器、自造 PDF、PowerShell 脚本、报告、说明和校验清单；压缩包 SHA-256 `5D0D497C533DB85FE1CE7EE05A79CF0619DB6A2796CA2BC12B5C3E52BE7E25EA`，安装器 37,622,305 字节、SHA-256 `B8F1E66D2665B4C920F827E860637C9D8C5206288120070195233E19500B22F7`。二进制及验收包位于忽略目录，不进入源码提交。
+- S1–S4 登记的桌面原文路径均未找到，不能复核当前内容或哈希；未修改原文及来源登记。
+
+### 验证
+
+- GitHub Actions [41206071801](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41206071801) 对应源码提交 `5a3c124254192a418af8bc5c4de5d1b1f9c1f32d`，`windows`（124551286807）与 `installed-app`（124554048915）均 completed/success。构建、测试、安装/卸载、Schema 0004、PDF 来源检查、任务分页/阶段、临时工作区回收、重启后原文/托管附件保留、Sidecar 生命周期通过。artifact 摘要和安装器/报告哈希已核对并入档。
+- 安装 runner 报告将 `clean_windows_G0` 标为 `not_certified_by_this_script`；缺失 WebView2 未测。CI 不等于修复后原生窗口分页复测。
+- 原生窗口的既有独立数据报告仍保留 Schema 0003→0004 升级、取消/重试、回收统计和两页/四块自造 PDF 重启读回证据；该记录早于分页桥接修复。本轮第三次在 `list_apps` 阶段被物理 Escape 中止，没有进入应用窗口；修复后分页仍未验收，不将 API、Rust 或安装脚本结果替代 UI 证据。报告改用 `%LOCALAPPDATA%` 表示测试数据目录，并去除重复 JSON 键。
+- 已拉取并检查 `origin/main`；开始文档收尾时与本地 `main` 同步于 `5a3c124`。`git diff --check` 通过。S1–S4 路径核对为空；原始验收报告 JSON 可解析，哈希与 CI 摘要一致；验收压缩包可列出全部预期文件且 SHA-256 已记录。
+- 本轮变更限于 Markdown/JSON，工作流对 Markdown/docs 路径不触发构建；应用代码已经由上述成功 run 验收，本轮未重复运行代码测试。
+
+### 问题与下一步
+
+- 保留修复后原生窗口加载第 2 页历史为待验收项；并保留 M1 安装版证据定位、干净 Windows、缺失 WebView2 和真实 PDF 版式质量验收。G0 仍按用户决定放行，不将放行记成测试通过。
+- 文档检查通过后，按既有授权普通提交并推送 `main`；此文档提交不触发应用 CI。RG-006 交付收尾后进入 RG-007：Evidence/span、跨页引用、归一化映射、原页面高亮与人工校正版本。
+
 ## 后续条目模板
 
 ```markdown

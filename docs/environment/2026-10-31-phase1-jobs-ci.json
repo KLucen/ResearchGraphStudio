@@ -1,0 +1,55 @@
+{
+  "recorded_at": "2026-10-31T21:45:48+08:00",
+  "run_id": 41206071801,
+  "run_url": "https://github.com/KLucen/ResearchGraphStudio/actions/runs/41206071801",
+  "head_sha": "5a3c124254192a418af8bc5c4de5d1b1f9c1f32d",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 124551286807,
+      "name": "windows",
+      "conclusion": "success",
+      "completed_at": "2026-10-31T13:45:33Z"
+    },
+    {
+      "id": 124554048915,
+      "name": "installed-app",
+      "conclusion": "success",
+      "completed_at": "2026-10-31T13:46:22Z"
+    }
+  ],
+  "artifacts": {
+    "installer": {
+      "name": "researchgraph-phase0-windows",
+      "id": 13045385061,
+      "archive_sha256": "8FDF7F9B1676923C311136237B0CCCC09B35DB57D2C019B80BFF0F42681D9D3B",
+      "installer_name": "ResearchGraph Studio_0.0.1_x64-setup.exe",
+      "bytes": 37622305,
+      "sha256": "B8F1E66D2665B4C920F827E860637C9D8C5206288120070195233E19500B22F7"
+    },
+    "installed_verification": {
+      "name": "researchgraph-installed-verification",
+      "id": 13044534472,
+      "archive_sha256": "E75A65894FFDE8F6F29670F1EF0FA5E99D9E6B18B0EF3B71EB1A0B01B392FD56",
+      "report_path": "docs/environment/2026-10-31-phase1-jobs-installed.json",
+      "report_sha256": "D2F3F06B031B2C6B7C3D65E968E50DBBD2CB5FFF0D762732D82C46291BFD6842"
+    }
+  },
+  "checks": {
+    "windows_build_and_test": "passed",
+    "install_and_uninstall": "passed",
+    "authentication_and_diagnostics": "passed",
+    "pdf_import_and_source_relocation": "passed",
+    "job_history_and_stages": "passed",
+    "temporary_workspace_recovery": "passed",
+    "restart_persistence_and_original_files": "passed",
+    "desktop_sidecar_lifecycle": "passed"
+  },
+  "limitations": {
+    "clean_windows_G0": "not_certified_by_this_script",
+    "missing_webview2": "not tested",
+    "post_fix_native_pagination": "not tested; tracked separately in 2026-10-31-phase1-jobs-native.json"
+  },
+  "acceptance_kit": ".local/phase1-jobs-acceptance-kit-41206071801.zip"
+}
