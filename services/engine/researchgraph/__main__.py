@@ -20,14 +20,17 @@ def main() -> None:
     if args.parse_pdf or args.check_source:
         if not args.output_dir or args.data_dir or (args.parse_pdf and args.check_source):
             parser.error("File worker requires one operation and --output-dir")
-        if args.parse_pdf:
-            from researchgraph.ingest import parse_pdf
+        from researchgraph.workspaces import worker_workspace
 
-            parse_pdf(str(args.parse_pdf), str(args.output_dir))
-        else:
-            from researchgraph.source_files import check_source_file
+        with worker_workspace(args.output_dir):
+            if args.parse_pdf:
+                from researchgraph.ingest import parse_pdf
 
-            check_source_file(args.check_source, args.output_dir)
+                parse_pdf(str(args.parse_pdf), str(args.output_dir))
+            else:
+                from researchgraph.source_files import check_source_file
+
+                check_source_file(args.check_source, args.output_dir)
         return
     if not args.data_dir or args.output_dir:
         parser.error("Engine requires --data-dir")

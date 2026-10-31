@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from uuid import uuid4
 
 
 def run(executable: Path) -> dict[str, object]:
@@ -79,6 +80,7 @@ def run(executable: Path) -> dict[str, object]:
             return job
 
         process, port = start()
+        forced_shutdown = False
         try:
             assert request(port, "/health")["database"] == "ready"
             try:
@@ -154,16 +156,40 @@ def run(executable: Path) -> dict[str, object]:
             assert Path(relocated["path"]).samefile(moved), relocated
             assert relocated["revision_id"] == revision_id, relocated
             assert relocated["last_check"]["original"]["state"] == "available"
+            history = request(port, f"/projects/{project['id']}/jobs?limit=2")
+            older = request(
+                port, f"/projects/{project['id']}/jobs?limit=2&cursor={history['next_cursor']}"
+            )
+            assert len(history["items"]) == 2 and len(older["items"]) == 1
+            assert older["items"][0]["id"] == pdf["id"]
+            assert all(j["stage"] == "saving" for j in history["items"] + older["items"])
+            orphan = data / "import-work" / str(uuid4())
+            orphan.mkdir()
+            (orphan / "workspace.json").write_text(
+                json.dumps({"format": 1, "workspace_id": orphan.name}), encoding="utf-8"
+            )
+            (orphan / "snapshot.pdf").write_bytes(b"Synthetic abandoned staging data")
+            managed_files = {p.name: p.read_bytes() for p in (data / "attachments").glob("*.pdf")}
+            process.kill()
+            process.wait(timeout=10)
+            forced_shutdown = True
         finally:
             process.stdin.close()
             try:
-                assert process.wait(timeout=10) == 0
+                if not forced_shutdown:
+                    assert process.wait(timeout=10) == 0
             finally:
                 if process.poll() is None:
                     process.kill()
                     process.wait()
         process, port = start()
         try:
+            assert request(port, "/health")["temporary_files"]["removed"] == 1
+            assert not orphan.exists()
+            assert {
+                p.name: p.read_bytes() for p in (data / "attachments").glob("*.pdf")
+            } == managed_files
+            assert moved.read_bytes() == fixture.read_bytes()
             assert request(port, "/projects")["items"] == [project]
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
             assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
@@ -182,6 +208,9 @@ def run(executable: Path) -> dict[str, object]:
         "diagnostic_job": "passed",
         "pdf_import_and_restart": "passed",
         "source_check_relocate_restart": "passed",
+        "job_history_and_stages": "passed",
+        "forced_exit_workspace_recovery": "passed",
+        "source_and_managed_files_preserved": "passed",
         "restart_persistence": "passed",
         "stdin_eof_exit": "passed",
         "unicode_space_path": "passed",

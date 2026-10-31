@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.models import Event, Job, Paper, PaperSource, now
 from researchgraph.schemas import FileCheck, SourceCheck
+from researchgraph.workspaces import report_stage
 
 MAX_BYTES = 50 * 1024 * 1024
 
@@ -45,6 +46,7 @@ def inspect_file(path: str, expected_hash: str) -> FileCheck:
 
 
 def check_source_file(request_file: Path, directory: Path) -> None:
+    report_stage(directory, "checking")
     request = json.loads(request_file.read_text(encoding="utf-8"))
     result = SourceCheck(
         checked_at=now(),

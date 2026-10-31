@@ -7,20 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { api } from "./api";
 import { SourceFiles } from "./SourceFiles";
-
-const statusNames: Record<string, string> = {
-  queued: "等待处理",
-  running: "处理中",
-  succeeded: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
-  interrupted: "已中断",
-};
-const jobNames: Record<string, string> = {
-  pdf_import: "PDF 导入",
-  source_check: "来源检查",
-  source_relocate: "重新定位",
-};
+import { JobHistory } from "./JobHistory";
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -43,30 +30,13 @@ export function Papers({
     enabled: connected,
     refetchInterval: 2000,
   });
-  const jobs = useQuery({
-    queryKey: ["jobs", projectId],
-    queryFn: () => api.projectJobs(projectId),
-    enabled: connected,
-    refetchInterval: 1000,
-  });
   const importing = useMutation({
     mutationFn: () => api.importPdf(projectId, mode),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
-  const action = useMutation({
-    mutationFn: ({ id, kind }: { id: string; kind: "cancel" | "retry" }) =>
-      api.jobAction(id, kind, crypto.randomUUID()),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
   const items = papers.data?.pages.flatMap((page) => page.items) ?? [];
-  const imports =
-    jobs.data?.filter(
-      (job) => job.kind in jobNames && job.project_id === projectId,
-    ) ?? [];
   return (
     <section className="paper-workbench" aria-label="项目文献">
       <div className="settings-title">
@@ -95,51 +65,16 @@ export function Papers({
       </div>
       <p className="muted">
         {mode === "reference"
-          ? "保存原文件路径和解析文本；移动原文件后可重新导入同一内容。"
+          ? "保存原文件路径和解析文本；移动原文件后可在来源文件中重新定位。"
           : "明确复制所选 PDF 到本地应用存储，保留独立副本。"}{" "}
         每次一份，最多 50 MiB / 300 页。
       </p>
-      {[importing.error, action.error, papers.error, jobs.error]
-        .filter(Boolean)
-        .map((error, i) => (
-          <p role="alert" className="error-text" key={i}>
-            {errorText(error)}
-          </p>
-        ))}
-      {imports.length > 0 && (
-        <div className="job-list" aria-label="文献任务">
-          <p className="muted">本项目最近 10 项文献任务</p>
-          {imports.slice(0, 10).map((job) => (
-            <div className="job" key={job.id}>
-              <div>
-                <strong>
-                  {jobNames[job.kind]} · {statusNames[job.status]}
-                </strong>
-                <small>第 {job.attempt} 次执行</small>
-                {job.error && <p className="error-text">{job.error}</p>}
-              </div>
-              {["queued", "running"].includes(job.status) ? (
-                <button
-                  className="text-button"
-                  disabled={!connected || action.isPending}
-                  onClick={() => action.mutate({ id: job.id, kind: "cancel" })}
-                >
-                  取消
-                </button>
-              ) : ["failed", "interrupted", "cancelled"].includes(job.status) &&
-                job.attempt < 3 ? (
-                <button
-                  className="text-button"
-                  disabled={!connected || action.isPending}
-                  onClick={() => action.mutate({ id: job.id, kind: "retry" })}
-                >
-                  重试
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
+      {[importing.error, papers.error].filter(Boolean).map((error, i) => (
+        <p role="alert" className="error-text" key={i}>
+          {errorText(error)}
+        </p>
+      ))}
+      <JobHistory projectId={projectId} connected={connected} />
       <div className="paper-columns">
         <div className="paper-list">
           <h3>项目文献 · {items.length}</h3>

@@ -779,3 +779,17 @@ main {
     transition: none !important;
   }
 }
+.task-history {
+  margin-block: 20px;
+}
+.task-history-scroll {
+  max-height: 280px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.task-stage {
+  margin: 4px 0 0;
+  color: var(--muted, #59636e);
+  font-size: 13px;
+}

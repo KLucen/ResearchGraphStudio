@@ -2,7 +2,7 @@
 
 AI 辅助科研桌面工作台：实验条件约束的证据推理、人工知识审核与增量知识演化。
 
-当前进入 **Phase 1 来源与证据开发**，已加入 PDF 引用/托管导入、附件修订、页码原文块查看、来源检查和同内容文件重新定位；任务可取消/重试。采用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5。G0 于 2026-10-29 按用户决定放行；未补造干净机实测结果。当前范围和剩余工作见 [Phase 1 记录](docs/phase1-verification.md)，历史安装结果见 [Phase 0 记录](docs/phase0-verification.md)。AI、图谱和人工知识审核尚未实现。
+当前进入 **Phase 1 来源与证据开发**，已加入 PDF 引用/托管导入、附件修订、页码原文块查看、来源检查和同内容文件重新定位；任务可取消/重试，并显示实际阶段、稳定项目任务历史和启动时临时工作区回收统计。当前 API Schema 为 0004。采用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5。G0 于 2026-10-29 按用户决定放行；未补造干净机实测结果。当前范围和剩余工作见 [Phase 1 记录](docs/phase1-verification.md)，历史安装结果见 [Phase 0 记录](docs/phase0-verification.md)。AI、图谱和人工知识审核尚未实现。
 
 开发目录：`C:\Users\KLucen\Desktop\AI科研知识推理平台`。开发远端：[KLucen/ResearchGraphStudio](https://github.com/KLucen/ResearchGraphStudio)，本地 origin 已关联。
 
@@ -36,7 +36,7 @@ pwsh -File .\scripts\build-windows.ps1
 
 - [完整开发计划 v0.4](docs/development-plan-v0.4.md)与[开发流程入口](docs/development-plan.md)
 - [需求基线](docs/design/requirements-baseline.md)、[原文 QA](QA.md)、[补充材料登记](docs/design/source-register.md)
-- [领域模型](docs/design/domain-model.md)、[Tauri 决策](docs/decisions/0002-tauri-evidence-workbench.md)、[工具/Wiki 决策](docs/decisions/0003-controlled-knowledge-evolution.md)
+- [领域模型](docs/design/domain-model.md)、[Tauri 决策](docs/decisions/0002-tauri-evidence-workbench.md)、[工具/Wiki 决策](docs/decisions/0003-controlled-knowledge-evolution.md)、[来源检查决策](docs/decisions/0005-source-check-relocation.md)、[任务历史与临时工作区决策](docs/decisions/0006-job-history-workspace-recovery.md)
 - [已实现 API](docs/api.md)、[Phase 0 验证与待验收项](docs/phase0-verification.md)、[环境报告](docs/environment-check.md)
 - [开发日志](DEVELOPMENT_LOG.md)、[实验计划](experiments/README.md)
 

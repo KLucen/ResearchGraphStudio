@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-10-31T20:36:00+08:00",
+  "result": "passed_with_native_pagination_recheck_pending",
+  "updated_at": "2026-10-31T21:30:05+08:00",
+  "scope": "RG-006 temporary workspace recovery, observed job stages, and stable project job history",
+  "application": "com.researchgraph.studio.phase1test",
+  "data_directory": "C:/Users/KLucen/AppData/Local/com.researchgraph.studio.phase1test",
+  "previous_data_backup": ".local/native-phase1test-backup-20261031-195549",
+  "synthetic_pdf": {
+    "path": ".local/native-phase1-synthetic.pdf",
+    "sha256": "7c65963e7a656b4e2a4c0d5b59986f287d61f7e1fe1a4081fda31efe01f5df73",
+    "pages": 2,
+    "chunks_visible": 4
+  },
+  "native_debug_checks": {
+    "old_schema_0003_backup_and_upgrade_to_0004": "passed",
+    "load_earlier_history": "not_validated; the prior 13-task claim is withdrawn because the Tauri bridge rejected the backend Base64URL cursor",
+    "native_recheck_after_bridge_fix": "not_run; Computer Use was stopped by physical Escape during list_apps twice; the latest attempt did not touch an application window",
+    "cancel_and_retry": "passed; cancelled import retried and completed on attempt 2",
+    "source_check": "passed; original file content consistent",
+    "recovery_statistics": "passed; removed=0, busy=0, retained=0, errors=0",
+    "original_text_after_restart": "passed; two pages and four chunks remain visible",
+    "source_and_attachment_preservation": "passed"
+  },
+  "automated_checks": {
+    "full_local_suite": "passed on 2026-10-31; 45 Python, 16 React, and 1 Rust tests; 1 platform capability skip",
+    "python_static_and_dependencies": "passed; ruff, format, mypy, pip check, and contract export",
+    "packaged_engine_smoke": "passed; Unicode/space path, source relocation, stable history, forced-exit recovery, and restart preservation",
+    "powershell_51_engine_acceptance": "passed on Windows 11 build 26200 with Windows PowerShell 5.1.26100.9444; see .local/phase1-jobs-ps51-final-010d4454e00545d4b916df0912f72621/verification.json; clean Windows G0 remains uncertified",
+    "desktop_bridge_cursor_regression": "passed; Rust route allowlist accepts bounded Base64URL cursors and rejects unsafe/oversized values",
+    "remote_install_ci": "pending for this unsubmitted increment"
+  },
+  "limitations": {
+    "supplemental_materials": "S1-S4 paths registered in docs/design/source-register.md were not present on this machine; their current contents and hashes could not be rechecked",
+    "g0": "clean Windows and missing WebView2 scenarios remain user-waived and are not claimed as tested",
+    "quality": "synthetic PDF proves storage and display boundaries only; it is not a scientific document quality evaluation",
+    "computer_use": "the user stopped Computer Use with physical Escape during list_apps; the latest attempt did not touch an application window, and no post-fix native pagination result is claimed"
+  }
+}

@@ -7,7 +7,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, event, text
 
-SCHEMA_HEAD = "0003"
+SCHEMA_HEAD = "0004"
 
 
 def make_engine(data_dir: Path) -> Engine:

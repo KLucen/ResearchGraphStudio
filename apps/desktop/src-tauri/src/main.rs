@@ -145,7 +145,7 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0003" {
+        if health["protocol_version"] != 1 || health["schema_version"] != "0004" {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
@@ -154,18 +154,48 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    fn valid_job_cursor(value: &str) -> bool {
+        !value.is_empty()
+            && value.len() <= 512
+            && value.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '_' | '-')
+            })
+    }
+
     let parts: Vec<_> = path.split('/').collect();
     if parts.len() == 6
         && parts[1..3] == ["api", "v1"]
         && uuid::Uuid::parse_str(parts[4]).is_ok()
-        && ((method == "POST" && parts[3] == "sources" && parts[5] == "check")
-            || (method == "GET" && parts[3] == "projects" && parts[5] == "jobs"))
+        && method == "POST"
+        && parts[3] == "sources"
+        && parts[5] == "check"
     {
         return true;
     }
     if method == "GET" {
         let (route, query) = path.split_once('?').unwrap_or((path, ""));
         let parts: Vec<_> = route.split('/').collect();
+        if parts.len() == 6
+            && parts[1..4] == ["api", "v1", "projects"]
+            && uuid::Uuid::parse_str(parts[4]).is_ok()
+            && parts[5] == "jobs"
+        {
+            let (mut cursor_seen, mut limit_seen) = (false, false);
+            return query.is_empty()
+                || query.split('&').all(|part| {
+                    part.split_once('=').is_some_and(|(key, value)| match key {
+                        "cursor" if !cursor_seen => {
+                            cursor_seen = true;
+                            valid_job_cursor(value)
+                        }
+                        "limit" if !limit_seen => {
+                            limit_seen = true;
+                            !value.is_empty() && value.chars().all(|c| c.is_ascii_digit())
+                        }
+                        _ => false,
+                    })
+                });
+        }
         let paginated = (parts.len() == 6 && parts[1] == "api" && parts[2] == "v1")
             && ((parts[3] == "projects" && parts[5] == "papers")
                 || (parts[3] == "revisions" && parts[5] == "chunks"))
@@ -434,6 +464,29 @@ mod tests {
         let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
         assert!(allowed("POST", &format!("/api/v1/sources/{id}/check")));
         assert!(allowed("GET", &format!("/api/v1/projects/{id}/jobs")));
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/jobs?limit=10&cursor=dGhpcy1pcy1hbi1vcGFxdWUtY3Vyc29y")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/jobs?cursor={}", "x".repeat(513))
+        ));
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/jobs?limit=10&cursor={id}")
+        ));
+        for query in [
+            "cursor=../../private",
+            "cursor=invalid!",
+            "limit=10&limit=20",
+            "path=C:/private",
+        ] {
+            assert!(!allowed(
+                "GET",
+                &format!("/api/v1/projects/{id}/jobs?{query}")
+            ));
+        }
         assert!(!allowed("POST", &format!("/api/v1/sources/{id}/relocate")));
         assert!(!allowed(
             "POST",

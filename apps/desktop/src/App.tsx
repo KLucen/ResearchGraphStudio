@@ -481,9 +481,27 @@ function Settings({
           <dd>{health?.schema_version ?? "等待连接"}</dd>
           <dt>全文检索</dt>
           <dd>{health?.fts5 ? "FTS5 可用" : "等待检查"}</dd>
+          {health?.temporary_files && (
+            <>
+              <dt>启动时临时文件回收</dt>
+              <dd>
+                已回收 {health.temporary_files.removed} 组；占用{" "}
+                {health.temporary_files.busy} 组；未识别保留{" "}
+                {health.temporary_files.retained} 组；失败{" "}
+                {health.temporary_files.errors} 组
+              </dd>
+            </>
+          )}
           <dt>项目数据位置</dt>
           <dd className="mono">{directory ?? "等待宿主信息"}</dd>
         </dl>
+        {health?.temporary_files &&
+          (health.temporary_files.busy > 0 ||
+            health.temporary_files.errors > 0) && (
+            <p className="muted">
+              部分临时文件本次未能回收，下次启动时会重试。项目和历史附件保留。
+            </p>
+          )}
         <button
           className="button secondary"
           disabled={restart.isPending}

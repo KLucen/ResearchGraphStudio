@@ -1,6 +1,6 @@
 # ResearchGraph Studio 开发计划 v0.4
 
-日期：2026-10-27（Asia/Shanghai）。设计基线保留；2026-10-29 更新实施状态：G0 已按用户决定放行，正在开发 Phase 1，实际进度见 [Phase 1 记录](phase1-verification.md)。这里的 **v0.4 是计划版本**，产品交付版本仍为 v0.1 和 v1.0。
+日期：2026-10-27（Asia/Shanghai）。设计基线保留；2026-10-31 更新实施状态：G0 已按用户决定放行，Phase 1 RG-006 的来源、任务恢复和历史分页增量已在本机验收，实际进度见 [Phase 1 记录](phase1-verification.md)。这里的 **v0.4 是计划版本**，产品交付版本仍为 v0.1 和 v1.0。
 
 本计划结合 QA.md、BG.md、《ResearchGraph Studio：Zotero、Obsidian 与软件的职责划分》《AI在流程中的工作》和桌面 development_plan.md，并保留当前项目协作约定。它可独立用于评审开发范围、任务依赖和验收条件。来源位置、行号和哈希见[来源登记](design/source-register.md)，需求编号见[需求基线](design/requirements-baseline.md)。
 
@@ -282,9 +282,9 @@ Phase 4 内部顺序：Zotero/笔记的受限来源适配 → Wiki 模板与一�
 
 旧任务映射：T101→RG-001；T102→RG-002/003；T103→RG-004/006 的数据部分；T104→RG-006；T105→RG-007；T106 拆成 RG-005 的 G0 和 RG-007 的 M1。
 
-当前实施 RG-006–007：先完成可安装 PDF 导入、来源/附件版本、页码原文块查看，再补充跨页 Evidence、归一化映射及人工校正。具体边界与 G0 放行依据见 [ADR 0004](decisions/0004-g0-waiver-phase1.md)。不同时搭建未接通的 AI、图谱或 Wiki 页面。
+当前实施 RG-006–007：RG-006 已完成可安装 PDF 导入、来源/附件版本、页码原文块查看、来源检查/重新定位、暂存工作区回收、真实任务阶段和稳定项目任务分页；下一步补充跨页 Evidence、归一化映射及人工校正。具体边界与 G0 放行依据见 [ADR 0004](decisions/0004-g0-waiver-phase1.md)，任务历史与回收规则见 [ADR 0006](decisions/0006-job-history-workspace-recovery.md)。不同时搭建未接通的 AI、图谱或 Wiki 页面。
 
-2026-10-30 增量：已实现显式来源检查、原文件/托管副本分别核对、同内容重新定位与过期任务保护（[ADR 0005](decisions/0005-source-check-relocation.md)）。下一步补缓存回收、任务进度/分页历史，再推进 RG-007；来源可用性不等于证据有效性，原文历史不随来源丢失而删除。缓存回收先限定到已停止写入的应用临时任务目录，不以“当前来源未引用”为由删除历史托管附件；范围与故障验收见 [Phase 1 下一轮边界](phase1-verification.md#rg-006-下一轮实施边界计划尚未实现)。
+2026-10-30 增量：已实现显式来源检查、原文件/托管副本分别核对、同内容重新定位与过期任务保护（[ADR 0005](decisions/0005-source-check-relocation.md)）。2026-10-31 增量：完成应用自有临时工作区回收、子进程租约、权限失败重试、真实任务阶段和带 SQLite `rowid` 快照上界的稳定 keyset 历史分页（[ADR 0006](decisions/0006-job-history-workspace-recovery.md)）。来源可用性不等于证据有效性，原文历史不随来源丢失而删除；回收不触碰历史托管附件。下一步推进 RG-007。
 
 ## 11. 研究评测与发布验证
 

@@ -41,11 +41,26 @@ class JobView(BaseModel):
     kind: str
     project_id: str | None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]
+    stage: Literal["starting", "reading", "parsing", "checking", "saving", "diagnostics"] | None = (
+        None
+    )
     attempt: int
     error: str | None
     result: dict[str, str | bool] | None
     created_at: str
     updated_at: str
+
+
+class JobList(BaseModel):
+    items: list[JobView]
+    next_cursor: str | None
+
+
+class WorkspaceCleanup(BaseModel):
+    removed: int = 0
+    busy: int = 0
+    retained: int = 0
+    errors: int = 0
 
 
 class Health(BaseModel):
@@ -55,6 +70,7 @@ class Health(BaseModel):
     schema_version: str
     database: Literal["ready"] = "ready"
     fts5: bool
+    temporary_files: WorkspaceCleanup | None = None
 
 
 class PdfImport(InputModel):

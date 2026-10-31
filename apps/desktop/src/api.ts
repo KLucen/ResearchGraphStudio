@@ -3,6 +3,7 @@ import type { components } from "../../../packages/contracts/generated";
 
 export type Project = components["schemas"]["ProjectView"];
 export type Job = components["schemas"]["JobView"];
+export type JobList = components["schemas"]["JobList"];
 export type Health = components["schemas"]["Health"];
 export type ProjectList = components["schemas"]["ProjectList"];
 export type PaperList = components["schemas"]["PaperList"];
@@ -51,8 +52,11 @@ export const api = {
       expectedGeneration: source.generation,
       idempotencyKey: crypto.randomUUID(),
     }),
-  projectJobs: (projectId: string) =>
-    request<Job[]>("GET", `/api/v1/projects/${projectId}/jobs`),
+  projectJobs: (projectId: string, cursor: string | null = null) =>
+    request<JobList>(
+      "GET",
+      `/api/v1/projects/${projectId}/jobs?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    ),
   importPdf: (projectId: string, mode: "reference" | "managed") =>
     invoke<Job | null>("import_pdf_file", {
       projectId,

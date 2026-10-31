@@ -3,8 +3,8 @@
 import asyncio
 import hashlib
 import json
+import logging
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.models import AttachmentRevision, Chunk, Event, Job, Paper, PaperSource, now
 from researchgraph.source_files import MAX_BYTES, publish_source_check
+from researchgraph.workspaces import clean_workspace, create_workspace, read_stage, report_stage
 
 MAX_PAGES = 300
 MAX_TEXT = 2_000_000
@@ -28,6 +29,7 @@ def parse_pdf(path: str, directory: str) -> None:
 
     work = Path(directory)
     try:
+        report_stage(work, "reading")
         source = Path(path)
         if not source.is_absolute() or source.suffix.lower() != ".pdf" or not source.is_file():
             raise ValueError("请选择可读取的本地 PDF 文件")
@@ -41,6 +43,7 @@ def parse_pdf(path: str, directory: str) -> None:
         chunks: list[dict[str, Any]] = []
         warnings = ["阅读顺序和图表/公式未作语义校验，请对照原文核查。"]
         characters = 0
+        report_stage(work, "parsing")
         with pymupdf.open(stream=content, filetype="pdf") as document:
             if document.needs_pass:
                 raise ValueError("加密 PDF 暂不支持，请使用已解密的副本")
@@ -172,8 +175,7 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
         job = session.get(Job, job_id)
         assert job and job.payload
         payload, kind = job.payload, job.kind
-    work = data / "import-work" / str(uuid4())
-    work.mkdir(parents=True)
+    work = create_workspace(data)
     command = [sys.executable]
     child_environment = os.environ.copy()
     if not getattr(sys, "frozen", False):
@@ -204,6 +206,10 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
                 current = session.get(Job, job_id)
                 if current is None or current.status != "running":
                     return
+                stage = read_stage(work, kind)
+                if stage and current.stage != stage:
+                    current.stage, current.updated_at = stage, now()
+                    session.commit()
             if time.monotonic() > deadline:
                 raise ValueError("文件处理超时（120 秒），请检查文件或连接")
             await asyncio.sleep(0.1)
@@ -212,6 +218,11 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
         if process.returncode != 0 or not (work / "result.json").exists():
             raise ValueError("文件处理进程异常退出，可重试或检查原文件")
         result = json.loads((work / "result.json").read_text(encoding="utf-8"))
+        with Session(engine) as session, session.begin():
+            current = session.get(Job, job_id)
+            if current is None or current.status != "running":
+                return
+            current.stage, current.updated_at = "saving", now()
         with Session(engine) as session, session.begin():
             current = session.get(Job, job_id)
             if current and current.status == "running":
@@ -229,4 +240,7 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
-        shutil.rmtree(work)
+        outcome = clean_workspace(work)
+        if outcome != "removed":
+            # A failed cleanup must not change an already committed job result.
+            logging.getLogger(__name__).warning("Deferred temporary workspace cleanup: %s", outcome)

@@ -275,6 +275,7 @@ export interface components {
             database: "ready";
             /** Fts5 */
             fts5: boolean;
+            temporary_files?: components["schemas"]["WorkspaceCleanup"] | null;
         };
         /** JobCreate */
         JobCreate: {
@@ -284,6 +285,13 @@ export interface components {
              * @constant
              */
             kind: "diagnostics";
+        };
+        /** JobList */
+        JobList: {
+            /** Items */
+            items: components["schemas"]["JobView"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** JobView */
         JobView: {
@@ -298,6 +306,8 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+            /** Stage */
+            stage?: ("starting" | "reading" | "parsing" | "checking" | "saving" | "diagnostics") | null;
             /** Attempt */
             attempt: number;
             /** Error */
@@ -444,6 +454,29 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkspaceCleanup */
+        WorkspaceCleanup: {
+            /**
+             * Removed
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Busy
+             * @default 0
+             */
+            busy: number;
+            /**
+             * Retained
+             * @default 0
+             */
+            retained: number;
+            /**
+             * Errors
+             * @default 0
+             */
+            errors: number;
         };
     };
     responses: never;
@@ -598,7 +631,11 @@ export interface operations {
     };
     project_jobs_api_v1_projects__project_id__jobs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 不透明的历史快照游标，仅使用 next_cursor 续页 */
+                cursor?: string | null;
+                limit?: number;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -613,7 +650,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobView"][];
+                    "application/json": components["schemas"]["JobList"];
                 };
             };
             /** @description Validation Error */

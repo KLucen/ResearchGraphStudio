@@ -176,7 +176,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0003') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0004') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
@@ -233,9 +233,23 @@ try {
         $relocated = (Invoke-ProbeApi ('/papers/' + $paperId)).sources[0]
         Assert-Probe ($relocated.path -eq $movedPath -and $relocated.revision_id -eq $revisionId -and $relocated.last_check.original.state -eq 'available') 'Source relocation mismatch.'
         $report.checks['source_check_relocate'] = 'passed'
+        $history = Invoke-ProbeApi ('/projects/' + $project.id + '/jobs?limit=2')
+        $older = Invoke-ProbeApi ('/projects/' + $project.id + '/jobs?limit=2&cursor=' + $history.next_cursor)
+        Assert-Probe (@($history.items).Count -eq 2 -and @($older.items).Count -eq 1 -and $older.items[0].id -eq $pdfJob.id) 'Job history pagination mismatch.'
+        Assert-Probe ($pdfJob.stage -eq 'saving' -and $fileJob.stage -eq 'saving') 'Completed job stages were not saved.'
+        $report.checks['job_history_and_stages'] = 'passed'
     }
     Stop-ProbeEngine
+    $orphanId = [guid]::NewGuid().ToString()
+    $orphanPath = Join-Path (Join-Path $dataPath 'import-work') $orphanId
+    New-Item -ItemType Directory -Path $orphanPath -Force | Out-Null
+    $utf8WithoutBom = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText((Join-Path $orphanPath 'workspace.json'), (@{format = 1; workspace_id = $orphanId} | ConvertTo-Json -Compress), $utf8WithoutBom)
+    [IO.File]::WriteAllText((Join-Path $orphanPath 'snapshot.pdf'), 'Synthetic abandoned staging data', $utf8WithoutBom)
     Start-ProbeEngine
+    $recoveredHealth = Invoke-ProbeApi '/health'
+    Assert-Probe ($recoveredHealth.temporary_files.removed -eq 1 -and -not (Test-Path -LiteralPath $orphanPath)) 'Abandoned temporary files were not recovered.'
+    $report.checks['temporary_workspace_recovery'] = 'passed'
     $saved = Invoke-ProbeApi '/projects'
     Assert-Probe ($saved.items.Count -eq 1 -and $saved.items[0].id -eq $project.id) 'Project was not persisted exactly once.'
     $report.checks['project_idempotency_restart'] = 'passed'
@@ -246,6 +260,9 @@ try {
         $restoredSource = (Invoke-ProbeApi ('/papers/' + $paperId)).sources[0]
         Assert-Probe (($restoredSource | ConvertTo-Json -Depth 8 -Compress) -eq ($relocated | ConvertTo-Json -Depth 8 -Compress)) 'Relocated source changed after restart.'
         $report.checks['source_restart_persistence'] = 'passed'
+        Assert-Probe (Test-Path -LiteralPath $movedPath) 'Source file was removed during recovery.'
+        Assert-Probe (@(Get-ChildItem -LiteralPath (Join-Path $dataPath 'attachments') -Filter '*.pdf').Count -eq 1) 'Managed file was removed during recovery.'
+        $report.checks['source_and_managed_files_preserved'] = 'passed'
     }
     Stop-ProbeEngine
     $report.checks['engine_eof_exit'] = 'passed'

@@ -55,9 +55,12 @@ def test_original_and_managed_checks_are_independent_and_persist(tmp_path):
         job = wait_job(api, act(api, source, key="check-changed-cache").json())
         assert job["result"]["managed_state"] == "changed"
         assert api.get(f"/api/v1/revisions/{revision}/chunks").json() == blocks
-        assert len(api.get(f"/api/v1/projects/{project}/jobs").json()) == 4
+        assert len(api.get(f"/api/v1/projects/{project}/jobs").json()["items"]) == 4
         other = post(api, "/projects", {"name": "other"}, "other-project").json()["id"]
-        assert api.get(f"/api/v1/projects/{other}/jobs").json() == []
+        assert api.get(f"/api/v1/projects/{other}/jobs").json() == {
+            "items": [],
+            "next_cursor": None,
+        }
     with client(data) as api:
         checked = api.get(f"/api/v1/papers/{paper}").json()["sources"][0]["last_check"]
         assert checked["original"]["state"] == "missing"

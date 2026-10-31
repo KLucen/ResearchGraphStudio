@@ -81,7 +81,7 @@ def test_import_dedup_revisions_and_immutable_text(tmp_path):
     with client(data) as api:
         assert len(api.get(f"/api/v1/projects/{project}/papers").json()["items"]) == 1
         assert api.get(f"/api/v1/revisions/{revision_id}/chunks").json()["items"] == blocks
-    assert not list((data / "import-work").iterdir())
+    assert not [p for p in (data / "import-work").iterdir() if p.suffix != ".lock"]
 
 
 @pytest.mark.parametrize("filename", ["broken.pdf", "encrypted.pdf", "missing.pdf"])
@@ -148,7 +148,7 @@ def test_upgrade_0001_preserves_project_and_backup(tmp_path):
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT name FROM projects")) == "Keep project"
         assert connection.scalar(text("SELECT status FROM jobs")) == "succeeded"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
     (backup,) = (tmp_path / "backups").glob("*.sqlite3")
     with sqlite3.connect(backup) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0001"

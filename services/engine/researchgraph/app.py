@@ -1,18 +1,21 @@
 import asyncio
+import base64
+import binascii
 import hashlib
 import hmac
 import json
+import re
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Annotated, Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from filelock import FileLock
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, and_, func, literal_column, or_, select, update
 from sqlalchemy.orm import Session
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -36,6 +39,7 @@ from researchgraph.schemas import (
     ChunkView,
     Health,
     JobCreate,
+    JobList,
     JobView,
     PaperDetail,
     PaperList,
@@ -50,12 +54,35 @@ from researchgraph.schemas import (
     SourceView,
 )
 from researchgraph.storage import SCHEMA_HEAD, diagnostics, make_engine, migrate
+from researchgraph.workspaces import recover_workspaces
 
 Key = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=120)]
 
 
 def failure(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status, {"code": code, "message": message})
+
+
+def encode_job_cursor(job_id: str, snapshot: int) -> str:
+    payload = json.dumps({"anchor": job_id, "snapshot": snapshot}, separators=(",", ":"))
+    return base64.urlsafe_b64encode(payload.encode("ascii")).rstrip(b"=").decode("ascii")
+
+
+def decode_job_cursor(cursor: str) -> tuple[UUID, int] | None:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,512}", cursor):
+        return None
+    try:
+        payload = base64.b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True)
+        value = json.loads(payload)
+        if not isinstance(value, dict) or set(value) != {"anchor", "snapshot"}:
+            return None
+        if not isinstance(value["anchor"], str) or type(value["snapshot"]) is not int:
+            return None
+        if value["snapshot"] < 1:
+            return None
+        return UUID(value["anchor"]), value["snapshot"]
+    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return None
 
 
 def remembered(session: Session, key: str, body: dict[str, Any]) -> dict[str, Any] | None:
@@ -88,6 +115,7 @@ async def worker(engine: Engine, data_dir: Path) -> None:
                 job_id = job.id
                 kind = job.kind
                 job.status, job.updated_at = "running", now()
+                job.stage = "diagnostics" if kind == "diagnostics" else "starting"
                 job.attempt += 1
         if job_id is None:
             await asyncio.sleep(0.15)
@@ -133,6 +161,7 @@ def create_app(
             try:
                 migrate(engine, data_dir)
                 diagnostics(engine)
+                app.state.workspace_cleanup = recover_workspaces(data_dir)
                 with Session(engine) as session, session.begin():
                     session.execute(
                         update(Job)
@@ -214,6 +243,7 @@ def create_app(
             protocol_version=PROTOCOL_VERSION,
             schema_version=SCHEMA_HEAD,
             fts5=True,
+            temporary_files=app.state.workspace_cleanup,
         )
 
     @app.get("/api/v1/projects", response_model=ProjectList)
@@ -261,20 +291,59 @@ def create_app(
                 for j in session.scalars(select(Job).order_by(Job.created_at.desc()).limit(50))
             ]
 
-    @app.get("/api/v1/projects/{project_id}/jobs", response_model=list[JobView])
-    def project_jobs(project_id: str) -> list[JobView]:
+    @app.get("/api/v1/projects/{project_id}/jobs", response_model=JobList)
+    def project_jobs(
+        project_id: str,
+        cursor: str | None = Query(
+            default=None,
+            max_length=512,
+            description="不透明的历史快照游标，仅使用 next_cursor 续页",
+        ),
+        limit: int = Query(10, ge=1, le=100),
+    ) -> JobList:
         with Session(engine()) as session:
             if not session.get(Project, project_id):
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
-            return [
-                JobView.model_validate(j)
-                for j in session.scalars(
-                    select(Job)
-                    .where(Job.project_id == project_id)
-                    .order_by(Job.created_at.desc(), Job.id)
-                    .limit(50)
+            statement = select(Job).where(Job.project_id == project_id)
+            snapshot: int
+            if cursor is not None:
+                decoded = decode_job_cursor(cursor)
+                if decoded is None:
+                    raise failure(422, "INVALID_CURSOR", "任务游标无效，请刷新记录")
+                anchor_id, snapshot = decoded
+                anchor = session.get(Job, str(anchor_id))
+                anchor_row = session.scalar(
+                    select(literal_column("jobs.rowid")).where(Job.id == str(anchor_id))
                 )
-            ]
+                if (
+                    anchor is None
+                    or anchor.project_id != project_id
+                    or anchor_row is None
+                    or anchor_row > snapshot
+                ):
+                    raise failure(422, "INVALID_CURSOR", "任务游标不属于当前项目，请刷新记录")
+                statement = statement.where(
+                    literal_column("jobs.rowid") <= snapshot,
+                    or_(
+                        Job.created_at < anchor.created_at,
+                        and_(Job.created_at == anchor.created_at, Job.id < anchor.id),
+                    ),
+                )
+            else:
+                snapshot = int(
+                    session.scalar(select(func.max(literal_column("jobs.rowid"))).select_from(Job))
+                    or 0
+                )
+                statement = statement.where(literal_column("jobs.rowid") <= snapshot)
+            rows = session.scalars(
+                statement.order_by(Job.created_at.desc(), Job.id.desc()).limit(limit + 1)
+            ).all()
+            return JobList(
+                items=[JobView.model_validate(j) for j in rows[:limit]],
+                next_cursor=(
+                    encode_job_cursor(rows[limit - 1].id, snapshot) if len(rows) > limit else None
+                ),
+            )
 
     @app.post("/api/v1/jobs", response_model=JobView, status_code=202)
     def create_job(body: JobCreate, idempotency_key: Key) -> JobView:
@@ -324,6 +393,7 @@ def create_app(
                 and job.attempt < 3
             ):
                 job.status, job.error, job.result = "queued", None, None
+                job.stage = None
             else:
                 raise failure(409, "JOB_STATE_CONFLICT", "任务状态已改变或达到重试上限")
             job.updated_at = now()

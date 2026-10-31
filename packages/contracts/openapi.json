@@ -209,6 +209,37 @@
               "type": "string",
               "title": "Project Id"
             }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "不透明的历史快照游标，仅使用 next_cursor 续页",
+              "title": "Cursor"
+            },
+            "description": "不透明的历史快照游标，仅使用 next_cursor 续页"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -217,11 +248,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobView"
-                  },
-                  "title": "Response Project Jobs Api V1 Projects  Project Id  Jobs Get"
+                  "$ref": "#/components/schemas/JobList"
                 }
               }
             }
@@ -832,6 +859,16 @@
           "fts5": {
             "type": "boolean",
             "title": "Fts5"
+          },
+          "temporary_files": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceCleanup"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -855,6 +892,34 @@
         "additionalProperties": false,
         "type": "object",
         "title": "JobCreate"
+      },
+      "JobList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "JobList"
       },
       "JobView": {
         "properties": {
@@ -888,6 +953,25 @@
               "interrupted"
             ],
             "title": "Status"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "starting",
+                  "reading",
+                  "parsing",
+                  "checking",
+                  "saving",
+                  "diagnostics"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
           },
           "attempt": {
             "type": "integer",
@@ -1337,6 +1421,32 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkspaceCleanup": {
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "title": "Removed",
+            "default": 0
+          },
+          "busy": {
+            "type": "integer",
+            "title": "Busy",
+            "default": 0
+          },
+          "retained": {
+            "type": "integer",
+            "title": "Retained",
+            "default": 0
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "WorkspaceCleanup"
       }
     }
   }
