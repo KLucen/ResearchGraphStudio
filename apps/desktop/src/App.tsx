@@ -97,7 +97,7 @@ export default function App() {
           <p>
             项目保存在这台电脑上。
             <br />
-            当前版本不调用云端模型。
+            默认本地处理，模型传输需确认。
           </p>
         </div>
         <div className="connection">
@@ -111,7 +111,7 @@ export default function App() {
           </span>
         </div>
         <div className="version">
-          PHASE 1 <span>0.0.1</span>
+          PHASE 2 <span>0.0.1</span>
         </div>
       </aside>
       <main>

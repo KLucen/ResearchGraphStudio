@@ -1,0 +1,78 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source_claim_id": {
+      "title": "Source Claim Id",
+      "type": "string"
+    },
+    "target_claim_id": {
+      "title": "Target Claim Id",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "PROPOSE_RELATION",
+        "NO_DECISION"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "relation_type": {
+      "anyOf": [
+        {
+          "enum": [
+            "SUPPORTS",
+            "CONTRADICTS",
+            "QUALIFIES",
+            "EXTENDS",
+            "RELATED"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Relation Type"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "unresolved_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Questions",
+      "type": "array"
+    },
+    "suggested_review": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suggested Review"
+    }
+  },
+  "required": [
+    "source_claim_id",
+    "target_claim_id",
+    "decision",
+    "relation_type",
+    "reason"
+  ],
+  "title": "RelationInference",
+  "type": "object"
+}

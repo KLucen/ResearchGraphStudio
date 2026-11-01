@@ -145,7 +145,7 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0004" {
+        if health["protocol_version"] != 1 || health["schema_version"] != "0005" {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
@@ -154,6 +154,9 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    if allowed_knowledge(method, path) {
+        return true;
+    }
     fn valid_job_cursor(value: &str) -> bool {
         !value.is_empty()
             && value.len() <= 512
@@ -244,6 +247,132 @@ fn allowed(method: &str, path: &str) -> bool {
             || (method == "POST" && parts.len() == 2 && matches!(parts[1], "cancel" | "retry"));
     }
     false
+}
+
+fn allowed_knowledge(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    let parts: Vec<_> = route.split('/').collect();
+    if !query.is_empty() {
+        if method != "GET"
+            || !matches!(
+                route,
+                "/api/v1/integrations/zotero/items" | "/api/v1/integrations/zotero/collections"
+            )
+        {
+            return false;
+        }
+        let mut keys = std::collections::HashSet::new();
+        return query.split('&').all(|part| {
+            part.split_once('=').is_some_and(|(key, value)| {
+                if !keys.insert(key) {
+                    return false;
+                }
+                match key {
+                    "start" => !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()),
+                    "library" => value.split_once('/').is_some_and(|(kind, id)| {
+                        matches!(kind, "users" | "groups")
+                            && !id.is_empty()
+                            && id.chars().all(|c| c.is_ascii_digit())
+                    }),
+                    _ => false,
+                }
+            })
+        });
+    }
+    if method == "GET"
+        && matches!(
+            route,
+            "/api/v1/providers"
+                | "/api/v1/integrations/zotero/status"
+                | "/api/v1/integrations/zotero/items"
+                | "/api/v1/integrations/zotero/collections"
+        )
+    {
+        return true;
+    }
+    if method == "POST"
+        && matches!(
+            route,
+            "/api/v1/knowledge/extract"
+                | "/api/v1/knowledge/reviews"
+                | "/api/v1/integrations/zotero/annotations"
+        )
+    {
+        return true;
+    }
+    if parts.len() < 5 || parts[1..3] != ["api", "v1"] {
+        return false;
+    }
+    if method == "GET" && uuid::Uuid::parse_str(parts[4]).is_ok() {
+        if parts[3] == "evidence"
+            && (parts.len() == 5 || (parts.len() == 6 && parts[5] == "preview"))
+        {
+            return true;
+        }
+        if parts.len() == 6
+            && ((parts[3] == "revisions"
+                && matches!(parts[5], "structure" | "knowledge" | "runs" | "annotations"))
+                || (parts[3] == "projects" && parts[5] == "note-roots"))
+        {
+            return true;
+        }
+    }
+    if parts.len() == 6
+        && method == "GET"
+        && parts[3..5] == ["knowledge", "nodes"]
+        && uuid::Uuid::parse_str(parts[5]).is_ok()
+    {
+        return true;
+    }
+    parts.len() == 7
+        && parts[3..5] == ["integrations", "obsidian"]
+        && uuid::Uuid::parse_str(parts[5]).is_ok()
+        && ((method == "POST" && matches!(parts[6], "scan" | "revoke"))
+            || (method == "GET" && parts[6] == "notes"))
+}
+
+#[tauri::command]
+async fn authorize_notes_directory(
+    state: State<'_, Shared>,
+    project_id: String,
+    idempotency_key: String,
+) -> Result<Option<Value>, String> {
+    uuid::Uuid::parse_str(&project_id).map_err(|_| "无效项目")?;
+    let chosen = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("授权只读扫描 Markdown 笔记目录")
+            .pick_folder()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(path) = chosen else { return Ok(None) };
+    let (port, token) = {
+        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+        (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
+    };
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?
+        .post(format!(
+            "http://127.0.0.1:{port}/api/v1/integrations/obsidian/roots"
+        ))
+        .bearer_auth(token)
+        .header("Idempotency-Key", idempotency_key)
+        .json(&json!({"project_id":project_id,"path":path.to_string_lossy()}))
+        .send()
+        .await
+        .map_err(|_| "授权笔记目录失败")?;
+    let success = response.status().is_success();
+    let value: Value = response.json().await.map_err(|_| "引擎返回无效响应")?;
+    if !success {
+        return Err(value["error"]["message"]
+            .as_str()
+            .unwrap_or("授权失败")
+            .into());
+    }
+    Ok(Some(value))
 }
 
 #[tauri::command]
@@ -441,6 +570,7 @@ fn main() {
             restart_engine,
             import_pdf_file,
             relocate_source_file,
+            authorize_notes_directory,
             engine_request
         ])
         .build(tauri::generate_context!())
@@ -457,6 +587,39 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::allowed;
+    #[test]
+    fn knowledge_routes_preserve_native_path_authorization() {
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        for suffix in ["structure", "knowledge", "runs", "annotations"] {
+            assert!(allowed("GET", &format!("/api/v1/revisions/{id}/{suffix}")));
+        }
+        assert!(allowed("GET", &format!("/api/v1/evidence/{id}/preview")));
+        assert!(allowed("GET", &format!("/api/v1/knowledge/nodes/{id}")));
+        assert!(allowed("POST", "/api/v1/knowledge/extract"));
+        assert!(allowed("POST", "/api/v1/knowledge/reviews"));
+        assert!(allowed(
+            "POST",
+            &format!("/api/v1/integrations/obsidian/{id}/scan")
+        ));
+        assert!(allowed(
+            "GET",
+            "/api/v1/integrations/zotero/items?library=users/0&start=50"
+        ));
+        assert!(!allowed("POST", "/api/v1/integrations/obsidian/roots"));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/evidence/{id}/preview?path=private")
+        ));
+        assert!(!allowed(
+            "GET",
+            "/api/v1/integrations/zotero/items?library=users/0&library=groups/1"
+        ));
+        assert!(!allowed(
+            "GET",
+            "/api/v1/integrations/zotero/items?library=users/0/../private"
+        ));
+        assert!(!allowed("POST", "/api/v1/knowledge/extract?path=private"));
+    }
     #[test]
     fn rejects_unscoped_routes_and_traversal() {
         assert!(allowed("GET", "/api/v1/projects?cursor=0&limit=50"));

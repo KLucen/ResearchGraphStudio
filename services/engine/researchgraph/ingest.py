@@ -15,6 +15,7 @@ from uuid import uuid4
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.knowledge_store import KnowledgeStore
 from researchgraph.models import AttachmentRevision, Chunk, Event, Job, Paper, PaperSource, now
 from researchgraph.source_files import MAX_BYTES, publish_source_check
 from researchgraph.workspaces import clean_workspace, create_workspace, read_stage, report_stage
@@ -153,6 +154,10 @@ def publish_pdf(
     source.revision_id, source.managed_path = revision.id, managed_path
     source.generation = (source.generation or 0) + 1
     source.last_check = None
+    session.flush()
+    KnowledgeStore(session).ensure_document(revision.id)
+    if not reused:
+        KnowledgeStore(session).source_version_added(paper.id, revision.id)
     session.add(
         Event(
             event_id=str(uuid4()),

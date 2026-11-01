@@ -1,0 +1,89 @@
+{
+  "recorded_at": "2026-11-01T11:47:04+08:00",
+  "scope": "v2 P1 compatibility / P2 minimum lifecycle; not P3",
+  "native_build": "isolated Tauri debug, identifier com.researchgraph.studio.v2phase2test",
+  "data_dir": "%LOCALAPPDATA%/com.researchgraph.studio.v2phase2test",
+  "migration": {
+    "head": "0005",
+    "pre_upgrade_backups": [
+      {
+        "schema": "0004",
+        "projects": 1
+      }
+    ]
+  },
+  "native_observed": {
+    "legacy_job_pagination": "passed: 10 to 13, before adding new import/extraction jobs",
+    "synthetic_pdf_import": "passed via native file picker; 1 page, 4 blocks",
+    "synthetic_extraction": "passed: Mock, 8 cards, 2 model runs",
+    "pdf_preview": "passed: original page with yellow block highlight",
+    "human_revision": "passed: v1 to v2 revised text, v3 accepted, two history entries",
+    "public_pdf_import": "passed: native picker, Attention Is All You Need, 15 pages",
+    "public_pdf_mock": "passed: 221 extractive fixture cards; not scientific extraction quality",
+    "card_click_source": "passed: click method card displays page 4 quote and PDF preview",
+    "restart": "passed in final rebuilt native window: 8 cards, accepted revision 3, original quote/PDF preview and 2 review entries"
+  },
+  "isolated_counts": {
+    "projects": 1,
+    "jobs": 17,
+    "papers": 2,
+    "attachment_revisions": 2,
+    "chunks": 488,
+    "evidence_spans": 488,
+    "knowledge_nodes": 229,
+    "review_decisions": 2,
+    "model_runs": 6
+  },
+  "accepted_test_nodes": [
+    [
+      3,
+      "accepted",
+      "In the reported setting, the method uses shared memory in cooperative tasks."
+    ]
+  ],
+  "non_seed_jobs": [
+    [
+      "pdf_import",
+      "succeeded",
+      "saving"
+    ],
+    [
+      "knowledge_extract",
+      "succeeded",
+      "saving"
+    ],
+    [
+      "pdf_import",
+      "succeeded",
+      "saving"
+    ],
+    [
+      "knowledge_extract",
+      "succeeded",
+      "saving"
+    ]
+  ],
+  "model_runs": [
+    [
+      "succeeded",
+      6
+    ]
+  ],
+  "production_readonly_audit": {
+    "schema": "0001",
+    "projects": 1,
+    "jobs": 1
+  },
+  "pdf_hashes": {
+    "v2-native-fixture.pdf": "f0c3d2c1bf7c1b95b15a8ac164905e44ffc9b4829d616b6cea03395cf5064e8e",
+    "v2-attention-paper.pdf": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697"
+  },
+  "public_pdf_url": "https://arxiv.org/pdf/1706.03762",
+  "external_limitations": [
+    "Real model not configured; no cloud text sent",
+    "Live Zotero readonly connection available, annotation behavior tested with fixtures",
+    "No clean Windows or missing-WebView2 certification",
+    "Windows file symlink test skipped without privilege",
+    "S1-S4 registered originals unavailable: BG.md, ResearchGraph Studio：Zotero、Obsidian 与软件的职责划分.md, AI在流程中的工作.md, development_plan.md"
+  ]
+}

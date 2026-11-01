@@ -10,6 +10,23 @@ export type PaperList = components["schemas"]["PaperList"];
 export type PaperDetail = components["schemas"]["PaperDetail"];
 export type ChunkList = components["schemas"]["ChunkList"];
 export type Source = components["schemas"]["SourceView"];
+export type Structure = components["schemas"]["DocumentStructure"];
+export type KnowledgeList = components["schemas"]["KnowledgeList"];
+export type KnowledgeNode = components["schemas"]["NodeView"];
+export type NodeDetail = components["schemas"]["NodeDetail"];
+export type Evidence = components["schemas"]["EvidenceView"];
+export type ModelRun = components["schemas"]["ModelRunView"];
+export type ReviewRequest = components["schemas"]["ReviewRequest"];
+export type NoteRoot = { id: string; path: string; active: boolean };
+export type Annotation = {
+  id: string;
+  text: string;
+  comment: string;
+  anchor_status: string;
+  source_item_key: string;
+  annotation_key: string;
+  evidence_id: string | null;
+};
 
 export interface HostStatus {
   running: boolean;
@@ -39,6 +56,92 @@ export async function request<T>(
   }
 }
 export const api = {
+  structure: (id: string) =>
+    request<Structure>("GET", `/api/v1/revisions/${id}/structure`),
+  knowledge: (id: string) =>
+    request<KnowledgeList>("GET", `/api/v1/revisions/${id}/knowledge`),
+  node: (id: string) =>
+    request<NodeDetail>("GET", `/api/v1/knowledge/nodes/${id}`),
+  preview: (id: string) =>
+    request<components["schemas"]["Preview"]>(
+      "GET",
+      `/api/v1/evidence/${id}/preview`,
+    ),
+  extract: (
+    id: string,
+    provider: "mock" | "configured",
+    allowNetwork: boolean,
+  ) =>
+    request<Job>(
+      "POST",
+      "/api/v1/knowledge/extract",
+      { document_version_id: id, provider, allow_network: allowNetwork },
+      crypto.randomUUID(),
+    ),
+  review: (body: ReviewRequest) =>
+    request<KnowledgeNode>(
+      "POST",
+      "/api/v1/knowledge/reviews",
+      body,
+      crypto.randomUUID(),
+    ),
+  runs: (id: string) =>
+    request<ModelRun[]>("GET", `/api/v1/revisions/${id}/runs`),
+  providers: () =>
+    request<{
+      configured: boolean;
+      model: string | null;
+      mock: string;
+      transmitted_data: string;
+    }>("GET", "/api/v1/providers"),
+  noteRoots: (id: string) =>
+    request<NoteRoot[]>("GET", `/api/v1/projects/${id}/note-roots`),
+  authorizeNotes: (projectId: string) =>
+    invoke<NoteRoot | null>("authorize_notes_directory", {
+      projectId,
+      idempotencyKey: crypto.randomUUID(),
+    }),
+  noteAction: (id: string, action: "scan" | "revoke") =>
+    request<{ added?: number; skipped?: number; active?: boolean }>(
+      "POST",
+      `/api/v1/integrations/obsidian/${id}/${action}`,
+      null,
+      crypto.randomUUID(),
+    ),
+  notes: (id: string) =>
+    request<
+      {
+        id: string;
+        relative_path: string;
+        sha256: string;
+        text: string;
+        authorship: string;
+      }[]
+    >("GET", `/api/v1/integrations/obsidian/${id}/notes`),
+  zoteroStatus: () =>
+    request<{ connected: boolean; error?: string }>(
+      "GET",
+      "/api/v1/integrations/zotero/status",
+    ),
+  zoteroItems: (start = 0) =>
+    request<{ key: string; data: { title?: string; itemType?: string } }[]>(
+      "GET",
+      `/api/v1/integrations/zotero/items?library=users/0&start=${start}`,
+    ),
+  annotations: (id: string) =>
+    request<Annotation[]>("GET", `/api/v1/revisions/${id}/annotations`),
+  importAnnotations: (id: string, itemKey: string, attachmentKey: string) =>
+    request<{ added: number; unresolved: number }>(
+      "POST",
+      "/api/v1/integrations/zotero/annotations",
+      {
+        document_version_id: id,
+        library: "users/0",
+        item_key: itemKey,
+        attachment_key: attachmentKey,
+      },
+      crypto.randomUUID(),
+    ),
   checkSource: (source: Source) =>
     request<Job>(
       "POST",

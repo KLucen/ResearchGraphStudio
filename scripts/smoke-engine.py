@@ -163,6 +163,52 @@ def run(executable: Path) -> dict[str, object]:
             assert len(history["items"]) == 2 and len(older["items"]) == 1
             assert older["items"][0]["id"] == pdf["id"]
             assert all(j["stage"] == "saving" for j in history["items"] + older["items"])
+            # P2 packaged runtime: prompts must be bundled and writes must survive restart.
+            extraction = completed(
+                port,
+                request(
+                    port,
+                    "/knowledge/extract",
+                    "POST",
+                    {"document_version_id": revision_id, "provider": "mock"},
+                    key="extract-smoke",
+                ),
+            )
+            assert extraction["result"]["provider"] == "mock"
+            knowledge = request(port, f"/revisions/{revision_id}/knowledge")
+            claim = next(n for n in knowledge["items"] if n["kind"] == "claim")
+            detail = request(port, f"/knowledge/nodes/{claim['id']}")
+            assert detail["evidence"] and detail["model_run"]["raw_output"]
+            assert request(port, f"/evidence/{detail['evidence'][0]['id']}/preview")[
+                "data_url"
+            ].startswith("data:image/png;base64,")
+            reviewed = request(
+                port,
+                "/knowledge/reviews",
+                "POST",
+                {
+                    "node_id": claim["id"],
+                    "expected_revision": claim["revision"],
+                    "expected_graph_revision": knowledge["graph_revision"],
+                    "action": "reject",
+                    "reason": "Mock output checked in packaged smoke",
+                },
+                key="review-smoke",
+            )
+            assert reviewed["review_status"] == "rejected"
+            completed(
+                port,
+                request(
+                    port,
+                    "/knowledge/extract",
+                    "POST",
+                    {"document_version_id": revision_id, "provider": "mock"},
+                    key="extract-repeat",
+                ),
+            )
+            assert len(request(port, f"/revisions/{revision_id}/knowledge")["items"]) == len(
+                knowledge["items"]
+            )
             orphan = data / "import-work" / str(uuid4())
             orphan.mkdir()
             (orphan / "workspace.json").write_text(
@@ -193,6 +239,9 @@ def run(executable: Path) -> dict[str, object]:
             assert request(port, "/projects")["items"] == [project]
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
             assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
+            persisted = request(port, f"/knowledge/nodes/{claim['id']}")
+            assert persisted["node"]["review_status"] == "rejected"
+            assert len(persisted["reviews"]) == 1 and persisted["model_run"]["raw_output"]
         finally:
             process.stdin.close()
             try:
@@ -215,6 +264,7 @@ def run(executable: Path) -> dict[str, object]:
         "stdin_eof_exit": "passed",
         "unicode_space_path": "passed",
         "developer_tools_removed_from_child_path": True,
+        "knowledge_extraction_review_preview_restart": "passed",
         "clean_windows_machine": "not_tested",
     }
 

@@ -1,5 +1,7 @@
 # 需求依据与设计基线
 
+> 历史基线：2026-11-01 起以后续用户指定的[新版开发计划](../02_development_plan.md)为主要依据。本文件保留当时需求及验收语境。
+
 版本：v0.4；设计基线日期：2026-10-27（Asia/Shanghai）；实施状态更新：2026-10-29。**G0 已按用户决定放行，正在实施 Phase 1。** 实际进度见[Phase 1 记录](../phase1-verification.md)，放行依据见 [ADR 0004](../decisions/0004-g0-waiver-phase1.md)。当前完整方案见[开发计划 v0.4](../development-plan-v0.4.md)。
 
 ## 1. 来源与采用规则

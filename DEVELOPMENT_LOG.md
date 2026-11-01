@@ -34,7 +34,7 @@
 
 - [项目入口](README.md)
 - [需求依据](docs/design/requirements-baseline.md)
-- [开发流程](docs/development-plan.md)
+- [开发流程（现行 v2 入口）](docs/02_development_plan.md)
 - [环境报告](docs/environment-check.md)与[机器快照](docs/environment/2026-10-27.json)
 - [候选技术决策](docs/decisions/0001-local-desktop-baseline.md)
 - [实验计划](experiments/README.md)
@@ -476,6 +476,32 @@
 
 - 修复后的原生窗口任务历史第二页仍未复测；Computer Use 曾在应用枚举阶段被物理 Escape 中止，本轮不把先前原生记录、引擎测试或安装 CI 替代为桌面分页通过。
 - RG-006 的自动化与 CI 交付证据已归档；下一功能阶段为 RG-007 证据锚定、高亮与人工校正。M1 证据定位、干净 Windows、缺失 WebView2 与真实 PDF 版式质量仍须分别验收。
+
+## 2026-11-01 11:49 · DEV-0016 · v2 P1 兼容迁移与统一 Knowledge Engine P2
+
+### 目标
+
+- 按用户新设计完成旧 P0/P1 工程审计、最小迁移、P1 兼容补全和 P2 最小闭环，不重做 P0、不进入 P3。继承起点 `18b4598` 的代码及用户新增设计包/删除旧计划入口的改动。
+
+### 实际改动
+
+- 新增[迁移评估](docs/migration/v1_to_v2_assessment.md)、[架构 ADR](docs/adr/0001-unified-knowledge-engine.md)、[实际进度](docs/progress.md)，更新 AGENTS、README、API、旧基线/计划历史标记及 Phase 1 记录。新设计包保持主要依据；参考 schema/prompt/test 与运行实现区分。
+- Python 新 knowledge_models/contracts/store/api、integrations、providers、extraction、Prompt 资源及 0005 加性迁移。旧 Paper/AttachmentRevision/Chunk 和 API 不变；统一 Store 校验证据/写入/事件/revision/审核。Zotero 只读批注、授权 Markdown 快照、未知条件、模型原始结果/人工历史均持久化。
+- React 新 KnowledgeReading、SourceIntegrations、知识 API/阶段/阅读样式；Rust 新精确白名单和目录授权选择器。修复点击卡片需二次选证据、证据 UUID 排序、模型模板占位输入及过时文案。同步 Schema 0005、生成契约、打包 Prompt、smoke/安装脚本 P2 验收。
+- 新测试覆盖离线端到端、锚点篡改/非法 ID、归属/数值/unknown、重跑去重、人工修订/乐观冲突/原始输出、新来源保留 accepted、模型失败/超时/非法 JSON/取消、只读目录/批注与迁移恢复。
+
+### 验证
+
+- Conda `researchgraph-studio`：完整检查 76 Python passed、2 skipped，20 React passed；Ruff/format/mypy/pip/生成契约/TS/ESLint/Prettier/Web build 通过。参考契约 5 passed；Rust fmt/clippy 与 2 tests 通过。两项 skip 为文件 symlink 权限，Windows junction 测试通过；保留已有弃用提示。
+- 重新冻结引擎，扩展 smoke 和 Windows PowerShell 5.1 验收通过 P1 导入/来源/分页/阶段/回收/重启以及 P2 Mock/preview/审核/重启。第一次 PS5.1 被执行策略拒绝后采用单进程参数，不改全局设置。顺序测试初稿忘计 PyMuPDF 原文换行，改为仅在顺序断言中 strip，运行证据仍保留原文，完整复测通过。
+- [原生报告](docs/environment/2026-11-01-v2-phase2-native.json)：独立 0004→0005 与备份、历史 10→13、原生自造 PDF 导入、8 张 Mock 卡片、块高亮、修订/接受 v3 与两条历史；公开 15 页论文导入和 221 张摘录卡片，第 4 页点击回查。仅流程验收，不是模型科学质量指标。
+- 正式用户库只读审计仍为 0001、1 project、1 job，没有在其上实验。四份 S1–S4 原登记路径均缺失；QA 哈希保持登记值。Markdown/本地链接/JSON 检查通过，明确排除四个不可用外部原文。
+- 推送前 fetch 确认 `origin/main` 仍为 `18b4598`。Git SSH 443 可用；API 的继承代理连接失败，显式直连官方 API 200，未改全局配置。最终提交、CI 和新安装验收包待下条记录，不提前记成功。
+
+### 问题与下一步
+
+- 真实模型未配置；真实 Zotero 仅验证只读连接，批注用自造 fixture；干净 Windows/缺失 WebView2、复杂版式/精确字级锚点、完整安装版人工阅读验收未完成。所有私人材料/数据库/公开下载 PDF/安装产物留在忽略目录。
+- 本轮按授权普通提交推送并跟进 CI。P2 后停止；P3 建议入口为条件化 RelationAssertion 候选和证据/审核约束，详见进度中的边界，不提前实现 Query/Wiki/多 Agent。
 
 ## 后续条目模板
 

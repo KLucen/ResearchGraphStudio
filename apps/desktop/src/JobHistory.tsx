@@ -20,11 +20,14 @@ const stages: Record<NonNullable<Job["stage"]>, string> = {
   checking: "核对文件内容",
   saving: "保存结果",
   diagnostics: "检查数据库",
+  outlining: "识别论文结构",
+  extracting: "抽取带证据的知识",
 };
 const kinds: Record<string, string> = {
   pdf_import: "PDF 导入",
   source_check: "来源检查",
   source_relocate: "重新定位",
+  knowledge_extract: "知识抽取",
 };
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);

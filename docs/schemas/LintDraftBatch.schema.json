@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "LintFindingDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "issue_type": {
+          "title": "Issue Type",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "affected_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Affected Ids",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        },
+        "proposed_fix": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Fix"
+        },
+        "risk": {
+          "enum": [
+            "nonsemantic",
+            "scientific_meaning",
+            "permission",
+            "unknown"
+          ],
+          "title": "Risk",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issue_type",
+        "severity",
+        "affected_ids",
+        "rationale",
+        "risk"
+      ],
+      "title": "LintFindingDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/LintFindingDraft"
+      },
+      "title": "Findings",
+      "type": "array"
+    }
+  },
+  "title": "LintDraftBatch",
+  "type": "object"
+}

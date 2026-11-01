@@ -22,7 +22,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
+from researchgraph.extraction import run_extraction
 from researchgraph.ingest import run_file_job
+from researchgraph.knowledge_api import register_knowledge_api
+from researchgraph.knowledge_models import ModelRun
+from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore
 from researchgraph.models import (
     AttachmentRevision,
     Chunk,
@@ -123,6 +127,9 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "knowledge_extract":
+                await run_extraction(engine, job_id)
+                continue
             if kind in {"pdf_import", "source_check", "source_relocate"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
@@ -163,6 +170,17 @@ def create_app(
                 diagnostics(engine)
                 app.state.workspace_cleanup = recover_workspaces(data_dir)
                 with Session(engine) as session, session.begin():
+                    # Add derived anchors through the same store for legacy and new documents.
+                    store = KnowledgeStore(session)
+                    for revision_id in session.scalars(select(AttachmentRevision.id)).all():
+                        store.ensure_document(revision_id)
+                    session.execute(
+                        update(ModelRun)
+                        .where(ModelRun.status.in_(["running", "received"]))
+                        .values(
+                            status="interrupted", error="引擎重启，模型运行中断", finished_at=now()
+                        )
+                    )
                     session.execute(
                         update(Job)
                         .where(Job.status == "running")
@@ -235,6 +253,19 @@ def create_app(
 
     def engine() -> Engine:
         return cast(Engine, app.state.engine)
+
+    @app.exception_handler(KnowledgeError)
+    async def knowledge_error(request: Request, exc: KnowledgeError) -> JSONResponse:
+        status = (
+            409
+            if exc.code in {"REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "SOURCE_CHANGED"}
+            else 422
+        )
+        if exc.code.endswith("NOT_FOUND"):
+            status = 404
+        return error_response(request, status, exc.code, str(exc))
+
+    register_knowledge_api(app, engine)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:

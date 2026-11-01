@@ -176,7 +176,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0004') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0005') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
@@ -238,6 +238,22 @@ try {
         Assert-Probe (@($history.items).Count -eq 2 -and @($older.items).Count -eq 1 -and $older.items[0].id -eq $pdfJob.id) 'Job history pagination mismatch.'
         Assert-Probe ($pdfJob.stage -eq 'saving' -and $fileJob.stage -eq 'saving') 'Completed job stages were not saved.'
         $report.checks['job_history_and_stages'] = 'passed'
+        $extract = Invoke-ProbeApi '/knowledge/extract' 'POST' @{document_version_id = $revisionId; provider = 'mock'; allow_network = $false} -Key 'extract-offline'
+        $deadline = [DateTime]::UtcNow.AddSeconds(40)
+        do {
+            $extract = Invoke-ProbeApi ('/jobs/' + $extract.id)
+            if ($extract.status -notin @('queued', 'running')) { break }
+            Start-Sleep -Milliseconds 100
+        } while ([DateTime]::UtcNow -lt $deadline)
+        Assert-Probe ($extract.status -eq 'succeeded') ('Knowledge extraction failed: ' + $extract.error)
+        $knowledge = Invoke-ProbeApi ('/revisions/' + $revisionId + '/knowledge')
+        $claim = @($knowledge.items | Where-Object { $_.kind -eq 'claim' })[0]
+        $detail = Invoke-ProbeApi ('/knowledge/nodes/' + $claim.id)
+        $preview = Invoke-ProbeApi ('/evidence/' + $detail.evidence[0].id + '/preview')
+        Assert-Probe ($preview.data_url.StartsWith('data:image/png;base64,')) 'Evidence preview missing.'
+        $review = Invoke-ProbeApi '/knowledge/reviews' 'POST' @{node_id = $claim.id; expected_revision = $claim.revision; expected_graph_revision = $knowledge.graph_revision; action = 'reject'; reason = 'Offline fixture acceptance, not scientific validation'} -Key 'review-offline'
+        Assert-Probe ($review.review_status -eq 'rejected') 'Knowledge review failed.'
+        $report.checks['offline_extraction_evidence_review'] = 'passed'
     }
     Stop-ProbeEngine
     $orphanId = [guid]::NewGuid().ToString()
@@ -263,6 +279,9 @@ try {
         Assert-Probe (Test-Path -LiteralPath $movedPath) 'Source file was removed during recovery.'
         Assert-Probe (@(Get-ChildItem -LiteralPath (Join-Path $dataPath 'attachments') -Filter '*.pdf').Count -eq 1) 'Managed file was removed during recovery.'
         $report.checks['source_and_managed_files_preserved'] = 'passed'
+        $persisted = Invoke-ProbeApi ('/knowledge/nodes/' + $claim.id)
+        Assert-Probe ($persisted.node.review_status -eq 'rejected' -and @($persisted.reviews).Count -eq 1 -and $persisted.model_run.raw_output) 'Knowledge history did not survive restart.'
+        $report.checks['knowledge_review_restart'] = 'passed'
     }
     Stop-ProbeEngine
     $report.checks['engine_eof_exit'] = 'passed'

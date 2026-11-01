@@ -140,7 +140,7 @@ def test_upgrade_0003_keeps_jobs_and_old_idempotent_responses(tmp_path):
 
     assert JobView.model_validate(json.loads(json.dumps(old))).stage is None
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
         assert connection.exec_driver_sql(
             "SELECT name FROM sqlite_master WHERE name='ix_jobs_project_history'"
         ).fetchone()

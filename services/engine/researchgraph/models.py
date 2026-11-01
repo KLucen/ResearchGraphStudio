@@ -45,6 +45,11 @@ class Event(Base):
     event_type: Mapped[str] = mapped_column(String(40))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[str] = mapped_column(String(40))
+    actor: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    model_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    before_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    after_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    trigger: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class Idempotency(Base):

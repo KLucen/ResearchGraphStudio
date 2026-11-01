@@ -148,7 +148,7 @@ def test_upgrade_0001_preserves_project_and_backup(tmp_path):
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT name FROM projects")) == "Keep project"
         assert connection.scalar(text("SELECT status FROM jobs")) == "succeeded"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
     (backup,) = (tmp_path / "backups").glob("*.sqlite3")
     with sqlite3.connect(backup) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0001"

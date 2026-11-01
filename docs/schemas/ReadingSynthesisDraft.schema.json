@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "ReadingSection": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "title": "Heading",
+          "type": "string"
+        },
+        "markdown": {
+          "title": "Markdown",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "authorship_label": {
+          "enum": [
+            "paper_based",
+            "user_note",
+            "model_synthesis",
+            "mixed"
+          ],
+          "title": "Authorship Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "markdown",
+        "authorship_label"
+      ],
+      "title": "ReadingSection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "paper_id": {
+      "title": "Paper Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/ReadingSection"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "unresolved_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Evidence Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "paper_id",
+    "title"
+  ],
+  "title": "ReadingSynthesisDraft",
+  "type": "object"
+}

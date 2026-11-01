@@ -20,7 +20,7 @@ dev = ["httpx>=0.27,<1", "pytest>=8,<10", "ruff>=0.9,<1", "mypy>=2,<3", "pyinsta
 where = ["services/engine"]
 
 [tool.setuptools.package-data]
-researchgraph = ["migrations/*.py", "migrations/versions/*.py"]
+researchgraph = ["migrations/*.py", "migrations/versions/*.py", "prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/engine"]

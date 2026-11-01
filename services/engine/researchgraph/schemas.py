@@ -41,9 +41,19 @@ class JobView(BaseModel):
     kind: str
     project_id: str | None
     status: Literal["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]
-    stage: Literal["starting", "reading", "parsing", "checking", "saving", "diagnostics"] | None = (
-        None
-    )
+    stage: (
+        Literal[
+            "starting",
+            "reading",
+            "parsing",
+            "checking",
+            "saving",
+            "diagnostics",
+            "outlining",
+            "extracting",
+        ]
+        | None
+    ) = None
     attempt: int
     error: str | None
     result: dict[str, str | bool] | None

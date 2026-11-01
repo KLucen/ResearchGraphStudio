@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "DimensionComparison": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Value"
+        },
+        "target_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Value"
+        },
+        "comparison": {
+          "enum": [
+            "same",
+            "different",
+            "unknown",
+            "not_applicable"
+          ],
+          "title": "Comparison",
+          "type": "string"
+        },
+        "impact": {
+          "enum": [
+            "neutral",
+            "limits_direct_comparison",
+            "supports_comparison",
+            "unknown"
+          ],
+          "title": "Impact",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "source_value",
+        "target_value",
+        "comparison",
+        "impact"
+      ],
+      "title": "DimensionComparison",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "source_claim_id": {
+      "title": "Source Claim Id",
+      "type": "string"
+    },
+    "target_claim_id": {
+      "title": "Target Claim Id",
+      "type": "string"
+    },
+    "topic_overlap": {
+      "enum": [
+        "same",
+        "related",
+        "unrelated",
+        "unknown"
+      ],
+      "title": "Topic Overlap",
+      "type": "string"
+    },
+    "overall": {
+      "enum": [
+        "comparable",
+        "limited",
+        "not_comparable",
+        "unknown"
+      ],
+      "title": "Overall",
+      "type": "string"
+    },
+    "dimensions": {
+      "items": {
+        "$ref": "#/$defs/DimensionComparison"
+      },
+      "title": "Dimensions",
+      "type": "array"
+    },
+    "unknown_dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknown Dimensions",
+      "type": "array"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_claim_id",
+    "target_claim_id",
+    "topic_overlap",
+    "overall",
+    "rationale"
+  ],
+  "title": "ComparabilityReport",
+  "type": "object"
+}

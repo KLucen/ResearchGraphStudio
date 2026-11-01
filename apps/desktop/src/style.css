@@ -793,3 +793,110 @@ main {
   color: var(--muted, #59636e);
   font-size: 13px;
 }
+/* Evidence workbench keeps source and candidate review visible together. */
+.knowledge-area {
+  margin: 1.2rem 0;
+  border-top: 1px solid #d8dedc;
+  padding-top: 1rem;
+}
+.reading-grid {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.65fr) minmax(240px, 1.65fr) minmax(
+      200px,
+      1fr
+    );
+  gap: 1rem;
+  margin: 1rem 0;
+  align-items: start;
+}
+.reading-sections,
+.evidence-reading,
+.knowledge-cards {
+  min-width: 0;
+}
+.knowledge-cards {
+  max-height: 700px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.9rem;
+  border: 1px solid #d7dedb;
+  border-radius: 10px;
+  background: #fff;
+  margin: 0.6rem 0;
+  color: #243d36;
+  cursor: pointer;
+}
+.knowledge-card.selected {
+  border-color: #237761;
+  background: #eff8f3;
+}
+.knowledge-card strong {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.knowledge-card small {
+  color: #53685e;
+}
+.evidence-quote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+.evidence-quote mark {
+  background: #fff0b3;
+  color: #2b342e;
+}
+.pdf-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #d8dedc;
+}
+.review-panel {
+  border: 1px solid #c5d9d0;
+  border-radius: 12px;
+  padding: 1.1rem;
+  margin: 1rem 0;
+  background: #f6faf7;
+}
+.review-panel label,
+.source-integrations label {
+  display: block;
+  margin: 0.7rem 0;
+}
+.review-panel textarea {
+  display: block;
+  width: 100%;
+  min-height: 110px;
+  padding: 0.7rem;
+  resize: vertical;
+  font: inherit;
+}
+.review-panel input {
+  min-width: 240px;
+  margin-left: 0.4rem;
+}
+.source-integrations {
+  padding: 0.8rem 0;
+}
+.reading-sections small {
+  display: block;
+  color: #63776d;
+}
+@media (max-width: 1100px) {
+  .reading-grid {
+    grid-template-columns: 140px minmax(200px, 1fr);
+  }
+  .knowledge-cards {
+    grid-column: 1 / -1;
+    max-height: 400px;
+  }
+}

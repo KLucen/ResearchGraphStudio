@@ -1,5 +1,7 @@
 # ResearchGraph Studio 开发计划 v0.4
 
+> 历史基线：2026-11-01 起以后续用户指定的[新版开发计划](02_development_plan.md)为主要依据。本文件保留当时需求及验收语境。
+
 日期：2026-10-27（Asia/Shanghai）。设计基线保留；2026-10-31 更新实施状态：G0 已按用户决定放行，Phase 1 RG-006 的来源、任务恢复和历史分页增量已在本机验收，实际进度见 [Phase 1 记录](phase1-verification.md)。这里的 **v0.4 是计划版本**，产品交付版本仍为 v0.1 和 v1.0。
 
 本计划结合 QA.md、BG.md、《ResearchGraph Studio：Zotero、Obsidian 与软件的职责划分》《AI在流程中的工作》和桌面 development_plan.md，并保留当前项目协作约定。它可独立用于评审开发范围、任务依赖和验收条件。来源位置、行号和哈希见[来源登记](design/source-register.md)，需求编号见[需求基线](design/requirements-baseline.md)。

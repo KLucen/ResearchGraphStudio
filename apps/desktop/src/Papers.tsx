@@ -8,6 +8,8 @@ import {
 import { api } from "./api";
 import { SourceFiles } from "./SourceFiles";
 import { JobHistory } from "./JobHistory";
+import { KnowledgeReading } from "./KnowledgeReading";
+import { SourceIntegrations } from "./SourceIntegrations";
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
@@ -75,6 +77,7 @@ export function Papers({
         </p>
       ))}
       <JobHistory projectId={projectId} connected={connected} />
+      <SourceIntegrations projectId={projectId} connected={connected} />
       <div className="paper-columns">
         <div className="paper-list">
           <h3>项目文献 · {items.length}</h3>
@@ -190,6 +193,13 @@ function PaperText({
             selectedRevisionId={revisionId}
             connected={connected}
           />
+          {revisionId && (
+            <KnowledgeReading
+              key={revisionId}
+              versionId={revisionId}
+              connected={connected}
+            />
+          )}
           <p className="quiet-note">
             以下为解析原文。页序从 1
             开始；坐标为解析器文本块边界，不代表已审核证据。

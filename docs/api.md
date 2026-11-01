@@ -1,6 +1,6 @@
-# 本地接口（Phase 1）
+# 本地接口（v2 P1/P2）
 
-版本：0.0.1 开发增量；协议：1；Schema：0004。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
+版本：0.0.1 开发增量；协议：1；数据库 Schema：0005；领域契约：knowledge-v2.1。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
 
 ## 连接和权限
 
@@ -32,18 +32,46 @@ SourceView 包含 generation 与 last_check。last_check 为空表示尚未检�
 
 所有 POST 必须带 8–120 字符的 `Idempotency-Key`。相同操作/标识/内容返回首次保存的响应，不重复写入；同标识不同内容返回 409。任务响应可能是首次提交时的状态，应再次查询取得最新状态。项目任务历史使用 `(created_at DESC, id DESC)` 固定顺序，并以 SQLite 插入序号记录第一页快照；继续请求时只传递上页返回的 `next_cursor`，不要解析或自行构造游标。无效游标、跨项目游标或越界 `limit` 返回 422 `INVALID_CURSOR` 或校验错误。游标发出后，新任务（包括创建时间相同的任务）、状态更新和重试都不会改变该分页快照。
 
-`JobView.stage` 只表示引擎已经观察到的阶段：`starting`、`reading`、`parsing`、`checking`、`saving` 或 `diagnostics`。阶段不代表百分比；排队时为 `null`，取消/失败保留最后阶段，重试重新排队并清空阶段。清理暂存目录失败不会把已经提交的任务改为失败，任务仍可按普通重试规则处理。
+`JobView.stage` 只表示引擎已经观察到的阶段：`starting`、`reading`、`parsing`、`outlining`、`extracting`、`checking`、`saving` 或 `diagnostics`。阶段不代表百分比；排队时为 `null`，取消/失败保留最后阶段，重试重新排队并清空阶段。清理暂存目录失败不会把已经提交的任务改为失败，任务仍可按普通重试规则处理。
 
 输入校验、业务冲突和鉴权失败返回 `error: {code, message, retryable, request_id}`。未知底层异常可能返回通用 500，由宿主转为连接/无效响应错误；不把数据库堆栈或原始输入作为用户提示。
 
 ## 持久化和恢复
 
-Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设置页实际显示路径为准。`researchgraph.sqlite3` 保存 projects、jobs、events、idempotency、papers、paper_sources、attachment_revisions、chunks 和 Alembic 版本；项目创建、PROJECT_CREATED 事件和幂等记录在一个事务中提交。PDF 结果、来源、文本块、PDF_IMPORTED 事件和任务成功状态也在一个事务中提交。当前尚无科研主张审核，后续 Review/KnowledgeEvent 不得省略或用运行任务状态替代。
+Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设置页实际显示路径为准。`researchgraph.sqlite3` 保存 projects、jobs、events、idempotency、papers、paper_sources、attachment_revisions、chunks 和 Alembic 版本；项目创建、PROJECT_CREATED 事件和幂等记录在一个事务中提交。PDF 结果、来源、文本块、PDF_IMPORTED 事件和任务成功状态也在一个事务中提交。0005 新增知识节点、证据、章节、模型调用、审核、依赖、graph revision、操作幂等和只读来源快照；旧 knowledge_events 加可空元数据。ReviewDecision 保留人工修改前后快照，不能用运行任务状态替代。Paper/AttachmentRevision/Chunk 分别兼容 Paper/DocumentVersion/paragraph。
 
 仅引擎写数据库，文件锁防止多个引擎同时打开同一工作区。SQLite 启用外键、5 秒 busy timeout 与显式事务。迁移既有数据库前使用 SQLite backup API 留存快照；失败迁移回滚，禁止自动降级。恢复备份应先退出应用，并同时保留故障文件；用户恢复界面将在后续阶段实现。
 
 启动时会回收 `data/import-work/` 中应用自有的平坦临时工作目录。目录必须包含精确的 `workspace.json` marker，并且所有内容都属于白名单；活动子进程持有同名旁侧 `.lock` 时报告 `busy`，目录链接、未知内容和权限失败报告 `retained`/`errors`，保留 marker 供下次启动重试。该回收不触碰原始 PDF、`attachments/`、历史修订、数据库或备份。`GET /api/v1/health` 的 `temporary_files` 和设置页显示本次启动的四项统计。
 
-诊断任务实际执行 quick_check、外键检查和 FTS5 临时表检索。单 worker 串行执行；取消阻止结果回写，但不能抢占已开始的短时 SQLite 检查。启动将上次 running 改为 interrupted，queued 恢复执行。PDF Job 使用单独子进程，取消/正常退出终止解析；50 MiB、300 页、200 万字符、120 秒上限。Job payload 保存重试参数，JobView 仅暴露 project_id 和任务结果。重试需人工触发。模型任务尚未实现。
+诊断任务实际执行 quick_check、外键检查和 FTS5 临时表检索。单 worker 串行执行；取消阻止结果回写，但不能抢占已开始的短时 SQLite 检查。启动将上次 running 改为 interrupted，queued 恢复执行。PDF Job 使用单独子进程，取消/正常退出终止解析；50 MiB、300 页、200 万字符、120 秒上限。Job payload 保存重试参数，JobView 仅暴露 project_id 和任务结果。重试需人工触发。模型任务使用相同 worker，阶段为 outlining/extracting/checking/saving；单次调用 35 秒上限。取消阻止知识写入，但已发出的远端请求不保证立即终止。
 
 关闭宿主 stdin 会通知引擎退出，宿主正常退出最多等待 5 秒再终止子进程；宿主崩溃时管道 EOF 同样触发引擎退出。启动日志位于数据目录的 engine-startup.log，令牌不写入该文件。
+
+## v2 统一 Knowledge Engine 增量
+
+| 方法与路径 | 行为 |
+| --- | --- |
+| GET `/api/v1/revisions/{id}/structure` | 持久化章节与 EvidenceSpan，保守解析，不伪造语义结构 |
+| GET `/api/v1/evidence/{id}` | 再校验版本、paragraph、原文 hash、offset、quote 后返回 |
+| GET `/api/v1/evidence/{id}/preview` | 校验可用 PDF SHA-256，内存生成 PNG data URL；块级高亮，不改 PDF |
+| GET `/api/v1/revisions/{id}/knowledge` | 知识卡片和项目 graph_revision |
+| GET `/api/v1/knowledge/nodes/{id}` | node、evidence、原始 model_run、reviews、graph_revision |
+| POST `/api/v1/knowledge/extract` | document_version_id、provider=mock/configured、allow_network；202 Job |
+| POST `/api/v1/knowledge/reviews` | node_id、expected_revision、expected_graph_revision、action=revise/accept/reject、reason、可选 payload |
+| GET `/api/v1/revisions/{id}/runs` | Prompt/输入 hash、模型、参数、原始输出、状态、错误 |
+| GET `/api/v1/providers` | Mock/真实模型配置状态，不返回密钥 |
+| GET `/api/v1/integrations/zotero/status` | 本机 Local API 只读连通性 |
+| GET `/api/v1/integrations/zotero/{items\|collections}` | library 与 start 的受限读取，50 条/页 |
+| POST `/api/v1/integrations/zotero/annotations` | document_version_id、library、item_key、attachment_key；校验已授权 PDF 路径/hash |
+| GET `/api/v1/revisions/{id}/annotations` | 批注 ID、源 Key、评论、原始位置、block_matched/unresolved |
+| POST `/api/v1/integrations/obsidian/roots` | project_id、path；仅原生 authorize_notes_directory 目录选择器可经宿主提交 |
+| GET `/api/v1/projects/{id}/note-roots` | 当前项目授权目录及状态 |
+| POST `/api/v1/integrations/obsidian/{id}/{scan\|revoke}` | 只读扫描或撤销，不删除/修改笔记 |
+| GET `/api/v1/integrations/obsidian/{id}/notes` | 当前有效授权下的 Markdown 来源、hash、快照版本 |
+
+新知识统一由 KnowledgeStore 事务入口处理；LLM DTO 不接受正式 ID、审核状态、SQL 或文件指令。已验证来源的作者主张以 unreviewed 入图；归属、数值或条件疑点为 needs_review。source_verified 只确认引文与保存原文吻合，不证明科学语义。人工审核使用乐观 revision，冲突 409；非法 DTO 为 422。重抽取复用精确相同对象，不覆盖人工版本；ModelRun 原始输出永久保留。
+
+证据为 identity-v1 的 Python Unicode 字符偏移，end 为排他边界；bbox 为完整文本块。不同页用多个 span；本轮不做逐字框、跨页单一 span 或归一化纠错。新 PDF 修订保留旧知识/证据并加来源更新提示。人工修订暂不重接证据/依赖；Condition 独立卡片为当前状态，Claim payload 内 conditions 保留抽取时快照。
+
+抽取每批最多 16000 原文字符，P01/P02 模板随包分发，运行契约在 knowledge_contracts.py。成功 P02 批次已提交，后续批失败不会回滚成功批；重试跳过已成功批次。真实 Provider 参数见 README，Mock 不用于科学质量结论。批注无法唯一匹配时不生成正式文本偏移；私人笔记只读、禁链接逃逸，不参与论文抽取。
