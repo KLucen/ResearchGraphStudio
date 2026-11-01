@@ -35,6 +35,12 @@ Python 使用 `C:/Users/KLucen/anaconda3/envs/researchgraph-studio/python.exe`�
 
 PDF、数据库与备份只留本机忽略目录。公开 PDF SHA-256：`BDFAA68D8984F0DC02BEACA527B76F207D99B666D31D1DA728EE0728182DF697`。Zotero Local API 本机只读连接可用；真实私人条目/批注不作为提交物或质量验收样本。
 
+## 远端交付与安装验收
+
+代码提交 `e67854d50c0b286d0b511b7b1f92892d682a1f0b` 已普通推送 `main`。[CI 41271020398](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41271020398) 的 `windows` 和 `installed-app` 均成功；后者在另一 runner 用 Windows PowerShell 5.1 实际安装、启动桌面/Sidecar、验证 P1/P2、重启读回及卸载。子进程 PATH 仅含 System32；该 runner 自身有开发工具，不据此宣称干净 Windows 认证。
+
+已下载两份官方 artifact 并逐一核对 GitHub SHA-256；安装器摘要与原始安装报告一致。见 [CI 与产物摘要](environment/2026-11-01-v2-phase2-ci.json)、[原始安装报告](environment/2026-11-01-v2-phase2-installed.json)。本机新验收包 `.local/v2-phase2-acceptance-kit-41271020398.zip` 包含安装器、报告、验证脚本、自造 PDF、隔离原生记录和逐文件校验清单，大小 37,702,773 字节，SHA-256：`9E7E24A14244DCBD0471369CFB26706ECE93EE7944C7884DB6097207DB9DD608`。安装产物、运行库和下载 PDF 未进入源码提交。
+
 ## 限制与后续入口
 
 1. 真实模型未配置，没有发送云端论文文本，未验证厂商兼容性和科学抽取质量。Zotero 批注匹配使用 fixture 验证，未导入私人批注验收。
@@ -45,4 +51,4 @@ PDF、数据库与备份只留本机忽略目录。公开 PDF SHA-256：`BDFAA68
 6. 干净 Windows、缺失 WebView2、跨平台和完整安装版人工阅读体验仍待外部验收。G0 用户放行保持有效。
 7. S1–S4 四份旧补充材料原登记路径仍不可用，无法核对当前原文/哈希；未改原文，QA 原件与历史登记保留。
 
-P3 建议从 RelationAssertion 候选、Condition 当前节点比较、NO_DECISION 拒绝边、证据依赖与审核开始，先准备授权的真实论文/真实模型基准。本轮不实现 P3、Query、Wiki 或多 Agent 系统。远端 CI/新安装包结果在完成后补记。
+P1 兼容补全与 P2 最小闭环已完成本机、原生及远端安装 CI 验收，本轮停止于 P2。P3 建议从 RelationAssertion 候选、Condition 当前节点比较、NO_DECISION 拒绝边、证据依赖与审核开始，先准备授权的真实论文/真实模型基准。本轮不实现 P3、Query、Wiki 或多 Agent 系统。

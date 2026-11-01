@@ -1,0 +1,51 @@
+{
+  "recorded_at": "2026-11-01T12:19:57+08:00",
+  "head_sha": "e67854d50c0b286d0b511b7b1f92892d682a1f0b",
+  "run_id": 41271020398,
+  "url": "https://github.com/KLucen/ResearchGraphStudio/actions/runs/41271020398",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 124743640642,
+      "name": "windows",
+      "conclusion": "success"
+    },
+    {
+      "id": 124746438251,
+      "name": "installed-app",
+      "conclusion": "success"
+    }
+  ],
+  "installer_sha256": "0EB849D1B5290830049E7F9DBD6F48B6EF4B30970A11B0A88B945BC286AD990A",
+  "installer_bytes": 37702337,
+  "report_sha256": "48E2E1371EA35777E30FE21745E96CA1B724AB861D23E1CF588F28B1C58F45D8",
+  "artifacts": [
+    {
+      "id": 13069941316,
+      "name": "researchgraph-phase0-windows",
+      "digest": "sha256:9ca6cdf9d2dc9a1cade03d8c7ec5ad86e9a8f9aa401a324bd9718365eb7afa97"
+    },
+    {
+      "id": 13069327617,
+      "name": "researchgraph-installed-verification",
+      "digest": "sha256:6895992c668426697011a2c0864a3368b84e1cce56466110a12e39fe9f2d1a74"
+    }
+  ],
+  "kit_path": ".local/v2-phase2-acceptance-kit-41271020398.zip",
+  "kit_sha256": "9E7E24A14244DCBD0471369CFB26706ECE93EE7944C7884DB6097207DB9DD608",
+  "kit_bytes": 37702773,
+  "local_tests": {
+    "python_passed": 76,
+    "python_skipped": 2,
+    "react_passed": 20,
+    "rust_passed": 2,
+    "reference_contracts_passed": 5
+  },
+  "clean_windows_G0": "not_certified_by_this_script",
+  "limitations": [
+    "Real LLM scientific quality not tested",
+    "Live Zotero annotations not used as acceptance data",
+    "Clean Windows and missing WebView2 not certified",
+    "P3 and later not implemented"
+  ]
+}

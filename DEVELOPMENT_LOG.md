@@ -503,6 +503,33 @@
 - 真实模型未配置；真实 Zotero 仅验证只读连接，批注用自造 fixture；干净 Windows/缺失 WebView2、复杂版式/精确字级锚点、完整安装版人工阅读验收未完成。所有私人材料/数据库/公开下载 PDF/安装产物留在忽略目录。
 - 本轮按授权普通提交推送并跟进 CI。P2 后停止；P3 建议入口为条件化 RelationAssertion 候选和证据/审核约束，详见进度中的边界，不提前实现 Query/Wiki/多 Agent。
 
+## 2026-11-01 12:20 · DEV-0017 · v2 P2 远端安装验收与交付归档
+
+### 目标
+
+- 收齐 DEV-0016 对应代码的远端构建、安装验收和产物校验，保存新验收包；本轮在 P2 收尾。
+
+### 实际改动
+
+- 代码提交 `e67854d50c0b286d0b511b7b1f92892d682a1f0b` 已通过官方 SSH 443 普通推送 `main`，保留现有工程与用户设计包。
+- 新增 [CI/产物摘要](docs/environment/2026-11-01-v2-phase2-ci.json)和[原始安装报告](docs/environment/2026-11-01-v2-phase2-installed.json)，同步 [实际进度](docs/progress.md)。本次收尾只改文档与验收记录，不改应用代码。
+- 建立本机忽略目录中的 `.local/v2-phase2-acceptance-kit-41271020398.zip`，包含安装器、原始报告、PowerShell 验证脚本、自造 PDF、原生验收记录及逐文件校验清单。未将安装器、私人材料、运行数据库或下载论文纳入源码。
+
+### 验证
+
+- [CI 41271020398](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41271020398) 对应上述代码提交，`windows`（124743640642）与 `installed-app`（124746438251）均 completed/success。本机完整结果继续为 76 Python passed、2 skipped、20 React、2 Rust 和 5 参考契约通过；详见 DEV-0016，不将本次文档检查记作重新运行全部测试。
+- 另一 runner 的 PowerShell 5.1 报告实际通过安装、桌面/Sidecar 启动、单实例、正常/异常退出、P1 导入/来源/分页/阶段/回收/原件保留、P2 Mock 抽取/证据/审核/重启以及卸载。子进程 PATH 仅 System32；runner 自身存在开发工具，`clean_windows_G0` 保持未认证。
+- 官方 artifact ZIP 摘要分别为 `9CA6CDF9D2DC9A1CADE03D8C7EC5AD86E9A8F9AA401A324BD9718365EB7AFA97`（安装产物）与 `6895992C668426697011A2C0864A3368B84E1CCE56466110A12E39FE9F2D1A74`（报告），下载核验通过。直连传输较慢，实测本机代理对官方产物端点更快后分段下载；未更改全局网络设置，API 凭据未转发至产物端点。
+- 安装器 37,702,337 字节，SHA-256 `0EB849D1B5290830049E7F9DBD6F48B6EF4B30970A11B0A88B945BC286AD990A`，与报告一致；原始报告 SHA-256 `48E2E1371EA35777E30FE21745E96CA1B724AB861D23E1CF588F28B1C58F45D8`。
+- 新验收包 37,702,773 字节，SHA-256 `9E7E24A14244DCBD0471369CFB26706ECE93EE7944C7884DB6097207DB9DD608`；ZIP 完整性与逐文件 hash 校验通过。源码仅保留无敏感数据的验收摘要。
+- 45 份 Markdown、160 个本地链接、QA 原始 hash 和环境 JSON 检查通过；四份不可用外部原文明确排除。暂存的 4 份文本文件通过敏感路径/凭据模式检查，`git diff --cached --check` 通过；提交前 fetch 确认 `HEAD` 与 `origin/main` 均为 `e67854d`。
+
+### 问题与下一步
+
+- 真实模型科学质量、真实私人 Zotero 批注匹配、干净 Windows/缺 WebView2、复杂版式/字级定位和完整安装版人工阅读体验仍未验收。四份 S1–S4 原文登记路径仍不可用，未声称核验其内容或 hash；G0 用户放行保持有效。
+- 按既有授权普通提交推送收尾记录。工作流排除 Markdown 与 `docs/**`，本次文档提交不需要重建安装器；安装包对应代码提交仍为 `e67854d`。
+- P2 结束，不实施 P3。下一轮可从条件化 RelationAssertion 候选、证据依赖与人工审核开始，并先建立授权真实论文/模型基准。
+
 ## 后续条目模板
 
 ```markdown
