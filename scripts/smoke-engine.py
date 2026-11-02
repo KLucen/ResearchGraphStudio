@@ -111,10 +111,11 @@ def run(executable: Path) -> dict[str, object]:
                 Path(__file__).resolve().parents[1] / "tests/fixtures/pdf/two-pages.pdf"
             )
             fixture = Path(directory) / "generated-fixture.pdf"
+            shared_statement = "Our synthetic shared memory method improves task accuracy."
             with pymupdf.open(source_fixture) as document:
                 document[-1].insert_text(
                     (40, 400),
-                    "Our synthetic shared memory method improves task accuracy.",
+                    shared_statement,
                     fontsize=8,
                 )
                 document.save(fixture)
@@ -207,7 +208,11 @@ def run(executable: Path) -> dict[str, object]:
             )
             assert extraction["result"]["provider"] == "mock"
             knowledge = request(port, f"/revisions/{revision_id}/knowledge")
-            claim = next(n for n in knowledge["items"] if n["kind"] == "claim")
+            claim = next(
+                n
+                for n in knowledge["items"]
+                if n["kind"] == "claim" and n["text"].strip() == shared_statement
+            )
             detail = request(port, f"/knowledge/nodes/{claim['id']}")
             assert detail["evidence"] and detail["model_run"]["raw_output"]
             assert request(port, f"/evidence/{detail['evidence'][0]['id']}/preview")[
@@ -244,8 +249,16 @@ def run(executable: Path) -> dict[str, object]:
             other_nodes = request(port, f"/revisions/{other_version}/knowledge")["items"]
             proposals = []
             for workflow, kind in (("relations", "claim"), ("alignments", "method")):
-                left = next(n for n in knowledge["items"] if n["kind"] == kind)
-                right = next(n for n in other_nodes if n["kind"] == kind)
+                # Extraction order follows evidence IDs, not PDF text order. Pair the
+                # explicit shared fixture instead of unrelated first rows (NO_DECISION).
+                left, right = [
+                    next(
+                        n
+                        for n in nodes
+                        if n["kind"] == kind and n["text"].strip() == shared_statement
+                    )
+                    for nodes in (knowledge["items"], other_nodes)
+                ]
                 inferred = completed(
                     port,
                     request(
@@ -257,6 +270,7 @@ def run(executable: Path) -> dict[str, object]:
                     ),
                 )
                 proposal_id = inferred["result"]["proposal_id"]
+                assert proposal_id, {"workflow": workflow, "result": inferred["result"]}
                 proposal_detail = request(port, f"/knowledge/{workflow}/{proposal_id}")
                 assert proposal_detail["proposal"]["review_status"] == "proposed"
                 assert all(r["status"] == "succeeded" for r in proposal_detail["runs"])
