@@ -205,8 +205,12 @@ def test_old_48_batch_job_retains_first_commit_after_upgrade(tmp_path, monkeypat
             job.payload = {k: v for k, v in job.payload.items() if k != "unified_plan"}
         monkeypatch.setattr(app_module, "run_extraction", original)
         provider.fail = False
+        # 47 independent durable commits can exceed the short-job budget on CI.
+        # This is a bounded test-runner wait, not the provider's request timeout.
         resumed = wait_job(
-            api, post(api, f"/jobs/{failed['id']}/retry", key="upgrade-resume").json()
+            api,
+            post(api, f"/jobs/{failed['id']}/retry", key="upgrade-resume").json(),
+            timeout=90,
         )
         assert resumed["status"] == "succeeded", resumed
         assert resumed["result"]["completed_batches"] == "48"

@@ -19,14 +19,19 @@ from test_engine import client, post
 FIXTURES = Path(__file__).parents[1] / "fixtures/pdf"
 
 
-def wait_job(api, job):
-    deadline = time.monotonic() + 20
+def wait_job(api, job, *, timeout=20):
+    deadline = time.monotonic() + timeout
+    result = job
     while time.monotonic() < deadline:
         result = api.get(f"/api/v1/jobs/{job['id']}").json()
         if result["status"] not in {"queued", "running"}:
             return result
         time.sleep(0.05)
-    raise AssertionError("job timed out")
+    progress = result.get("result") or {}
+    raise AssertionError(
+        f"job timed out after {timeout}s: {result.get('status')}/{result.get('stage')} "
+        f"batches={progress.get('completed_batches')}/{progress.get('total_batches')}"
+    )
 
 
 def queue(api, project, path, key, mode="reference"):

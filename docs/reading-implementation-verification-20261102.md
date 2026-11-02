@@ -79,3 +79,10 @@ P12 还提出部分无根路径成员，保留为检索候选并显示覆盖限�
 - PyInstaller/Tauri/NSIS最终成功；冻结引擎smoke新增reading闭环/选择/重启并通过。PowerShell5.1 EnginePath在仅System32 PATH通过；第一次旧0009断言失败已修正到0010后复测。安装执行未做。
 - 收尾移除 Comparator 遗留的审核筛选/文案，历史状态明确标为历史；边详情显示导航/原文/模型推断。React 39项、TS/eslint/格式再次通过，重新完成 PyInstaller/Tauri/NSIS、冻结引擎 smoke 与 PowerShell5.1 EnginePath 验证。
 - 最终安装包38,526,897字节，SHA256 `a7fd43ef7818a682a3ff490dd7706f58b6e3965a9aca59c60ca5171de0794660`，版本仍0.0.1，以哈希和本轮文件夹区分。
+
+## GitHub 交付与 CI
+
+- 实现提交 `94b3a4d` 已普通推送 main；462候选文件、75暂存文件及该提交Gitleaks通过，暂存路径复核没有私人数据或安装产物。
+- 首次 CI [41425098035](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41425098035) 后端为177通过/1失败：48批旧任务恢复在共享的20秒测试等待期限内未完成，安装阶段因此跳过。仅该长任务测试改为90秒有界等待，并输出阶段/批次诊断；产品模型timeout不变。修复后的实际结果另行补记。
+- 收尾同步 API首页、Schema说明、文档导航和下一轮模板，明确0010/reading入口与R5剩余范围。
+- CI修正针对性回归：`pytest tests/engine/test_extraction_refinement.py tests/engine/test_ingest.py -q` 为19 passed（23.41秒），Ruff/format通过。

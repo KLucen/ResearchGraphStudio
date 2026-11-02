@@ -1,10 +1,10 @@
-# 本地接口（v2 P1–P3）
+# 本地接口（P1–P3 与 v3.3 阅读图谱）
 
-> 当前 v3.3 分层图谱/自动选择仅为设计，见 [目标接口](07_api_and_events.md)；本页保留实际软件及旧审核接口，不意味着新工作流需要审核。
+> 当前 v3.3 分层图谱/自动选择已接入，见本页末尾的阅读图谱接口与 [接口映射](07_api_and_events.md)。本页同时保留旧审核接口的兼容说明，新工作流不调用它们。
 
 > 运行契约说明：本页对应保留的 v2 P1–P3 与本轮 v3 M0–M6 增量。[v3 API/事件](07_api_and_events.md)仍包含后续目标；实际差异见 [ADR 0004](adr/0004-v3-projection-and-unified-extraction.md)。
 
-版本：0.0.1 开发增量；协议：1；数据库 Schema：0009；既有领域契约：knowledge-v2.1；统一抽取/补译：unified-v3.1。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
+版本：0.0.1 开发增量；协议：1；数据库 Schema：0010；新任务 paper-reading-v1 / reading-extraction-1.0；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1 继续兼容。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
 
 ## 连接和权限
 

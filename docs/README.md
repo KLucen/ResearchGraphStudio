@@ -8,7 +8,7 @@
 
 目标流程：来源/完整证据 → 候选抽取 → 论文级整合 → 自动关键性选择 → Paper→核心结论→支撑知识的分层图谱。未选候选仍保留并可被后续 Query 检索；Wiki 使用逐段证据和版本依赖。
 
-**本轮 R0 是规范与参考契约交付，不是新流程已经运行。** 代码仍为 P3/v3 M0–M5 核心及稳定性增量；M6 有未验收项。运行 Alembic 0009、DTO unified-v3.1、P02 3.2。下一步 R1 候选/单元/选择持久化和旧数据适配，随后 R2–R5；P4 Query/P5 Lint/Wiki 未开始。实际进度见 [progress](progress.md)。
+**R0 规范已落地到 R1–R4，R5 部分验收。** 软件运行 Alembic 0010、paper-reading-v1 和独立 P02/P12/P13；旧任务保留 unified-v3.1/P02 3.2。下一步补充全文质量、响应可靠性及安装反馈，P4 Query/P5 Lint/Wiki 未开始。实际进度见 [progress](progress.md)。
 
 ## 当前设计入口
 

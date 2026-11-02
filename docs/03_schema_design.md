@@ -2,7 +2,7 @@
 
 > 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
 
-参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**运行库仍 0009，运行抽取仍 unified-v3.1，不能直接替换旧 DTO。**
+参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**运行库已升级到 0010，新任务使用 paper-reading-v1；旧 unified-v3.1 DTO/任务签名继续兼容。** 运行服务使用独立 reading_contracts.py，目标契约与运行 API 的差异见 07。
 
 ## 分层与身份
 
