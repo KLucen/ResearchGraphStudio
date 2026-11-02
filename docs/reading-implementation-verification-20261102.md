@@ -86,3 +86,4 @@ P12 还提出部分无根路径成员，保留为检索候选并显示覆盖限�
 - 首次 CI [41425098035](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41425098035) 后端为177通过/1失败：48批旧任务恢复在共享的20秒测试等待期限内未完成，安装阶段因此跳过。仅该长任务测试改为90秒有界等待，并输出阶段/批次诊断；产品模型timeout不变。修复后的实际结果另行补记。
 - 收尾同步 API首页、Schema说明、文档导航和下一轮模板，明确0010/reading入口与R5剩余范围。
 - CI修正针对性回归：`pytest tests/engine/test_extraction_refinement.py tests/engine/test_ingest.py -q` 为19 passed（23.41秒），Ruff/format通过。
+- 修正后的 [CI 41426893999](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41426893999) 已全部成功：Windows job 178 Python、39 React、7 Rust 测试通过，冻结引擎与 NSIS 构建通过；`installed-app` job 通过。对应 GitHub artifacts 为 `researchgraph-phase0-windows`（ID 13133122133）和 `researchgraph-installed-verification`（ID 13132573949）。

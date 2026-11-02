@@ -885,6 +885,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 ### 验证与剩余
 
 - 首次CI安装阶段因上游失败跳过，不能称安装通过；Conda环境运行 `pytest tests/engine/test_extraction_refinement.py tests/engine/test_ingest.py -q` 为19 passed（23.41秒），Ruff/format通过。后续远端结果在完成后补记。
+- 修正后 CI [41426893999](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41426893999) 全部成功：Windows 178 Python/39 React/7 Rust、冻结引擎、NSIS 及 installed-app 验证通过。GitHub 工件 ID 为 13133122133（安装器）和 13132573949（安装验收报告）；本机交付包仍以 `.local/releases/reading-graph-20261102/` 的 SHA256 为准。
 - 两篇真实论文的局部链路与本机安装器保持，全文/原生反馈仍未完成，不进入P4/P5。
 
 ## 后续条目模板
