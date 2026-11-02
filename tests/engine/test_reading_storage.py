@@ -54,7 +54,8 @@ def test_adaptation_preserves_legacy_content_and_checkpoint_identity(seeded):
         node = session.get(KnowledgeNode, result["node_ids"][0])
         before = (node.id, node.payload, node.review_status, node.revision)
         raw = session.get(ModelRun, "run").raw_output
-        assert reading.adapt("version") > 0
+        assert reading.adapt("version") == 0
+        assert reading.nodes("version") == []  # Legacy graph is history, not new candidates.
         assert reading.adapt("version") == 0
         assert before == (node.id, node.payload, node.review_status, node.revision)
         assert raw == session.get(ModelRun, "run").raw_output

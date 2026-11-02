@@ -11,6 +11,7 @@ from typing import Any, Protocol
 
 import httpx
 
+from researchgraph.model_adapters import adapt_request, with_documented_limits
 from researchgraph.model_capabilities import ModelCapabilities, parse_capabilities
 
 
@@ -33,7 +34,12 @@ class MockProvider:
         }:
             from researchgraph.reading_mock import complete as reading_complete
 
-            return json.dumps(reading_complete(schema["title"], data), ensure_ascii=False)
+            result = reading_complete(schema["title"], data)
+            if data.get("wire_format") == "reading-compact-1":
+                from researchgraph.reading_wire import compact_fixture
+
+                result = compact_fixture(result)
+            return json.dumps(result, ensure_ascii=False)
         if schema.get("title") == "KnowledgeExtractionBatch":
             from researchgraph.unified_mock import complete as unified_complete
 
@@ -160,8 +166,10 @@ class ConfiguredProvider:
         self.key = key if key is not None else os.environ.get("RGS_MODEL_API_KEY", "")
         self.parameters = parameters or {"temperature": 0, "timeout_seconds": 30, "json_mode": True}
         self.usage: dict[str, int] = {}
-        self.capabilities = ModelCapabilities.model_validate(
-            self.parameters.get("capabilities", {})
+        self.capabilities = with_documented_limits(
+            self.base_url,
+            self.model,
+            ModelCapabilities.model_validate(self.parameters.get("capabilities", {})),
         )
         self.capabilities_checked = False
         self.request_metadata: dict[str, Any] = {}
@@ -207,7 +215,17 @@ class ConfiguredProvider:
             if isinstance(data, list):
                 for item in data:
                     if isinstance(item, dict) and item.get("id") == self.model:
-                        self.capabilities = parse_capabilities(item)
+                        discovered = parse_capabilities(item)
+                        if discovered.source != "provider_default":
+                            self.capabilities = ModelCapabilities(
+                                max_output_tokens=discovered.max_output_tokens
+                                or self.capabilities.max_output_tokens,
+                                context_window=discovered.context_window
+                                or self.capabilities.context_window,
+                                source=discovered.source
+                                if discovered.max_output_tokens and discovered.context_window
+                                else f"{discovered.source}+{self.capabilities.source}",
+                            )
                         return
         except (httpx.HTTPError, ValueError, TypeError, AttributeError):
             # Standard OpenAI /models does not expose token limits. Never guess.
@@ -272,6 +290,9 @@ class ConfiguredProvider:
         }
         if self.parameters.get("json_mode", True):
             body["response_format"] = {"type": "json_object"}
+        self.request_metadata.update(
+            adapt_request(self.base_url, self.model, self.parameters, body)
+        )
         return body
 
     def _request(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
@@ -317,12 +338,19 @@ class ConfiguredProvider:
         self.request_metadata = {}
         await self.prepare()
         body = self._build_body(prompt, data, schema)
+        from researchgraph.chat_stream import ChatStream
+
+        body.update(stream=True, stream_options={"include_usage": True})
+        self.request_metadata.update(
+            transport="chat-sse-v1", total_timeout_seconds=self.total_timeout
+        )
         headers = {"Content-Type": "application/json"}
         if self.key:
             headers["Authorization"] = f"Bearer {self.key}"
         started = time.monotonic()
         phase = "connection"
         response_bytes = 0
+        stream: ChatStream | None = None
 
         async def trace(event: str, _info: dict[str, Any]) -> None:
             nonlocal phase
@@ -336,11 +364,14 @@ class ConfiguredProvider:
             timeout = self.parameters.get("timeout_seconds", 30)
             # Async transport closes the socket on cancellation; retries cannot
             # overlap a still-running urllib thread from a previous attempt.
-            async with httpx.AsyncClient(
-                trust_env=False,
-                follow_redirects=False,
-                timeout=httpx.Timeout(timeout, connect=min(timeout, 15)),
-            ) as client:
+            async with (
+                asyncio.timeout(self.total_timeout),
+                httpx.AsyncClient(
+                    trust_env=False,
+                    follow_redirects=False,
+                    timeout=httpx.Timeout(timeout, connect=min(timeout, 15)),
+                ) as client,
+            ):
                 async with client.stream(
                     "POST",
                     self.base_url + "/chat/completions",
@@ -371,12 +402,30 @@ class ConfiguredProvider:
                             "client", f"模型请求被拒绝（HTTP {code}），请检查配置或额度"
                         )
                     raw = bytearray()
+                    if "text/event-stream" in response.headers.get("content-type", ""):
+                        stream = ChatStream()
                     async for part in response.aiter_bytes():
                         response_bytes += len(part)
-                        raw.extend(part)
-                        if len(raw) > 2_000_000:
-                            raise ProviderError("response", "模型响应超过 2 MB 限制")
-            envelope = json.loads(raw)
+                        # SSE envelopes repeat per token; bound wire traffic separately
+                        # from retained text so streaming does not reduce usable output.
+                        if response_bytes > (32_000_000 if stream else 2_000_000):
+                            raise ProviderError("response", "模型响应超过传输大小限制")
+                        self.request_metadata.setdefault(
+                            "first_byte_seconds", round(time.monotonic() - started, 3)
+                        )
+                        self.request_metadata["last_byte_seconds"] = round(
+                            time.monotonic() - started, 3
+                        )
+                        if stream:
+                            stream.feed(part)
+                            self.request_metadata.update(
+                                content_characters=stream.content_characters,
+                                reasoning_characters=stream.reasoning_characters,
+                            )
+                        else:
+                            # Some compatible servers ignore stream and return one JSON response.
+                            raw.extend(part)
+            envelope = stream.envelope() if stream else json.loads(raw)
             self.usage = {
                 k: v
                 for k, v in envelope.get("usage", {}).items()
@@ -400,6 +449,13 @@ class ConfiguredProvider:
             if self.key and self.key in content:
                 raise ValueError("模型响应包含凭据，已拒绝保存")
             return content
+        except TimeoutError:
+            self.request_metadata["timeout_phase"] = "total"
+            raise ProviderError(
+                "timeout",
+                f"模型生成达到总时限（{self.total_timeout:g} 秒）；已停止等待",
+                timeout_phase="total",
+            ) from None
         except httpx.TimeoutException as error:
             if isinstance(error, httpx.ConnectTimeout):
                 phase = "connection"
@@ -421,13 +477,33 @@ class ConfiguredProvider:
                 "timeout", f"{label}超时（{timeout} 秒）；已保存批次保留", timeout_phase=phase
             ) from None
         except httpx.RequestError:
+            if response_bytes:
+                raise ProviderError(
+                    "incomplete_stream", "模型响应中途断开，已保留部分输出；未自动重发"
+                ) from None
             raise ProviderError("network", "模型网络连接失败，请检查网络或代理") from None
-        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        except (
+            KeyError,
+            IndexError,
+            TypeError,
+            AttributeError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ):
             raise ProviderError("response", "模型响应结构无效") from None
         finally:
+            if stream:
+                partial = "".join(stream.parts)
+                self.partial_output = partial if not (self.key and self.key in partial) else None
             self.request_metadata.update(
                 elapsed_seconds=round(time.monotonic() - started, 3), response_bytes=response_bytes
             )
+
+    @property
+    def total_timeout(self) -> float:
+        """Separate the inactivity timeout from a bounded active-generation deadline."""
+        timeout = float(self.parameters.get("timeout_seconds", 30))
+        return min(max(timeout * 2, timeout + 5), 300)
 
 
 def provider_for(name: str, allow_network: bool) -> Provider:

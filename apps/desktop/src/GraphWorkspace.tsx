@@ -352,6 +352,27 @@ function ProjectionExplorer({
           </>
         )}
       </div>
+      {graph.data?.paper_builds
+        ?.filter((b) => b.published_units === 0)
+        .map((build) => (
+          <article className="inspector-fact" key={build.paper_id}>
+            <strong>{build.title}</strong>
+            <p>
+              已保存 {build.candidate_count} 条新版候选 · 核心图谱尚未发布
+              {build.total_batches > 0 &&
+                ` · 抽取 ${build.completed_batches}/${build.total_batches} 批`}
+            </p>
+            <button
+              className="text-button"
+              onClick={() => {
+                setPaper(build.paper_id);
+                resetPage();
+              }}
+            >
+              查看已保存候选与建图选项
+            </button>
+          </article>
+        ))}
       {paper && (
         <ReadingControls
           paperId={paper}

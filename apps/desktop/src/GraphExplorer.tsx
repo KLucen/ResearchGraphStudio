@@ -61,7 +61,7 @@ export function GraphExplorer({
     queryFn: () =>
       request<Graph>(
         "GET",
-        `/api/v1/graph/subgraph?project_id=${projectId}&kind=${kind}&status=all&limit=24&cursor=${cursors.at(-1)}&focus_id=${focusId}&include_test_data=false`,
+        `/api/v1/graph/subgraph?project_id=${projectId}&kind=${kind}&status=all&limit=24&cursor=${cursors.at(-1)}&focus_id=${focusId}&include_test_data=false&current_schema_only=true`,
       ),
     enabled: connected,
     refetchInterval: 5000,
@@ -92,7 +92,13 @@ export function GraphExplorer({
       request<components["schemas"]["CandidateList"]>(
         "POST",
         "/api/v1/knowledge/candidates",
-        { source_id: sourceId, query, top_k: topK, include_test_data: false },
+        {
+          source_id: sourceId,
+          query,
+          top_k: topK,
+          include_test_data: false,
+          current_schema_only: true,
+        },
       ),
   });
   const selectedKind =

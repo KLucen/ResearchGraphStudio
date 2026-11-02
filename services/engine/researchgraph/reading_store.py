@@ -83,19 +83,18 @@ class ReadingMutations:
         return response
 
     def nodes(self, version_id: str) -> list[KnowledgeNode]:
+        from researchgraph.reading_scope import current_nodes
+
         self.source(version_id)
-        return list(
-            self.session.scalars(
-                select(KnowledgeNode)
-                .where(KnowledgeNode.document_version_id == version_id)
-                .order_by(KnowledgeNode.id)
-            )
-        )
+        return current_nodes(self.session, version_id)
 
     def snapshot(self, version_id: str) -> str:
+        from researchgraph.reading_scope import SCOPE
+
         version, _ = self.source(version_id)
         return digest(
             {
+                "candidate_scope": SCOPE,
                 "source": version.sha256,
                 "evidence": [
                     [

@@ -23,7 +23,10 @@ class ModelParameters(StrictModel):
     # Read old profiles/snapshots without enforcing their former manual output cap.
     max_output_tokens: int | None = Field(default=None, ge=128, le=2_000_000, deprecated=True)
     capabilities: ModelCapabilities = Field(default_factory=ModelCapabilities)
-    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None = None
+    reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None = (
+        None
+    )
+    adapter_policy: Literal["tencent-deepseek-v41-structured-v1"] | None = None
     timeout_seconds: int = Field(default=90, ge=5, le=180)
     json_mode: bool = True
 
@@ -114,7 +117,9 @@ class SettingsView(StrictModel):
 
 
 def profile_view(profile: ModelProfile) -> ProfileView:
-    return ProfileView(
+    from researchgraph.model_adapters import with_documented_limits
+
+    view = ProfileView(
         **{
             key: getattr(profile, key)
             for key in (
@@ -130,6 +135,10 @@ def profile_view(profile: ModelProfile) -> ProfileView:
         },
         has_api_key=bool(profile.credential_ref),
     )
+    view.parameters.capabilities = with_documented_limits(
+        profile.base_url, profile.model, view.parameters.capabilities
+    )
+    return view
 
 
 def require_project(session: Session, project_id: str | None) -> None:
@@ -192,7 +201,7 @@ def snapshot_for(session: Session, project_id: str, role: str) -> dict[str, Any]
         raise KnowledgeError(
             "MODEL_NOT_CONFIGURED", "请选择真实 API 或本地模型；历史测试配置不能用于新任务"
         )
-    return {
+    snapshot = {
         key: getattr(p, key)
         for key in (
             "id",
@@ -204,6 +213,10 @@ def snapshot_for(session: Session, project_id: str, role: str) -> dict[str, Any]
             "credential_ref",
         )
     }
+    from researchgraph.model_adapters import new_task_parameters
+
+    snapshot["parameters"] = new_task_parameters(p.base_url, p.model, p.parameters, role)
+    return snapshot
 
 
 def from_snapshot(snapshot: dict[str, Any], data_dir: Path, allow_network: bool) -> Provider:

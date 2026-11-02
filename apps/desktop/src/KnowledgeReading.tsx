@@ -139,7 +139,7 @@ function Reading({
     <div>
       <h3>Paper & Reading</h3>
       <p className="quiet-note">
-        来源已验证表示能回查原文；作者主张及模型解释不等于科学事实。
+        当前展示新版 Schema 的候选与图谱。历史知识保留，不参与新版建图。
       </p>
       <div className="import-controls">
         <span>使用全局 Extraction 模型</span>
@@ -329,6 +329,11 @@ function Reading({
             {Boolean(run.parameters.normalization) && (
               <p className="quiet-note">
                 已移除模型多出的空占位字段；未重新调用模型，原始响应完整保留。
+              </p>
+            )}
+            {Boolean(run.parameters.reading_normalization) && (
+              <p className="quiet-note">
+                已合并编号和内容完全相同的重复候选；原始响应和去重记录完整保留。
               </p>
             )}
             {run.prompt_name === "P02_local_link_repair" && (

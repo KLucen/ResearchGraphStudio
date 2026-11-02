@@ -36,6 +36,13 @@ class Job(Base):
     created_at: Mapped[str] = mapped_column(String(40))
     updated_at: Mapped[str] = mapped_column(String(40))
 
+    @property
+    def resume_adapter_available(self) -> bool:
+        from researchgraph.reading_resume import adapter_available
+        from researchgraph.reading_upgrade import upgrade_available
+
+        return adapter_available(self) or upgrade_available(self)
+
 
 class Event(Base):
     __tablename__ = "knowledge_events"

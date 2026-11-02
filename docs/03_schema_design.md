@@ -44,6 +44,14 @@ links 指本批已存在 local_ref，关系枚举为 SUPPORTED_BY、ASSOCIATED_M
 
 ## 条件与证据
 
+### R5运行传输格式reading-compact-1
+
+新任务使用独立 `P02_reading_extract_compact` 与[reading_wire.py](../services/engine/researchgraph/reading_wire.py)生成的wire Schema，领域reading-extraction-1.0和数据库0010不变。顶层wire_format/source_language声明格式与共同原语言；SourceText可省略相同language，或用非空原文字符串表示无翻译文本。仅这些Schema声明字段可无损展开，不能转换任意数值/额外键。Claim/Finding/Experiment可省略与statement/result/protocol完全重复的summary，程序精确复制；有额外语义仍显式输出摘要，其他类型summary保持必填。
+
+原raw_output保留，展开路径/规则写reading_wire审计；之后执行原有字段、来源、条件及Store验证。旧模板/Schema/冻结签名继续原规则，不能通过新格式放宽旧任务。完整决策见[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)。下列领域条件规则不变。
+
+### 领域条件与证据约束
+
 - known 必须有一个原文支持的值；unknown/not_applicable 不允许值、单位或冲突列表。
 - conflicting 保留至少两个有证据的 alternatives，不选择其中一个冒充确定值。
 - EvidenceSpan.text_sha256 明确为完整规范化段落 UTF-8 SHA-256；offset 是该不可变段落的字符范围，end 不含。quote 必须精确相等，doc version/归属另验。
@@ -79,3 +87,13 @@ RetrievalHit 不因图谱角色排除候选；来源/有效性门槛独立。Que
 ## 迁移边界
 
 参考 SQL 只描述建议新增关系，不可直接运行到用户库。正式迁移先备份、审计旧表、建立旧 ID 映射，再以 Alembic 加性迁移实现。旧嵌套条件/结果/实验与依赖已经存在时复用；原 ModelRun 和已完成任务签名保持。完整计划见 [06](06_development_migration_plan.md)。
+
+## 当前运行范围与严格校验（2026-11-02）
+
+领域DTO仍为reading-extraction-1.0，紧凑传输仍为reading-compact-1，数据库仍为0010。P02新模板v2显式要求items/links；字段缺失不能被解释为成功抽取零候选。字段级extra=forbid及来源检查不取消。
+
+新版阅读与图谱只纳入具有reading-1.0/P02_reading来源、且候选payload通过当前DTO校验的知识；旧unified知识、旧选择快照仅作历史。选择写入candidate_scope=reading-candidates-only-v1；快照包含该范围标记。没有删除、覆盖或重新编号旧知识。相同领域Schema的已成功阅读候选可复用，不因传输字段简化而重抽。
+
+仅对明确、无损的模型外层说明进行规范化：P02顶层waiver字符串保留为warnings并审计；P12 limitations字符串数组映射warnings；P13 warnings/limitations映射coverage_gaps，已知冗余版本标记只作审计。对象型未知扩展、科学字段、原文ID、数值和条件仍严格拒绝。P12根自成员去除并留痕，不能将根视为自身支撑。
+
+P12属于组织建议：窗口外成员/关联/重复建议隔离，非法方向不写边，不同条件或归属不折叠。缺少整合结果的已验证根仅保留直接证据单元并标缺口，不虚构支撑；原始响应不修改。Store对实际写入的所有候选、证据、类型及闭合路径再次检查。见[ADR0013](adr/0013-current-schema-and-bounded-recovery.md)。

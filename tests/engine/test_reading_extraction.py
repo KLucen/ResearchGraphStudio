@@ -65,6 +65,8 @@ def candidate_batch(eid, version="version", chunk="chunk"):
 
 def save(engine, eid, data=None, key="reading-test"):
     with Session(engine) as session, session.begin():
+        run = session.get(ModelRun, "run")
+        run.schema_version, run.prompt_name = "reading-1.0", "P02_reading_extract"
         return (
             KnowledgeStore(session)
             .reading()

@@ -66,6 +66,9 @@ export function JobHistory({
     },
   });
   const jobs = history.data?.pages.flatMap((page) => page.items) ?? [];
+  const continued = new Set(
+    jobs.map((job) => job.result?.resumed_from).filter(Boolean),
+  );
   return (
     <section className="task-history" aria-label="文献任务历史">
       <h3>任务记录 · 已加载 {jobs.length} 项</h3>
@@ -99,8 +102,21 @@ export function JobHistory({
                   {new Date(job.created_at).toLocaleString("zh-CN")} · 第{" "}
                   {job.attempt} 次执行
                 </small>
+                {continued.has(job.id) && (
+                  <p className="muted">
+                    历史任务，已创建续接任务；以下为当时的执行记录。
+                  </p>
+                )}
+                {job.result?.schema_upgrade === true && (
+                  <p className="task-stage">
+                    已切换新版抽取；复用符合新版 Schema 的已保存批次。
+                  </p>
+                )}
                 {job.status === "running" && job.stage && (
                   <p className="task-stage">{stages[job.stage]}…</p>
+                )}
+                {job.status === "running" && (
+                  <ModelActivity value={job.result?.model_activity} />
                 )}
                 {Boolean(job.result?.total_batches) && (
                   <p className="task-stage">
@@ -138,14 +154,14 @@ export function JobHistory({
                         >
                           {batch.index + 1}:
                           {batch.status === "succeeded"
-                            ? "完成"
+                            ? "已保存"
                             : batch.status === "failed"
                               ? "失败"
                               : batch.status === "running"
                                 ? "处理中"
                                 : "待处理"}
                           {batch.split_reason === "timeout"
-                            ? "（超时后缩小）"
+                            ? "（超时拆分后）"
                             : ""}
                         </span>
                       ))}
@@ -189,6 +205,9 @@ export function JobHistory({
                   </small>
                 )}
                 {job.error && <p className="error-text">{job.error}</p>}
+                {typeof job.result?.resumed_from === "string" && (
+                  <small>续接已有批次，模型调用与用量仅统计本续接任务。</small>
+                )}
               </div>
               {["queued", "running"].includes(job.status) ? (
                 <button
@@ -199,7 +218,7 @@ export function JobHistory({
                   取消
                 </button>
               ) : ["failed", "interrupted", "cancelled"].includes(job.status) &&
-                job.attempt < 3 ? (
+                (job.attempt < 3 || job.resume_adapter_available) ? (
                 <button
                   className="text-button"
                   disabled={!connected || action.isPending}
@@ -222,5 +241,21 @@ export function JobHistory({
         </button>
       )}
     </section>
+  );
+}
+
+function ModelActivity({ value }: { value: unknown }) {
+  if (!value || typeof value !== "object") return null;
+  const activity = value as Record<string, number>;
+  const phase =
+    activity.content_characters > 0
+      ? `正在接收结构化结果（${activity.content_characters} 字符）`
+      : activity.reasoning_characters > 0
+        ? "模型正在思考"
+        : "等待模型响应";
+  return (
+    <p className="task-stage">
+      {phase} · 已等待 {activity.elapsed_seconds ?? 0} 秒
+    </p>
   );
 }

@@ -72,11 +72,26 @@ class ProjectionEdge(StrictModel):
     detail_ref: str | None = None
 
 
+class PaperBuildStatus(StrictModel):
+    paper_id: str
+    title: str
+    document_version_id: str | None
+    candidate_count: int
+    published_units: int
+    extraction_job_id: str | None
+    extraction_status: str | None
+    completed_batches: int
+    total_batches: int
+    extraction_incomplete: bool
+    active: bool
+
+
 class GraphProjection(StrictModel):
     contract_version: str = "graph-projection-v3"
     selections: dict[str, int] = Field(default_factory=dict)
     coverage_gaps: list[str] = Field(default_factory=list)
     build_state: str = "legacy"
+    paper_builds: list[PaperBuildStatus] = Field(default_factory=list)
     project_id: str
     graph_revision: int
     nodes: list[ProjectionNode]

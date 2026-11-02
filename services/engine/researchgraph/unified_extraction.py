@@ -1,11 +1,13 @@
 """Resumable section-level v3 extraction; old P01/P02 remains an explicit baseline."""
 
+import json
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph import reading_wire
 from researchgraph.extraction import PROMPT_DIR, call_model, mark_run, reusable_model_run, stage
 from researchgraph.extraction_repair import validate_or_repair, validation_message
 from researchgraph.knowledge_models import EvidenceSpan, KnowledgeOperation, ModelRun, Section
@@ -130,9 +132,26 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         plan.get("prompt_name", LEGACY_PROMPT) if plan else LEGACY_PROMPT if legacy else PROMPT
     )
     if reading:
-        prompt_name = "P02_reading_extract"
-    if prompt_name not in {PROMPT, LEGACY_PROMPT, "P02_reading_extract"}:
+        prompt_name = (
+            plan.get("prompt_name", "P02_reading_extract")
+            if plan
+            else ("P02_reading_extract" if legacy else reading_wire.PROMPT)
+        )
+    supported_prompts = (
+        {"P02_reading_extract", reading_wire.LEGACY_PROMPT, reading_wire.PROMPT}
+        if reading
+        else {PROMPT, LEGACY_PROMPT}
+    )
+    if prompt_name not in supported_prompts:
         raise ValueError("抽取计划使用未知 Prompt 版本，拒绝继续")
+    compact = reading and prompt_name in {reading_wire.PROMPT, reading_wire.LEGACY_PROMPT}
+    output_schema = (
+        reading_wire.current_output_schema()
+        if prompt_name == reading_wire.PROMPT
+        else reading_wire.output_schema()
+        if compact
+        else schema_type.model_json_schema()
+    )
     limit = getattr(getattr(provider, "capabilities", None), "max_output_tokens", None)
     base_budget = 6000 if reading else 8000 if prompt_name == PROMPT else 12000
     budget = min(base_budget, max(1500, limit)) if limit else base_budget
@@ -150,7 +169,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             "provider": provider.name,
             "endpoint": getattr(provider, "base_url", "offline"),
             "parameters": getattr(provider, "parameters", {}),
-            "schema": schema_type.model_json_schema(),
+            "schema": output_schema,
             "prompt": text_hash((PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")),
             "planner": "reading-adjacent-6000-48-v1"
             if reading
@@ -167,7 +186,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             "model": provider.model,
             "endpoint": getattr(provider, "base_url", "offline"),
             "parameters": getattr(provider, "parameters", {}),
-            "schema": schema_type.model_json_schema(),
+            "schema": output_schema,
             "prompt": text_hash((PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")),
         }
     )
@@ -193,6 +212,16 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             }
             for i, g in enumerate(groups)
         ]
+        upgrade = payload.get("reading_upgrade", {})
+        if upgrade.get("leaves"):
+            by_id = {s.id: {"id": s.id, "text": s.quote, "section": s.section_id} for s in spans}
+            states = [dict(s) for s in upgrade["leaves"]]
+            groups = [[by_id[eid] for eid in s["ids"]] for s in states]
+            if any(digest(g) != s["chunk_id"] for g, s in zip(groups, states, strict=True)):
+                raise ValueError("原文证据已改变，无法续用旧批次")
+            config = digest(
+                [config, "upgraded-leaves", [(s["key"], s["chunk_id"]) for s in states]]
+            )
         if legacy:
             # Adopt a failed old job without calling already committed page batches.
             for state, old in zip(states, previous_result["batches"], strict=True):
@@ -201,6 +230,20 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     and len(state["ids"]) > 1
                 ):
                     state["split_required"] = True
+    if payload.get("resume_adapter"):
+        from researchgraph.model_adapters import TENCENT_DEEPSEEK, new_task_parameters
+
+        if (
+            not plan
+            or payload["resume_adapter"] != TENCENT_DEEPSEEK
+            or not isinstance(provider, ConfiguredProvider)
+        ):
+            raise ValueError("无法应用任务续接适配，原有结果保持")
+        provider.parameters = new_task_parameters(
+            provider.base_url, provider.model, provider.parameters, "extraction"
+        )
+        if provider.parameters.get("adapter_policy") != TENCENT_DEEPSEEK:
+            raise ValueError("模型端点不匹配续接适配")
     saved: set[str] = set()
     batch_warnings: list[str] = []
     with Session(engine) as session:
@@ -220,7 +263,9 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         for i, state in enumerate(states):
             state["index"] = i
             operation = session.get(
-                KnowledgeOperation, f"{operation_prefix}:{config}:{state['key']}"
+                KnowledgeOperation,
+                state.get("committed_operation_key")
+                or f"{operation_prefix}:{config}:{state['key']}",
             )
             if operation:
                 states[i]["status"] = "succeeded"
@@ -307,7 +352,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         manifest = {
             "evidence_aliases": aliases,
             "pipeline": "paper-reading-v1" if reading else "unified-v3",
-            "schema_hash": digest(schema_type.model_json_schema()),
+            "schema_hash": digest(output_schema),
         }
         data = {
             "document_version_id": version_id,
@@ -316,7 +361,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             "section": " / ".join(dict.fromkeys(sections[e["section"]] for e in group)),
             "domain_vocabulary": [],
             "max_items_hint": min(16, max(4, (sum(len(e["text"]) for e in group) + 749) // 750))
-            if prompt_name == PROMPT
+            if prompt_name == PROMPT or compact
             else states[index].get("max_items_hint", 16),
             "allowed_evidence": [
                 {"id": alias, "text": entry["text"]}
@@ -343,6 +388,8 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     for i, e in enumerate(data["allowed_evidence"])
                 ],
             }
+            if compact:
+                data["wire_format"] = reading_wire.FORMAT
         run_id = None
         try:
             split_required = states[index].pop("split_required", False)
@@ -356,6 +403,12 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             cached = reusable_model_run(
                 engine, job_id, provider, prompt_name, data, manifest, include_invalid=True
             )
+            reused = states[index].get("response_run_id")
+            if reused:
+                from researchgraph.reading_upgrade import reuse_response
+
+                with Session(engine) as session, session.begin():
+                    cached = reuse_response(session, reused, job_id)
             if cached:
                 run_id, raw = cached
             else:
@@ -366,7 +419,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     provider,
                     prompt_name,
                     data,
-                    schema_type.model_json_schema(),
+                    output_schema,
                     manifest,
                     adaptive_timeout=True,
                 )
@@ -374,12 +427,37 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             if reading:
                 from researchgraph.reading_validation import validate_batch
 
-                validated, quarantined = validate_batch(raw, set(aliases))
-                if quarantined:
+                duplicates: list[dict[str, int]] = []
+                wire_changes: list[dict[str, str]] = []
+                validated, quarantined = validate_batch(
+                    raw,
+                    set(aliases),
+                    removed_duplicates=duplicates,
+                    compact=("wire_format" in json.loads(raw)) if reused else compact,
+                    wire_changes=wire_changes,
+                )
+                if quarantined or duplicates or compact or wire_changes:
                     with Session(engine) as session, session.begin():
                         run = session.get(ModelRun, run_id)
                         assert run
-                        run.parameters = {**run.parameters, "quarantined_associations": quarantined}
+                        audit: dict[str, Any] = dict(run.parameters)
+                        if compact:
+                            audit["reading_wire"] = {
+                                "format": json.loads(raw).get("wire_format", "canonical-1.0"),
+                                "canonical_contract": "reading-extraction-1.0",
+                                "expanded_fields": wire_changes,
+                            }
+                        elif wire_changes:
+                            audit["reading_envelope_normalization"] = wire_changes
+                        if quarantined:
+                            audit["quarantined_associations"] = quarantined
+                        if duplicates:
+                            audit["reading_normalization"] = {
+                                "rule": "exact-local-ref-duplicate-v1",
+                                "removed_items": duplicates,
+                                "original_validation_error": "duplicate references",
+                            }
+                        run.parameters = audit
             else:
                 run_id, validated = await validate_or_repair(
                     engine, job_id, provider, run_id, raw, data, manifest

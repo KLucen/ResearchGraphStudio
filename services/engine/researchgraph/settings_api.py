@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.credentials import CredentialError, SecretStore
 from researchgraph.knowledge_store import KnowledgeError
+from researchgraph.model_adapters import new_task_parameters
 from researchgraph.model_settings import (
     GlobalModelRole,
     ModelRole,
@@ -100,7 +101,19 @@ def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: 
                 for key in ("provider", "base_url", "model", "parameters", "credential_ref")
             }
         try:
-            provider = from_snapshot(snapshot, data_dir, True)
+            provider = from_snapshot(
+                {
+                    **snapshot,
+                    "parameters": new_task_parameters(
+                        snapshot["base_url"],
+                        snapshot["model"],
+                        snapshot["parameters"],
+                        "extraction",
+                    ),
+                },
+                data_dir,
+                True,
+            )
             raw = await provider.complete(
                 'Return exactly the JSON object {"ok":true}.',
                 {"purpose": "connection_test_no_paper_data"},

@@ -32,6 +32,8 @@ P01/P03/P04/P12/P13 不机械地对每段调用。先复用结构、缓存和确
 
 ## P02 契约
 
+R5运行补充：新任务使用独立[P02_reading_extract_compact](../services/engine/researchgraph/prompts/P02_reading_extract_compact.md)，wire格式reading-compact-1，领域仍1.0；共同语言、相同摘要省略、SourceText原文字符串的明确语义见[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)。短标签与关键贡献减少重复生成，不靠丢弃条件、数值或证据压缩。请求输出额度用模型能力/剩余上下文的较小值，不额外固定32K/64K。旧运行模板及已经冻结的Schema哈希不变；参考模板仍描述完整领域形式。
+
 输入为 ExtractionRequest，无必填研究方向或领域关键词。可选 vocabulary 只能来自本次文献或已验证上下文。输出为显式类型 union；Claim/Method/Finding/Condition/Experiment/Metric/Concept/ResearchQuestion/Argument/Limitation 都有独立严格字段，Paper 后端管理。links 只连本批 local_ref，跨批关系留给 P12。没有 claim_detail.findings_placeholder 等自由扩展键。
 
 抽取重要贡献及理解所必需的支撑、限制，不逐句建节点。保留原文全集，因此未抽取文本仍可由后续原文检索获得。max_items_hint 是请求规模提示，不是论文必须产出多少知识的指标。
@@ -51,3 +53,9 @@ Schema 验证后仍需文献/引用白名单、角色类型、单元连通性、
 ## 验证方式
 
 合成示例与契约负例覆盖引用、归属、条件、类型、图谱拓扑、选择/检索隔离；这只验证结构。真实 Prompt 效果还需跨论文类型样本，记录贡献覆盖、错误归属、条件遗漏、证据有效性、冗余及调用成本，不能将示例通过写成模型准确率通过。
+
+## 运行模板闭合修正（2026-11-02）
+
+当前新任务使用P02_reading_extract_compact_v2、P12_reading_integration_v2、P13_reading_selection_v3。旧文件保留以核对模型历史，不再作为新任务默认。P02只允许Schema列出的顶层键；P12缺口字段仅warnings，根必须覆盖root_claim_ids且不包含在member_ids；P13缺口字段仅coverage_gaps，不要求contract_version。删除公共文字中模糊的warnings/limitations指令，不能提示模型生成Schema禁止的字段。
+
+整合窗口首先预留根结论，再放支撑及其他候选，不按随机ID抢占预算。生成阶段的候选/证据仍视为不可信数据。限定的说明映射和建议隔离必须保留原响应、规则、位置及原因；不能把宽松JSON解析等同于科学验证。失败阶段的合法响应及已提交检查点可复用。

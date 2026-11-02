@@ -64,6 +64,7 @@ class JobView(BaseModel):
     attempt: int
     error: str | None
     result: dict[str, Any] | None
+    resume_adapter_available: bool = False
     created_at: str
     updated_at: str
 

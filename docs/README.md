@@ -1,5 +1,7 @@
 # 文档导航
 
+最新实现：[新版范围与抽取恢复验收](schema-scope-verification-20261102.md)、[ADR0013](adr/0013-current-schema-and-bounded-recovery.md)。正常建图使用新版候选；旧数据不删除，旧阅读任务继续时升级未完成部分。以下历史记录的旧任务冻结规则仅用于历史重现。
+
 > 2026-11-02 实现更新：R1–R4 已接入，R5 部分验收；Schema head 0010，产品入口 paper-reading-v1。P02_reading_extract/P12_reading_integration/P13_reading_selection 为独立运行模板，旧任务模板不改。默认分层图谱、全部候选搜索与显示偏好已可用，无人工审核。下一步限于 R5 全文质量/响应可靠性与安装反馈，未进入 P4/P5。当前正式库 275 条知识在隔离迁移中逐行保持。报告见 docs/reading-implementation-verification-20261102.md（相对仓库根）。
 
 当前设计为 **v3.3 阅读辅助知识图谱**：辅助阅读、理解和整理科研论文，覆盖不同论文类型，不预设具体研究方向。目标是选择论文直接自动生成知识图谱，流程不包含人工审核。决策见 [ADR 0008](adr/0008-reading-knowledge-graph.md)。
@@ -25,8 +27,11 @@
 
 ## 已实现工程与历史验收
 
+- [输出能力与Schema精简](compact-output-verification-20261102.md)：移除32K/64K二次限额，统一继续入口；紧凑格式无损展开，真实响应保存12候选/10有效关联，全文待验收。见[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)。
+- [腾讯云超时与空图谱恢复](tencent-recovery-verification-20261102.md)：单个真实失败子批约9.5秒通过；明确流式/思考策略、续接成功批次和部分图谱，全文待验收。见 [ADR 0011](adr/0011-tencent-streaming-and-reading-recovery.md)。
+- [阅读响应恢复](reading-response-verification-20261102.md)：精确重复去重与失败结果复用，真实响应副本 20 候选/24 关联通过，零新调用；全文和安装反馈待验收。规则见 [ADR 0010](adr/0010-reading-response-deduplication.md)。
 - [根 README](../README.md)、[运行 API](api.md)、[模型设置](model-configuration.md)、[开发日志](../DEVELOPMENT_LOG.md)、[安全检查](security-checks.md)。
-- [抽取可靠性](extraction-reliability-verification-20261102.md)：真实 Schema 任务副本 4/4 成功；另一响应超时任务仍 6/17，不宣称解决。
+- [抽取可靠性](extraction-reliability-verification-20261102.md)：当轮真实 Schema 任务副本 4/4 成功；另一响应超时任务当时 6/17。当前状态见上方新报告，历史结果不改写。
 - [图谱与抽取稳定性](stability-verification-20261102.md)、[图谱/输出预算优化](refinement-verification-20261102.md)、[v3 M0–M6 验收](v3-verification.md)。
 - [P3](phase3-verification.md)、[P1/P2](phase1-verification.md)、[P0](phase0-verification.md)、[环境](environment-check.md)。这些是原执行记录，不能作为新设计验收。
 

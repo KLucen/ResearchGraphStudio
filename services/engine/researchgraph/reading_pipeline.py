@@ -16,6 +16,11 @@ from researchgraph.models import Job, now
 from researchgraph.providers import Provider
 from researchgraph.reading_contracts import CoreSelectionProposal, PaperIntegrationProposal
 from researchgraph.reading_models import ReadingMember, ReadingUnit
+from researchgraph.reading_validation import (
+    isolate_integration_proposals,
+    validate_integration,
+    validate_selection,
+)
 
 
 async def model_stage(
@@ -27,7 +32,9 @@ async def model_stage(
     data: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
     manifest = {"pipeline": "paper-reading-v1", "schema_hash": digest(schema.model_json_schema())}
-    cached = reusable_model_run(engine, job_id, provider, prompt, data, manifest)
+    cached = reusable_model_run(
+        engine, job_id, provider, prompt, data, manifest, include_invalid=True
+    )
     run_id, raw = cached or await call_model(
         engine,
         job_id,
@@ -40,7 +47,16 @@ async def model_stage(
         adaptive_timeout=True,
     )
     try:
-        value = schema.model_validate_json(raw).model_dump(mode="json")
+        value, audit = (
+            validate_integration(raw)
+            if schema is PaperIntegrationProposal
+            else validate_selection(raw)
+        )
+        if audit:
+            with Session(engine) as session, session.begin():
+                run = session.get(ModelRun, run_id)
+                assert run
+                run.parameters = {**run.parameters, "integration_normalization": audit}
     except ValueError as error:
         mark_run(engine, run_id, "validation_failed", validation_message(error))
         raise ValueError(validation_message(error)) from None
@@ -59,11 +75,16 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
         _, paper = reading.source(version_id)
         current = reading.current(paper.id)
         plan = job.payload.get("reading_finish_plan")
+        prompts = (
+            plan.get("prompts", ["P12_reading_integration", "P13_reading_selection"])
+            if plan
+            else ["P12_reading_integration_v2", "P13_reading_selection_v3"]
+        )
         signature = digest(
             {
                 "prompts": {
                     p: text_hash((PROMPT_DIR / (p + ".md")).read_text(encoding="utf-8"))
-                    for p in ["P12_reading_integration", "P13_reading_selection"]
+                    for p in prompts
                 },
                 "schemas": [
                     PaperIntegrationProposal.model_json_schema(),
@@ -81,6 +102,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             raise ValueError("候选快照已变化；请启动新构建，已保存候选不会丢失")
         if not plan:
             plan = {
+                "prompts": prompts,
                 "snapshot": snapshot,
                 "signature": signature,
                 "expected_revision": current.revision if current else 0,
@@ -137,7 +159,9 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
         selected.update(nid for nid in nodes if shared_evidence.intersection(by_node[nid]))
         # Include cross-batch candidates when the full paper fits the bounded context.
         extras = [nid for nid in nodes if nid not in selected]
-        selected_order = sorted(selected) + extras
+        # Reserve roots before optional support. UUID sort order must not evict
+        # the very claims whose integration this window is required to return.
+        selected_order = group + sorted(selected - set(group)) + extras
         entries: list[dict[str, Any]] = []
         size = 0
         for nid in selected_order:
@@ -171,6 +195,19 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 "input_revision": int(snapshot[:12], 16),
                 "paper_type": "unknown",
                 "root_claim_ids": group,
+                "integration_rules": {
+                    "required_roots": (
+                        "Return exactly one unit per root_claim_ids entry, even without support."
+                    ),
+                    "members": (
+                        "Exclude the root itself. Only cite supplied candidate IDs; "
+                        "do not emit another root as this window's root."
+                    ),
+                    "empty_support": (
+                        "Use empty member_ids if support cannot be established; "
+                        "do not invent a member or edge."
+                    ),
+                },
                 "candidates": entries,
                 "existing_associations": [
                     e for e in edges if e["source_id"] in ids and e["target_id"] in ids
@@ -206,13 +243,34 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             engine,
             job_id,
             provider,
-            "P12_reading_integration",
+            prompts[0],
             PaperIntegrationProposal,
             data,
         )
         allowed_ids = {n["id"] for n in data["candidates"]}
-        if {u["root_claim_id"] for u in value["units"]} != set(data["root_claim_ids"]):
-            raise ValueError("P12 必须逐一返回本窗口的根结论，不得跨窗口增删")
+        quarantined = isolate_integration_proposals(value, data)
+        if quarantined:
+            with Session(engine) as session, session.begin():
+                run = session.get(ModelRun, run_id)
+                assert run
+                run.parameters = {**run.parameters, "integration_context_quarantine": quarantined}
+        returned = {u["root_claim_id"] for u in value["units"]}
+        # Missing organization must not discard a validated author claim. Retain a
+        # direct-evidence-only unit, explicitly disclose the missing integration;
+        # do not synthesize support, relationships or scientific content.
+        for missing in sorted(set(data["root_claim_ids"]) - returned):
+            local_ref = "unintegrated-" + missing
+            if any(u["local_ref"] == local_ref for u in value["units"]):
+                raise ValueError("P12 单元编号冲突")
+            value["units"].append(
+                {
+                    "local_ref": local_ref,
+                    "root_claim_id": missing,
+                    "member_ids": [],
+                    "rationale": "模型未返回该结论的整合，仅保留直接原文依据",
+                }
+            )
+            value["warnings"].append("部分结论尚无模型整合结果，仅保留直接原文依据")
         if any(i not in allowed_ids for u in value["units"] for i in u["member_ids"]):
             raise ValueError("P12 引用了窗口外候选")
         if any(
@@ -241,6 +299,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             run = session.get(ModelRun, run_id)
             assert run
             run.status = "succeeded"
+            run.error, run.finished_at = None, now()
             unit_ids.extend(result["unit_ids"])
             current_job.result = {
                 **(current_job.result or {}),
@@ -286,7 +345,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 engine,
                 job_id,
                 provider,
-                "P13_reading_selection",
+                prompts[1],
                 CoreSelectionProposal,
                 data,
             )

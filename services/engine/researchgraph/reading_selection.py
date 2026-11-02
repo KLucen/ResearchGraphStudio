@@ -21,6 +21,7 @@ from researchgraph.reading_models import (
     ReadingSelection,
     ReadingUnit,
 )
+from researchgraph.reading_scope import SCOPE
 from researchgraph.reading_store import POLICY, ReadingMutations
 
 
@@ -39,7 +40,7 @@ def integrate(
     if cached is not None:
         return cached
     _, paper = store.source(version_id)
-    store.require_run(run_id, version_id)
+    run = store.require_run(run_id, version_id)
     if (
         value.document_version_id != version_id
         or store.snapshot(version_id) != snapshot
@@ -53,18 +54,23 @@ def integrate(
     references.update(i for d in value.duplicates for i in d.candidate_ids)
     if references - nodes.keys():
         raise KnowledgeError("UNKNOWN_CANDIDATE", "整合引用了其他文献或不存在的候选")
-    for edge in value.associations:
+    quarantined: list[dict[str, Any]] = []
+    for index, edge in enumerate(value.associations):
         left, right = nodes[edge.source_id], nodes[edge.target_id]
-        check_relation(
-            "ResearchQuestion" if left.kind == "research_question" else left.kind.title(),
-            "ResearchQuestion" if right.kind == "research_question" else right.kind.title(),
-            edge.relation,
-        )
         for eid in edge.evidence_ids:
             span = store.session.get(EvidenceSpan, eid)
             if span is None:
                 raise KnowledgeError("EVIDENCE_REF_INVALID", "整合证据不存在")
             validate_evidence(store.session, span, version_id)
+        try:
+            check_relation(
+                "ResearchQuestion" if left.kind == "research_question" else left.kind.title(),
+                "ResearchQuestion" if right.kind == "research_question" else right.kind.title(),
+                edge.relation,
+            )
+        except ValueError:
+            quarantined.append({"index": index, "reason": "invalid_endpoint_types"})
+            continue
         aid = stable_id(
             "reading-association",
             digest(
@@ -88,6 +94,11 @@ def integrate(
                     model_run_id=run_id,
                 )
             )
+    if quarantined:
+        integration_warnings.append(
+            f"{len(quarantined)} 条整合关联不符合端点类型，已隔离；未改写关系"
+        )
+        run.parameters = {**run.parameters, "quarantined_integration_associations": quarantined}
     store.session.flush()
     associations = list(
         store.session.scalars(
@@ -149,7 +160,8 @@ def integrate(
         unit_ids.append(uid)
     store.adapt(version_id)
     # A duplicate suggestion affects visibility only. It cannot delete/merge source objects.
-    for duplicate in value.duplicates:
+    rejected_duplicates: list[dict[str, Any]] = []
+    for index, duplicate in enumerate(value.duplicates):
         roots = [nodes[i] for i in duplicate.candidate_ids]
         signatures = {(n.kind, n.authorship, n.payload.get("modality")) for n in roots}
         conditions = {
@@ -161,12 +173,16 @@ def integrate(
             for n in roots
         }
         if len(signatures) != 1 or len({tuple(c) for c in conditions.values()}) != 1:
-            raise KnowledgeError("DUPLICATE_SCOPE_CONFLICT", "归属或实验条件不同，不能折叠为重复")
+            rejected_duplicates.append({"index": index, "reason": "scope_or_attribution_conflict"})
+            integration_warnings.append("重复建议涉及不同归属或条件，已拒绝折叠；候选独立保留")
+            continue
         for node in roots:
             metadata = store.session.get(CandidateMetadata, node.id)
             assert metadata
             if node.id != duplicate.representative_id:
                 metadata.canonical_id = duplicate.representative_id
+    if rejected_duplicates:
+        run.parameters = {**run.parameters, "rejected_integration_duplicates": rejected_duplicates}
     response = {"unit_ids": unit_ids, "warnings": integration_warnings}
     store.store.event(
         paper.project_id, "paper.integration_committed", response, model_run_id=run_id
@@ -315,6 +331,7 @@ def publish(
     revision = expected_revision + 1
     sid = stable_id("reading-selection", digest([paper.id, revision, fingerprint]))
     data = {
+        "candidate_scope": SCOPE,
         "contract_version": "reading-selection-1.0",
         "id": sid,
         "paper_id": paper.id,

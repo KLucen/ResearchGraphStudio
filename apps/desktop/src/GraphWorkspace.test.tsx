@@ -12,6 +12,7 @@ vi.mock("./api", () => ({
   request: vi.fn(),
   api: {
     papers: vi.fn(),
+    paper: vi.fn(),
     projectJobs: vi.fn(),
     node: vi.fn(),
     preview: vi.fn(),
@@ -265,4 +266,41 @@ test("force pass preserves saved nodes while bounding the new layout", () => {
   expect(fresh.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(
     true,
   );
+});
+
+test("an unpublished paper graph explains saved candidates and opens recovery controls", async () => {
+  const original = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(api.paper).mockResolvedValue({ revisions: [{ id: "v" }] } as never);
+  vi.mocked(request).mockImplementation(async (method, path, ...args) => {
+    if (path.endsWith("/projection"))
+      return {
+        ...graph,
+        nodes: [],
+        paper_builds: [
+          {
+            paper_id: "paper",
+            title: "Preserved paper",
+            candidate_count: 206,
+            published_units: 0,
+            completed_batches: 6,
+            total_batches: 12,
+          },
+        ],
+      };
+    if (path.endsWith("/graph-selection"))
+      return { selection_revision: 0, build_state: "not_built" };
+    if (path.includes("/candidates?")) return { items: [], next_cursor: null };
+    return original(method, path, ...args);
+  });
+  mount();
+  expect(await screen.findByText(/已保存 206 条新版候选/)).toBeVisible();
+  await userEvent.click(
+    screen.getByRole("button", { name: "查看已保存候选与建图选项" }),
+  );
+  expect(await screen.findByLabelText("搜索全部候选")).toBeVisible();
+  expect(
+    vi
+      .mocked(request)
+      .mock.calls.some((c) => c[1].includes("knowledge/extract")),
+  ).toBe(false);
 });

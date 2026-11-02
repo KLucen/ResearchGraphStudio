@@ -29,6 +29,7 @@ async def cancellable_call(
     schema: dict[str, Any],
 ) -> str:
     task = asyncio.create_task(provider.complete(prompt, data, schema))
+    started, last_progress = time.monotonic(), 0.0
     try:
         while not task.done():
             await asyncio.wait({task}, timeout=0.15)
@@ -36,6 +37,26 @@ async def cancellable_call(
                 job = session.get(Job, job_id)
                 if job is None or job.status != "running":
                     raise ValueError("任务已取消，模型结果不会写入知识")
+            elapsed = time.monotonic() - started
+            if elapsed - last_progress >= 2 and hasattr(provider, "request_metadata"):
+                meta = provider.request_metadata
+                activity = {
+                    key: meta[key]
+                    for key in (
+                        "first_byte_seconds",
+                        "last_byte_seconds",
+                        "content_characters",
+                        "reasoning_characters",
+                        "total_timeout_seconds",
+                    )
+                    if key in meta
+                }
+                activity["elapsed_seconds"] = round(elapsed, 1)
+                with Session(engine) as session, session.begin():
+                    current = session.get(Job, job_id)
+                    if current and current.status == "running":
+                        current.result = {**(current.result or {}), "model_activity": activity}
+                last_progress = elapsed
         return await task
     finally:
         if not task.done():
@@ -117,6 +138,9 @@ async def call_model(
                 "duration_seconds": round(time.monotonic() - started, 3),
                 "usage": usage,
             }
+            current = session.get(Job, job_id)
+            if current:
+                current.result = {**(current.result or {}), "model_activity": None}
 
     try:
         raw = ""
@@ -125,7 +149,11 @@ async def call_model(
             try:
                 raw = await asyncio.wait_for(
                     cancellable_call(engine, job_id, provider, prompt, data, schema),
-                    timeout=min(getattr(provider, "parameters", {}).get("timeout_seconds", 30), 180)
+                    timeout=getattr(
+                        provider,
+                        "total_timeout",
+                        min(getattr(provider, "parameters", {}).get("timeout_seconds", 30), 180),
+                    )
                     + 5,
                 )
                 record_attempt("received")
@@ -173,7 +201,8 @@ async def call_model(
                 f"{error}，"
                 + (
                     "可从任务历史重试"
-                    if error.category in retryable | {"output_limit", "context_limit"}
+                    if error.category
+                    in retryable | {"output_limit", "context_limit", "incomplete_stream"}
                     else "请检查设置或输出后启动新任务"
                 ),
                 timeout_phase=error.timeout_phase,
@@ -241,7 +270,33 @@ def reusable_model_run(
         ).all()
         for run in runs:
             if run.status == "validation_failed":
-                if not reusable_invalid_output(run.raw_output or ""):
+                if prompt_name.startswith("P02_reading_extract"):
+                    from researchgraph.reading_validation import reusable_reading_output
+
+                    reusable = reusable_reading_output(
+                        run.raw_output or "",
+                        data,
+                        set((input_manifest or {}).get("evidence_aliases", {})),
+                    )
+                elif prompt_name.startswith(("P12_reading", "P13_reading")):
+                    from researchgraph.reading_validation import (
+                        validate_integration,
+                        validate_selection,
+                    )
+
+                    try:
+                        validator = (
+                            validate_integration
+                            if prompt_name.startswith("P12")
+                            else validate_selection
+                        )
+                        validator(run.raw_output or "")
+                        reusable = True
+                    except (ValueError, TypeError):
+                        reusable = False
+                else:
+                    reusable = reusable_invalid_output(run.raw_output or "")
+                if not reusable:
                     continue
             parameters = dict(run.parameters)
             for field in (
@@ -250,6 +305,13 @@ def reusable_model_run(
                 "duration_seconds",
                 "normalization",
                 "quarantined_associations",
+                "reading_normalization",
+                "reading_wire",
+                "reading_envelope_normalization",
+                "integration_normalization",
+                "quarantined_integration_associations",
+                "rejected_integration_duplicates",
+                "integration_context_quarantine",
             ):
                 parameters.pop(field, None)
             if run.raw_output and parameters == expected_parameters:

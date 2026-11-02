@@ -18,6 +18,8 @@ from researchgraph.knowledge_models import KnowledgeNode
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, digest
 from researchgraph.knowledge_visibility import production_knowledge
 from researchgraph.models import Paper
+from researchgraph.reading_scope import current_selection
+from researchgraph.reading_status import build_status
 from researchgraph.reasoning_models import RelationAssertion
 
 
@@ -35,6 +37,7 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
     all_edges: dict[str, ProjectionEdge] = {}
     selections: dict[str, int] = {}
     gaps: list[str] = []
+    builds = [build_status(session, paper) for paper in papers]
     query = select(KnowledgeNode.id).join(Paper).where(Paper.project_id == project_id)
     if not body.include_test_data:
         query = query.where(production_knowledge())
@@ -67,23 +70,32 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
             badges=[],
             graph_role="paper",
         )
-        if not current:
-            gaps.append(f"{paper.id}: 尚未生成分层图谱，可基于已有候选整合")
+        if not current_selection(current):
+            status = next(b for b in builds if b.paper_id == paper.id)
+            gaps.append(
+                f"{paper.title}：已保存 {status.candidate_count} 条新版候选，"
+                "尚未完成结论整合与核心选择；原文和已保存知识仍可查看"
+            )
             continue
+        assert current
         selections[paper.id] = current.revision
         gaps.extend(current.data["coverage_gaps"])
         nodes = {n.id: n for n in reading.nodes(current.document_version_id)}
         roles = {e["candidate_id"]: e["graph_role"] for e in current.data["entries"]}
         for unit in current.data["units"]:
             root = unit["root_claim_id"]
-            if root not in production or not reading.source_valid(nodes[root]):
+            if root not in nodes or root not in production or not reading.source_valid(nodes[root]):
                 gaps.append("部分核心来源已失效或属于隐藏测试数据，未在当前主图展示")
                 continue
             ids = [root]
             if unit["id"] in body.expanded_unit_ids:
                 ids += [m["member_id"] for m in unit["memberships"]]
             for nid in ids:
-                if nid not in production or not reading.source_valid(nodes[nid]):
+                if (
+                    nid not in nodes
+                    or nid not in production
+                    or not reading.source_valid(nodes[nid])
+                ):
                     gaps.append("部分支撑来源失效，已保留历史并从主图隐藏")
                     continue
                 node = nodes[nid]
@@ -191,6 +203,7 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
         project_id=project_id,
         graph_revision=KnowledgeStore(session).graph_revision(project_id),
         selections=selections,
+        paper_builds=builds,
         nodes=page + [all_nodes[nid] for nid in sorted(context)],
         edges=[e for e in all_edges.values() if e.source in visible and e.target in visible],
         has_more=more,

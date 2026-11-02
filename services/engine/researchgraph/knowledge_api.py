@@ -177,14 +177,20 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             )
 
     @app.get("/api/v1/revisions/{version_id}/knowledge", response_model=KnowledgeList)
-    def knowledge(version_id: str, include_test_data: bool = True) -> KnowledgeList:
+    def knowledge(
+        version_id: str, include_test_data: bool = True, current_schema_only: bool = False
+    ) -> KnowledgeList:
         from researchgraph.knowledge_visibility import production_knowledge
+        from researchgraph.reading_scope import current_nodes
 
         with Session(engine()) as session:
             version = session.get(AttachmentRevision, version_id)
             paper = session.get(Paper, version.paper_id) if version else None
             if paper is None:
                 raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
+            current_ids = (
+                {n.id for n in current_nodes(session, version_id)} if current_schema_only else None
+            )
             return KnowledgeList(
                 items=[
                     NodeView.model_validate(n)
@@ -194,6 +200,7 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                         .where(true() if include_test_data else production_knowledge())
                         .order_by(KnowledgeNode.created_at, KnowledgeNode.id)
                     )
+                    if current_ids is None or n.id in current_ids
                 ],
                 graph_revision=KnowledgeStore(session).graph_revision(paper.project_id),
             )

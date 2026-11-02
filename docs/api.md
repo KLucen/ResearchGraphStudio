@@ -98,7 +98,7 @@ Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设
 
 模型设置及只读 browse 不采用持久化 Idempotency-Key 响应缓存，避免将含密钥请求写入幂等表；模型设置页面会禁用正在提交的按钮。Zotero 批量提交使用 Idempotency-Key 和在途任务去重，导入内容通过 SHA-256 去重；同条目不同 PDF 保存版本。客户端只提交来源 ID，服务端核验所属条目和分类后定位 PDF，不接受任意路径。
 
-配置参数含可选 temperature/top_p/reasoning_effort、JSON 模式和 5–180 秒调用超时。max_output_tokens 仅兼容旧值，保存时清空；请求上限使用可信模型能力或服务默认。capabilities 只由服务器探测并写入，客户端不能注入。抽取任务层遵循配置并限制在至多 180 秒，额外保留 5 秒收尾时间；旧环境配置默认 30 秒。连接测试原生桥超时 190 秒。取消任务会阻止后续知识写入，不能保证服务端立即停止生成。Windows 凭据不在 SQLite 备份中，换用户或机器需重新录入。
+配置参数含可选 temperature/top_p/reasoning_effort、JSON 模式和 5–180 秒无响应超时。max_output_tokens 仅兼容旧值，保存时清空；capabilities 由服务器探测或准确供应商/模型文档兜底，客户端不能注入能力。流式请求总时限为无响应超时两倍、最多 300 秒，任务外层另留 5 秒收尾；旧环境配置默认无响应 30 秒。连接测试原生桥最多 310 秒。取消任务阻止后续知识写入，不能保证供应商立即停止生成。Windows 凭据不在 SQLite 备份中，换用户或机器需重新录入。腾讯适配的角色策略与任务预算见[模型设置](model-configuration.md)。
 
 
 ## P3 条件化推理与图谱（0008）
@@ -160,3 +160,22 @@ Tauri 宿主对已授权 graph/layout POST 提供 512 KiB 有界请求预算，�
 - POST `/api/v1/projects/{id}/graph/projection`：view=paper_backbone、expanded_unit_ids、原筛选/分页字段；响应 reading-projection-2.0、selections、build_state、coverage_gaps，节点 graph_role/unit_ids，边 navigation 明确区别科学推断。view=legacy 留旧客户端兼容。
 - 原详情、布局、模型历史、retry/cancel 接口继续使用。新增桌面桥接仅允许明确路径/方法/查询参数，鉴权和正文上限沿用原实现。
 - 设计 `GraphSelection` 与运行快照的少量内部字段不同，不能直接调用 docs 参考模型替代 OpenAPI；历史审核路由保留但正常界面不再调用。
+
+## 2026-11-02：腾讯云流式适配与部分构建状态
+
+后续用户交互修正：[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)将前端统一为原POST `/api/v1/jobs/{id}/retry`；适用时后端选择兼容续接，resume-adapted仅保留旧接口。输出额度按能力/剩余上下文，不再额外32K/64K限制。新P02运行使用reading-compact-1 wire Schema，展开后进入原领域DTO；ModelRun.parameters.reading_wire记录格式和expanded_fields（路径/规则，无新增正文日志）。旧计划继续原Prompt/Schema。
+
+- JobView 新增 `resume_adapter_available`。POST `/api/v1/jobs/{id}/resume-adapted` 使用原 Idempotency-Key 规则，返回独立续接 Job；确定 ID 进一步防止不同请求键的重复点击。仅限准确匹配腾讯模型、未指定 effort、尚未进入整合且已停止的 reading 任务；同文献活动任务拒绝。旧 Job 不变，原 unified_plan/config/signature/批次账本保留，payload 独立记录 resume_adapter/resumed_from。校验原签名/证据后仅对未完成调用应用新策略。原 retry/cancel 行为不变，原生桥仅放行该准确 POST 路径。
+- ModelRun.parameters.attempts[].request 记录 transport、effective_thinking、request_output_budget、能力来源、首/末字节、生成/思考字符数和总时限。Job.result.model_activity 每约 2 秒更新数字活动，结束清除。流结束异常记 incomplete_stream，不自动重发；安全 partial 留 ModelRun，不写知识。
+- GraphProjection.paper_builds、graph-selection.build 返回 candidate_count（含该版本历史知识）、published_units、最新抽取任务/状态、completed_batches/total_batches、extraction_incomplete、active。不把候选数当已发布核心数。
+- graph-selection/rebuild 首次/候选快照变化时拒绝活动任务或空候选；只使用已有候选执行 P12/P13。未完整抽取时携带 extraction_coverage_gaps，发布 partial；已有有效选择改密度仍不调用模型，原缺口保留。
+- 未增加表或迁移，head 0010。详见 [ADR 0011](adr/0011-tencent-streaming-and-reading-recovery.md)。
+
+## 当前阅读范围与续接（2026-11-02）
+
+- GET /api/v1/revisions/{id}/knowledge新增current_schema_only布尔参数，默认false以兼容历史调用；正常阅读界面发送true。节点详情/原始模型记录仍可回查历史。
+- /papers/{id}/candidates、paper_backbone和P12/P13默认只处理当前阅读候选。旧选择快照不作为现行主图发布，但revision继续递增，不删除ReadingHead/历史选择。
+- POST /jobs/{id}/retry遇到旧阅读模板时返回独立续接Job；result.schema_upgrade/resumed_from表明新Schema续接。成功批次引用旧KnowledgeOperation，已收到且可重验响应复制到新ModelRun并记录response_reused_from，新增调用和Token计数为0；原始Job/ModelRun不改。
+- 旧unified生产任务按新版重新抽取，不将旧图谱静默转换为新版候选。显式Mock/旧测试API保留兼容。无额外供应商操作入口。
+
+主张比较器的GET /graph/subgraph及POST /knowledge/candidates也支持current_schema_only（兼容默认false）；正常界面发送true。筛选在分页/召回中生效，旧候选作为比较源会明确拒绝；历史详情保持可读。

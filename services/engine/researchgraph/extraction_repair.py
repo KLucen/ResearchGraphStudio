@@ -39,6 +39,20 @@ def validation_message(error: Exception) -> str:
                 parts.append(
                     f"links[{ctx['index']}].{ctx['field']} 引用了不存在的 local_ref：{ctx['ref']}"
                 )
+            elif issue["type"] == "value_error" and issue["msg"] in {
+                "Value error, duplicate references",
+                "Value error, unknown local reference",
+                "Value error, association endpoint types do not match",
+            }:
+                parts.append(
+                    {
+                        "Value error, duplicate references": "模型重复使用了引用编号",
+                        "Value error, unknown local reference": "模型关系引用了不存在的候选编号",
+                        "Value error, association endpoint types do not match": (
+                            "关系两端的知识类型不符合规则"
+                        ),
+                    }[issue["msg"]]
+                )
             else:
                 parts.append(f"{'.'.join(map(str, issue['loc'])) or 'batch'} ({issue['type']})")
         return "Schema 校验失败：" + "；".join(parts)

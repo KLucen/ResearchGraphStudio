@@ -17,6 +17,7 @@ function job(id: string, extra: Partial<Job> = {}): Job {
     attempt: 1,
     error: null,
     result: null,
+    resume_adapter_available: false,
     created_at: "2026-10-30T00:00:00Z",
     updated_at: "2026-10-30T00:00:00Z",
     ...extra,
@@ -81,6 +82,34 @@ test("shows observed progress only while running and no fabricated percentages",
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 });
 
+test("saved split children do not imply the full extraction has finished", async () => {
+  vi.mocked(api.projectJobs).mockResolvedValue({
+    items: [
+      job("split", {
+        kind: "knowledge_extract",
+        status: "running",
+        stage: "extracting",
+        result: {
+          completed_batches: "1",
+          total_batches: "2",
+          batches: [
+            { index: 0, status: "succeeded", split_reason: "timeout" },
+            { index: 1, status: "running", split_reason: "timeout" },
+          ],
+        },
+      }),
+    ],
+    next_cursor: null,
+  });
+  mount();
+  expect(await screen.findByText("知识抽取 · 处理中")).toBeVisible();
+  expect(screen.getByText("已保存 1 / 2 个抽取批次")).toBeVisible();
+  await userEvent.click(screen.getByText("批次详情（含拆分恢复）"));
+  expect(screen.getByText("1:已保存（超时拆分后）")).toBeVisible();
+  expect(screen.getByText("2:处理中（超时拆分后）")).toBeVisible();
+  expect(screen.queryByText("知识抽取 · 已完成")).not.toBeInTheDocument();
+});
+
 test("offline cached history remains readable with actions and pagination disabled", () => {
   mount(false, {
     items: [
@@ -113,4 +142,92 @@ test("pagination failure keeps loaded jobs and permits retry", async () => {
   ).toBeVisible();
   await user.click(screen.getByRole("button", { name: "加载更早任务" }));
   expect(await screen.findByText("任务记录 · 已加载 2 项")).toBeVisible();
+});
+
+test("stream activity describes actual waiting and generation without claiming completion", async () => {
+  vi.mocked(api.projectJobs).mockResolvedValue({
+    items: [
+      job("thinking", {
+        kind: "knowledge_extract",
+        status: "running",
+        result: {
+          model_activity: {
+            elapsed_seconds: 12,
+            reasoning_characters: 45,
+            content_characters: 0,
+          },
+        },
+      }),
+      job("receiving", {
+        kind: "knowledge_extract",
+        status: "running",
+        result: {
+          model_activity: {
+            elapsed_seconds: 20,
+            reasoning_characters: 45,
+            content_characters: 100,
+          },
+        },
+      }),
+      job("stopped", {
+        kind: "knowledge_extract",
+        status: "failed",
+        result: {
+          model_activity: { elapsed_seconds: 90, content_characters: 999 },
+        },
+      }),
+    ],
+    next_cursor: null,
+  });
+  mount();
+  expect(await screen.findByText("模型正在思考 · 已等待 12 秒")).toBeVisible();
+  expect(
+    screen.getByText("正在接收结构化结果（100 字符） · 已等待 20 秒"),
+  ).toBeVisible();
+  expect(screen.queryByText(/999 字符/)).not.toBeInTheDocument();
+  expect(screen.queryByText("知识抽取 · 已完成")).not.toBeInTheDocument();
+});
+
+test("one ordinary continue action recovers an eligible old task without vendor-specific UI", async () => {
+  vi.mocked(api.projectJobs).mockResolvedValue({
+    items: [
+      job("old", {
+        kind: "knowledge_extract",
+        status: "failed",
+        attempt: 3,
+        resume_adapter_available: true,
+      }),
+    ],
+    next_cursor: null,
+  });
+  vi.mocked(api.jobAction).mockResolvedValue(
+    job("successor", { status: "queued" }),
+  );
+  mount();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "继续未完成批次" }),
+  );
+  expect(api.jobAction).toHaveBeenCalledWith(
+    "old",
+    "retry",
+    expect.any(String),
+  );
+  expect(screen.queryByText(/腾讯云/)).not.toBeInTheDocument();
+});
+
+test("history distinguishes a superseded failure from its current schema continuation", async () => {
+  vi.mocked(api.projectJobs).mockResolvedValue({
+    items: [
+      job("successor", {
+        status: "queued",
+        result: { resumed_from: "old", schema_upgrade: true },
+      }),
+      job("old", { status: "failed", error: "Historical timeout" }),
+    ],
+    next_cursor: null,
+  });
+  mount();
+  expect(await screen.findByText(/历史任务，已创建续接任务/)).toBeVisible();
+  expect(screen.getByText(/已切换新版抽取/)).toBeVisible();
+  expect(screen.getByText("Historical timeout")).toBeVisible();
 });

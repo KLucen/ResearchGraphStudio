@@ -15,6 +15,8 @@ from researchgraph.knowledge_models import KnowledgeNode
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, digest
 from researchgraph.models import Job, Paper, now
 from researchgraph.reading_models import CandidateMetadata
+from researchgraph.reading_scope import current_selection
+from researchgraph.reading_status import build_status, coverage_note
 from researchgraph.schemas import JobView
 
 
@@ -38,19 +40,21 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     @app.get("/api/v1/papers/{paper_id}/graph-selection")
     def selection(paper_id: str) -> dict[str, Any]:
         with Session(engine()) as session:
-            if not session.get(Paper, paper_id):
+            paper = session.get(Paper, paper_id)
+            if not paper:
                 raise KnowledgeError("PAPER_NOT_FOUND", "论文不存在")
             current = KnowledgeStore(session).reading().current(paper_id)
-            return (
+            data = (
                 current.data
-                if current
+                if current_selection(current)
                 else {
-                    "selection_revision": 0,
+                    "selection_revision": current.revision if current else 0,
                     "units": [],
                     "entries": [],
                     "build_state": "not_built",
                 }
             )
+            return {**data, "build": build_status(session, paper).model_dump(mode="json")}
 
     @app.get("/api/v1/papers/{paper_id}/knowledge-units")
     def units(paper_id: str) -> dict[str, Any]:
@@ -69,8 +73,15 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 raise KnowledgeError("PAPER_NOT_FOUND", "论文不存在")
             reading = KnowledgeStore(session).reading()
             current = reading.current(paper_id)
+            from researchgraph.knowledge_models import ModelRun
+            from researchgraph.reading_scope import current_candidate
+
             query = select(KnowledgeNode).where(KnowledgeNode.paper_id == paper_id)
-            rows = list(session.scalars(query.order_by(KnowledgeNode.id)))
+            rows = [
+                n
+                for n in session.scalars(query.order_by(KnowledgeNode.id))
+                if current_candidate(n, session.get(ModelRun, n.model_run_id))
+            ]
             signature = digest(
                 [
                     paper_id,
@@ -85,7 +96,11 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 if len(parts) != 2 or parts[0] != signature:
                     raise KnowledgeError("CURSOR_STALE", "候选快照已变化，请重新搜索")
                 after = parts[1]
-            roles = {e["candidate_id"]: e for e in current.data["entries"]} if current else {}
+            roles = (
+                {e["candidate_id"]: e for e in current.data["entries"]}
+                if current_selection(current)
+                else {}
+            )
             rows = [
                 n
                 for n in rows
@@ -138,6 +153,7 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             }
             if (
                 current
+                and current_selection(current)
                 and current.document_version_id == body.document_version_id
                 and current.snapshot_hash == reading.snapshot(body.document_version_id)
             ):
@@ -155,6 +171,13 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                     "build_state": data["build_state"],
                 }
             else:
+                status = build_status(session, paper, body.document_version_id)
+                if status.active:
+                    raise KnowledgeError(
+                        "BUILD_IN_PROGRESS", "该论文仍有任务运行，请等待结束或取消后再整合"
+                    )
+                if not status.candidate_count:
+                    raise KnowledgeError("NO_CANDIDATES", "尚无已保存候选，请先抽取知识")
                 if not body.allow_network:
                     raise KnowledgeError(
                         "NETWORK_PERMISSION_REQUIRED", "首次整合需发送候选及必要证据到已配置模型"
@@ -162,6 +185,7 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 from researchgraph.model_settings import snapshot_for
 
                 payload["model_snapshot"] = snapshot_for(session, paper.project_id, "extraction")
+                payload["extraction_coverage_gaps"] = coverage_note(status)
             job = Job(
                 id=jid,
                 kind="knowledge_extract",
@@ -169,7 +193,7 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 payload=payload,
                 status="succeeded" if result else "queued",
                 stage="publishing" if result else "integrating",
-                result=result,
+                result=result or {"coverage_gaps": payload.get("extraction_coverage_gaps", [])},
                 attempt=0,
                 created_at=now(),
                 updated_at=now(),

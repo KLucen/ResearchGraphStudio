@@ -7,6 +7,13 @@ type Selection = {
   document_version_id?: string;
   density?: string;
   build_state: string;
+  build?: {
+    candidate_count: number;
+    extraction_incomplete: boolean;
+    completed_batches: number;
+    total_batches: number;
+    active: boolean;
+  };
 };
 type Candidates = {
   items: {
@@ -58,6 +65,7 @@ export function ReadingControls({
         `/api/v1/papers/${paperId}/candidates?${new URLSearchParams({ search, cursor, limit: "40" })}`,
       ),
     enabled: connected,
+    refetchInterval: cursor ? false : 3000,
   });
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["reading-selection", paperId] });
@@ -98,13 +106,26 @@ export function ReadingControls({
     onSuccess: refresh,
   });
   return (
-    <details className="reading-controls">
+    <details
+      className="reading-controls"
+      open={selection.data?.selection_revision === 0}
+    >
       <summary>
         结论选择与全部候选 ·{" "}
         {selection.data?.build_state === "complete"
           ? "已发布"
           : "待构建或部分完成"}
       </summary>
+      {selection.data?.build && (
+        <p role="status" className="quiet-note">
+          已保存 {selection.data.build.candidate_count} 条候选/历史知识。
+          {selection.data.build.extraction_incomplete
+            ? `全文抽取尚未完成（${selection.data.build.completed_batches}/${selection.data.build.total_batches || "未知"} 批）；可先查看候选，任务停止后可生成标注覆盖缺口的部分图谱。`
+            : "候选保存与图谱发布是两个阶段，尚未发布时仍可在下方查看知识。"}
+          {selection.data.build.active &&
+            "当前任务仍在运行，请等待结束或取消后再整合。"}
+        </p>
+      )}
       <div className="import-controls">
         <label>
           图谱密度{" "}
@@ -120,10 +141,18 @@ export function ReadingControls({
         </label>
         <button
           className="button secondary"
-          disabled={!connected || rebuild.isPending}
+          disabled={
+            !connected ||
+            rebuild.isPending ||
+            selection.data?.build?.active ||
+            selection.data?.build?.candidate_count === 0
+          }
           onClick={() => rebuild.mutate()}
         >
-          基于已有候选更新图谱
+          {selection.data?.selection_revision === 0 &&
+          selection.data.build?.extraction_incomplete
+            ? "基于已保存候选生成部分图谱"
+            : "基于已有候选更新图谱"}
         </button>
         <label>
           <input

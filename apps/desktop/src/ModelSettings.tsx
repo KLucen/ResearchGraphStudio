@@ -12,7 +12,7 @@ export type ModelParameters = {
     source: string;
   };
   reasoning_effort:
-    "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | null;
+    "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | null;
   timeout_seconds: number;
   json_mode: boolean;
 };
@@ -339,8 +339,12 @@ function ProfileEditor({
               ? `接口公布的最大输出：${profile.parameters.capabilities.max_output_tokens.toLocaleString()} Tokens。`
               : "接口未提供输出上限时使用服务默认值；可用测试连接刷新。"}
           </p>
+          <p className="quiet-note">
+            请求使用模型可用的最大输出额度，并预留输入上下文；不额外限制为
+            32K或64K。额度是允许的上限，实际用量以服务返回为准。
+          </p>
           <label>
-            超时（秒）
+            无响应超时（秒）
             <input
               type="number"
               min={5}
@@ -354,6 +358,10 @@ function ProfileEditor({
               }
             />
           </label>
+          <p className="quiet-note">
+            流式接收；总等待上限为此值的两倍，最多 300
+            秒，持续输出也不会无限等待。
+          </p>
           <label>
             Reasoning effort
             <select
@@ -367,7 +375,7 @@ function ProfileEditor({
               }
             >
               <option value="">服务默认</option>
-              {["none", "minimal", "low", "medium", "high", "xhigh"].map(
+              {["none", "minimal", "low", "medium", "high", "xhigh", "max"].map(
                 (v) => (
                   <option key={v}>{v}</option>
                 ),

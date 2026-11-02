@@ -905,6 +905,87 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 最终修复包38,523,711字节，SHA256 `3ef49f88f70b5d6b4f82cdbacc3f7185e85500f39734b5d0d3b14b2cb0661203`，保存在本机 `.local/releases/reading-graph-20261102-schema-fix/ResearchGraph Studio_0.0.1_x64-setup.exe`，未替用户执行覆盖安装。
 - 修复提交 `21b64f6` 已普通推送main，远端与本机一致；462候选文件/6暂存文件及该提交Gitleaks通过，工作区无私人运行产物。新的 [CI 41433986320](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41433986320) 已触发，截至记录时仍运行，未计为通过。
 
+## 2026-11-02 19:31 · DEV-0033 · 阅读抽取精确重复恢复与批次状态说明
+
+### 目标
+
+- 回答全文单次调用与后台分批的区别，定位用户新任务的超时拆分和 batch(value_error)，在 R5 范围内修复可确定恢复的问题。
+
+### 实际改动
+
+- `reading_validation.py` 先验证完整字段/列表上限/证据，再仅合并同编号、完整原始对象相同的重复；冲突编号明确报错。原始响应保留，领域 Schema 未放宽。
+- `extraction.py`、`unified_extraction.py` 允许原失败阅读响应经过重校验续用，记录 `reading_normalization` 索引审计，Store 和成功批次幂等保持；`extraction_repair.py` 为已知引用校验错误提供安全中文原因。
+- `JobHistory.tsx`、`KnowledgeReading.tsx` 显示“已保存（超时拆分后）”和去重信息，区分子批保存与全文完成。增加合成恢复/边界和 React 状态测试。
+- 新 ADR 0010 与实际报告，同步 AGENTS、docs/progress、docs/README、06 计划与资产清单。运行 Prompt/Schema/计划签名/head0010 不变，无迁移；不更改正在运行软件或用户正式数据。
+
+### 验证
+
+- Conda `python -m pytest -q tests/engine/test_reading_response_recovery.py tests/engine/test_reading_recovery.py tests/engine/test_reading_extraction.py tests/engine/test_extraction_reliability.py`：39 passed；旧失败响应零新增 P02 调用恢复，成功批次保留。
+- `scripts/check-phase0.ps1`：189 Python passed/2 skipped、40 React passed；Ruff/format/mypy/依赖/契约/前端类型/lint/build 通过。非阻塞的 Starlette 弃用及前端包体积提示仍在。
+- 用户真实失败响应在 `.local/reading-failures-20261102/replay-data/` 回放：28→20 候选、24 关联保留；307 原知识全列逐行不变，原 raw_output 均保留，重复恢复不新增知识，SQLite 完整性/外键通过。副本仅 1/34，到下一批需模型调用时停止；新调用/Token=0，不是全文验收。
+- `scripts/build-windows.ps1`、`scripts/smoke-engine.py --executable ...`、PowerShell5.1 `verify-windows-install.ps1 -EnginePath ...` 通过；`cargo test --locked packaged_engine_connects_through_native_host_and_restarts -- --ignored` 1 passed。源代码和打包 smoke 的 Provider 为离线合成，不冒充真实模型新调用。
+- 包 `.local/releases/reading-response-recovery-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`：38,527,857 字节，SHA256 `073ae8dd5559e5b23383f0ebda476e4a489bf95dc27bc5d308c8f51d54fb1498`。未替用户安装，不使用 Computer Use。
+
+### 问题与下一步
+
+- 全文新流程、用户覆盖安装和科学质量仍未全部验收；保留原任务等待用户续跑反馈。预算自适应单批/多批只记录方案，当前仍使用冻结分块，不宣称“单次全文”已实现。
+- 当前旧 unified-v3 任务快照为 5/5、17/17 成功，前轮 6/17 仅为历史。四份外部原文登记路径不可用限制保留。
+- 本轮无 Commit/Push；私人库、响应、诊断、安装器仅在 `.local/`。465 候选文件内容/路径与 Gitleaks 扫描通过，diff 检查通过，暂存区为空。132 Markdown/457 可用本地链接/88 项资产清单通过；4 个已登记外部来源不可用，未计为通过。
+
+## 2026-11-02 20:52 · DEV-0034 · 腾讯云流式适配、旧任务续接与部分图谱
+
+### 目标
+
+- R5：针对腾讯云Token Plan企业版 `deepseek-v4.1-flash` 核验能力与思考行为，处理子批超时及默认图仅论文的问题；保护原库、冻结任务和未提交成果，不进入P4/P5。
+
+### 实际改动
+
+- 新 `model_adapters.py` / `chat_stream.py`，修改providers/model_settings/settings_api/extraction：准确端点/模型的官方能力兜底，1M/384K；新抽取非思考JSON预算32K、新推理思考预算64K，端点更低上限优先。SSE流、2MB正文/32MB传输边界、总时限≤300秒、活动计数、失败partial安全保留。
+- 新 `reading_resume.py`，修改app/models/schemas/unified_extraction及原生main.rs/api.ts/JobHistory：用户显式创建确定ID续接任务，原模型快照/签名/计划/成功批次不变，只有剩余调用使用新策略。原任务不改，新增调用用量独立记录；当前文献活动任务拒绝并发建图。
+- 新 `reading_status.py`、更新reading_api/reading_projection/graph_contracts与GraphWorkspace/ReadingControls：显示候选保存/发布差异、未完成批次和部分图入口；P12/P13保留覆盖缺口，不重抽PDF、无人工审核。
+- 新/扩展Python与React行为测试、Rust路由边界，更新OpenAPI/TypeScript、README、AGENTS、docs/progress/api/model-configuration/06与导航。新增[ADR0011](docs/adr/0011-tencent-streaming-and-reading-recovery.md)、[实际验收](docs/tencent-recovery-verification-20261102.md)。head0010，无迁移；上一轮精确去重实现完整保留。
+
+### 验证
+
+- 官方腾讯文档确认默认thinking.high、不建议同时JSON；真实库快照失败请求主要等待非流式响应90秒。两篇新流程保存6/12、4/35批，206/190条知识，0单元/选择，解释主图空而非数据丢失。
+- 真实一次小批调用：2137字符/14证据，9.531秒、4候选/2关联、7541 Tokens、reasoning0，Schema/证据/Store通过，396旧知识逐行保持。新增网络仅1次，正式库未改；费用供应商未报告。
+- 同真实响应零网络回放到旧任务续接副本，6/12→7/12，签名/旧Job/396原知识不变，SQLite完整性/外键通过。回放脚本首次查询错误状态未执行，修正为succeeded后在新副本通过；不属于额外API调用。
+- `scripts/check-phase0.ps1`：214 Python passed/2 skipped、45 React passed；Ruff/format/mypy63文件/依赖/契约/前端lint/type/build通过。`pnpm --dir apps/desktop test:browser`：3真实ReactFlow通过。Cargo9单测及clippy通过；打包后单独宿主握手/重启1项通过。
+- `scripts/build-windows.ps1`、冻结引擎smoke、PowerShell5.1 EnginePath通过。包`.local/releases/tencent-streaming-recovery-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,552,219字节，SHA256 `c6febf559b1b0223d5bfd1234b9f7cff2f1c658fa47ed4bea18457fa00bfd723`。未覆盖安装/操作原生窗口。
+- 最终敏感内容/路径与Gitleaks扫描474文件通过，diff检查通过、暂存区为空；文档134份Markdown/472本地链接/88当前资产清单通过，4个登记外部来源不可用如实保留。没有Commit/Push。
+
+### 问题与下一步
+
+- 真实单批通过不能替代全文或P12/P13真实部分建图；两篇完整任务、科学质量和用户安装反馈待验收。其他真实服务SSE未测，单次全文策略未实现，既有Starlette/前端包体警告保留。
+- 四份外部原文路径不可用限制保留。私人副本、诊断、响应、安装器仅在忽略目录；未Commit/Push。最终内容/链接检查见本轮报告。
+
+## 2026-11-02 21:27 · DEV-0035 · 按模型上限输出、紧凑Schema与普通续接
+
+### 目标
+
+- 按用户纠正取消“使用腾讯云适配继续”专属界面，让384K可用能力减少输出截断；精简知识抽取表示，保护原知识/证据/成功批次，不进入下一Phase。
+
+### 实际改动
+
+- `model_adapters.py`删除额外32K/64K预算，保留端点能力/剩余上下文约束；`app.py`将适用续接合入普通retry，JobHistory/ModelSettings移除供应商操作与旧预算说明，旧接口兼容留存。
+- 新`reading_wire.py`、`prompts/P02_reading_extract_compact.md`，wire=reading-compact-1；共同language、相同summary省略、Schema限定SourceText原文字符串形式，确定性展开到原领域1.0。不会把任意数值、未知键或错误证据转换为合法内容，数值/条件/原语义保留。
+- `unified_extraction.py`按冻结计划选择新旧Prompt/Schema，`reading_validation.py`展开后严格字段/来源验证，保留raw_output和逐字段规则审计，重复检查基于原wire对象；`extraction.py`兼容新格式失败响应复用，Mock仅测试。旧领域/Prompt文件无diff，head0010无迁移。
+- 新15项wire场景，调整模型上限、普通续接、旧响应回归；同步AGENTS/README、Schema/Prompt/计划/API/模型说明/导航，新增[ADR0012](docs/adr/0012-compact-extraction-and-model-output-ceiling.md)和[验收](docs/compact-output-verification-20261102.md)。ADR0011的旧32K/64K预算和专属按钮标为后续替代，历史实测不改写。
+
+### 验证
+
+- 真实API一次请求：2137字符/14证据，max_tokens393216被接受，1秒首字节、26.984秒完整返回、10445 Tokens（reasoning0）。未截断；首次因Finding.baseline字符串触发model_type，完善新版明确简写后重验同一响应，新增调用0、保存12候选/10关联、2无效关联隔离。396旧知识逐行不变，原raw_output/SQLite完整性/外键保持。正式库未改动。
+- 该真实响应wire14968字节、展开19672字节，约24%节省；Schema10419/原11734字节。不是通用压缩率，不把字节当Tokens。最终Prompt增加简写说明后未再收费调用；真实证据是已收到响应的最终本地校验。
+- `scripts/check-phase0.ps1`最终229 Python passed/2 skipped、45 React passed，Ruff/format/mypy64文件/pip/契约/前端lint/type/build通过。一次lint行宽失败后修正并完整重跑。两项文件链接条件跳过和既有Starlette/单包体积警告保留。
+- `scripts/build-windows.ps1`、冻结引擎smoke、PowerShell5.1 EnginePath通过；打包宿主握手/重启1项通过。没有将前轮9项Rust单测/3项浏览器测试算作本轮执行。
+- 新包`.local/releases/compact-extraction-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,557,759字节，SHA256 `b23c132f7c4833354ecb3141be3dd2ed513bf9746ff82907598f8e159b8bc109`。未覆盖安装、无Computer Use。
+- 最终479源码候选内容/路径/Gitleaks扫描通过；diff通过、暂存区为空，137 Markdown/491本地链接/88资产清单通过。4个登记外部路径不可用如实保留。
+
+### 问题与下一步
+
+- 全文质量、最终Prompt再次真实生成、完整图谱与用户安装体验仍待验收。更大上限不保证供应商永不超时/截断，仍保留有限停止/拆分/恢复。下一步仍R5，不进入P4/P5。
+- 四份外部原文登记路径不可用保持。私人数据、响应、安装器只在忽略目录，未Commit/Push；最终扫描与链接结果见报告。
+
 ## 后续条目模板
 
 ```markdown
@@ -928,3 +1009,22 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 下一项可执行任务：
 - Git 提交/版本（确实存在时填写）：
 ```
+
+## 2026-11-02 22:59 · DEV-0036 · 新版范围、Schema闭合与真实续接验收
+
+**目标**：解决waiver校验及拆分后超时，统一新版阅读Schema，检查整条抽取—整合—图谱链路，保留原数据。
+
+**实际改动**：
+- reading_scope/store/api/projection/selection及knowledge_api把新版候选与旧图谱历史分开；reasoning_api/context/contracts和GraphExplorer补齐比较来源/召回过滤。领域1.0/head0010不变，无数据库迁移。
+- reading_upgrade、unified_extraction、app/models为旧失败任务创建独立续接；成功批引用旧操作，合法已收响应复制并记录零调用，保留原Job/ModelRun。新计划升级Prompt/模型传输策略，未无限加timeout。
+- reading_wire/validation与新P02_compact_v2/P12_v2/P13_v3修正说明字段矛盾；严格科学/来源校验仍保留。整合根优先、非法建议隔离、异条件重复不折叠，所有raw保持。
+- JobHistory区分旧失败/新续接，正常阅读/图谱/比较均限定新Schema。新增升级、范围、说明映射、非法提议和预算窗口回归；更新既有fixture的真实领域来源及历史隔离预期。
+- 同步README/AGENTS、docs/03/05/06/api/参考Prompt，新增ADR0013及实际报告，更新清单。
+
+**实际验证**：使用Anaconda researchgraph-studio。真实正式库只读备份后隔离执行：waiver响应19候选/11关联恢复、4关联隔离；9/12→12/12，两次新P02为24.75/19.44秒。后续逐步发现并修复整合缺陷，用已收到响应和检查点继续，发布22核心单元。重开默认23/展开28节点29边，节点均新版，边闭合；422原知识、48原模型记录、9原任务、934证据/925块及来源全列保持，完整性/外键通过。最终P13模板另1窗口8根真实通过。累计15真实调用/213503 Tokens，含诊断失败，供应商未提供金额。
+
+scripts/check-phase0.ps1首次集成回归暴露旧测试API升级和历史适配预期，修复后243 passed/2 skipped、46 React通过；Ruff/mypy66文件/pip/契约/前端检查构建通过。pnpm --dir apps/desktop test:browser为3通过。Windows构建、冻结引擎smoke、PowerShell5.1 EnginePath五项、Rust9单测及1原生打包宿主连接/重启通过；补齐比较范围后再次构建/复核结果见本轮报告。未用Computer Use操作用户界面，未替用户安装，未Commit/Push。
+
+**限制/下一步**：实际图为partial，展开支撑仅3 Method/2 Concept，表格上下文和有据关联覆盖仍不足；本轮不是两篇全文质量通过。最终P13新模板单窗口不冒充全篇重复验证。等待用户安装续接反馈，继续R5质量。四份外部补充原文登记路径仍不可用；保留原知识、历史批注/附件/来源，不进入下一Phase。
+
+**提交前补记**：用户本轮明确授权提交与推送。比较器范围补齐后最终243 Python/2跳过、46 React及所有静态/契约/构建再次通过；新包冻结引擎smoke、PowerShell5.1五项与原生宿主连接/重启再次通过。全内容Gitleaks与路径扫描489文件通过，143 Markdown/500本地链接/88资产清单通过，4外部原文仍不可用。待核对暂存内容后普通推送main，Git/CI结果另补记。

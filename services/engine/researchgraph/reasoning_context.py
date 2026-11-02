@@ -12,6 +12,7 @@ from researchgraph.knowledge_models import (
     EvidenceSpan,
     KnowledgeDependency,
     KnowledgeNode,
+    ModelRun,
     NodeEvidence,
 )
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, digest, validate_evidence
@@ -36,7 +37,13 @@ def require_node(session: Session, node_id: str) -> KnowledgeNode:
 
 
 def candidates(session: Session, body: CandidateRequest) -> CandidateList:
+    from researchgraph.reading_scope import current_candidate
+
     source = require_node(session, body.source_id)
+    if body.current_schema_only and not current_candidate(
+        source, session.get(ModelRun, source.model_run_id)
+    ):
+        raise KnowledgeError("LEGACY_CANDIDATE", "请选择新版阅读候选，历史知识不参与当前比较")
     paper = session.get(Paper, source.paper_id)
     assert paper
     stop = {
@@ -74,6 +81,9 @@ def candidates(session: Session, body: CandidateRequest) -> CandidateList:
             JOIN knowledge_nodes n ON n.id=f.node_id JOIN papers p ON p.id=n.paper_id
             WHERE knowledge_fts MATCH :query AND p.project_id=:project AND n.paper_id != :paper
             AND n.kind=:kind AND n.review_status NOT IN ('rejected','superseded')
+            AND (NOT :current_only OR EXISTS
+                (SELECT 1 FROM model_runs m WHERE m.id=n.model_run_id
+                 AND m.schema_version='reading-1.0' AND m.prompt_name GLOB 'P02_reading*'))
             AND (:include_test OR n.revision>1 OR n.review_status='accepted' OR NOT EXISTS
                 (SELECT 1 FROM model_runs m WHERE m.id=n.model_run_id AND m.provider='mock'))
             ORDER BY bm25(knowledge_fts), n.id LIMIT :limit"""),
@@ -83,13 +93,23 @@ def candidates(session: Session, body: CandidateRequest) -> CandidateList:
                     "paper": paper.id,
                     "kind": source.kind,
                     "include_test": body.include_test_data,
+                    "current_only": body.current_schema_only,
                     "limit": body.top_k * 5,
                 },
             )
         )
     nodes = [session.get(KnowledgeNode, i) for i in ids]
     return CandidateList(
-        items=[NodeView.model_validate(n) for n in nodes if n and usable(n)][: body.top_k],
+        items=[
+            NodeView.model_validate(n)
+            for n in nodes
+            if n
+            and usable(n)
+            and (
+                not body.current_schema_only
+                or current_candidate(n, session.get(ModelRun, n.model_run_id))
+            )
+        ][: body.top_k],
         graph_revision=KnowledgeStore(session).graph_revision(paper.project_id),
     )
 

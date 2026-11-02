@@ -10,10 +10,10 @@
 | `00_decisions_and_scope.md` | 3980 |
 | `01_product_design.md` | 4894 |
 | `02_architecture_and_workflows.md` | 5905 |
-| `03_schema_design.md` | 8028 |
+| `03_schema_design.md` | 10526 |
 | `04_graph_interaction_spec.md` | 3927 |
-| `05_prompt_engineering.md` | 5010 |
-| `06_development_migration_plan.md` | 5733 |
+| `05_prompt_engineering.md` | 6491 |
+| `06_development_migration_plan.md` | 7734 |
 | `07_api_and_events.md` | 4372 |
 | `08_validation_and_security.md` | 4542 |
 | `09_reference_implementation_notes.md` | 2785 |
@@ -21,7 +21,7 @@
 | `CHANGELOG_FROM_V2.md` | 296 |
 | `CHANGELOG_FROM_V3.md` | 1383 |
 | `CODEX_NEXT_TURN.md` | 1986 |
-| `README.md` | 5074 |
+| `README.md` | 6281 |
 | `examples/README.md` | 561 |
 | `examples/candidate_record.json` | 1223 |
 | `examples/comparability_report.json` | 470 |
@@ -50,7 +50,7 @@
 | `examples/source_table.json` | 302 |
 | `examples/wiki_delta.json` | 943 |
 | `prompts/P01_section_outline.md` | 1320 |
-| `prompts/P02_unified_section_extract.md` | 2851 |
+| `prompts/P02_unified_section_extract.md` | 2837 |
 | `prompts/P03_entity_alignment.md` | 1289 |
 | `prompts/P04_label_translation_repair.md` | 1171 |
 | `prompts/P05_comparability.md` | 1313 |
@@ -60,8 +60,8 @@
 | `prompts/P09_graph_lint.md` | 1283 |
 | `prompts/P10_reading_synthesis.md` | 1786 |
 | `prompts/P11_wiki_delta.md` | 1322 |
-| `prompts/P12_paper_integration.md` | 1801 |
-| `prompts/P13_core_selection.md` | 1814 |
+| `prompts/P12_paper_integration.md` | 1953 |
+| `prompts/P13_core_selection.md` | 1975 |
 | `schemas/contracts.py` | 35734 |
 | `schemas/generated/CandidateRecord.schema.json` | 23364 |
 | `schemas/generated/ComparabilityReport.schema.json` | 2286 |

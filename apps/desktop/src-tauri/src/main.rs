@@ -274,7 +274,9 @@ fn allowed(method: &str, path: &str) -> bool {
             return false;
         }
         return (method == "GET" && parts.len() == 1)
-            || (method == "POST" && parts.len() == 2 && matches!(parts[1], "cancel" | "retry"));
+            || (method == "POST"
+                && parts.len() == 2
+                && matches!(parts[1], "cancel" | "retry" | "resume-adapted"));
     }
     false
 }
@@ -739,7 +741,7 @@ async fn engine_request(
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(if path.ends_with("/test") {
-            190
+            310
         } else if path == "/api/v1/integrations/zotero/browse" {
             90
         } else {
@@ -1096,6 +1098,18 @@ mod tests {
         assert!(allowed("POST", "/api/v1/projects"));
         let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
         assert!(allowed("POST", &format!("/api/v1/sources/{id}/check")));
+        assert!(allowed(
+            "POST",
+            &format!("/api/v1/jobs/{id}/resume-adapted")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/jobs/{id}/resume-adapted")
+        ));
+        assert!(!allowed(
+            "POST",
+            &format!("/api/v1/jobs/{id}/resume-adapted?model=other")
+        ));
         assert!(allowed("GET", &format!("/api/v1/projects/{id}/jobs")));
         assert!(allowed(
             "GET",

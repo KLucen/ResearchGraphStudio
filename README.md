@@ -1,10 +1,14 @@
 # ResearchGraph Studio
 
+2026-11-02 最新可靠性修复：正常界面和整合统一使用新版阅读候选，旧图谱保留为历史。普通继续会升级未完成的旧抽取计划；已提交批次和可重验响应可复用。修正模板与 Schema 的说明字段矛盾、整合窗口根结论优先级及非法建议隔离，详见[本轮验收](docs/schema-scope-verification-20261102.md)。
+
 辅助阅读、理解和整理科研论文的本地桌面产品：从论文证据构建知识图谱，支持原文回查与条件比较。
 
 当前目标采用 **v3.3 阅读辅助设计**：论文直接生成图谱，后台完成候选抽取、论文级整合与自动选择，默认“论文→关键结论→支撑知识”。没有人工审核步骤；原文、证据、模型输出与未选候选保留。入口见[设计导航](docs/README.md)。
 
 **R1–R4 已接入运行软件，R5 部分验收。** 数据库 0010，正常入口 paper-reading-v1；独立 P02 候选抽取、P12 整合、P13 选择和分层图谱已实现。旧任务继续旧协议。两篇真实论文局部链路通过，完整全文与安装体验仍有缺口，未进入 P4 Query/P5 Wiki。见[实际验收](docs/reading-implementation-verification-20261102.md)、[实施进度](docs/progress.md)和[迁移计划](docs/06_development_migration_plan.md)。
+
+2026-11-02 R5更新：使用模型最大输出能力，移除额外32K/64K限制；新抽取Schema省略可无损还原的重复字段，原任务统一“继续未完成批次”。真实请求接受384K额度，响应本地恢复12候选/10有效关联，全文仍待验收。最新包与实际结果见[输出与Schema验收](docs/compact-output-verification-20261102.md)，此前流式/部分图结果见[恢复报告](docs/tencent-recovery-verification-20261102.md)。
 
 技术栈继续使用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5；继承 P0–P2 的导入、证据、审核与数据。G0 保留用户放行记录，不等同于干净机实测。历史结果见 [Phase 1](docs/phase1-verification.md)和 [Phase 0](docs/phase0-verification.md)。
 

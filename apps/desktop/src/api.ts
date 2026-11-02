@@ -61,7 +61,7 @@ export const api = {
   knowledge: (id: string) =>
     request<KnowledgeList>(
       "GET",
-      `/api/v1/revisions/${id}/knowledge?include_test_data=false`,
+      `/api/v1/revisions/${id}/knowledge?include_test_data=false&current_schema_only=true`,
     ),
   node: (id: string) =>
     request<NodeDetail>("GET", `/api/v1/knowledge/nodes/${id}`),

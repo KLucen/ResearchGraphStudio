@@ -1,5 +1,7 @@
 # 项目协作约定
 
+> 2026-11-02 本轮规则更新（覆盖下文“旧任务继续旧协议”的产品续接约定）：正常建图/候选/阅读仅使用通过 reading-extraction-1.0 校验且有阅读 ModelRun 来源的候选；unified-v3/旧图谱留作历史，不进入新版整合。失败旧阅读任务点普通继续时创建新版独立续接，复用成功操作和可重验响应，不改旧 Job。新运行模板为 P02_reading_extract_compact_v2、P12_reading_integration_v2、P13_reading_selection_v3。领域/数据库仍1.0/0010。见 docs/adr/0013-current-schema-and-bounded-recovery.md。
+
 > 2026-11-02 实现更新：R1–R4 已接入，R5 部分验收；Schema head 0010，产品入口 paper-reading-v1。P02_reading_extract/P12_reading_integration/P13_reading_selection 为独立运行模板，旧任务模板不改。默认分层图谱、全部候选搜索与显示偏好已可用，无人工审核。下一步限于 R5 全文质量/响应可靠性与安装反馈，未进入 P4/P5。当前正式库 275 条知识在隔离迁移中逐行保持。报告见 docs/reading-implementation-verification-20261102.md（相对仓库根）。
 
 - 开始工作前阅读 `README.md`、`docs/README.md`、`docs/progress.md`、`DEVELOPMENT_LOG.md` 最新条目，以及 `docs/00_decisions_and_scope.md`、`01_product_design.md`、`02_architecture_and_workflows.md`、`03_schema_design.md`、`06_development_migration_plan.md`；按任务补读交互、Prompt、API 和验证章节。
@@ -13,7 +15,8 @@
 - 来源/候选/选择共用 KnowledgeStore，KnowledgeUnit 引用已有知识，多对多成员不复制。默认 Paper→核心 Claim→支撑，来源归属不全部画线；导航边不冒充科学关系。原语言权威、中文辅助，完整领域细节保留；知识/选择/布局版本分开。
 - 候选经 Schema/来源校验后持久化，默认核心另经论文相关性、证据完整性和重复/覆盖检查自动选择。未选仍可检索；用户显示偏好不是审核且不能绕过来源门槛。历史审核/人工修订仅作兼容保留，旧已接受语义不静默覆盖，旧驳回不自动重新发布。
 - v3 P02 合并相邻段落一次提取多类知识，模型输出预算自动探测，未知使用供应商默认；保存计划/签名/拆分账本，已提交批次不得重复调用；新旧 Prompt 编号不同，映射见文档整理索引，不直接覆盖运行模板。Zotero 附件默认只读引用、不长期复制，直接 PDF 导入保留。
-- 新任务使用 paper-reading-v1/reading-extraction-1.0/0010，以 6000 字符/48 证据为批次目标；旧任务 P02 3.2/unified-v3.1 的 Prompt/签名/计划不改。旧任务 8000 字符/64 证据目标、null 占位兼容和一次超时拆分见 ADR 0007；P12/P13 有界调用与检查点见 ADR 0009，整合失败不能重复全文抽取。
+- 新任务使用 paper-reading-v1/reading-extraction-1.0/0010，以6000字符/48证据为批次目标；新P02_reading_extract_compact使用reading-compact-1传输格式，明确共同语言、SourceText字符串及相同摘要省略，展开后仍走严格领域/来源验证。旧P02_reading_extract及P02 3.2/unified-v3.1的Prompt/Schema/签名/计划不改，见ADR0012。P12/P13有界调用与检查点见ADR0009，整合失败不能重复全文抽取。
+- 阅读响应只在完整字段/证据校验后合并同 local_ref 且原始 JSON 完全相同的重复项，记录 reading_normalization 并保留 raw_output；同编号不同内容仍拒绝。旧失败响应重校验后可零调用续用，Store 来源验证不省略，见 ADR 0010。预算自适应全文单次仍待评估，不冒充已实现。
 - 每轮更新 `docs/progress.md` 和开发日志，记录实际命令/结果/跳过/风险；迁移先备份，测试使用隔离数据，不直接升级或覆盖用户数据库作实验。参考 SQL 不能直接替代 Alembic 迁移。
 - 按用户指定优先使用 Anaconda/Conda，项目环境为 `researchgraph-studio`；允许创建独立 Conda 环境，不向 base 安装项目依赖，不默认使用 uv 或另建 `.venv`。通过 `conda run -n researchgraph-studio ...` 或环境绝对解释器执行 Python/pip，维护 `environment.yml` 和对应平台的环境锁文件。
 - GitHub 开发远端为 `https://github.com/KLucen/ResearchGraphStudio`，本地 `origin` 指向该仓库。当前 HTTPS Git 连接失败时，可按环境文档使用经验证的官方 SSH 443 通道；不修改全局 Git 或网络设置。
@@ -23,6 +26,9 @@
 - 对证据处理、数据库迁移、任务重试和安装启动运行针对性验证。文档修改检查链接和一致性即可。
 - 用户 2026-11-02 要求减少 Computer Use：优先自动化回归（图谱需覆盖真实渲染组件），通过后提供安装包和明确操作步骤，请用户反馈原生结果；未由用户反馈或实际执行的项目不得记为验收通过。
 - 开发日志统一使用 Asia/Shanghai 日期和时间。
+- 2026-11-02 R5模型适配见ADR0011/0012：准确端点/模型才用1M/384K文档能力；移除额外32K/64K限额，保留输入预留/端点更低上限/总时限。界面只有“继续未完成批次”，retry后端按需创建独立兼容续接，原签名/成功批次不变，不出现供应商专属操作。部分图须标全文缺口。真实单子批不代表全文；不要重复运行本机真实probe产生额外费用。
 - 用户于 2026-10-29 决定 G0 默认通过并进入 Phase 1；按 ADR 0004 记录为用户放行，不再阻塞开发，也不把未执行的干净机测试记为实测通过。
 
 - 正常产品入口只使用真实全局模型，移除旧基线/Mock选择器；Mock仅显式测试和历史兼容，历史测试数据默认不混入图谱，人工修改/接受数据保留。图谱使用点与边、实时力导向拖动、双击固定和独立聚焦按钮；布局冷却/松手保存，不能逐帧写入。
+
+- 用户本轮收尾新增明确授权：“这一轮提交并推送Github”。仅本轮验收改动可在内容及暂存扫描通过后普通提交/推送main，随后核对CI；不构成未来无条件推送授权。

@@ -63,6 +63,7 @@ class EntityAlignmentBatch(StrictModel):
 class CandidateRequest(StrictModel):
     source_id: str
     include_test_data: bool = True
+    current_schema_only: bool = False
     query: str = Field(default="", max_length=300)
     top_k: int = Field(default=10, ge=1, le=30)
 

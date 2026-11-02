@@ -145,6 +145,16 @@
               "default": true,
               "title": "Include Test Data"
             }
+          },
+          {
+            "name": "current_schema_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Current Schema Only"
+            }
           }
         ],
         "responses": {
@@ -2031,6 +2041,16 @@
               "default": true,
               "title": "Include Test Data"
             }
+          },
+          {
+            "name": "current_schema_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Current Schema Only"
+            }
           }
         ],
         "responses": {
@@ -3473,6 +3493,11 @@
             "title": "Include Test Data",
             "default": true
           },
+          "current_schema_only": {
+            "type": "boolean",
+            "title": "Current Schema Only",
+            "default": false
+          },
           "query": {
             "type": "string",
             "maxLength": 300,
@@ -3909,6 +3934,13 @@
             "title": "Build State",
             "default": "legacy"
           },
+          "paper_builds": {
+            "items": {
+              "$ref": "#/components/schemas/PaperBuildStatus"
+            },
+            "type": "array",
+            "title": "Paper Builds"
+          },
           "project_id": {
             "type": "string",
             "title": "Project Id"
@@ -4279,6 +4311,11 @@
             ],
             "title": "Result"
           },
+          "resume_adapter_available": {
+            "type": "boolean",
+            "title": "Resume Adapter Available",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -4541,7 +4578,8 @@
                   "low",
                   "medium",
                   "high",
-                  "xhigh"
+                  "xhigh",
+                  "max"
                 ]
               },
               {
@@ -4549,6 +4587,18 @@
               }
             ],
             "title": "Reasoning Effort"
+          },
+          "adapter_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "tencent-deepseek-v41-structured-v1"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter Policy"
           },
           "timeout_seconds": {
             "type": "integer",
@@ -4857,6 +4907,91 @@
           "updated_at"
         ],
         "title": "NodeView"
+      },
+      "PaperBuildStatus": {
+        "properties": {
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "candidate_count": {
+            "type": "integer",
+            "title": "Candidate Count"
+          },
+          "published_units": {
+            "type": "integer",
+            "title": "Published Units"
+          },
+          "extraction_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction Job Id"
+          },
+          "extraction_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction Status"
+          },
+          "completed_batches": {
+            "type": "integer",
+            "title": "Completed Batches"
+          },
+          "total_batches": {
+            "type": "integer",
+            "title": "Total Batches"
+          },
+          "extraction_incomplete": {
+            "type": "boolean",
+            "title": "Extraction Incomplete"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id",
+          "title",
+          "document_version_id",
+          "candidate_count",
+          "published_units",
+          "extraction_job_id",
+          "extraction_status",
+          "completed_batches",
+          "total_batches",
+          "extraction_incomplete",
+          "active"
+        ],
+        "title": "PaperBuildStatus"
       },
       "PaperDetail": {
         "properties": {

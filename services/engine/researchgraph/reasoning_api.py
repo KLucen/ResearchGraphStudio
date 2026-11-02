@@ -174,6 +174,7 @@ def register_reasoning_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
         limit: int = Query(60, ge=1, le=120),
         focus_id: str = "",
         include_test_data: bool = True,
+        current_schema_only: bool = False,
     ) -> GraphView:
         with Session(engine()) as session:
             if session.get(Project, project_id) is None:
@@ -185,6 +186,16 @@ def register_reasoning_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             )
             if not include_test_data:
                 query = query.where(production_knowledge())
+            if current_schema_only:
+                from researchgraph.knowledge_models import ModelRun
+                from researchgraph.reading_scope import current_candidate
+
+                allowed_ids = [
+                    n.id
+                    for n in session.scalars(query)
+                    if current_candidate(n, session.get(ModelRun, n.model_run_id))
+                ]
+                query = query.where(KnowledgeNode.id.in_(allowed_ids))
             # Relation review is independent of the endpoint claims' review state.
             # Keep their nodes visible when filtering accepted/rejected relations.
             if focus_id:

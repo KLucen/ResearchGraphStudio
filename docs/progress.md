@@ -1,5 +1,23 @@
 # 实施进度
 
+更新：2026-11-02 22:59（Asia/Shanghai）。**R5新版候选范围与抽取续接已修复，全文质量仍需完善。** 当前默认仅使用reading-extraction-1.0来源/DTO，旧unified知识保留历史；新P02_compact_v2/P12_v2/P13_v3闭合模板与候选/说明校验已接入。旧失败任务通过普通继续创建独立新版续接，成功操作和可重验响应复用。
+
+真实隔离副本9/12→12/12并发布22核心单元；重开后23默认节点、28展开节点/29边，全部为新版且边闭合，422原知识/48原模型记录/9原任务及原文逐行不变。实际结果partial：仅5个支撑节点，表格/公式及支撑质量未全面通过。另一个最终P13窗口8根通过。累计15次真实调用/213503 Tokens，金额未提供。243 Python/2跳过、46 React、3真实图谱渲染测试通过，详见[本轮实际验收与安装](schema-scope-verification-20261102.md)、[ADR0013](adr/0013-current-schema-and-bounded-recovery.md)。未操作正式库或Push；下一步仅R5安装反馈与论文支撑覆盖，不进入P4/P5。
+
+更新：2026-11-02 21:27（Asia/Shanghai）。**R5输出能力与Schema精简完成，全文仍待验收。** 按用户纠正移除供应商专属按钮，统一“继续未完成批次”；不再额外限制32K/64K，按模型最大输出及剩余上下文请求。新P02_reading_extract_compact / reading-compact-1省略可无损还原的摘要/语言重复，并明确SourceText原文字符串形式；旧领域1.0/数据库0010/旧Prompt与成功批次保持。
+
+真实端点接受393216额度，约27秒完整响应；首次Finding.baseline纯文本导致结构校验失败，完善新wire规则后同响应零调用重验，12候选/10有效关联保存、2无效关联隔离，396旧知识逐行不变。本样本紧凑响应比展开少约24%字节；不是全文或通用质量成绩。最终 **229 Python passed/2 skipped、45 React passed**，静态/依赖/契约/构建通过；新安装器、冻结引擎smoke、PowerShell5.1 EnginePath及1项原生宿主集成通过。未替用户安装、未Commit/Push。详见[最新验收与包](compact-output-verification-20261102.md)、[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)。下一步限于R5全文与安装反馈，P4/P5未开始。
+
+更新：2026-11-02 20:52（Asia/Shanghai）。**R5 腾讯云流式适配与空图谱恢复已实现，全文验收仍未完成。** 腾讯 Token Plan `deepseek-v4.1-flash` 文档能力为1M上下文/384K最大输出；新抽取默认非思考JSON、SSE与有界总时限。旧失败任务可显式新建续接，冻结签名/成功批次与原记录保留；未发布图显示候选数，支持停止后基于候选生成明确partial图谱。原始证据/知识保留，head0010无迁移。
+
+原超时子批真实一次请求9.531秒通过：4候选/2关联、7541 Tokens、reasoning=0；隔离库396原知识逐行不变。同响应零网络回放到真实旧计划6/12→7/12，成功批次未重调，原任务/签名不变。不是两篇全文成功。完整回归 **214 Python passed/2 skipped、45 React、3真实React Flow、9 Rust单测+1打包宿主集成通过**，lint/type/依赖/契约/构建与冻结引擎smoke/PowerShell5.1通过。新包保存于本机，未替换运行软件，未Commit/Push。详见[实际结果与安装包](tencent-recovery-verification-20261102.md)和[ADR0011](adr/0011-tencent-streaming-and-reading-recovery.md)。下一步仍为R5两篇全文、真实部分建图和用户安装反馈，未进入P4/P5。
+
+更新：2026-11-02 19:31（Asia/Shanghai）。R5 修复新阅读任务的 `batch(value_error)`：真实输出 28 候选中 8 个完全重复，严格字段/来源检查后可确定性合并并记录审计；同编号不同内容仍拒绝。原失败响应与成功批次可复用，Prompt/Schema/冻结计划/head 0010 不变。隔离真实副本新增 20 候选、保留 24 关联，307 条原知识逐行不变，新增模型调用和 Token 均为 0；不是全文成功。界面子批改为“已保存（超时拆分后）”。
+
+本轮整体检查 **189 Python passed / 2 skipped、40 React passed**，Ruff/mypy/依赖/契约/前端构建通过；PyInstaller/Tauri/NSIS、冻结引擎 smoke、PowerShell 5.1 EnginePath、1 项原生宿主打包握手与重启测试通过。安装器已保存在本机，未替换运行中的软件；没有 Commit/Push。详见[验收报告及安装包](reading-response-verification-20261102.md)和 [ADR 0010](adr/0010-reading-response-deduplication.md)。
+
+仍处于 R5。下一步验证用户新流程全文结果、核心贡献/条件/限制质量及安装反馈；预算自适应单批/多批尚未实现，不进入 P4/P5。旧 unified-v3 两条任务在本次快照已为 5/5、17/17，以下 6/17 等状态仅为历史。
+
 更新：2026-11-02 19:03（Asia/Shanghai）。修复用户安装后的“引擎或数据库版本不匹配”：Rust 宿主仍要求0009，Python已为0010。宿主改为0010并验证数据库ready/FTS5，新增跨语言版本一致性和真实打包引擎的宿主握手/重启回归。旧CI只检查子进程401，存在误判；现安装检查必须匹配宿主握手记录与父子进程ID。9项Rust单测及另行运行的1项打包集成测试、clippy和PowerShell5.1的6项检查逻辑场景通过。修复包及后续结果见[验收补记](reading-implementation-verification-20261102.md#安装后版本不匹配修复)。未修改正式库或进入下一Phase。
 
 以下保留此前实现及验收记录；上一轮CI成功不代表旧安装包的宿主版本握手已经通过。

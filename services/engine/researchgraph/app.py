@@ -435,7 +435,7 @@ def create_app(
 
     @app.post("/api/v1/jobs/{job_id}/{action}", response_model=JobView)
     def change_job(job_id: str, action: str, idempotency_key: Key) -> JobView:
-        if action not in {"cancel", "retry"}:
+        if action not in {"cancel", "retry", "resume-adapted"}:
             raise failure(404, "ACTION_NOT_FOUND", "操作不存在")
         key, payload = f"job-action:{idempotency_key}", {"job_id": job_id, "action": action}
         with Session(engine()) as session, session.begin():
@@ -445,6 +445,18 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            from researchgraph.reading_upgrade import upgrade_available, upgrade_job
+
+            if action == "retry" and upgrade_available(job):
+                response = JobView.model_validate(upgrade_job(session, job))
+                remember(session, key, payload, response.model_dump())
+                return response
+            if action == "resume-adapted" or (action == "retry" and job.resume_adapter_available):
+                from researchgraph.reading_resume import resume_with_adapter
+
+                response = JobView.model_validate(resume_with_adapter(session, job))
+                remember(session, key, payload, response.model_dump())
+                return response
             if action == "cancel" and job.status in {"queued", "running"}:
                 job.status = "cancelled"
             elif (

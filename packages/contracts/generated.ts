@@ -1092,6 +1092,11 @@ export interface components {
              */
             include_test_data: boolean;
             /**
+             * Current Schema Only
+             * @default false
+             */
+            current_schema_only: boolean;
+            /**
              * Query
              * @default
              */
@@ -1268,6 +1273,8 @@ export interface components {
              * @default legacy
              */
             build_state: string;
+            /** Paper Builds */
+            paper_builds?: components["schemas"]["PaperBuildStatus"][];
             /** Project Id */
             project_id: string;
             /** Graph Revision */
@@ -1401,6 +1408,11 @@ export interface components {
             result: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Resume Adapter Available
+             * @default false
+             */
+            resume_adapter_available: boolean;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -1495,7 +1507,9 @@ export interface components {
             max_output_tokens?: number | null;
             capabilities?: components["schemas"]["ModelCapabilities"];
             /** Reasoning Effort */
-            reasoning_effort?: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh") | null;
+            reasoning_effort?: ("none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") | null;
+            /** Adapter Policy */
+            adapter_policy?: "tencent-deepseek-v41-structured-v1" | null;
             /**
              * Timeout Seconds
              * @default 90
@@ -1592,6 +1606,31 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+        };
+        /** PaperBuildStatus */
+        PaperBuildStatus: {
+            /** Paper Id */
+            paper_id: string;
+            /** Title */
+            title: string;
+            /** Document Version Id */
+            document_version_id: string | null;
+            /** Candidate Count */
+            candidate_count: number;
+            /** Published Units */
+            published_units: number;
+            /** Extraction Job Id */
+            extraction_job_id: string | null;
+            /** Extraction Status */
+            extraction_status: string | null;
+            /** Completed Batches */
+            completed_batches: number;
+            /** Total Batches */
+            total_batches: number;
+            /** Extraction Incomplete */
+            extraction_incomplete: boolean;
+            /** Active */
+            active: boolean;
         };
         /** PaperDetail */
         PaperDetail: {
@@ -2334,6 +2373,7 @@ export interface operations {
         parameters: {
             query?: {
                 include_test_data?: boolean;
+                current_schema_only?: boolean;
             };
             header?: never;
             path: {
@@ -3542,6 +3582,7 @@ export interface operations {
                 limit?: number;
                 focus_id?: string;
                 include_test_data?: boolean;
+                current_schema_only?: boolean;
             };
             header?: never;
             path?: never;
