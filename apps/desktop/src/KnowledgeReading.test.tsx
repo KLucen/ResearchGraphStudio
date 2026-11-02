@@ -128,12 +128,11 @@ test("real extraction requires explicit text transfer consent", async () => {
   const user = userEvent.setup();
   mount();
   await user.click(screen.getByRole("button", { name: /论文结构与知识/ }));
-  await screen.findByText(/test-model/);
-  await user.selectOptions(screen.getByLabelText("抽取方式"), "configured");
+  expect(screen.queryByText(/离线 Mock|旧 P01/)).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "开始结构化抽取" })).toBeDisabled();
   await user.click(screen.getByRole("checkbox"));
   await user.click(screen.getByRole("button", { name: "开始结构化抽取" }));
-  expect(api.extract).toHaveBeenCalledWith("v", "configured", true);
+  expect(api.extract).toHaveBeenCalledWith("v", "project", true, "unified-v3");
 });
 
 test("human revision includes optimistic versions and preserves evidence payload", async () => {

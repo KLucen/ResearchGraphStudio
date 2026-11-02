@@ -15,6 +15,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from filelock import FileLock
+from pydantic import ValidationError
 from sqlalchemy import Engine, and_, func, literal_column, or_, select, update
 from sqlalchemy.orm import Session
 from starlette.middleware.base import RequestResponseEndpoint
@@ -23,9 +24,10 @@ from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
 from researchgraph.extraction import run_extraction
+from researchgraph.graph_projection import register_graph_api
 from researchgraph.ingest import run_file_job
 from researchgraph.knowledge_api import register_knowledge_api
-from researchgraph.knowledge_models import ModelRun
+from researchgraph.knowledge_models import ModelRun, ZoteroLink
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore
 from researchgraph.models import (
     AttachmentRevision,
@@ -38,6 +40,8 @@ from researchgraph.models import (
     Project,
     now,
 )
+from researchgraph.reasoning import run_reasoning
+from researchgraph.reasoning_api import register_reasoning_api
 from researchgraph.schemas import (
     ChunkList,
     ChunkView,
@@ -57,8 +61,10 @@ from researchgraph.schemas import (
     SourceRelocate,
     SourceView,
 )
+from researchgraph.settings_api import register_settings_api
 from researchgraph.storage import SCHEMA_HEAD, diagnostics, make_engine, migrate
 from researchgraph.workspaces import recover_workspaces
+from researchgraph.zotero_batch import register_zotero_batch_api
 
 Key = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=120)]
 
@@ -127,24 +133,36 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
-            if kind == "knowledge_extract":
+            if kind == "translation_repair":
+                from researchgraph.translation import run_translation
+
+                await run_translation(engine, job_id)
+                continue
+            elif kind == "knowledge_extract":
                 await run_extraction(engine, job_id)
                 continue
-            if kind in {"pdf_import", "source_check", "source_relocate"}:
+            if kind == "knowledge_reason":
+                await run_reasoning(engine, job_id)
+                continue
+            if kind in {"pdf_import", "source_check", "source_relocate", "zotero_import"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
             result = await asyncio.to_thread(diagnostics, engine)
         except Exception as exc:
             error = (
-                str(exc)
-                if kind != "diagnostics" and isinstance(exc, ValueError)
-                else "任务失败，请检查文件或数据库权限"
+                "模型输出未通过 Schema 校验，请查看模型运行记录"
+                if isinstance(exc, ValidationError)
+                else str(exc)
+                if kind != "diagnostics" and isinstance(exc, (ValueError, RuntimeError))
+                else f"任务失败：{type(exc).__name__}，请检查文件或数据库权限"
             )
         with Session(engine) as session, session.begin():
             current = session.get(Job, job_id)
             if current and current.status == "running":
                 current.status = "failed" if error else "succeeded"
-                current.result, current.error, current.updated_at = result, error, now()
+                if result is not None:
+                    current.result = result
+                current.error, current.updated_at = error, now()
 
 
 def create_app(
@@ -176,7 +194,7 @@ def create_app(
                         store.ensure_document(revision_id)
                     session.execute(
                         update(ModelRun)
-                        .where(ModelRun.status.in_(["running", "received"]))
+                        .where(ModelRun.status.in_(["running"]))
                         .values(
                             status="interrupted", error="引擎重启，模型运行中断", finished_at=now()
                         )
@@ -258,7 +276,8 @@ def create_app(
     async def knowledge_error(request: Request, exc: KnowledgeError) -> JSONResponse:
         status = (
             409
-            if exc.code in {"REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "SOURCE_CHANGED"}
+            if exc.code
+            in {"REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "SOURCE_CHANGED", "STALE_INPUT"}
             else 422
         )
         if exc.code.endswith("NOT_FOUND"):
@@ -266,6 +285,13 @@ def create_app(
         return error_response(request, status, exc.code, str(exc))
 
     register_knowledge_api(app, engine)
+    register_settings_api(app, engine, data_dir)
+    register_zotero_batch_api(app, engine)
+    register_reasoning_api(app, engine)
+    register_graph_api(app, engine)
+    from researchgraph.translation import register_translation_api
+
+    register_translation_api(app, engine)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -423,7 +449,10 @@ def create_app(
                 and job.status in {"failed", "interrupted", "cancelled"}
                 and job.attempt < 3
             ):
-                job.status, job.error, job.result = "queued", None, None
+                # Keep observed batch progress so retry resumes from the first
+                # failed/pending batch. KnowledgeOperation makes completed batches
+                # idempotent; clearing this result hid that progress from the UI.
+                job.status, job.error = "queued", None
                 job.stage = None
             else:
                 raise failure(409, "JOB_STATE_CONFLICT", "任务状态已改变或达到重试上限")
@@ -552,6 +581,17 @@ def create_app(
                     SourceView.model_validate(s)
                     for s in session.scalars(
                         select(PaperSource).where(PaperSource.paper_id == paper_id)
+                    )
+                ],
+                zotero_links=[
+                    {
+                        "library_id": link.library_id,
+                        "item_key": link.item_key,
+                        "attachment_key": link.attachment_key,
+                        "url": f"zotero://select/items/{link.item_key}",
+                    }
+                    for link in session.scalars(
+                        select(ZoteroLink).where(ZoteroLink.paper_id == paper_id)
                     )
                 ],
             )

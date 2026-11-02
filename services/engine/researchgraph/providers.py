@@ -4,10 +4,14 @@ import asyncio
 import json
 import os
 import re
-import urllib.error
+import time
 import urllib.parse
 import urllib.request
 from typing import Any, Protocol
+
+import httpx
+
+from researchgraph.model_capabilities import ModelCapabilities, parse_capabilities
 
 
 class Provider(Protocol):
@@ -23,6 +27,34 @@ class MockProvider:
 
     async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
         await asyncio.sleep(0)
+        if schema.get("title") == "KnowledgeExtractionBatch":
+            from researchgraph.unified_mock import complete as unified_complete
+
+            return json.dumps(unified_complete(data), ensure_ascii=False)
+        if schema.get("title") == "TranslationRepair":
+            return json.dumps(
+                {
+                    "items": [
+                        {
+                            "node_ref": x["node_ref"],
+                            "label_zh": "离线补译验证",
+                            "summary_zh": "Mock 仅验证显示字段更新，不代表真实翻译。",
+                        }
+                        for x in data["items"]
+                    ]
+                },
+                ensure_ascii=False,
+            )
+        if schema.get("title") == "ConnectionTest":
+            return '{"ok":true}'
+        if schema.get("title") in {
+            "EntityAlignmentBatch",
+            "ComparabilityReport",
+            "RelationInference",
+        }:
+            from researchgraph.reasoning_mock import complete
+
+            return json.dumps(complete(schema["title"], data), ensure_ascii=False)
         if schema.get("title") == "PaperOutline":
             return json.dumps(
                 {
@@ -86,20 +118,47 @@ class MockProvider:
         )
 
 
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(
-        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
+class ProviderError(ValueError):
+    def __init__(
+        self,
+        category: str,
+        message: str,
+        retry_after: int | None = None,
+        *,
+        timeout_phase: str | None = None,
     ) -> None:
-        raise ValueError("服务重定向被拒绝，避免向其他地址发送授权文本或密钥")
+        super().__init__(message)
+        self.category = category
+        self.retry_after = retry_after
+        self.timeout_phase = timeout_phase
 
 
 class ConfiguredProvider:
     name = "configured"
 
-    def __init__(self) -> None:
-        self.base_url = os.environ.get("RGS_MODEL_BASE_URL", "").rstrip("/")
-        self.model = os.environ.get("RGS_MODEL_NAME", "")
-        self.key = os.environ.get("RGS_MODEL_API_KEY", "")
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        model: str | None = None,
+        key: str | None = None,
+        parameters: dict[str, Any] | None = None,
+        provider_name: str = "configured",
+    ) -> None:
+        self.name = provider_name
+        self.base_url = (
+            base_url if base_url is not None else os.environ.get("RGS_MODEL_BASE_URL", "")
+        ).rstrip("/")
+        self.model = model if model is not None else os.environ.get("RGS_MODEL_NAME", "")
+        self.key = key if key is not None else os.environ.get("RGS_MODEL_API_KEY", "")
+        self.parameters = parameters or {"temperature": 0, "timeout_seconds": 30, "json_mode": True}
+        self.usage: dict[str, int] = {}
+        self.capabilities = ModelCapabilities.model_validate(
+            self.parameters.get("capabilities", {})
+        )
+        self.capabilities_checked = False
+        self.request_metadata: dict[str, Any] = {}
+        self.partial_output: str | None = None
         parsed = urllib.parse.urlparse(self.base_url)
         if (
             not self.model
@@ -117,14 +176,47 @@ class ConfiguredProvider:
         ):
             raise ValueError("请配置 RGS_MODEL_BASE_URL 与 RGS_MODEL_NAME；远端模型必须使用 HTTPS")
 
-    async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
-        return await asyncio.to_thread(self._request, prompt, data, schema)
+    async def prepare(self) -> None:
+        """Metadata requests contain only the model ID; redirects cannot receive credentials."""
+        if self.capabilities_checked:
+            return
+        self.capabilities_checked = True
+        headers = {"Authorization": f"Bearer {self.key}"} if self.key else {}
+        try:
+            async with httpx.AsyncClient(
+                trust_env=False, follow_redirects=False, timeout=5
+            ) as client:
+                async with client.stream(
+                    "GET", self.base_url + "/models", headers=headers
+                ) as response:
+                    if response.status_code != 200:
+                        return
+                    raw = bytearray()
+                    async for part in response.aiter_bytes():
+                        raw.extend(part)
+                        if len(raw) > 2_000_000:
+                            return
+            data = json.loads(raw).get("data", [])
+            if isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict) and item.get("id") == self.model:
+                        self.capabilities = parse_capabilities(item)
+                        return
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError):
+            # Standard OpenAI /models does not expose token limits. Never guess.
+            return
 
-    def _request(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
-        body = {
+    def _build_body(
+        self, prompt: str, data: dict[str, Any], schema: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Build the OpenAI-compatible request body in one place.
+
+        The synchronous helper below is retained for integrations that used the old
+        private test hook. Production extraction uses ``complete`` so cancellation
+        closes the async socket instead of leaving a worker thread behind.
+        """
+        body: dict[str, Any] = {
             "model": self.model,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
             "messages": [
                 {
                     "role": "system",
@@ -145,29 +237,190 @@ class ConfiguredProvider:
                 },
             ],
         }
+        for parameter in ("temperature", "top_p", "reasoning_effort"):
+            if self.parameters.get(parameter) is not None:
+                body[parameter] = self.parameters[parameter]
+        output_limit = self.capabilities.max_output_tokens
+        if output_limit and self.capabilities.context_window:
+            # Conservative estimate includes schema/instructions and non-ASCII source.
+            input_estimate = len(json.dumps(body["messages"], ensure_ascii=False).encode("utf-8"))
+            output_limit = min(
+                output_limit, self.capabilities.context_window - input_estimate - 512
+            )
+            if output_limit < 128:
+                raise ProviderError("context_limit", "模型上下文不足，需缩小当前批次")
+        if output_limit:
+            name = "max_completion_tokens" if self.name == "openai" else "max_tokens"
+            body[name] = output_limit
+        self.request_metadata = {
+            "output_limit": output_limit,
+            "limit_source": self.capabilities.source,
+            "context_window": self.capabilities.context_window,
+            "legacy_manual_limit_ignored": self.parameters.get("max_output_tokens"),
+            "input_bytes": len(json.dumps(body["messages"], ensure_ascii=False).encode("utf-8")),
+            "source_characters": sum(
+                len(e.get("text", "")) for e in data.get("allowed_evidence", [])
+            ),
+            "evidence_count": len(data.get("allowed_evidence", [])),
+        }
+        if self.parameters.get("json_mode", True):
+            body["response_format"] = {"type": "json_object"}
+        return body
+
+    def _request(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
+        """Compatibility transport for legacy callers and unit tests.
+
+        New extraction calls do not use this path. It deliberately mirrors the
+        response validation rules while keeping the old monkeypatchable surface.
+        """
+        body = self._build_body(prompt, data, schema)
+        request = urllib.request.Request(
+            self.base_url + "/chat/completions",
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                **({"Authorization": f"Bearer {self.key}"} if self.key else {}),
+            },
+            method="POST",
+        )
+        timeout = self.parameters.get("timeout_seconds", 30)
+        try:
+            with urllib.request.build_opener().open(request, timeout=timeout) as response:
+                raw = response.read(2_000_001)
+        except TimeoutError:
+            raise ProviderError("timeout", "模型请求超时，请检查网络或缩小批次") from None
+        except OSError:
+            raise ProviderError("network", "模型网络连接失败，请检查网络或代理") from None
+        if len(raw) > 2_000_000:
+            raise ProviderError("response", "模型响应超过 2 MB 限制")
+        try:
+            envelope = json.loads(raw)
+            content = envelope["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            raise ProviderError("response", "模型响应结构无效") from None
+        if not isinstance(content, str):
+            raise ProviderError("response", "模型没有返回文本 JSON")
+        if self.key and self.key in content:
+            raise ValueError("模型响应包含凭据，已拒绝保存")
+        return content
+
+    async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
+        self.usage = {}
+        self.partial_output = None
+        self.request_metadata = {}
+        await self.prepare()
+        body = self._build_body(prompt, data, schema)
         headers = {"Content-Type": "application/json"}
         if self.key:
             headers["Authorization"] = f"Bearer {self.key}"
-        request = urllib.request.Request(
-            self.base_url + "/chat/completions",
-            data=json.dumps(body).encode(),
-            headers=headers,
-            method="POST",
-        )
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        started = time.monotonic()
+        phase = "connection"
+        response_bytes = 0
+
+        async def trace(event: str, _info: dict[str, Any]) -> None:
+            nonlocal phase
+            if "send_request_body.complete" in event:
+                phase = "response_headers"
+                self.request_metadata["request_sent_seconds"] = round(time.monotonic() - started, 3)
+            elif "send_request" in event:
+                phase = "request_write"
+
         try:
-            with opener.open(request, timeout=30) as response:
-                raw = response.read(2_000_001)
-            if len(raw) > 2_000_000:
-                raise ValueError("模型响应超过 2 MB 限制")
-            content = json.loads(raw)["choices"][0]["message"]["content"]
+            timeout = self.parameters.get("timeout_seconds", 30)
+            # Async transport closes the socket on cancellation; retries cannot
+            # overlap a still-running urllib thread from a previous attempt.
+            async with httpx.AsyncClient(
+                trust_env=False,
+                follow_redirects=False,
+                timeout=httpx.Timeout(timeout, connect=min(timeout, 15)),
+            ) as client:
+                async with client.stream(
+                    "POST",
+                    self.base_url + "/chat/completions",
+                    json=body,
+                    headers=headers,
+                    extensions={"trace": trace},
+                ) as response:
+                    phase = "response_body"
+                    self.request_metadata["response_headers_seconds"] = round(
+                        time.monotonic() - started, 3
+                    )
+                    code = response.status_code
+                    if 300 <= code < 400:
+                        raise ProviderError(
+                            "client", "服务重定向被拒绝，未向其他地址发送文本或密钥"
+                        )
+                    if code == 429:
+                        after = response.headers.get("Retry-After", "")
+                        raise ProviderError(
+                            "rate_limit",
+                            "模型请求受限（HTTP 429）",
+                            int(after) if after.isdigit() else None,
+                        )
+                    if code >= 500:
+                        raise ProviderError("server", f"模型服务暂时不可用（HTTP {code}）")
+                    if code >= 400:
+                        raise ProviderError(
+                            "client", f"模型请求被拒绝（HTTP {code}），请检查配置或额度"
+                        )
+                    raw = bytearray()
+                    async for part in response.aiter_bytes():
+                        response_bytes += len(part)
+                        raw.extend(part)
+                        if len(raw) > 2_000_000:
+                            raise ProviderError("response", "模型响应超过 2 MB 限制")
+            envelope = json.loads(raw)
+            self.usage = {
+                k: v
+                for k, v in envelope.get("usage", {}).items()
+                if k in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                and type(v) is int
+                and v >= 0
+            }
+            details = envelope.get("usage", {}).get("completion_tokens_details", {})
+            if isinstance(details, dict) and type(details.get("reasoning_tokens")) is int:
+                self.usage["reasoning_tokens"] = max(0, details["reasoning_tokens"])
+            content = envelope["choices"][0]["message"]["content"]
+            if isinstance(content, str) and self.key and self.key in content:
+                raise ValueError("模型响应包含凭据，已拒绝保存")
+            if envelope["choices"][0].get("finish_reason") == "length":
+                self.partial_output = content if isinstance(content, str) else None
+                raise ProviderError(
+                    "output_limit", "模型服务截断了响应（可能包含推理预算），当前批次需要拆分恢复"
+                )
             if not isinstance(content, str):
                 raise ValueError("模型没有返回文本 JSON")
+            if self.key and self.key in content:
+                raise ValueError("模型响应包含凭据，已拒绝保存")
             return content
-        except urllib.error.HTTPError as error:
-            raise ValueError(f"模型 HTTP {error.code}，请检查配置或额度") from None
-        except (urllib.error.URLError, KeyError, IndexError, TypeError) as error:
-            raise ValueError("模型请求失败或响应结构无效") from error
+        except httpx.TimeoutException as error:
+            if isinstance(error, httpx.ConnectTimeout):
+                phase = "connection"
+            elif isinstance(error, httpx.WriteTimeout):
+                phase = "request_write"
+            elif isinstance(error, httpx.PoolTimeout):
+                phase = "connection_pool"
+            elif isinstance(error, httpx.ReadTimeout) and phase != "response_body":
+                phase = "response_headers"
+            self.request_metadata["timeout_phase"] = phase
+            label = {
+                "connection": "建立连接",
+                "request_write": "发送请求",
+                "connection_pool": "等待连接",
+                "response_headers": "等待模型响应",
+                "response_body": "读取模型响应",
+            }[phase]
+            raise ProviderError(
+                "timeout", f"{label}超时（{timeout} 秒）；已保存批次保留", timeout_phase=phase
+            ) from None
+        except httpx.RequestError:
+            raise ProviderError("network", "模型网络连接失败，请检查网络或代理") from None
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            raise ProviderError("response", "模型响应结构无效") from None
+        finally:
+            self.request_metadata.update(
+                elapsed_seconds=round(time.monotonic() - started, 3), response_bytes=response_bytes
+            )
 
 
 def provider_for(name: str, allow_network: bool) -> Provider:

@@ -1,0 +1,77 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "ref_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Ref Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "graph_role": {
+      "anyOf": [
+        {
+          "enum": [
+            "core",
+            "supporting",
+            "retrieval_only"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "evidence",
+          "type": "string"
+        }
+      ],
+      "title": "Graph Role"
+    },
+    "source_status": {
+      "enum": [
+        "anchored",
+        "needs_evidence",
+        "source_unavailable",
+        "invalid_anchor"
+      ],
+      "title": "Source Status",
+      "type": "string"
+    },
+    "validation_status": {
+      "enum": [
+        "valid",
+        "quarantined",
+        "superseded"
+      ],
+      "title": "Validation Status",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "maxLength": 160,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "legacy_excluded": {
+      "default": false,
+      "title": "Legacy Excluded",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ref_id",
+    "document_version_id",
+    "graph_role",
+    "source_status",
+    "validation_status",
+    "evidence_ids"
+  ],
+  "title": "RetrievalHit",
+  "type": "object"
+}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -6,6 +6,7 @@ import { Papers } from "./Papers";
 import { api } from "./api";
 
 vi.mock("./api", () => ({
+  request: vi.fn().mockResolvedValue([]),
   api: {
     papers: vi.fn(),
     jobs: vi.fn(),
@@ -16,12 +17,13 @@ vi.mock("./api", () => ({
   },
 }));
 beforeEach(() => {
+  localStorage.clear();
   vi.clearAllMocks();
   vi.mocked(api.papers).mockResolvedValue({ items: [], next_cursor: null });
   vi.mocked(api.jobs).mockResolvedValue([]);
 });
 function mount(connected = true) {
-  render(
+  return render(
     <QueryClientProvider
       client={
         new QueryClient({
@@ -45,6 +47,33 @@ test("native selection receives explicit managed mode and cancellation creates n
   expect(api.importPdf).toHaveBeenCalledWith("p", "managed");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
+test("paper workbench separates sources, keeps input state while collapsed and remembers sections", async () => {
+  const user = userEvent.setup();
+  const view = mount();
+  const importing = screen.getByRole("region", { name: "导入论文" });
+  expect(within(importing).queryByText(/Obsidian/)).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("保存方式"), "managed");
+  await user.click(within(importing).getByRole("button", { name: "Zotero" }));
+  expect(screen.getByRole("button", { name: "连接并读取分类" })).toBeVisible();
+  await user.click(within(importing).getByRole("button", { name: "本地 PDF" }));
+  expect(screen.getByLabelText("保存方式")).toHaveValue("managed");
+  const toggle = within(importing).getByRole("button", { name: /导入论文/ });
+  await user.click(toggle);
+  expect(screen.getByLabelText("保存方式")).not.toBeVisible();
+  await user.click(toggle);
+  expect(screen.getByLabelText("保存方式")).toHaveValue("managed");
+  const jobs = screen.getByRole("region", { name: "任务记录" });
+  await user.click(within(jobs).getByRole("button", { name: /任务记录/ }));
+  view.unmount();
+  mount();
+  expect(
+    within(screen.getByRole("region", { name: "任务记录" })).getByRole(
+      "button",
+      { name: /任务记录/ },
+    ),
+  ).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("region", { name: /项目文献/ })).toBeVisible();
+});
 test("offline import is disabled and picker error is visible", async () => {
   mount(false);
   expect(screen.getByRole("button", { name: "选择 PDF 导入" })).toBeDisabled();
@@ -64,6 +93,7 @@ test("selected paper shows version, page, raw text and parser limitation", async
   vi.mocked(api.paper).mockResolvedValue({
     paper,
     sources: [],
+    zotero_links: [],
     revisions: [
       {
         id: "r",
@@ -94,6 +124,7 @@ test("selected paper shows version, page, raw text and parser limitation", async
   await user.click(
     await screen.findByRole("button", { name: "Synthetic paper" }),
   );
+  await user.click(screen.getByText("解析原文（按需查看）"));
   expect(await screen.findByText("No improvement was observed.")).toBeVisible();
   expect(screen.getByText(/PDF 第 2 页 · 块 1/)).toBeVisible();
   expect(screen.getByText("阅读顺序请对照原文核查")).toBeVisible();

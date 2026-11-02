@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "node_id": {
+      "title": "Node Id",
+      "type": "string"
+    },
+    "label_zh": {
+      "title": "Label Zh",
+      "type": "string"
+    },
+    "summary_zh": {
+      "title": "Summary Zh",
+      "type": "string"
+    },
+    "translation_status": {
+      "enum": [
+        "machine_generated",
+        "needs_review"
+      ],
+      "title": "Translation Status",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "node_id",
+    "label_zh",
+    "summary_zh",
+    "translation_status"
+  ],
+  "title": "TranslationRepair",
+  "type": "object"
+}

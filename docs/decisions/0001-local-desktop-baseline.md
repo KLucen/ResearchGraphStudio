@@ -2,7 +2,7 @@
 
 日期：2026-10-27。状态：**历史暂案，技术路线已被 [ADR 0002](0002-tauri-evidence-workbench.md) 替代。**
 
-以下保留当时的设计记录，不作为当前框架选择依据。QA.md 到位后已选择 Tauri 2，放弃本文的 Electron/Forge 暂案；源码根目录、Conda、数据隔离和 GitHub 远端决定继续有效。当前实施以 ADR 0002/0003 和[开发计划 v0.4](../development-plan-v0.4.md)为准。
+以下保留当时的设计记录，不作为当前框架选择依据。QA.md 到位后已选择 Tauri 2，放弃本文的 Electron/Forge 暂案；源码根目录、Conda、数据隔离和 GitHub 远端决定继续有效。当时实施依据为 ADR 0002/0003 和[开发计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)；当前设计见 [v3 文档入口](../README.md)。
 
 ## 开发位置
 

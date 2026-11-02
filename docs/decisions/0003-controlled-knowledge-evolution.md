@@ -1,8 +1,10 @@
 # ADR 0003：工具所有权与受控知识演化
 
+> 历史决策：Zotero 延后与旧审核/关系模型的部分已由 [v2-0001](../adr/0001-unified-knowledge-engine.md)、[v2-0002](../adr/0002-phase3-models-and-reasoning.md)接替。工具所有权和私人笔记保护继续有效；现行设计见 [v3 基线](../adr/0003-v3-documentation-baseline.md)。
+
 日期：2026-10-27（Asia/Shanghai）。状态：已采用为计划基线，待实现验证。
 
-依据：[四份补充材料 S1–S4](../design/source-register.md)与用户本轮更新计划要求。保留 ADR 0002 的 Tauri/Conda/SQLite 技术路线；补充其中工具协作和导出范围，更新旧四阶段计划。新范围以[计划 v0.4](../development-plan-v0.4.md)为准。
+依据：[四份补充材料 S1–S4](../design/source-register.md)与用户本轮更新计划要求。保留 ADR 0002 的 Tauri/Conda/SQLite 技术路线；补充其中工具协作和导出范围，更新旧四阶段计划。新范围以[计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)为准。
 
 ## 决定
 

@@ -14,6 +14,8 @@ import {
   Layers3,
   LoaderCircle,
   Network,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   RefreshCw,
   Search,
@@ -23,6 +25,9 @@ import {
 } from "lucide-react";
 import { api, type Project } from "./api";
 import { Papers } from "./Papers";
+import { SourceIntegrations } from "./SourceIntegrations";
+import { ModelSettings } from "./ModelSettings";
+import { GraphWorkspace } from "./GraphWorkspace";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -32,10 +37,20 @@ function date(value: string): string {
 }
 
 export default function App() {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("rgs.sidebar.collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [page, setPage] = useState<"projects" | "settings">("projects");
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [search, setSearch] = useState("");
+  const [projectView, setProjectView] = useState<"papers" | "graph" | "notes">(
+    "papers",
+  );
   const client = useQueryClient();
   const host = useQuery({
     queryKey: ["host"],
@@ -61,19 +76,42 @@ export default function App() {
   const connected = health.isSuccess && !health.isError;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
+        <button
+          className="sidebar-toggle"
+          aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+          title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+          aria-expanded={!collapsed}
+          onClick={() => {
+            const value = !collapsed;
+            setCollapsed(value);
+            try {
+              localStorage.setItem("rgs.sidebar.collapsed", String(value));
+            } catch {
+              /* storage unavailable */
+            }
+          }}
+        >
+          {collapsed ? (
+            <PanelLeftOpen size={19} />
+          ) : (
+            <PanelLeftClose size={19} />
+          )}
+        </button>
         <div className="brand">
           <div className="brand-symbol">
             <Network size={24} />
           </div>
-          <div>
+          <div className="brand-title">
             ResearchGraph<span>STUDIO</span>
           </div>
         </div>
         <div className="workspace-label">个人研究空间</div>
         <nav aria-label="主导航">
           <button
+            aria-label="研究项目"
+            title="研究项目"
             className={page === "projects" ? "nav active" : "nav"}
             onClick={() => {
               setPage("projects");
@@ -81,16 +119,11 @@ export default function App() {
             }}
           >
             <Layers3 size={18} />
-            研究项目<span>{allProjects.length}</span>
-          </button>
-          <button
-            className={page === "settings" ? "nav active" : "nav"}
-            onClick={() => setPage("settings")}
-          >
-            <Settings2 size={18} />
-            设置与诊断
+            <span className="nav-label">研究项目</span>
+            <span className="nav-count">{allProjects.length}</span>
           </button>
         </nav>
+        <div className="sidebar-spacer" />
         <div className="sidebar-note">
           <ShieldCheck size={20} />
           <strong>知识，留在本地</strong>
@@ -110,8 +143,17 @@ export default function App() {
                 : "引擎未连接"}
           </span>
         </div>
+        <button
+          aria-label="设置与诊断"
+          title="设置与诊断"
+          className={page === "settings" ? "nav active" : "nav"}
+          onClick={() => setPage("settings")}
+        >
+          <Settings2 size={18} />
+          <span className="nav-label">设置与诊断</span>
+        </button>
         <div className="version">
-          PHASE 2 <span>0.0.1</span>
+          PHASE 3 <span>0.0.1</span>
         </div>
       </aside>
       <main>
@@ -129,7 +171,9 @@ export default function App() {
             LOCAL WORKSPACE
           </span>
         </header>
-        <div className="content">
+        <div
+          className={`content${selected && page !== "settings" ? " project-content" : ""}`}
+        >
           {health.isError && (
             <div role="alert" className="error-banner">
               <strong>本地引擎未连接</strong>
@@ -154,37 +198,67 @@ export default function App() {
               <button className="text-button" onClick={() => setSelected(null)}>
                 ← 返回研究项目
               </button>
-              <div className="eyebrow">RESEARCH PROJECT</div>
-              <h1>{selected.name}</h1>
-              <p className="lead">
-                {selected.description || "还没有添加研究问题描述。"}
-              </p>
-              <div className="project-detail">
-                <ShieldCheck size={28} />
-                <h2>项目已保存</h2>
-                <p>项目信息存储在本地数据库，重新启动后可继续打开。</p>
-                <dl>
-                  <dt>创建日期</dt>
-                  <dd>{date(selected.created_at)}</dd>
-                  <dt>项目标识</dt>
-                  <dd className="mono">{selected.id}</dd>
-                </dl>
+              <h2 className="project-title">{selected.name}</h2>
+              {selected.description && (
+                <p className="quiet-note">{selected.description}</p>
+              )}
+              <div className="project-tabs" aria-label="项目工作区">
+                <button
+                  className={
+                    projectView === "papers"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("papers")}
+                >
+                  文献与阅读
+                </button>
+                <button
+                  className={
+                    projectView === "graph"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("graph")}
+                >
+                  图谱与比较
+                </button>
+                <button
+                  className={
+                    projectView === "notes"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("notes")}
+                >
+                  笔记来源
+                </button>
               </div>
-              <Papers
-                key={selected.id}
-                projectId={selected.id}
-                connected={connected}
-              />
+              {projectView === "graph" ? (
+                <GraphWorkspace
+                  key={selected.id}
+                  projectId={selected.id}
+                  connected={connected}
+                />
+              ) : projectView === "notes" ? (
+                <SourceIntegrations
+                  key={selected.id}
+                  projectId={selected.id}
+                  connected={connected}
+                />
+              ) : (
+                <Papers
+                  key={selected.id}
+                  projectId={selected.id}
+                  connected={connected}
+                />
+              )}
             </section>
           ) : (
             <>
               <div className="heading-row">
                 <div>
-                  <div className="eyebrow">YOUR RESEARCH, CONNECTED</div>
-                  <h1>从一个研究问题开始</h1>
-                  <p className="lead">
-                    为你的研究建立独立空间，让每一次探索有迹可循。
-                  </p>
+                  <h1>研究项目</h1>
                 </div>
                 <button
                   className="button primary"
@@ -195,16 +269,6 @@ export default function App() {
                   新建研究项目
                 </button>
               </div>
-              <section className="intro-strip">
-                <div className="intro-icon">
-                  <Network size={27} />
-                </div>
-                <div>
-                  <strong>把研究组织起来</strong>
-                  <p>按主题管理项目，先记录你想弄清楚的问题。</p>
-                </div>
-                <span className="pill">本地优先</span>
-              </section>
               <div className="section-toolbar">
                 <h2>
                   我的项目 <span>{allProjects.length}</span>
@@ -247,7 +311,7 @@ export default function App() {
                         <ArrowRight size={16} />
                       </div>
                       <h3>{p.name}</h3>
-                      <p>{p.description || "从这里记录你的研究问题。"}</p>
+                      {p.description && <p>{p.description}</p>}
                       <footer>
                         <i />
                         本地项目<span>{date(p.created_at)}</span>
@@ -266,11 +330,7 @@ export default function App() {
                   <h3>
                     {search ? "没有找到匹配的项目" : "你的第一个研究项目"}
                   </h3>
-                  <p>
-                    {search
-                      ? "试试其他关键词，或继续加载更多项目。"
-                      : "一个明确的问题，是构建研究知识的起点。"}
-                  </p>
+                  {search && <p>试试其他关键词，或继续加载更多项目。</p>}
                   {!search && (
                     <button
                       className="button secondary"
@@ -293,10 +353,6 @@ export default function App() {
                   加载更多
                 </button>
               )}
-              <footer className="page-footer">
-                <span>RESEARCHGRAPH STUDIO</span>
-                <span>从证据到理解，每一步都有来源。</span>
-              </footer>
             </>
           )}
         </div>
@@ -468,6 +524,7 @@ function Settings({
       <div className="eyebrow">LOCAL ENVIRONMENT</div>
       <h1>设置与诊断</h1>
       <p className="lead">查看本地运行状态，检查项目存储是否正常。</p>
+      <ModelSettings connected={connected} />
       <section className="settings-card">
         <div className="settings-title">
           <ShieldCheck size={22} />
@@ -584,7 +641,7 @@ function Settings({
         </div>
       </section>
       <p className="quiet-note">
-        当前支持本地项目与 PDF 原文导入。模型和知识图谱功能将在后续阶段开放。
+        模型配置与默认角色供所有项目共用；各项目论文和知识记录独立保存。
       </p>
     </>
   );

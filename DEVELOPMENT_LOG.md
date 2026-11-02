@@ -2,7 +2,9 @@
 
 用于持续记录真实开发过程，时间统一为 Asia/Shanghai。每轮实质性工作追加一条，不覆盖旧结果；后续发现错误时追加更正或清楚注明修订。提交号、测试结果或实验指标未知时写“未执行/待验证”，不填占位成功结论。
 
-## 项目状态
+## 建立时状态（2026-10-27 历史快照）
+
+以下条目保留工程建立时状态；最新进展见[实施进度](docs/progress.md)和本日志末尾，当前设计见[文档导航](docs/README.md)。
 
 - 当前阶段：QA.md 与四份补充材料整合为开发计划 v0.4；待进入 Phase 0 构建准备与安装探针，尚未实现业务。
 - 当前根目录：`C:\Users\KLucen\Desktop\AI科研知识推理平台`。
@@ -34,7 +36,7 @@
 
 - [项目入口](README.md)
 - [需求依据](docs/design/requirements-baseline.md)
-- [开发流程（现行 v2 入口）](docs/02_development_plan.md)
+- [开发流程（后续 v2 历史入口）](docs/archive/v2/02_development_plan.md)
 - [环境报告](docs/environment-check.md)与[机器快照](docs/environment/2026-10-27.json)
 - [候选技术决策](docs/decisions/0001-local-desktop-baseline.md)
 - [实验计划](experiments/README.md)
@@ -129,7 +131,7 @@
 ### 实际改动
 
 1. 阅读四份材料并记录路径、行号、SHA-256；新建[来源登记](docs/design/source-register.md)。QA 原文及四份桌面材料均未改写，未复制其中的本地图片。
-2. 新建[完整开发计划 v0.4](docs/development-plan-v0.4.md)，包含产品范围、工具所有权、归属/条件/证据版本、实体合并、AI 流水线、API、UI、Wiki 发布恢复、阶段验收、RG-001–RG-015、评测和剩余依赖。旧计划保留为 docs/development-plan-v0.3.md；docs/development-plan.md 改为当前入口，避免两份活动全文漂移。
+2. 新建[完整开发计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)，包含产品范围、工具所有权、归属/条件/证据版本、实体合并、AI 流水线、API、UI、Wiki 发布恢复、阶段验收、RG-001–RG-015、评测和剩余依赖。旧计划保留为 docs/development-plan-v0.3.md；docs/development-plan.md 改为当前入口，避免两份活动全文漂移。
 3. 按现有项目约定保留 v0.1 五篇 PDF 闭环；完整产品采用 Zotero 默认入口，但适配、自动演化与批量实验仍在 v1.0。新范围加入受控 Wiki、授权笔记回流、Query/Lint；Phase 0–6 初估 12–19 周，v0.1 初估 5–8 周，均不是实测工期或交付承诺。
 4. 新建[ADR 0003](docs/decisions/0003-controlled-knowledge-evolution.md)记录范围与权限取舍。保留 Conda、services/engine、唯一开发日志和六态；新材料的 uv、progress.md、machine_checked/pending_review 均作映射或替换。
 5. 同步 docs/design/requirements-baseline.md 至 R01–R34、domain-model.md 的归属/来源修订/RelationAssertion/Wiki 对象；实验计划保留 E1–E3 并新增 E4 抽取、E5 合并、E6 问答/新鲜度。
@@ -529,6 +531,319 @@
 - 真实模型科学质量、真实私人 Zotero 批注匹配、干净 Windows/缺 WebView2、复杂版式/字级定位和完整安装版人工阅读体验仍未验收。四份 S1–S4 原文登记路径仍不可用，未声称核验其内容或 hash；G0 用户放行保持有效。
 - 按既有授权普通提交推送收尾记录。工作流排除 Markdown 与 `docs/**`，本次文档提交不需要重建安装器；安装包对应代码提交仍为 `e67854d`。
 - P2 结束，不实施 P3。下一轮可从条件化 RelationAssertion 候选、证据依赖与人工审核开始，并先建立授权真实论文/模型基准。
+
+## 2026-11-01 13:58 · DEV-0018 · P3 前置配置、批量接入与全局模型设置
+
+### 目标与实际改动
+
+- 本轮目标仍为真实模型与两篇论文验收后完成 P3，不进入 P4；未经新的明确授权不 Push。
+- 新增 credentials/model_settings/settings_api、0006/0007 迁移、ModelSettings、ZoteroImport、zotero_batch 和对应测试；扩充原生白名单/超时、抽取配置快照、OpenAPI/TS、smoke、敏感内容检查脚本及 .gitignore。模型设置依用户补充从项目内迁到全局“设置与诊断”，保留旧 ID、凭据引用、角色记录和 API 别名。统一模型供所有项目使用，论文知识仍项目隔离。
+- 侧边栏图标折叠与本机持久化已实现。补 ADR v2-0002、模型配置/安全说明，并更新 README/API/进度。两份旧计划的用户删除保持，相关历史链接改为 Git permalink。
+
+### 实际验证
+
+- Conda researchgraph-studio：全局设置版本 86 Python passed、2 skipped；Ruff/format/mypy/pip check 通过。check-phase0 在 SourceIntegrations 格式处停止，修复格式后单独继续 Prettier、TS/ESLint、25 React、Web build 均通过；3 Rust、fmt/clippy 通过。
+- 全局配置的 8 项针对性测试包含无项目创建、跨项目共享、0006 升级保留凭据引用/角色/项目及备份、旧选择冲突留空。真实 Windows 凭据 roundtrip 通过，测试假密钥已清理。
+- build-engine、独立 debug Tauri 构建、冻结引擎模型配置/角色/重启 smoke、Windows PowerShell 5.1 引擎验收通过；日志在 .local/p3-global-*。不等于干净机或本轮远端安装 CI 通过。
+- 原生全局设置已显示用户刚保存的配置与安全密钥标记，Extraction/Reasoning 默认角色已选。用户报告先前连接成功；迁移后复测进行中。TEST 只读浏览为 5 篇论文/6 个可用 PDF，真实导入/抽取待后续执行，不能把 Mock 当真实验收。
+
+### 意外启动与数据核对
+
+- Computer Use launch_app 接收完整开发程序路径后仍启动了已安装 P2 程序；立即正常关闭，后续改用显式 Start-Process 启动隔离 exe。安装版自动将正式 com.researchgraph.studio 数据库从 0001 升至 0005，留下升级前 SQLite 备份。未恢复/覆盖数据库。
+- 只读逐行比较备份与升级库中原有 projects、jobs、knowledge_events、idempotency_keys 四表的旧列，全部完全一致；原有 1 个项目保留。应如实记录这次正式库 schema 变动，不能继续声称正式库仍为 0001。
+
+### 未完成与下一步
+
+- 两篇真实论文 P2/P3 端到端验收、P03–P05、图谱/Comparator/关系审核尚未完成。下一步原生批量导入和真实抽取，再推进 P3。
+- 初版 Gitleaks 历史/候选扫描通过，收尾需对新改动重扫；没有 Commit/Push。S1–S4 外部原文路径仍不可用，未声称已重新核验。
+
+## 2026-11-01 16:02 · DEV-0019 · P3 原生与真实模型验收收尾
+
+### 目标
+
+- 完成本轮 P3 原生验收、记录真实与 Mock 结果差异、核对文档和敏感内容；按用户本轮要求不推送。
+
+### 实际改动
+
+- 新增 [Phase 3 本机验收记录](docs/phase3-verification.md)，记载全局设置迁移、Zotero Test collection、三篇真实论文抽取、来源完整性、P03–P05、Mock 关系审核、侧栏及图谱重启验证和限制。
+- 同步 README、开发计划、ADR v2-0002 与 [实施进度](docs/progress.md)：明确 P3 最小功能已实现，但真实 Claim 关系候选→审核→图谱边尚未验收通过。Mock 只作为软件路径验证。
+- 保留两份旧计划的既有删除；历史指向改用固定 Git permalink。S1–S4 原文登记路径不可用，无法复核本轮原文或哈希；QA 原件和既有登记值保持不变。
+
+### 验证
+
+- 原生真实模型：三篇论文 P01/P02 批次为 3/3、11/11、11/11；1683 EvidenceSpan 来源、页码、quote、offset/hash 校验通过，4 份 PDF hash 未变。三组 Claim 比较均为 NO_DECISION；真实关系审核闭环未通过。P03 same_as 候选已在原生 UI 驳回并读回历史，但此为验收操作，不代表用户领域判断。
+- 原生隔离 Mock：RELATED 候选接受、图谱边/状态筛选及重启读取通过，模型原始输出、事件与审核历史保留。侧栏折叠跨页和重启保持；图谱调整尺寸后节点未裁切，任务历史 10→15。
+- 既有本轮自动化结果：104 Python passed、2 skipped；修复后 28 React、4 Rust、5 参考契约通过；冻结 Sidecar smoke、PowerShell 5.1 引擎验收通过。Symlink skip 原因及未完成真实关系项见验收报告。
+- 未构建新安装器、未推送、未运行本轮远端 CI；不得将历史 P2 CI 41271020398 当作本轮结果。正式安装库 0001→0005 的既有事件及备份/旧列比较见 DEV-0018，本轮使用隔离验收数据。
+- `conda run -n researchgraph-studio python scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe` 通过：扫描 248 个候选源码文件，路径规则及 Gitleaks 均通过。暂存区为空，因此 `--staged` 扫描为 0 文件，不能代替候选源码扫描。`conda run -n researchgraph-studio python .local/v2-doc-check.py` 检查 50 份 Markdown、136 个本地链接、QA hash 与环境 JSON 通过，准确列出四个不可用外部原文；`git diff --check` 通过。扫描报告只在忽略目录。
+
+### 问题与下一步
+
+- P3 仍需用户在真实证据充分且实验条件可比的 Claim 对上完成领域审核；不得降低 NO_DECISION 门槛或以 Mock 代替。其后才进行有授权的远端安装验收。
+- 一个兼容模型供应商完成真实测试；OpenAI 直连、其他兼容服务、本地真实模型、私人 Zotero 批注和复杂图表/公式仍未验证。未进入 P4。
+- 本轮不 Commit/Push，遵循用户 P3 消息中的新授权边界。S1–S4 仍待恢复可访问原文后核验。
+
+## 2026-11-01 18:10 · DEV-0020 · 抽取恢复计数与重试边界复核
+
+### 目标
+
+- 延续当前 P3 增量，修复真实模型抽取出现中途批次失败时的恢复计数和重复调用风险；不进入 P4，不提交或推送。
+
+### 实际改动
+
+- `services/engine/researchgraph/extraction.py` 以 `KnowledgeOperation` 的成功记录作为批次进度真相源，恢复已提交节点计数；任务重试只处理未完成批次，避免成功批次重复调用。相同任务、输入、模型、Prompt 和参数下，已收到且可通过契约校验的 P01 大纲会复用。
+- `tests/engine/test_knowledge.py` 扩充 7 批次中途失败场景，验证首批知识保留、恢复后完成批次与节点计数一致、首批和 P01 不重复调用。`docs/api.md` 将批次上限从旧的 16000 更正为 10000，并记录恢复语义；`docs/progress.md` 同步本轮限制。
+
+### 验证
+
+- `conda run -n researchgraph-studio pytest -q tests/engine/test_knowledge.py -k 'failed_later_batch_preserves_saved_progress or model_failures_preserved_without_fake_success'`：5 passed。
+- 上一轮已通过的 `104 passed, 2 skipped` Python、`28` React、前端构建和敏感扫描结果继续保留；本轮没有重复宣称全量结果。
+- 本轮未重新启动原生窗口、未构建安装器或运行远端 CI；当前 shell 找不到 `cargo`，Rust 检查未执行。真实 Zotero/真实模型七批次中途失败场景未重新复测，不能以离线测试替代。
+- 未发现需要更新的公开 API Schema；仅文档和抽取恢复逻辑发生变化。`git diff --check` 与候选源码敏感扫描待最终收尾再次执行。
+
+### 问题与下一步
+
+- 真实模型仍需在用户授权下复测中途失败后继续，重点确认服务端超时、退避和模型实际批次大小；真实关系审核仍保持此前 `NO_DECISION` 限制。
+- 继续留在 P3，先完成原生窗口/安装器复核和最终安全检查，再由用户决定是否提交；不自动 Push。
+
+## 2026-11-01 19:16 · DEV-0021 · P3 启动、抽取与论文入口增量复核
+
+### 目标
+- 修复正式桌面启动时的控制台窗口风险，复核真实模型抽取超时边界，并精简论文/Zotero交互；不进入 P4。
+
+### 实际改动
+- `main.rs` 的 Windows GUI 子系统与 Sidecar `CREATE_NO_WINDOW` 保持一致；stderr 仍写入 `engine-startup.log`，未删除调试入口。
+- `ConfiguredProvider` 使用可取消的异步 `httpx` 流式请求，限制 2 MiB 响应并区分超时、网络、限流、服务端、客户端、重定向和输出截断；保留 `_request` 兼容入口，避免旧集成测试失效。
+- 首页空状态和项目卡片的宣传占位语句、页脚口号及 Zotero 重复说明已移除；论文区改为知识概览导向。Zotero 批量导入成功项增加显式“解析并抽取知识”入口，不绕过用户传输授权。
+
+### 验证
+- `conda run -n researchgraph-studio pytest -q`：104 passed、2 skipped。
+- `pnpm --dir apps/desktop test -- --run`：28 passed；`pnpm --dir apps/desktop build`：通过。
+- Provider 测试 8 passed；Ruff check/format 通过；敏感扫描 248 个候选源码文件通过；`git diff --check` 通过。
+- 7 批次失败续跑专项测试通过。真实 Zotero/真实模型中途失败场景、本轮原生窗口及安装器未重新实测，不能以自动化结果替代。
+
+### 问题与下一步
+- 需要在隔离安装包中确认 GUI 子系统实际无 PowerShell 窗口且关闭窗口只退出 Sidecar；当前环境找不到 `cargo`，Rust 检查沿用上轮结果。
+- 真实模型仍只验证过既有兼容供应商；用户论文的 7 批次中途失败续跑待在设置页授权后复测。保持 P3，下一步为真实关系候选的证据锚定与人工审核。
+
+## 2026-11-01 19:26 · DEV-0022 · 最新 Windows 安装器构建
+
+### 目标
+- 卸载旧版 ResearchGraph Studio，并构建当前工作区最新安装器；保留用户数据和源码改动。
+
+### 实际改动
+- 旧版用户级卸载目录已不存在，清理残留卸载注册项；未删除项目数据库、模型凭据、论文、笔记或 AppData 数据。
+- 使用 `scripts/build-engine.ps1` 重建无控制台 Sidecar，再运行 `pnpm --dir apps/desktop tauri build` 构建 NSIS 安装器。
+
+### 验证
+- 新安装器：`apps/desktop/src-tauri/target/release/bundle/nsis/ResearchGraph Studio_0.0.1_x64-setup.exe`
+- 文件大小：38,371,834 bytes；SHA-256：`A2B179B1D05864EC1961A399AC4D91A055B57B8D94431D3949316297F9E94F63`。
+- 旧版卸载注册项查询不到；构建后没有 ResearchGraph 进程残留。
+- Gitleaks/敏感路径扫描 248 个候选源码文件通过；`git diff --check` 通过。
+
+### 问题与下一步
+- 安装器已构建但尚未自动安装；用户可手动运行并反馈启动窗口、数据迁移和真实 Zotero/模型行为。
+- 构建阶段有 PyInstaller 的 `tzdata` 缺失警告和前端 chunk 体积提示，未阻断构建；需在安装后重点观察时区与启动日志。
+
+## 2026-11-02 00:25 · DEV-0023 · v3 文档基线整理与历史归档
+
+### 目标
+
+- 按用户新提供的 v3 包整理 docs 中相关设计内容，合并当前入口与工程规则，保留旧规范和实际验收证据。本轮不开发新功能、不执行迁移。
+
+### 实际改动
+
+- 旧 v2 的 README、三份主文档、AGENTS 模板及 prompts/schemas/examples/tests 共 29 文件移至 `docs/archive/v2/`。5 份入口 Markdown 添加历史标识并修复相对链接，其余 24 份文件内容保持不变；既有两份旧计划删除保持。
+- 新建 [文档导航](docs/README.md)、[历史索引](docs/archive/README.md)、[整理映射](docs/migration/v3-documentation-map.md)和 [ADR 0003](docs/adr/0003-v3-documentation-baseline.md)。合并 v3 自动建图、完整领域模型/轻量投影、断点续跑和数据保护要求到根 AGENTS，保留原环境与禁止未经授权 Push 的约束。
+- 更新 README、进度、API/模型配置说明、旧需求/领域/来源/ADR/迁移与实验入口；标明当前设计、已实现运行契约和历史上下文。同步 DEV-0022 的安装器已构建未验收状态，不把构建当作安装测试。
+- v3 原包保持原样；Prompt 编号映射及双击交互、嵌套 DTO、中文必填与英文回退、证据 hash 命名等参考差异登记待实施前澄清。没有改写运行 Prompt、数据库 Schema、用户数据或既有代码改动。
+
+### 验证
+
+- 使用 Anaconda `researchgraph-studio` 绝对解释器执行两个独立进程：`python -m pytest docs/researchgraph_studio_v3/tests -q`：12 passed；`python -m pytest docs/archive/v2/tests -q`：5 passed。
+- v3 SHA256SUMS 的 52 项全部相符；16 份生成 JSON Schema 与参考 Pydantic 在内存中逐项一致。与本轮开始前的文件哈希比较确认代码、QA 原件和 v3 原包未改写，29 个归档文件齐全，24 份非入口资产原样保留。检查备份仅留在本机忽略目录 `.local/docs-v3-reorganization-20261102/`。
+- `python .local/v2-doc-check.py`：Markdown 编码、代码围栏、本地文档链接、QA 哈希和环境 JSON 通过，S1–S4 四份不可访问外部原文单列为限制。
+- `python scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe`：306 个候选文件内容/路径及 Gitleaks 通过；`git diff --check` 通过。暂存区未变，不 Commit/Push。
+- 本轮只调整文档与参考包位置，未重跑应用 Python/React/Rust、真实模型、原生窗口或安装 CI；不将此前 104/28/4 等结果冒充本轮或 v3 验收。
+
+### 问题与下一步
+
+- 旧资料的四个外部原文路径仍不可用，未重新计算原文哈希；保留历史登记。
+- v3 M0 工程审计尚未执行，不能将本次文档映射当作迁移评估。后续先核对现有 P2/P3 代码与用户数据兼容，再按 M1–M6 推进投影和详情等增量，保留真实关系及安装验收缺口；不自动进入 P4/P5。
+
+## 2026-11-02 00:38 · DEV-0024 · 将 v3 规范并入标准 docs 目录
+
+### 目标
+
+- 按用户要求取消 `docs/researchgraph_studio_v3/` 外层目录，将内部内容放回 docs 对应位置；保留旧 v2 归档、工程代码与用户数据。
+
+### 实际改动
+
+- 10 份设计章节移至 `docs/00_decisions_and_scope.md` 至 `docs/09_reference_implementation_notes.md`；Schema/Prompt/示例/测试放入 `docs/schemas/`、`docs/prompts/`、`docs/examples/`、`docs/tests/`，Schema 的 generated 子目录保留。
+- 共搬移 53 份文件；原包 README 合并到 `docs/README.md`，保留产品决议、文件所有权、环境与外部参考。附属模板、CHANGELOG、忽略规则示例及清单放到 docs 根目录，后续开发模板仍不自动执行。
+- 同步根 README/AGENTS、文档索引、ADR、整理映射和历史文档中的链接；调整参考测试命令，重建 MANIFEST 与 52 项 SHA256SUMS。历史日志中的旧执行命令保留为当时记录。
+- 目录删除操作被自动审批策略拒绝（工具仅返回 blocked by policy，未提供更具体理由）。改用可回滚的搬移，将残留的已合并 README 和生成缓存移入本机忽略备份；确认 docs 下旧目录已不存在。原始输入与哈希清单同样保存在 `.local/docs-flatten-20261102/`。
+
+### 验证
+
+- Anaconda researchgraph-studio 绝对解释器：`python -m pytest docs/tests -q`：12 passed；独立进程 `python -m pytest docs/archive/v2/tests -q`：5 passed。
+- 新路径下 52 项 SHA-256 全部通过；16 份生成 JSON Schema 与 Pydantic 一致。26 份 Schema/SQL/示例/测试文件字节未变；与本轮开始快照核对，应用代码、运行 Prompt、生成 API 和 QA 原件未改动。
+- `python .local/v2-doc-check.py`：79 份 Markdown、272 个本地链接、QA 哈希与环境 JSON 通过；四份外部原文仍不可用，未假称核验。
+- `python scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe`：305 文件通过；`git diff --check` 通过。未 Commit/Push，未执行应用回归、真实模型或安装验收。
+
+### 问题与下一步
+
+- 无目录整理遗留项。v3 参考设计待澄清点和 M0 工程审计仍见文档整理映射；此次文件搬移不代表工程迁移已完成。
+
+## 2026-11-02 02:00 · DEV-0025 · v3 M0–M6 核心增量、兼容迁移与验收
+
+### 目标
+
+- 按 `docs/06_development_migration_plan.md` 在原工程中完成 M0–M6 核心功能；继承现有 P0–P3 数据、API 和未提交改动，不进入 P4/P5。
+
+### 实际改动
+
+- M0 修改前执行 104 Python passed/2 skipped、28 React passed，保存 305 个源码文件快照与四份 SQLite 一致性备份到 `.local/v3-m0/`；新增 [v2→v3 迁移评估](docs/migration/v2_to_v3_assessment.md)和 [ADR 0004](docs/adr/0004-v3-projection-and-unified-extraction.md)。没有重搭工程。
+- `graph_models.py`、`graph_contracts.py`、`graph_projection.py`、`0009_graph_projection.py` 新增显示元数据、来源结构边、独立布局；五类默认投影、带 revision 的分页、限定邻域及按需完整详情。旧 ID、知识/证据/审核/模型结果沿用，不删除实验与条件。
+- `unified_contracts.py`、`unified_extraction.py`、`unified_store.py`、`unified_mock.py` 与运行 P02 实现 unified-v3.1 单批多类型抽取，严格证据/局部引用检查后经 KnowledgeStore 写入。`translation.py` 与运行 P04 只补译显示字段，保留 accepted 科学内容、原始英文与模型输出。
+- `extraction.py`、`app.py`、`ingest.py`、`knowledge_api.py`、`knowledge_store.py`、`providers.py`、`zotero_batch.py` 等接入新流程；按章节 6000 字符预算、批次幂等/恢复、有界退避、调用时长/Token 记录。Zotero 解析后在同事务排队确定性抽取子任务，默认引用原文；旧 API 默认 legacy-v2 保持兼容。
+- `GraphWorkspace.tsx`、`graphLayout.ts`、`App.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`JobHistory.tsx`、`GraphExplorer.tsx` 等接入图谱主视图、双语/英文回退、证据详情、拖动固定、独立布局自动保存、可选旧抽取对照与旧 Comparator。P3 候选关系保留虚线、审核与模型依据；NO_DECISION 不建科学边。
+- `main.rs` 增加受限图谱/布局/补译 API 和 Zotero URI 白名单，通过 ShellExecuteW 打开 Zotero，不经过 Shell 命令。契约导出到 `packages/contracts/`；同步 AGENTS、README、API、进度、迁移计划、[实际验收报告](docs/v3-verification.md)与 52 项设计资产清单。
+- 原生发现并修复论文无限分页与图谱论文筛选的缓存键冲突白屏；统一图谱位置状态并调整快速拖动起始阈值，原地点击不保存/固定；收窄详情关联遍历并折叠实验详情。新增 `test_graph_v3.py`、`test_v3_compatibility.py`、`GraphWorkspace.test.tsx`，扩展冻结引擎 smoke。
+
+### 验证
+
+- Anaconda researchgraph-studio：`scripts/check-phase0.ps1` 执行 Python 123 passed/2 skipped、Ruff/format/mypy、pip check、契约生成通过；随后因前端格式中止。修复后单独运行 `pnpm format:check`、`pnpm check`、`pnpm --dir apps/desktop test`、`pnpm build:web`，均通过；最终前端 **33 passed**。不把最初中止脚本记为完整通过。
+- 详情修复后 `pytest tests/engine/test_graph_v3.py tests/engine/test_v3_compatibility.py -q`：19 passed；Rust `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`：5 passed；参考 `pytest docs/tests -q`：12 passed，独立运行 `pytest docs/archive/v2/tests -q`：5 passed。
+- 七批第 2 批分别注入客户端失败、timeout、429、非法 JSON、非法 Evidence ID；首批保留，恢复完成七批，相同配置再跑无新增模型调用。已收到但未提交结果可恢复，翻译不会覆盖 accepted 科学语义。此处均为离线 Mock，不是本轮真实供应商验证。
+- 四份旧库副本 0004/0005/0008→0009，旧表旧列逐行一致，SQLite/外键检查通过，含 1508 节点 P3 副本。Zotero Local API 只读 TEST 分类实测 5 篇/6 PDF 可读，5 个登记源文件 hash 一致。
+- 独立 v3 原生窗口：旧项目/论文/历史可读、证据页号/英文回退、打开 Zotero、拖动/固定/解除/缩放、侧栏折叠与重启保留通过；布局版本 8 的全份 JSON 重启前后一致。无 PowerShell 窗口，关闭后 GUI/Sidecar 进程为 0。最终再比对隔离原生库的 33 个旧表（不含运行任务和迁移版本表），原列原行无变动，integrity/foreign_key 均通过。
+- `scripts/build-engine.ps1` 冻结引擎成功；扩展后的 `scripts/smoke-engine.py --executable ...` 在 System32-only PATH 下通过 P1/P2/P3 与统一抽取/投影/布局/补译/幂等/重启；PowerShell 5.1 `scripts/verify-windows-install.ps1 -EnginePath ...` passed，不能当作安装器验收。
+- 本轮 `pnpm --dir apps/desktop tauri build` 正式 NSIS 构建成功，保存在 `.local/releases/v3-m0-m6-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,441,992 bytes；SHA-256 `A4A9B710DBDEF02508134302653227056775042C33737C8435002978B6ED3253`。仍为开发版本 0.0.1，包含 Schema 0009；安装器未安装或卸载验收。此目录及构建日志均被 Git 忽略。
+- 安全：`python scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe` 候选 324 文件通过；`git diff --check` 通过。最终 `python .local/v2-doc-check.py` 检查 84 份 Markdown、285 个本地链接、QA hash 和环境 JSON 通过；52 项设计资产 hash 全部匹配，四份不可用外部原文明确排除。暂存区为空，安装器/数据库备份被忽略。
+
+### 问题与下一步
+
+- 原生工具首次按 exe 路径误开同名旧安装版，使正式库经既有迁移 0005→0008。已关闭并只读核对原表原列逐行相同，备份保留；未执行抽取/编辑，未擅自覆盖或回滚。后续全部使用精确 process 路径与独立 v3 标识。此意外如实登记，不能声称正式库从未升级。
+- Windows Credential Manager 中旧模型密钥不可读；已请用户在设置页重新录入，本轮尚未回复。真实 v3 P02/P04、供应商七批恢复/费用及真实关系审核均未验收；旧 v2 真实结果不替代本轮。M6 自动化和原生/构建已完成，不能称全部验收通过。
+- 新安装器安装/卸载、干净 Windows、缺失 WebView2 与远端 CI 未测；现有安装保护未绕过。两项 symlink 权限跳过、Starlette/httpx 弃用、tzdata 与前端 chunk 提示保留。
+- 四份补充外部原文路径仍不可用；QA 原件/来源登记保留。大图性能、真实术语/翻译科学准确率、OCR/逐字坐标仍非已验收能力。
+- 下一步先补真实 API 与安装验收，完成本轮 M6 缺口；不自动进入 P4/P5。未 Commit/Push，私有数据/安装包/日志留在本机忽略目录。
+
+## 2026-11-02 12:33 · DEV-0026 · 自动输出预算、截断恢复与实时点图
+
+### 目标
+
+- 处理用户 48 批任务第 2 批截断，取消手工最大输出上限；图谱改为点与边、实时力导向、双击固定；正常产品入口移除旧基线和 Mock。保留数据，不进入下一 Phase。
+
+### 实际改动
+
+- `model_capabilities.py`、`model_settings.py`、`providers.py`、`settings_api.py`、`extraction.py`：精确模型能力探测，未知使用服务默认；历史手工上限保留审计但不外发。失败/截断用量、推理用量、有效请求预算与部分原始输出留档，超时与设置一致、有界重试。
+- `unified_extraction.py`：新计划合并相邻段落；持久化 plan/config/signature/证据 hash；旧 48 批任务按原身份恢复。仅失败叶批二分、最多三层；成功批与拆分子批幂等复用。
+- `ForceGraph.tsx`、`forceSimulation.ts`、`graphLayout.ts`、`GraphWorkspace.tsx`、`style.css`：点与半透明低饱和边、实时邻居响应、hover、平移缩放、双击固定和独立聚焦；RAF 冷却停止，松手/稳定保存。原生发现快速拖动首事件阈值及受控坐标问题，使用零起始阈值与 position change，原地点击不写布局；冲突重载清空草稿并重新挂载画布。
+- `src-tauri/src/main.rs`：原生发现跨页布局超过 16 KiB，只有已授权 graph/layout POST 放宽至 512 KiB；服务端仍最多 2000 个有限坐标，其他请求预算不变。新增 Rust 边界测试。
+- `knowledge_visibility.py`、`graph_projection.py`、`graph_contracts.py`、知识/推理 API：正常视图隐藏未经人工修改的 Mock 节点，人工接受/修订及历史详情保留；分页最多附加 24 个真实父论文上下文节点和 REPORTS 来源边，主游标不变。
+- `ModelSettings.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`GraphExplorer.tsx`、`JobHistory.tsx`、`App.tsx`：真实全局模型入口、移除旧基线/Mock/手工 Token、去旧卡片画布、压缩项目头、长批次详情折叠与明确继续入口。同步生成 API 契约；离线测试与冻结 smoke 显式使用测试 Provider。
+- 新 [ADR 0005](docs/adr/0005-model-capabilities-resume-force-graph.md)与[优化验收](docs/refinement-verification-20261102.md)；更新 AGENTS、README、progress、模型/API 说明、v3 架构/交互/迁移/实现注记、导航与映射，52 项设计资产 hash/清单同步。Schema 仍为 0009，无新增迁移。
+
+### 验证
+
+- 全量 `scripts/check-phase0.ps1` 最终通过：131 Python passed/2 skipped、35 React；Ruff/format、mypy 47 源模块、pip check、契约导出、TypeScript/eslint、前端构建均通过。最初新增测试计数与布局草稿失败已修复，没有把失败运行算作通过。最后快速拖动修改后再次运行 React 35 passed 与 format:check 通过。
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`：6 passed；`pytest docs/tests -q`：12 passed；归档参考单独运行 5 passed。Windows symlink 两项跳过与 Starlette 弃用/前端 chunk 提示保留。
+- `scripts/build-engine.ps1`、冻结 `scripts/smoke-engine.py --executable ...` 和 PowerShell 5.1 `scripts/verify-windows-install.ps1 -EnginePath ...` 通过；System32-only PATH、P0–P3 兼容、统一抽取/布局/补译/重启等均有本机报告。
+- Windows 应用文件虚拟化导致普通路径读到旧副本，本轮经 UNC 定位真实库并一致性备份，凭据读取阻塞解除，未打印密钥。真实失败任务排队时冻结 8192，而当前设置已为 65536；不能宣称 65536 已实测截断。新计划样本 48→16、11→4，只算规划。
+- 原 48 批真实失败任务在隔离副本恢复：跳过原成功第 1 批，拆分第 2 批为两个 11 证据子批，再完成两批 30/36 证据；新增 4 次真实调用全部通过 Schema/证据/Store，原 405 节点逐行不变、新增 55。保存进度 1→3→5/49，剩余 44 批未执行。正式库最后只读比对仍为 405 条且逐行一致。
+- 四次实际调用 41,374 Token（reasoning_tokens 12,967 已包含其中），供应商无费用数据。验收调用预算产生两条未外发 acceptance_stop 记录，脚本包装器遗留 usage 使测试库汇总虚高；已单独计算校正报告，不把 65,773 当真实账单，不改写正式记录。
+- 独立原生窗口：快速拖动/邻居响应、hover、双击固定、中文详情/英文证据/页码/PDF预览、平移/滚轮/Fit View、侧栏折叠及设置字段移除均通过；布局版本 15、110 个位置/1 固定节点全行 JSON 重启一致。启动无 PowerShell，退出后独立 GUI/Sidecar 为 0，用户原窗口保留。
+- 正式 `pnpm --dir apps/desktop tauri build` 生成 NSIS，交付 `.local/releases/v3-refinement-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,439,880 bytes，SHA-256 `4F72C39C7C980D093E02C95A28CE58D918BD0CCCDA36AF9BC0884145D2AF147C`。安装器未安装/卸载实测，当前安装版未替换。
+- 安全候选内容/Gitleaks 扫描通过，暂存区为空；文档链接/QA hash/环境 JSON 与 52 项设计资产校验通过，`git diff --check` 通过。所有真实库、调用日志、截图、安装器位于本机忽略目录。最终命令日志保存在 `.local/v3-refinement-20261102/`。
+
+### 问题与下一步
+
+- 当前供应商未返回模型输出或上下文上限，使用服务默认不等于已知模型最大值。完整剩余论文抽取、真实关系审核、干净机/安装器执行和万节点性能仍未验收；不能用离线测试代替。
+- 4 份外部补充原文登记路径仍不可用，历史来源/QA 保留。原文定位仍为解析块范围，不宣称 OCR/逐字坐标准确率。
+- 本轮结束；下一步由用户安装试用并反馈模型与图谱体验，按需补全文验收，不自动开始后续 Phase。未 Commit/Push。
+
+## 2026-11-02 13:32 · DEV-0027 · 图谱可见性、局部引用修复与文献分区
+
+### 目标
+
+- 修复用户报告的悬停闪动、拖动消失、第二篇 Schema 失败；将论文导入/任务/文献分区折叠，PDF 与 Zotero 同级、笔记独立。减少 Computer Use，回归后交付安装包供用户反馈，不进入下一 Phase。
+
+### 实际改动
+
+- `ForceGraph.tsx`、`forceSimulation.ts`、`graphLayout.ts`、`style.css`：受控点节点稳定 width/height/measured，防止 React Flow 清空尺寸造成隐藏；坐标有限性检查、RAF 清理和边标签指针处理。新增 `e2e/graph.*`、Playwright 配置/开发依赖/脚本，真实渲染验证悬停、持续/快速拖动、邻居联动、固定/缩放/容器改变；原单元测试保留。
+- `unified_contracts.py`、`extraction.py`、`unified_extraction.py`、新增 `extraction_repair.py` / `P02_local_link_repair.md`：精确 Schema 错误，仅对缺失局部引用执行一次受限端点修复。旧 P02 与 JSON Schema 不变、原始结果保留、修复运行关联来源；修复越界/拒绝/失败不入图，同任务不无限调用。其他非法响应仍可重新抽取未完成批次。新增 `test_extraction_repair.py` 覆盖七批恢复、禁止虚构/改写、原结果及旧节点保留、无额外调用。
+- `WorkbenchSection.tsx`、`Papers.tsx`、`SourceIntegrations.tsx`、`App.tsx`、`KnowledgeReading.tsx` 与测试：三块折叠及项目内记忆，PDF/Zotero 平行入口，Obsidian 移至独立笔记来源，模型运行显示原始响应/修复来源。API 与数据库保持兼容，Schema head 0009，无迁移。
+- 更新 AGENTS 的用户验收偏好、README/桌面说明、progress、运行 API、v3 交互/Prompt/计划、[ADR 0006](docs/adr/0006-graph-stability-and-local-reference-repair.md)和[实际验收](docs/stability-verification-20261102.md)，同步设计资产清单。
+
+### 验证
+
+- 实际失败源是本批 links 引用不存在的 local_ref；响应 JSON 合法、文献版本正确。备份/私人诊断在 `.local/stability-20261102/`。隔离副本真实模型 1 次端点修复，通过 Schema/Evidence/Store，生成 14 个领域节点标识；原 183 个知识节点全列逐行相同、旧任务签名匹配、原始 raw_output 保留、SQLite integrity/foreign_key 通过。1,725 Token（含 62 reasoning），供应商未报费用；未写正式库，未运行剩余 15 批。
+- `scripts/check-phase0.ps1` 最终完整通过：139 Python passed/2 skipped、37 React；Ruff/format、mypy 48 模块、pip check、契约生成、TS/eslint、前端格式/构建通过。首轮 2 个 JSON/证据重试回归失败已修复并完整重跑；前端测试选择器错误修正。`test:browser` 2 passed，参考 v3/v2 分别 12/5 passed。
+- `scripts/build-windows.ps1` 构建 PyInstaller/Tauri/NSIS 成功；冻结 `smoke-engine.py` 与 PowerShell 5.1 `verify-windows-install.ps1 -EnginePath ...` 通过，均使用独立数据；不是安装器原生验收。Rust 未改，本轮未单独重跑 Rust 单测。
+- 新安装器保存在 `.local/releases/stability-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,442,557 bytes；SHA-256 `9BD990ED8B434E27A151C1F668282B6929181928F6CB1B713905D603D1569B62`。未替换用户当前窗口和安装版。
+- 敏感内容/路径与 Gitleaks 扫描通过，暂存区为空；文档本地链接、QA hash、环境 JSON、52 项设计资产校验和 `git diff --check` 通过。所有备份、原始模型数据、安装包/运行日志在本机忽略目录，未 Commit/Push。
+
+### 问题与下一步
+
+- 用户按验收步骤安装，反馈悬停/拖动、三块折叠与第二篇“继续未完成批次”的结果。本轮未使用 Computer Use，不把浏览器/单批结果当作原生或全文完成。图谱科学准确性、真实关系审核、干净机/安装执行和远端 CI 未验收。
+- 两项 symlink 权限跳过、Starlette 弃用/前端 chunk 提示保留；四份外部补充原文登记路径仍不可用。无新增 Phase 工作。
+
+## 2026-11-02 14:28 · DEV-0028 · 空占位字段兼容与有界超时恢复
+
+### 目标
+
+- 修复两个新任务的 findings_placeholder Schema 失败和请求超时，保留成功批次/原模型响应/用户知识；完成回归和可供用户安装的包，不进入下一 Phase。
+
+### 实际改动
+
+- 新 `extraction_normalization.py`，以及 `extraction_repair.py` / `extraction.py`：只规范化 ClaimDetail 中已观察到的 null 空占位键，不接受其他额外字段；保存规范化路径与原始响应。旧失败响应可直接复用，Schema/来源/证据/Store 仍强制校验，不增加模型调用。成功后清理旧错误状态。
+- `unified_extraction.py`、新运行模板 `P02_unified_section_extract_v3_2.md`：新任务持久化 Prompt 名称，旧任务保留旧签名与计划；新计划 8000 字符/64 证据目标、4–16 候选提示，表格缺列头不得猜测。按原文字数二分超时根批一次，子批再失败即停；旧已三次超时的同证据根批恢复时直接拆分。成功批次与成功子批不重发。
+- `providers.py` / `extraction.py`：记录连接/请求发送/响应头/响应体阶段与耗时，不打印密钥或原文；明确响应超时转交有界拆分，连接/429/5xx 等保留有限重试；未增加 90 秒/180 秒时限。
+- `KnowledgeReading.tsx`、`JobHistory.tsx`：展示空占位规范化和“超时后缩小”。新 `test_extraction_reliability.py` 14 项覆盖精确兼容、旧结果零调用续跑、拆分停止/恢复/幂等、超时阶段脱敏。
+- 更新 AGENTS、README、docs 导航、API/模型说明、v3 架构/Prompt/计划、progress、[ADR 0007](docs/adr/0007-extraction-null-markers-and-timeout-adaptation.md)与[验收记录](docs/extraction-reliability-verification-20261102.md)。Alembic 仍 0009、DTO 仍 unified-v3.1，无数据库迁移；既有改动全部保留。
+
+### 验证
+
+- 对实际 UNC 用户库做只读一致性备份，当前基线 156 条知识；前轮 183/405 是历史，不恢复覆盖。诊断确认 5 个 `findings_placeholder:null`，UI 摘要只列前 4 个；另一任务第 7 批 8371 字符/75 证据已三次约 90 秒超时。
+- 真实副本 Schema 任务恢复成功 4/4：原成功批及空标记失败响应均复用，只调用剩余两批，分别 88.656/45.219 秒、22,842/12,829 Token。原 156 条知识全列逐行相同、原 raw_output 保留、SQLite integrity/foreign_key 通过；未写回正式库。
+- 超时任务保留六批后根批拆分，进度 6/17；4185 字符/34 证据子批发送 0.032 秒，等待响应头 90.047 秒仍超时。新版 P02 与进一步减少候选/表格约束的同源实验也各一次超时，未运行其余批次。短连接请求 1.907 秒成功、138 Token；已知真实用量合计 35,809 Token，三次超时无供应商用量，不能当作零费用。没有宣称超时已修复完成。
+- 完整 `pwsh -NoProfile -File scripts/check-phase0.ps1` 通过：153 Python passed/2 skipped、37 React；Ruff/format、mypy 49 模块、pip check、契约、TS/eslint、前端构建通过。最后候选提示/旧错误清理/表格约束调整后 `pytest tests/engine/test_extraction_reliability.py tests/engine/test_extraction_repair.py tests/engine/test_extraction_refinement.py tests/engine/test_graph_v3.py -q`：44 passed。
+- 最终 `scripts/build-windows.ps1` 构建 PyInstaller/Tauri/NSIS 成功；最终冻结 `scripts/smoke-engine.py --executable ...` 与 PowerShell 5.1 `scripts/verify-windows-install.ps1 -EnginePath ...` 通过。PS 5.1 首次被主机执行策略在运行前拒绝，仅对本次子进程加 ExecutionPolicy Bypass 后通过；未改系统策略。图谱/Rust 源码未改，未重复交互/单测，Tauri release 编译通过。
+- 安装器保存于 `.local/releases/extraction-reliability-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,448,362 bytes，SHA-256 `446A533B287C19E3FDEBCC088B15854B932D5A37FFAC45F46307CB19BB9B0AF5`。未执行安装器、未替换用户窗口；最终报告及本地试验日志位于 `.local/extraction-reliability-20261102/`。
+- 收尾安全内容/Gitleaks 扫描 347 候选文件通过，暂存区为空；92 份 Markdown/327 个本地链接、QA hash、环境 JSON、52 项设计资产与 `git diff --check` 通过；4 份不可用外部原文明确排除。真实响应/论文/备份/运行日志/安装器均在本机忽略目录，不进入源码。未 Commit/Push。
+
+### 问题与下一步
+
+- Schema 故障已有真实恢复证明；当前真实模型在缩小批次后仍响应慢，尚不能保证第二个任务完成。短请求通过不能替代论文抽取；后续需在明确的模型/推理配置与调用预算下调查供应商生成延迟，避免不断重试产生未知费用。未静默改变用户配置，旧任务快照不自动随设置变更。
+- 按用户偏好未使用 Computer Use；先由用户安装本轮包，对 Schema 失败任务“继续未完成批次”并反馈。原生安装/卸载、干净 Windows、完整超时论文与真实关系审核仍未验收。
+- 两项 Windows symlink 权限跳过、Starlette/httpx 弃用和前端 chunk 提示保留；四份补充外部原文登记路径仍不可用，QA/历史来源保留。没有新增 Phase。
+
+## 2026-11-02 16:25 · DEV-0029 · 阅读辅助分层知识图谱设计与参考契约
+
+### 目标
+
+- 按用户讨论重设计 Schema/Prompt/docs：通用科研论文阅读辅助、论文直达知识图谱、核心结论组织支撑、完整证据与候选保留；追加要求取消流程中的人工审核。不开发下一 Phase。
+
+### 实际改动
+
+- 重写 docs/00–09，确立 indexing/extracting/integrating/selecting/publishing 自动工作流，Paper→核心 Claim→支撑、多对多单元、选择/知识/布局分版本；未选候选可检索，未来 Query/Wiki 逐段来源依赖。没有人工审核/待审/接受驳回步骤；历史状态保留，新流程只用自动有效性与显示角色。
+- docs/schemas/contracts.py 及 29 份 JSON Schema、sqlite_reference.sql：显式候选 union、SourceTable、CandidateRecord、KnowledgeUnit、GraphSelection、显示偏好、上下文守卫和未来问答/页面引用。引用类型、source hash/offset、条件状态、单元路径、完整选择快照与默认图谱拓扑可执行校验；正式运行仍 0009/unified-v3.1/P02 3.2。
+- docs/prompts 13 份重写（reading-1.0），新增 P12 论文整合、P13 核心选择。25 个虚构示例、index/README 与 78 项参考测试；不使用用户论文或模型数据。原 v3 52 项资产归档到 docs/archive/v3，保留旧契约测试和来源；不把旧报告反写为新验收。
+- 新 [ADR 0008](docs/adr/0008-reading-knowledge-graph.md)、[兼容映射](docs/migration/v3_to_reading_assessment.md)、[验证记录](docs/reading-design-verification-20261102.md)与变化摘要；更新根 AGENTS/README、导航、API 目标边界、progress、下一轮模板、清单哈希。
+
+### 验证
+
+- Conda researchgraph-studio：`python docs/schemas/contracts.py` 生成29；`pytest docs/tests -q` 78 passed，归档 v3/v2 分进程 12/5 passed。Ruff check/format 通过；生成资产与 Schema 相等、Prompt 输出契约对应、内存 SQLite FK/共享成员/保留旧节点用例通过。
+- 先前参考文件格式/冒号问题已经修正并重新执行，不把失败尝试计为成功。应用源码/运行 Prompt/API 生成文件未改；本轮未跑应用全量回归、真实模型、迁移或安装，不复用前轮成绩当本轮实测。
+- 收尾 201 个非文档文件哈希不变；当前 88/归档 52 项资产校验，归档 27 项非 Markdown 原字节一致；125 份 Markdown/420 本地链接、QA hash、环境 JSON 通过，四份外部不可用原文明示排除。440 候选文件路径/内容与 Gitleaks 及 diff 检查通过。本机忽略目录保存范围快照和日志；暂存区为空、未 Commit/Push。
+
+### 问题与下一步
+
+- 本轮 R0 设计交付，软件仍 P3/v3 自动建图质量迭代，M0–M5 核心已接入、M6 未全部验收。下一步 R1 审计/备份、加性持久化与旧 ID/历史状态/DTO 适配，随后 R2 候选抽取、R3 自动整合选择、R4 分层 UI、R5 真实验收；不进入 P4 Query/P5 Wiki。
+- 真实响应超时仍 6/17、真实科学关系边和安装/干净机仍有未验收项；参考 Schema 不等于科学准确或真实 Provider 兼容。模型预算/输出体积需在 R2/R3 真实验证。
+- 四份外部补充原文登记路径仍不可用，历史来源/QA 保留。用户现有知识、原始资料和安装版本未改。
 
 ## 后续条目模板
 

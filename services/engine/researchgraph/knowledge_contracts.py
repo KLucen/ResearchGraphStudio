@@ -42,9 +42,12 @@ class ReviewStatus(StrEnum):
 
 class Condition(StrictModel):
     dimension: str = Field(min_length=1)
+    dimension_zh: str | None = None
     value: str | None
+    value_zh: str | None = None
     value_type: Literal["text", "integer", "float", "boolean"] = "text"
     unit: str | None = None
+    unit_zh: str | None = None
     known_state: KnownState
     evidence_span_ids: list[str] = Field(default_factory=list)
 
@@ -67,6 +70,7 @@ class EvidenceReference(StrictModel):
 class ClaimDraft(StrictModel):
     local_ref: str = Field(min_length=1)
     statement: str = Field(min_length=10)
+    statement_zh: str | None = None
     origin: Literal[
         "author_claim",
         "authors_experimental_result",
@@ -86,16 +90,19 @@ class ClaimDraft(StrictModel):
     ]
     modality: Literal["asserted", "suggested", "conditional", "speculative", "negated", "unknown"]
     scope: str | None = None
+    scope_zh: str | None = None
     evidence: list[EvidenceReference] = Field(min_length=1)
     conditions: list[Condition] = Field(default_factory=list)
     method_local_refs: list[str] = Field(default_factory=list)
     experiment_local_ref: str | None = None
     limitations: list[str] = Field(default_factory=list)
+    limitations_zh: list[str] = Field(default_factory=list)
 
 
 class ConceptDraft(StrictModel):
     local_ref: str = Field(min_length=1)
     canonical_name: str = Field(min_length=1)
+    canonical_name_zh: str | None = None
     aliases: list[str] = Field(default_factory=list)
     evidence_span_ids: list[str] = Field(min_length=1)
 
@@ -103,18 +110,23 @@ class ConceptDraft(StrictModel):
 class MethodDraft(StrictModel):
     local_ref: str
     name: str
+    name_zh: str | None = None
     mechanism: str | None = None
+    mechanism_zh: str | None = None
     evidence_span_ids: list[str] = Field(min_length=1)
 
 
 class FindingDraft(StrictModel):
     local_ref: str
     statement: str
+    statement_zh: str | None = None
     experiment_local_ref: str | None = None
     metric_name: str | None = None
+    metric_name_zh: str | None = None
     value: str | None = None
     unit: str | None = None
     baseline: str | None = None
+    baseline_zh: str | None = None
     evidence_span_ids: list[str] = Field(min_length=1)
 
 
@@ -128,6 +140,14 @@ class ExperimentDraft(StrictModel):
     evidence_span_ids: list[str] = Field(min_length=1)
 
 
+class ResearchQuestionDraft(StrictModel):
+    local_ref: str
+    statement: str = Field(min_length=1)
+    statement_zh: str | None = None
+    origin: Literal["author_claim", "cited_claim"] = "author_claim"
+    evidence_span_ids: list[str] = Field(min_length=1)
+
+
 class ExtractionBatch(StrictModel):
     paper_id: str
     schema_version: str
@@ -137,6 +157,7 @@ class ExtractionBatch(StrictModel):
     claims: list[ClaimDraft] = Field(default_factory=list)
     findings: list[FindingDraft] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
+    research_questions: list[ResearchQuestionDraft] = Field(default_factory=list)
 
 
 class StructureSection(StrictModel):
@@ -162,8 +183,9 @@ class PaperOutline(StrictModel):
 
 class ExtractionRequest(StrictModel):
     document_version_id: str
-    provider: Literal["mock", "configured"] = "mock"
+    provider: Literal["mock", "configured", "project"] = "project"
     allow_network: bool = False
+    pipeline: Literal["legacy-v2", "unified-v3"] = "unified-v3"
 
 
 class ReviewRequest(StrictModel):

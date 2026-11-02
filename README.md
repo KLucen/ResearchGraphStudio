@@ -1,10 +1,12 @@
 # ResearchGraph Studio
 
-AI 辅助科研桌面工作台：实验条件约束的证据推理、人工知识审核与增量知识演化。
+辅助阅读、理解和整理科研论文的本地桌面产品：从论文证据构建知识图谱，支持原文回查与条件比较。
 
-当前完成 **Graph-Centric v2 P1 兼容补全与 P2 最小知识闭环**：继承 PDF 引用/托管导入、来源版本、任务恢复与稳定分页；增加只读 Zotero 批注、授权 Markdown 快照、论文结构、证据锚点、结构化抽取、知识卡片和人工审核历史。统一 KnowledgeStore 校验来源并写入 SQLite，API Schema 为 0005。离线 Mock 已用于流程验收；真实模型科学质量、真实 Zotero 批注和干净 Windows 仍待外部验收。实际结果见[实施进度](docs/progress.md)与[迁移评估](docs/migration/v1_to_v2_assessment.md)。
+当前目标采用 **v3.3 阅读辅助设计**：论文直接生成图谱，后台完成候选抽取、论文级整合与自动选择，默认“论文→关键结论→支撑知识”。没有人工审核步骤；原文、证据、模型输出与未选候选保留。入口见[设计导航](docs/README.md)。
 
-技术栈继续使用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5；未重做 P0，未进入 P3 跨论文推理。G0 保留用户放行记录，不等同于干净机实测。历史结果见 [Phase 1](docs/phase1-verification.md)和 [Phase 0](docs/phase0-verification.md)。
+**本轮仅完成 R0 规范与参考契约；新分层流程尚未接入软件。** 当前代码继承 P0–P2，处于 P3/v3 M0–M5 核心后的质量迭代；M6 仍有真实抽取超时和安装等未验收项。运行数据库 0009、抽取 unified-v3.1、P02 3.2。下一步 R1 持久化及旧数据适配，随后 R2–R5，暂不进入 Query/Wiki 阶段。详见[实施进度](docs/progress.md)与[迁移计划](docs/06_development_migration_plan.md)。
+
+技术栈继续使用 Tauri 2 + React/TypeScript、Python/FastAPI Sidecar、SQLite/FTS5；继承 P0–P2 的导入、证据、审核与数据。G0 保留用户放行记录，不等同于干净机实测。历史结果见 [Phase 1](docs/phase1-verification.md)和 [Phase 0](docs/phase0-verification.md)。
 
 开发目录：`C:\Users\KLucen\Desktop\AI科研知识推理平台`。开发远端：[KLucen/ResearchGraphStudio](https://github.com/KLucen/ResearchGraphStudio)，本地 origin 已关联。
 
@@ -34,28 +36,43 @@ pwsh -File .\scripts\build-windows.ps1
 
 `environment.yml` 表达 Conda + pip 依赖意图；`conda-win-64.lock` 锁定基础解释器，`requirements-win-64.lock` 锁定 Python 包及哈希，`pnpm-lock.yaml`、Cargo.lock 和 rust-toolchain.toml 锁定前端与 Rust。优先用上面的两步方式复现 Python 环境。
 
-## 论文阅读与抽取
+## 现行软件：论文阅读与抽取
 
-打开项目，通过原生选择器导入 PDF，展开“论文结构与知识”。默认 Mock 只摘录原文以验证流程；点击知识卡片回查证据与 PDF 块高亮。修改内容后填写理由并保存修订，再接受或驳回当前版本。来源验证与人工审核分开；作者主张和人工接受均不等于已证明的科学事实。缺失条件保留 unknown。
+打开项目，选择 Zotero 附件开始建图，或通过原生选择器导入 PDF；论文知识概览展示真实模型生成的知识与抽取进度，点击卡片回查证据。现行版本保留旧编辑/审核接口供历史兼容；新设计流程移除审核操作。来源可定位不等于作者主张已被科学证明。缺失条件保留 unknown。
 
-真实模型使用兼容 OpenAI Chat Completions 的文本接口，在启动桌面程序的环境中配置 `RGS_MODEL_BASE_URL`（例如本地服务的 `http://127.0.0.1:8000/v1`）、`RGS_MODEL_NAME` 和可选 `RGS_MODEL_API_KEY`。远端必须 HTTPS；不跟随重定向，不使用系统代理。随后在阅读区选择“已配置模型”并明确同意发送当前论文片段。密钥不写数据库、日志或 Git；私人笔记不进入抽取输入。每次调用保存模型、Prompt 哈希、输入哈希、参数、原始结果和状态。失败/取消可在任务历史重试；已成功的 P02 批次复用，失败批次不写知识。
+真实模型在全局“设置与诊断”中管理，供所有项目共用，支持 OpenAI、兼容 API和本地模型；产品入口仅使用真实模型。保存后测试连接并选择 Extraction/Reasoning 角色；API Key 保存在 Windows 凭据管理器，数据库仅保存随机引用。阅读区使用全局 Extraction 模型，明确同意发送当前论文片段后抽取。参数、端点和旧环境变量入口见[模型配置说明](docs/model-configuration.md)。每次抽取保存模型、Prompt 哈希、输入哈希、参数、原始结果和状态；私人笔记不进入输入。默认统一 P02 合并相邻段落、每批一次抽取多类知识并生成中英标签；正常界面不再提供旧基线或 Mock 选择器。失败/取消可在任务历史重试；已提交批次和收到但未提交的合法响应可复用。界面展示批次状态、模型调用与供应商 Token；未知费用明确显示未知。中文缺失允许英文回退，详情可按需补译，补译不修改科学内容。
 
-Zotero 仅使用本机 Local API 读取条目、附件位置与高亮/文字批注，不读写 Zotero SQLite。PDF 仍需原生选择器授权，关联批注前校验路径和 SHA-256；无法唯一匹配的批注显示“锚点未解析”。“只读来源接入”可授权笔记目录并扫描 Markdown，保存来源、哈希和版本快照，不修改原笔记，不实现 Wiki 发布。
+“文献与阅读”分为导入论文、任务记录、项目文献三个可折叠板块，展开状态按项目保留。导入论文提供同级“本地 PDF / Zotero”入口；任务区显示阶段、批次、失败原因和继续入口；项目文献包含列表、知识概览、来源证据与模型记录。收起不清空当前选择。Obsidian 位于独立“笔记来源”，授权目录仅扫描只读 Markdown 快照，不实现 Wiki 发布。
 
-0005 是加性迁移，启动升级前自动备份旧库。原 Paper/附件修订/文本块及 API 保留；原文使用 identity-v1 字符映射，黄色只表示解析块范围。暂不包含 OCR、精确逐字定位、跨页单一 span、完整章节语义、关系推理和 Wiki。
+Zotero 仅使用本机 Local API 读取条目、附件位置与高亮/文字批注，不读写 Zotero SQLite。在“导入论文 → Zotero”连接后选择 Collection、搜索论文、勾选 PDF 或全选本页可用附件，选择“解析后直接建图”后使用全局抽取模型开始处理，默认只读引用原 PDF。真实模型必须先勾选原文发送许可；也可仅解析、稍后抽取。每附件独立显示任务阶段、失败重试和去重结果；原条目与附件关联保留。批注无法唯一匹配时显示“锚点未解析”。
+
+局部关系引用缺失会报告具体路径，并最多执行一次受限引用修复；原始响应、修复响应及关联运行编号均保留。修复不允许改写知识正文、证据、关系类型或已有合法端点，之后仍经过完整校验和 Knowledge Store。旧失败任务可复用此类响应，成功批次不重跑。详见 [图谱与抽取稳定性验收](docs/stability-verification-20261102.md)。
+
+现行抽取使用 P02 3.2，按 8000 字符/64 证据目标组织批次；旧任务保留原 Prompt 与计划。模型多出的 `findings_placeholder:null` 可在完整审计下移除，其他未知/非空字段仍拒绝；旧失败响应可复用。响应等待超时会缩小尚未完成的根批一次，子批仍失败就停下，成功批次保留，不增加超时上限。实际结果见[抽取可靠性验收](docs/extraction-reliability-verification-20261102.md)。
+
+0005–0009 为兼容迁移，启动升级前自动备份旧库；0006 增加模型配置，0007 将配置共享到全局并保留旧凭据引用和项目选择记录。0008 增加推理尝试、关系/实体对齐候选、语义审核和 FTS5 索引。0009 仅新增显示元数据、来源结构边和布局；原 Paper/附件修订/文本块及 API 保留。原文使用 identity-v1 字符映射，黄色只表示解析块范围；暂不包含 OCR、精确逐字定位、跨页单一 span、完整章节语义和 Wiki。全局导航可折叠，状态在本机重启后保留。
+
+## 现行软件：跨论文关系与图谱
+
+项目内切换到“图谱与比较”，默认显示论文、概念、方法、主张、研究问题五类节点；每页最多 60 个，可按论文/类型/关键词筛选，通过详情中的“聚焦邻域”查看 1–3 层关联。拖动时力导向实时调整邻居，双击固定/解除固定；停止后自动保存位置与缩放。节点显示为点，连线半透明，悬停高亮邻居。单击查看完整英文/中文、实验条件和原文证据，在 Zotero 中打开源条目。已保存的旧知识无需重跑模型即可显示。
+
+打开“Claim Comparator / 实体对齐”复用旧比较流程，选择主张、概念或方法节点，使用关键词和 top-k 检索其他论文候选。Comparator 显示当前条件节点、双方来源状态、原文和 PDF 高亮。选择全局 Reasoning 模型并同意发送双方证据后，主张执行 P04→P05，概念/方法执行 P03。比较器显示条件、证据和模型记录；图谱统一由点与边呈现。现行软件的旧审核控件不属于新版自动流程，后续 UI 接入时移除。
+
+推理写入统一 KnowledgeStore，引用双方已校验证据，保存模型原始输出、条件快照、历史记录和图版本；来源或条件变化后标为失效。NO_DECISION 只有历史记录；实体对齐候选不会物理合并知识。FTS5/BM25 召回不是语义同一性判断。完整增量演化、Query 与 Wiki 尚未实现。
 
 ## 设计与过程记录
 
-- [产品设计 v2](docs/01_product_design.md)、[开发计划 v2](docs/02_development_plan.md)、[知识契约与 Prompt](docs/03_knowledge_schema_and_prompts.md)
-- [迁移评估](docs/migration/v1_to_v2_assessment.md)、[统一引擎 ADR](docs/adr/0001-unified-knowledge-engine.md)、[实际进度](docs/progress.md)；[旧开发计划 v0.4](docs/development-plan-v0.4.md)仅保留历史
-- [需求基线](docs/design/requirements-baseline.md)、[原文 QA](QA.md)、[补充材料登记](docs/design/source-register.md)
-- [领域模型](docs/design/domain-model.md)、[Tauri 决策](docs/decisions/0002-tauri-evidence-workbench.md)、[工具/Wiki 决策](docs/decisions/0003-controlled-knowledge-evolution.md)、[来源检查决策](docs/decisions/0005-source-check-relocation.md)、[任务历史与临时工作区决策](docs/decisions/0006-job-history-workspace-recovery.md)
+- [当前文档导航](docs/README.md)、[v3.3 产品设计](docs/01_product_design.md)、[v3.3 实施计划](docs/06_development_migration_plan.md)、[v3.3 Schema](docs/03_schema_design.md)与 [Prompt 规范](docs/05_prompt_engineering.md)
+- [文档整理映射与待澄清项](docs/migration/v3-documentation-map.md)、[v3 基线 ADR](docs/adr/0003-v3-documentation-baseline.md)、[历史文档索引](docs/archive/README.md)
+- [迁移评估](docs/migration/v1_to_v2_assessment.md)、[统一引擎 ADR](docs/adr/0001-unified-knowledge-engine.md)、[实际进度](docs/progress.md)；[旧开发计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)仅保留历史
+- [历史需求基线](docs/design/requirements-baseline.md)、[原文 QA](QA.md)、[补充材料登记](docs/design/source-register.md)
+- [早期领域约定](docs/design/domain-model.md)、[Tauri 决策](docs/decisions/0002-tauri-evidence-workbench.md)、[工具/Wiki 决策](docs/decisions/0003-controlled-knowledge-evolution.md)、[来源检查决策](docs/decisions/0005-source-check-relocation.md)、[任务历史与临时工作区决策](docs/decisions/0006-job-history-workspace-recovery.md)
 - [已实现 API](docs/api.md)、[Phase 0 验证与待验收项](docs/phase0-verification.md)、[环境报告](docs/environment-check.md)
 - [开发日志](DEVELOPMENT_LOG.md)、[实验计划](experiments/README.md)
 
-新版后续 P3 入口为跨论文条件化推理与图谱探索；Query、Lint、Wiki、增量演化按后续阶段推进，本轮停止于 P2。设计 v2 不代表软件发布版本已达到 2.0，工期与效果指标均为目标。
+历史 v3 增量见 [v2→v3 工程审计](docs/migration/v2_to_v3_assessment.md)和 [ADR 0004](docs/adr/0004-v3-projection-and-unified-extraction.md)。DEV-0026 在真实库副本上完成 4 次真实 API 续跑，旧知识不变；新分批规划将原 48 批样本合并为 16 批。完整结果及有限验收范围见 [历史优化验收](docs/refinement-verification-20261102.md)。Query、Lint、Wiki 仍属后续范围，未自动开始。设计版本不等于应用发布版本；当前应用仍为 0.0.1，工期与效果指标均为目标。
 
-Zotero 安装程序为 `D:\Zotero\zotero.exe`，此目录不代表文献数据目录。Zotero 管原文题录，ResearchGraph 管证据/审核/知识版本，Obsidian 管个人笔记及授权 Wiki。MCP 不是前置依赖。
+Zotero 安装程序为 `D:\Zotero\zotero.exe`，此目录不代表文献数据目录。Zotero 管原文题录，ResearchGraph 管证据/候选/知识版本，Obsidian 管个人笔记及授权 Wiki。MCP 不是前置依赖。
 
 Git HTTPS 不通时，可使用已验证的官方 SSH 443 通道，保持 origin 和全局配置不变：
 
@@ -63,4 +80,4 @@ Git HTTPS 不通时，可使用已验证的官方 SSH 443 通道，保持 origin
 git -c 'url.ssh://git@ssh.github.com:443/.insteadOf=https://github.com/' -c 'core.sshCommand=ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=10' fetch origin
 ```
 
-按用户 2026-10-28 的授权，每轮开发通过相关检查、记录日志后自动提交并普通推送到 `origin/main`。不强制覆盖远端；若 CI 失败，继续修复并推送。CI 在 Windows 构建后，使用另一个 runner 安装产物并运行无需开发工具的 PowerShell 验收；只修改 Markdown/docs 时由本地文档检查把关，不重复构建。
+用户本轮 P3 指令覆盖旧自动推送授权：**未经新的明确授权不得 Push**。任何 Commit/Push 前须检查实际文件内容、暂存差异和 Gitleaks 结果，详见[敏感信息检查](docs/security-checks.md)。现有 CI 会在 Windows 构建后，由另一 runner 安装产物并运行 PowerShell 验收；本轮尚未推送或运行远端 CI。

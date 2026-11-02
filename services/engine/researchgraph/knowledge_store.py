@@ -22,6 +22,7 @@ from researchgraph.knowledge_contracts import (
     MethodDraft,
     NodeView,
     PaperOutline,
+    ResearchQuestionDraft,
     ReviewRequest,
 )
 from researchgraph.knowledge_models import (
@@ -45,6 +46,7 @@ NODE_TYPES: dict[str, type[BaseModel]] = {
     "experiment": ExperimentDraft,
     "condition": Condition,
     "finding": FindingDraft,
+    "research_question": ResearchQuestionDraft,
 }
 
 
@@ -92,6 +94,28 @@ class KnowledgeStore:
 
     def __init__(self, session: Session):
         self.session = session
+
+    def apply_translation(
+        self, candidate: dict[str, Any], snapshot: dict[str, Any], run_id: str, key: str
+    ) -> dict[str, Any]:
+        from researchgraph.translation import apply_translation
+
+        return apply_translation(self, candidate, snapshot, run_id, key)
+
+    def apply_unified(self, **request: Any) -> dict[str, Any]:
+        from researchgraph.unified_store import apply_unified
+
+        return apply_unified(self, **request)
+
+    def apply_reasoning(self, **request: Any) -> dict[str, Any]:
+        from researchgraph.reasoning_store import ReasoningMutations
+
+        return ReasoningMutations(self).apply(**request)
+
+    def review_semantic(self, request: Any, key: str) -> Any:
+        from researchgraph.reasoning_store import ReasoningMutations
+
+        return ReasoningMutations(self).review(request, key)
 
     def import_annotations(
         self,
@@ -297,7 +321,15 @@ class KnowledgeStore:
         run = self.session.get(ModelRun, model_run_id)
         if paper is None or run is None or run.document_version_id != version_id:
             raise KnowledgeError("MODEL_RUN_MISMATCH", "模型运行来源不匹配")
-        request_hash = digest({"version": version_id, "batch": batch.model_dump(mode="json")})
+        request_hash = digest(
+            {
+                "version": version_id,
+                "batch": batch.model_dump(
+                    mode="json",
+                    exclude={"research_questions"} if not batch.research_questions else set(),
+                ),
+            }
+        )
         previous = self.session.get(KnowledgeOperation, idempotency_key)
         if previous:
             if previous.request_hash != request_hash:
@@ -315,6 +347,7 @@ class KnowledgeStore:
             ("experiment", batch.experiments),
             ("claim", batch.claims),
             ("finding", batch.findings),
+            ("research_question", batch.research_questions),
         ]
         for kind, items in draft_groups:
             drafts.extend((kind, item) for item in items)
@@ -359,7 +392,11 @@ class KnowledgeStore:
                             ).model_dump(mode="json")
                         )
             # Exact local resolution only; no semantic entity merge in P2.
-            identity = {key: value for key, value in data.items() if key != "local_ref"}
+            identity = {
+                key: value
+                for key, value in data.items()
+                if key != "local_ref" and not key.endswith("_zh")
+            }
             if "method_local_refs" in identity:
                 identity["method_local_refs"] = [refs[r] for r in identity["method_local_refs"]]
             if identity.get("experiment_local_ref"):
@@ -401,7 +438,12 @@ class KnowledgeStore:
                 {"document_version_id": version_id, "created_ids": created},
                 model_run_id=model_run_id,
             )
-        response = {"node_ids": saved, "created_ids": created, "new_revision": revision}
+        response = {
+            "node_ids": saved,
+            "created_ids": created,
+            "new_revision": revision,
+            "local_refs": refs,
+        }
         self.session.add(
             KnowledgeOperation(key=idempotency_key, request_hash=request_hash, response=response)
         )
@@ -556,6 +598,7 @@ class KnowledgeStore:
             )
             node.origin = str(data.get("origin", node.origin))
             node.value, node.unit = data.get("value"), data.get("unit")
+            node.dimension = data.get("dimension")
             node.known_state = data.get("known_state")
             node.review_status = "needs_review"
             spans = self.session.scalars(

@@ -1,0 +1,60 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "paragraph_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Paragraph Id",
+      "type": "string"
+    },
+    "page_index": {
+      "minimum": 0,
+      "title": "Page Index",
+      "type": "integer"
+    },
+    "start_offset": {
+      "minimum": 0,
+      "title": "Start Offset",
+      "type": "integer"
+    },
+    "end_offset": {
+      "exclusiveMinimum": 0,
+      "title": "End Offset",
+      "type": "integer"
+    },
+    "quote": {
+      "minLength": 1,
+      "title": "Quote",
+      "type": "string"
+    },
+    "text_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Text Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "document_version_id",
+    "paragraph_id",
+    "page_index",
+    "start_offset",
+    "end_offset",
+    "quote",
+    "text_sha256"
+  ],
+  "title": "EvidenceSpan",
+  "type": "object"
+}

@@ -1,5 +1,7 @@
 # ADR v2-0001：保留旧工程的统一 Knowledge Engine
 
+> v2 实施决策记录：下文范围与编号对应当时版本。后续全局安全配置和 P3 见 [ADR v2-0002](0002-phase3-models-and-reasoning.md)，当前 v3 文档基线见 [ADR 0003](0003-v3-documentation-baseline.md)；仍有效的数据与证据约束继续保留。
+
 日期：2026-11-01（Asia/Shanghai）。状态：采用。依据：新版产品、开发计划和知识契约；范围 P1 兼容补全与 P2。
 
 1. 保留 Tauri/React/FastAPI、`services/engine/researchgraph`、Conda `researchgraph-studio`、SQLite/Alembic；不新增服务、uv、Neo4j 或多 Agent。

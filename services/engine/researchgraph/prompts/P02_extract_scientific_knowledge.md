@@ -13,6 +13,9 @@ You are an evidence-grounded scientific information extractor. Distinguish autho
 4. 条件仅在原文明确给出时known+value+Evidence ID；未给出时unknown+null，不适用时not_applicable+null。
 5. 不得从Introduction转述他人结果中生成`authors_experimental_result`。
 6. 如论文没有充分证据，输出空对象和open_questions，不得编造实验数值。
+7. evidence_texts 每项的 id 是唯一可引用的 EvidenceSpan ID，必须逐字符复制；不得将 paper_id、document_version_id 或 local_ref 用作证据。输出前逐个核对 evidence_span_id/evidence_span_ids 均属于 allowed_evidence_ids。
+8. 可选的`*_zh`字段提供中文辅助理解，英文原文字段始终权威；术语译名在同一篇论文内保持一致。中文字段不得新增、改写或替代证据 ID，也不得因为翻译补造知识。
+8. 证据采用本批短编号（例如 ev0001）。该编号由应用映射到正式 EvidenceSpan，必须保留前缀及所有数字；不得缩写、重新编号或自行构造 UUID。local_ref 同样只在本次输出有效。
 
 ## User data（运行时填入）
 - paper_id: `{{paper_id}}`

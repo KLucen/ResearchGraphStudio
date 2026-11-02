@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "relation": {
+          "title": "Relation",
+          "type": "string"
+        },
+        "epistemic_status": {
+          "enum": [
+            "source_reported",
+            "model_inferred",
+            "user_confirmed"
+          ],
+          "title": "Epistemic Status",
+          "type": "string"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus"
+        },
+        "is_dashed": {
+          "title": "Is Dashed",
+          "type": "boolean"
+        },
+        "detail_ref": {
+          "title": "Detail Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "target",
+        "relation",
+        "epistemic_status",
+        "review_status",
+        "is_dashed",
+        "detail_ref"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "enum": [
+            "project",
+            "paper",
+            "concept",
+            "question",
+            "local"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "depth": {
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Depth",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "scope",
+        "id",
+        "depth"
+      ],
+      "title": "GraphFilter",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/NodeKind"
+        },
+        "label_zh": {
+          "title": "Label Zh",
+          "type": "string"
+        },
+        "label_en": {
+          "title": "Label En",
+          "type": "string"
+        },
+        "detail_ref": {
+          "title": "Detail Ref",
+          "type": "string"
+        },
+        "source_status": {
+          "$ref": "#/$defs/SourceStatus"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus"
+        },
+        "knowledge_origin": {
+          "$ref": "#/$defs/KnowledgeOrigin"
+        },
+        "badges": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Badges",
+          "type": "array"
+        },
+        "size": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Size",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label_zh",
+        "label_en",
+        "detail_ref",
+        "source_status",
+        "review_status",
+        "knowledge_origin"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "KnowledgeOrigin": {
+      "enum": [
+        "paper_author",
+        "citation_report",
+        "user",
+        "model"
+      ],
+      "title": "KnowledgeOrigin",
+      "type": "string"
+    },
+    "NodeKind": {
+      "enum": [
+        "Paper",
+        "Concept",
+        "Method",
+        "Claim",
+        "ResearchQuestion"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "unreviewed",
+        "accepted",
+        "edited",
+        "rejected",
+        "superseded"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "SourceStatus": {
+      "enum": [
+        "anchored",
+        "needs_evidence",
+        "source_unavailable",
+        "invalid_anchor"
+      ],
+      "title": "SourceStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "graph_revision": {
+      "minimum": 0,
+      "title": "Graph Revision",
+      "type": "integer"
+    },
+    "filter": {
+      "$ref": "#/$defs/GraphFilter"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/GraphNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/GraphEdge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "has_more": {
+      "title": "Has More",
+      "type": "boolean"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    }
+  },
+  "required": [
+    "project_id",
+    "graph_revision",
+    "filter",
+    "nodes",
+    "edges",
+    "has_more"
+  ],
+  "title": "GraphProjection",
+  "type": "object"
+}

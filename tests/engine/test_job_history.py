@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from researchgraph import ingest
 from researchgraph.models import Job
-from researchgraph.storage import make_engine, migrate
+from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -71,7 +71,7 @@ def test_keyset_history_keeps_order_across_new_jobs_and_retry(tmp_path):
             assert api.get(f"/api/v1/projects/{project}/jobs?{query}").status_code == 422
 
 
-def test_observed_progress_survives_cancel_and_resets_on_retry(tmp_path, monkeypatch):
+def test_observed_progress_survives_cancel_and_retry_keeps_batch_result(tmp_path, monkeypatch):
     original = subprocess.Popen
 
     def slow_child(command, **kwargs):
@@ -102,8 +102,18 @@ def test_observed_progress_survives_cancel_and_resets_on_retry(tmp_path, monkeyp
         )
     with client(tmp_path) as api:
         assert api.get(f"/api/v1/jobs/{job['id']}").json()["stage"] == "parsing"
+        with Session(api.app.state.engine) as session, session.begin():
+            persisted = session.get(Job, job["id"])
+            persisted.result = {
+                "document_version_id": "version",
+                "completed_batches": "1",
+                "total_batches": "7",
+                "batches": [{"index": 0, "status": "succeeded"}],
+            }
         retry = post(api, f"/jobs/{job['id']}/retry", key="progress-retry").json()
         assert retry["status"] == "queued" and retry["stage"] is None
+        assert retry["result"]["completed_batches"] == "1"
+        assert retry["result"]["batches"][0]["status"] == "succeeded"
 
 
 def test_upgrade_0003_keeps_jobs_and_old_idempotent_responses(tmp_path):
@@ -140,7 +150,7 @@ def test_upgrade_0003_keeps_jobs_and_old_idempotent_responses(tmp_path):
 
     assert JobView.model_validate(json.loads(json.dumps(old))).stage is None
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == SCHEMA_HEAD
         assert connection.exec_driver_sql(
             "SELECT name FROM sqlite_master WHERE name='ix_jobs_project_history'"
         ).fetchone()

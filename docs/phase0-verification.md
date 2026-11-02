@@ -1,6 +1,6 @@
 # Phase 0 交付与验证
 
-更新时间：2026-10-29（Asia/Shanghai）。产品探针版本 0.0.1。完整范围以[计划 v0.4](development-plan-v0.4.md)为准。
+更新时间：2026-10-29（Asia/Shanghai）。产品探针版本 0.0.1。完整范围以[计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)为准。
 
 **流程状态：用户于 2026-10-29 明确决定 G0 默认通过，已放行 Phase 1。** 依据 [ADR 0004](decisions/0004-g0-waiver-phase1.md)。下文“未执行”描述真实测试覆盖，不再作为阻塞开发的关卡。
 

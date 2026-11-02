@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Header, Query
 from pydantic import Field, ValidationError
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, select, true
 from sqlalchemy.orm import Session
 
 from researchgraph.integrations import ZoteroAdapter, safe_root
@@ -177,7 +177,9 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             )
 
     @app.get("/api/v1/revisions/{version_id}/knowledge", response_model=KnowledgeList)
-    def knowledge(version_id: str) -> KnowledgeList:
+    def knowledge(version_id: str, include_test_data: bool = True) -> KnowledgeList:
+        from researchgraph.knowledge_visibility import production_knowledge
+
         with Session(engine()) as session:
             version = session.get(AttachmentRevision, version_id)
             paper = session.get(Paper, version.paper_id) if version else None
@@ -189,6 +191,7 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                     for n in session.scalars(
                         select(KnowledgeNode)
                         .where(KnowledgeNode.document_version_id == version_id)
+                        .where(true() if include_test_data else production_knowledge())
                         .order_by(KnowledgeNode.created_at, KnowledgeNode.id)
                     )
                 ],
@@ -229,22 +232,33 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     @app.post("/api/v1/knowledge/extract", response_model=JobView, status_code=202)
     def extract(body: ExtractionRequest, idempotency_key: Key) -> JobView:
         try:
-            provider_for(body.provider, body.allow_network)
+            if body.provider != "project":
+                provider_for(body.provider, body.allow_network)
         except ValueError as error:
             raise KnowledgeError("PROVIDER_NOT_CONFIGURED", str(error)) from None
         with Session(engine()) as session, session.begin():
-            previous = remembered(session, "extract:" + idempotency_key, body.model_dump())
+            request_body = body.model_dump(
+                exclude={"pipeline"} if body.pipeline == "legacy-v2" else set()
+            )
+            previous = remembered(session, "extract:" + idempotency_key, request_body)
             if previous:
                 return JobView.model_validate(previous)
             version = session.get(AttachmentRevision, body.document_version_id)
             paper = session.get(Paper, version.paper_id) if version else None
             if paper is None:
                 raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
+            payload = body.model_dump()
+            if body.provider == "project":
+                from researchgraph.model_settings import from_snapshot, snapshot_for
+
+                snapshot = snapshot_for(session, paper.project_id, "extraction")
+                from_snapshot(snapshot, Path(str(engine().url.database)).parent, body.allow_network)
+                payload["model_snapshot"] = snapshot
             job = Job(
                 id=str(uuid4()),
                 project_id=paper.project_id,
                 kind="knowledge_extract",
-                payload=body.model_dump(),
+                payload=payload,
                 status="queued",
                 attempt=0,
                 created_at=now(),
@@ -252,9 +266,7 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             )
             session.add(job)
             response = JobView.model_validate(job)
-            remember(
-                session, "extract:" + idempotency_key, body.model_dump(), response.model_dump()
-            )
+            remember(session, "extract:" + idempotency_key, request_body, response.model_dump())
             return response
 
     @app.post("/api/v1/knowledge/reviews", response_model=NodeView)

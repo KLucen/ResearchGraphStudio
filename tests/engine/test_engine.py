@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from filelock import Timeout
 from researchgraph.app import create_app
 from researchgraph.models import Event, Job
-from researchgraph.storage import make_engine, migrate
+from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,18 @@ def client(path: Path, worker: bool = False) -> TestClient:
 
 
 def post(api: TestClient, path: str, body: dict | None = None, key: str = "test-key-123"):
+    if path.endswith("/graph/projection") and body is not None:
+        body = {"include_test_data": True, **body}
+    # Offline fixtures are explicit test inputs, never production API defaults.
+    if body is not None and (
+        path == "/knowledge/extract"
+        or path.endswith("/infer")
+        or path.endswith("/graph/translate")
+        or path.endswith("/zotero-imports")
+    ):
+        body = {"provider": "mock", **body}
+        if path == "/knowledge/extract":
+            body = {"pipeline": "legacy-v2", **body}
     return api.post("/api/v1" + path, json=body, headers={"Idempotency-Key": key})
 
 
@@ -122,9 +134,9 @@ def test_migration_failure_rolls_back_and_preserves_backup(tmp_path):
     source = Path(__file__).parents[2] / "services/engine/researchgraph/migrations"
     migrations = tmp_path / "migrations"
     shutil.copytree(source, migrations)
-    (migrations / "versions/0006_failure.py").write_text(
+    (migrations / "versions/9999_failure.py").write_text(
         "from alembic import op\nimport sqlalchemy as sa\n"
-        "revision='0006'\ndown_revision='0005'\n"
+        f"revision='9999'\ndown_revision='{SCHEMA_HEAD}'\n"
         "def upgrade():\n    op.create_table('half_written',sa.Column('id',sa.Integer()))\n"
         "    raise RuntimeError('injected migration failure')\n",
         encoding="utf-8",
@@ -134,7 +146,7 @@ def test_migration_failure_rolls_back_and_preserves_backup(tmp_path):
         migrate(engine, data, migrations)
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT name FROM projects")) == "Keep me"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == SCHEMA_HEAD
         assert not connection.scalar(
             text("SELECT name FROM sqlite_master WHERE name='half_written'")
         )

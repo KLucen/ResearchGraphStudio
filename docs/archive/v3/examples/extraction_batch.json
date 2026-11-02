@@ -1,0 +1,70 @@
+{
+  "document_version_id": "dv-demo-a",
+  "chunk_id": "chunk-results-a",
+  "items": [
+    {
+      "local_ref": "concept-shared-memory",
+      "kind": "Concept",
+      "label_zh": "共享记忆",
+      "label_en": "Shared memory",
+      "summary_zh": "多个智能体共同访问的任务记忆机制。",
+      "summary_en": "A task memory shared across multiple agents.",
+      "evidence_ids": ["ev-a-1"],
+      "origin": "paper_author",
+      "claim_detail": null
+    },
+    {
+      "local_ref": "method-1",
+      "kind": "Method",
+      "label_zh": "共享记忆机制",
+      "label_en": "Shared memory method",
+      "summary_zh": "在所研究的合作任务中向智能体提供共同记忆。",
+      "summary_en": "Provides agents with a shared memory in the studied cooperative task.",
+      "evidence_ids": ["ev-a-1"],
+      "origin": "paper_author",
+      "claim_detail": null
+    },
+    {
+      "local_ref": "claim-1",
+      "kind": "Claim",
+      "label_zh": "共享记忆改善合作表现",
+      "label_en": "Memory improves cooperation",
+      "summary_zh": "作者报告共享记忆在所测试合作任务中提高了任务成功率。",
+      "summary_en": "The authors report improved task success with shared memory under the tested cooperative setting.",
+      "evidence_ids": ["ev-a-1"],
+      "origin": "paper_author",
+      "claim_detail": {
+        "statement_en": "Shared memory improved task success in the evaluated cooperative setting.",
+        "statement_zh": "在所评估的合作任务条件下，共享记忆提高了任务成功率。",
+        "modality": "conditional",
+        "scope_en": "The evaluated cooperative setting",
+        "scope_zh": "所评估的合作任务设置",
+        "conditions": [
+          {"dimension": "task_type", "state": "known", "value_en": "cooperative", "value_zh": "合作", "unit": null, "evidence_ids": ["ev-a-1"]},
+          {"dimension": "agent_count", "state": "known", "value_en": "3", "value_zh": "3", "unit": "agents", "evidence_ids": ["ev-a-1"]},
+          {"dimension": "dataset", "state": "unknown", "value_en": null, "value_zh": null, "unit": null, "evidence_ids": []}
+        ],
+        "findings": [
+          {"finding_en": "Higher task success than the compared baseline", "finding_zh": "相较对照设置，任务成功率更高", "metric_en": "task success", "metric_zh": "任务成功率", "reported_value": null, "baseline": "no shared memory", "unit": null, "evidence_ids": ["ev-a-1"]}
+        ]
+      }
+    },
+    {
+      "local_ref": "question-1",
+      "kind": "ResearchQuestion",
+      "label_zh": "共享记忆何时有效？",
+      "label_en": "When is shared memory useful?",
+      "summary_zh": "研究共享记忆在协作任务中的效果。",
+      "summary_en": "Investigates shared memory effects in cooperative tasks.",
+      "evidence_ids": ["ev-a-1"],
+      "origin": "paper_author",
+      "claim_detail": null
+    }
+  ],
+  "links": [
+    {"source_local_ref": "claim-1", "target_local_ref": "method-1", "relation": "USES_METHOD", "evidence_ids": ["ev-a-1"]},
+    {"source_local_ref": "claim-1", "target_local_ref": "concept-shared-memory", "relation": "INVOLVES_CONCEPT", "evidence_ids": ["ev-a-1"]},
+    {"source_local_ref": "question-1", "target_local_ref": "concept-shared-memory", "relation": "INVOLVES_CONCEPT", "evidence_ids": ["ev-a-1"]}
+  ],
+  "warnings": []
+}

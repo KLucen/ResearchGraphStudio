@@ -22,12 +22,18 @@ const stages: Record<NonNullable<Job["stage"]>, string> = {
   diagnostics: "检查数据库",
   outlining: "识别论文结构",
   extracting: "抽取带证据的知识",
+  resolving: "分析实体对齐候选",
+  comparing: "比较实验条件",
+  reasoning: "推理候选关系",
 };
 const kinds: Record<string, string> = {
+  translation_repair: "显示补译",
   pdf_import: "PDF 导入",
   source_check: "来源检查",
   source_relocate: "重新定位",
   knowledge_extract: "知识抽取",
+  knowledge_reason: "知识推理",
+  zotero_import: "Zotero 导入",
 };
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -92,6 +98,69 @@ export function JobHistory({
                 {job.status === "running" && job.stage && (
                   <p className="task-stage">{stages[job.stage]}…</p>
                 )}
+                {Boolean(job.result?.total_batches) && (
+                  <p className="task-stage">
+                    已保存 {String(job.result?.completed_batches ?? 0)} /{" "}
+                    {String(job.result?.total_batches)} 个抽取批次
+                  </p>
+                )}
+                {Array.isArray(job.result?.batches) && (
+                  <details>
+                    <summary>批次详情（含拆分恢复）</summary>
+                    <div className="batch-statuses" aria-label="抽取批次状态">
+                      {(
+                        job.result?.batches as Array<{
+                          index: number;
+                          status: string;
+                          error?: string;
+                          error_code?: string;
+                          retryable?: boolean;
+                          split_reason?: string;
+                        }>
+                      ).map((batch) => (
+                        <span
+                          className={`batch-status ${batch.status}`}
+                          key={batch.index}
+                          title={[
+                            batch.error_code,
+                            batch.error,
+                            batch.split_reason
+                              ? `拆分原因：${batch.split_reason}`
+                              : "",
+                            batch.retryable ? "可重试" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          {batch.index + 1}:
+                          {batch.status === "succeeded"
+                            ? "完成"
+                            : batch.status === "failed"
+                              ? "失败"
+                              : batch.status === "running"
+                                ? "处理中"
+                                : "待处理"}
+                          {batch.split_reason === "timeout"
+                            ? "（超时后缩小）"
+                            : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                {typeof job.result?.model_calls === "number" && (
+                  <small>
+                    模型调用 {String(job.result.model_calls)} 次 · Token{" "}
+                    {String(
+                      (job.result.usage as Record<string, number> | undefined)
+                        ?.total_tokens ?? "未提供",
+                    )}
+                    （含供应商返回的失败请求用量） · 费用{" "}
+                    {job.result.cost == null
+                      ? "供应商未提供"
+                      : String(job.result.cost)}
+                  </small>
+                )}
                 {job.error && <p className="error-text">{job.error}</p>}
               </div>
               {["queued", "running"].includes(job.status) ? (
@@ -109,7 +178,7 @@ export function JobHistory({
                   disabled={!connected || action.isPending}
                   onClick={() => action.mutate({ id: job.id, kind: "retry" })}
                 >
-                  重试
+                  {job.kind === "knowledge_extract" ? "继续未完成批次" : "重试"}
                 </button>
               ) : null}
             </div>

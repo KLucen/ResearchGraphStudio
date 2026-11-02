@@ -1,6 +1,8 @@
 # 创新验证与实验计划
 
-版本：v0.3；依据：[QA.md](../QA.md) 第 620–708 行及[补充材料 S3/S4](../docs/design/source-register.md)。状态：**实验协议规划，尚未运行实验或取得指标。** 与[开发计划 v0.4](../docs/development-plan-v0.4.md)同步，E1/E2/E3 保持原编号，新增 E4/E5/E6。
+> 历史实验协议（v0.3）：保留 E1–E6 编号和假设，以下阶段安排是当时计划。后续验收按 [v3 验证规范](../docs/08_validation_and_security.md)与[迁移计划](../docs/06_development_migration_plan.md)补充；实际软件结果见[进度](../docs/progress.md)，没有据此宣称已取得科研指标。
+
+版本：v0.3；依据：[QA.md](../QA.md) 第 620–708 行及[补充材料 S3/S4](../docs/design/source-register.md)。状态：**实验协议规划，尚未运行实验或取得指标。** 与[开发计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)同步，E1/E2/E3 保持原编号，新增 E4/E5/E6。
 
 ## 1. 主实验与补充实验
 

@@ -1,0 +1,102 @@
+[
+  {
+    "file": "extraction_request.json",
+    "contract": "ExtractionRequest"
+  },
+  {
+    "file": "extraction_batch.json",
+    "contract": "KnowledgeExtractionBatch"
+  },
+  {
+    "file": "evidence_span.json",
+    "contract": "EvidenceSpan"
+  },
+  {
+    "file": "source_table.json",
+    "contract": "SourceTable"
+  },
+  {
+    "file": "candidate_record.json",
+    "contract": "CandidateRecord"
+  },
+  {
+    "file": "integration_request.json",
+    "contract": "IntegrationRequest"
+  },
+  {
+    "file": "source_association.json",
+    "contract": "SourceAssociation"
+  },
+  {
+    "file": "integration_proposal.json",
+    "contract": "PaperIntegrationProposal"
+  },
+  {
+    "file": "knowledge_unit.json",
+    "contract": "KnowledgeUnit"
+  },
+  {
+    "file": "selection_request.json",
+    "contract": "SelectionRequest"
+  },
+  {
+    "file": "selection_proposal.json",
+    "contract": "CoreSelectionProposal"
+  },
+  {
+    "file": "graph_selection.json",
+    "contract": "GraphSelection"
+  },
+  {
+    "file": "selection_preference.json",
+    "contract": "SelectionPreference"
+  },
+  {
+    "file": "graph_projection.json",
+    "contract": "GraphProjection"
+  },
+  {
+    "file": "graph_expanded.json",
+    "contract": "GraphProjection"
+  },
+  {
+    "file": "graph_node_detail.json",
+    "contract": "NodeDetail"
+  },
+  {
+    "file": "retrieval_hit.json",
+    "contract": "RetrievalHit"
+  },
+  {
+    "file": "query_answer.json",
+    "contract": "QueryAnswer"
+  },
+  {
+    "file": "reading_synthesis.json",
+    "contract": "ReadingSynthesisDraft"
+  },
+  {
+    "file": "wiki_delta.json",
+    "contract": "WikiDeltaProposal"
+  },
+  {
+    "file": "extraction_methodological.json",
+    "contract": "KnowledgeExtractionBatch"
+  },
+  {
+    "file": "extraction_theoretical.json",
+    "contract": "KnowledgeExtractionBatch"
+  },
+  {
+    "file": "extraction_review.json",
+    "contract": "KnowledgeExtractionBatch"
+  },
+  {
+    "file": "comparability_report.json",
+    "contract": "ComparabilityReport"
+  },
+  {
+    "file": "relation_no_decision.json",
+    "contract": "RelationInference"
+  }
+]

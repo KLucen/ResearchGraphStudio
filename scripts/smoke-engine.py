@@ -15,6 +15,8 @@ import urllib.request
 from pathlib import Path
 from uuid import uuid4
 
+import pymupdf
+
 
 def run(executable: Path) -> dict[str, object]:
     minimal_env = {
@@ -57,6 +59,8 @@ def run(executable: Path) -> dict[str, object]:
             return process, ready["port"]
 
         def request(port, path, method="GET", body=None, authorized=True, key="smoke-request-001"):
+            if path.endswith("/projection") and body is not None:
+                body = {"include_test_data": True, **body}
             headers = {"Content-Type": "application/json", "Idempotency-Key": key}
             if authorized:
                 headers["Authorization"] = "Bearer " + token
@@ -103,7 +107,17 @@ def run(executable: Path) -> dict[str, object]:
                     break
                 time.sleep(0.1)
             assert job["status"] == "succeeded", job
-            fixture = Path(__file__).resolve().parents[1] / "tests/fixtures/pdf/two-pages.pdf"
+            source_fixture = (
+                Path(__file__).resolve().parents[1] / "tests/fixtures/pdf/two-pages.pdf"
+            )
+            fixture = Path(directory) / "generated-fixture.pdf"
+            with pymupdf.open(source_fixture) as document:
+                document[-1].insert_text(
+                    (40, 400),
+                    "Our synthetic shared memory method improves task accuracy.",
+                    fontsize=8,
+                )
+                document.save(fixture)
             original = Path(directory) / "original.pdf"
             shutil.copyfile(fixture, original)
             pdf = request(
@@ -163,6 +177,19 @@ def run(executable: Path) -> dict[str, object]:
             assert len(history["items"]) == 2 and len(older["items"]) == 1
             assert older["items"][0]["id"] == pdf["id"]
             assert all(j["stage"] == "saving" for j in history["items"] + older["items"])
+            # Project model settings and role selection must work in the frozen runtime.
+            model_route = "/settings"
+            profile = request(
+                port,
+                model_route + "/models",
+                "POST",
+                {"name": "Offline acceptance", "provider": "mock", "model": "mock"},
+            )
+            assert not profile["has_api_key"] and "credential_ref" not in profile
+            roles = {"extraction": profile["id"], "reasoning": profile["id"]}
+            assert request(port, model_route + "/model-roles", "POST", roles)["roles"] == roles
+            connection = request(port, model_route + f"/models/{profile['id']}/test", "POST")
+            assert connection["connected"] and connection["valid_json"] and connection["mock"]
             # P2 packaged runtime: prompts must be bundled and writes must survive restart.
             extraction = completed(
                 port,
@@ -170,7 +197,11 @@ def run(executable: Path) -> dict[str, object]:
                     port,
                     "/knowledge/extract",
                     "POST",
-                    {"document_version_id": revision_id, "provider": "mock"},
+                    {
+                        "document_version_id": revision_id,
+                        "provider": "mock",
+                        "pipeline": "legacy-v2",
+                    },
                     key="extract-smoke",
                 ),
             )
@@ -182,6 +213,74 @@ def run(executable: Path) -> dict[str, object]:
             assert request(port, f"/evidence/{detail['evidence'][0]['id']}/preview")[
                 "data_url"
             ].startswith("data:image/png;base64,")
+            # A second synthetic source checks all P3 prompts in the frozen executable.
+            other_pdf = Path(directory) / "comparison.pdf"
+            other_pdf.write_bytes(fixture.read_bytes() + b"\n% Second synthetic source\n")
+            second_import = completed(
+                port,
+                request(
+                    port,
+                    f"/projects/{project['id']}/papers/import/pdf",
+                    "POST",
+                    {"path": str(other_pdf), "mode": "managed"},
+                    key="p3-import",
+                ),
+            )
+            other_version = second_import["result"]["revision_id"]
+            completed(
+                port,
+                request(
+                    port,
+                    "/knowledge/extract",
+                    "POST",
+                    {
+                        "document_version_id": other_version,
+                        "provider": "mock",
+                        "pipeline": "legacy-v2",
+                    },
+                    key="p3-extract",
+                ),
+            )
+            other_nodes = request(port, f"/revisions/{other_version}/knowledge")["items"]
+            proposals = []
+            for workflow, kind in (("relations", "claim"), ("alignments", "method")):
+                left = next(n for n in knowledge["items"] if n["kind"] == kind)
+                right = next(n for n in other_nodes if n["kind"] == kind)
+                inferred = completed(
+                    port,
+                    request(
+                        port,
+                        f"/knowledge/{workflow}/infer",
+                        "POST",
+                        {"source_id": left["id"], "target_id": right["id"], "provider": "mock"},
+                        key="p3-" + workflow,
+                    ),
+                )
+                proposal_id = inferred["result"]["proposal_id"]
+                proposal_detail = request(port, f"/knowledge/{workflow}/{proposal_id}")
+                assert proposal_detail["proposal"]["review_status"] == "proposed"
+                assert all(r["status"] == "succeeded" for r in proposal_detail["runs"])
+                review = request(
+                    port,
+                    "/knowledge/semantic-reviews",
+                    "POST",
+                    {
+                        "kind": "relation" if kind == "claim" else "alignment",
+                        "proposal_id": proposal_id,
+                        "expected_revision": 1,
+                        "action": "accept",
+                        "reason": "Synthetic packaged workflow check only",
+                    },
+                    key="p3-review-" + kind,
+                )
+                assert review["review_status"] == "accepted"
+                proposals.append((workflow, proposal_id))
+            graph = request(
+                port, f"/graph/subgraph?project_id={project['id']}&focus_id={claim['id']}"
+            )
+            assert len(graph["relations"]) == 1
+            # P3 writes advanced graph revision; P2 review must use the current revision.
+            knowledge["graph_revision"] = graph["graph_revision"]
             reviewed = request(
                 port,
                 "/knowledge/reviews",
@@ -202,13 +301,59 @@ def run(executable: Path) -> dict[str, object]:
                     port,
                     "/knowledge/extract",
                     "POST",
-                    {"document_version_id": revision_id, "provider": "mock"},
+                    {
+                        "document_version_id": revision_id,
+                        "provider": "mock",
+                        "pipeline": "legacy-v2",
+                    },
                     key="extract-repeat",
                 ),
             )
             assert len(request(port, f"/revisions/{revision_id}/knowledge")["items"]) == len(
                 knowledge["items"]
             )
+            unified_body = {
+                "document_version_id": other_version,
+                "pipeline": "unified-v3",
+                "provider": "mock",
+            }
+            unified = completed(
+                port, request(port, "/knowledge/extract", "POST", unified_body, key="v3-extract")
+            )
+            assert unified["result"]["pipeline"] == "unified-v3"
+            graph_route = f"/projects/{project['id']}/graph"
+            projection = request(port, graph_route + "/projection", "POST", {})
+            assert projection["nodes"] and all("payload" not in n for n in projection["nodes"])
+            visible = next(n for n in projection["nodes"] if n["kind"] == "Method")
+            node_detail = request(port, graph_route + "/nodes/" + visible["id"])
+            assert node_detail["evidence"]
+            layout_body = {
+                "expected_version": 0,
+                "positions": [{"node_id": visible["id"], "x": 44, "y": -17, "pinned": True}],
+                "zoom": 0.8,
+                "pan_x": 4,
+                "pan_y": 8,
+            }
+            layout = request(port, graph_route + "/layout", "POST", layout_body)
+            assert (
+                request(port, graph_route + "/projection", "POST", {})["graph_revision"]
+                == projection["graph_revision"]
+            )
+            translated = completed(
+                port,
+                request(
+                    port,
+                    graph_route + "/translate",
+                    "POST",
+                    {"provider": "mock", "node_ids": [visible["id"]]},
+                    key="v3-translate",
+                ),
+            )
+            assert translated["status"] == "succeeded"
+            repeated = completed(
+                port, request(port, "/knowledge/extract", "POST", unified_body, key="v3-repeat")
+            )
+            assert repeated["result"]["model_calls"] == 0
             orphan = data / "import-work" / str(uuid4())
             orphan.mkdir()
             (orphan / "workspace.json").write_text(
@@ -237,11 +382,25 @@ def run(executable: Path) -> dict[str, object]:
             } == managed_files
             assert moved.read_bytes() == fixture.read_bytes()
             assert request(port, "/projects")["items"] == [project]
+            settings = request(port, model_route + "/models")
+            assert settings["roles"] == roles and settings["profiles"] == [profile]
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
             assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
+            assert request(port, graph_route + "/layout") == layout
+            assert (
+                request(port, graph_route + "/nodes/" + visible["id"])["display"][
+                    "translation_status"
+                ]
+                == "machine_unreviewed"
+            )
             persisted = request(port, f"/knowledge/nodes/{claim['id']}")
             assert persisted["node"]["review_status"] == "rejected"
             assert len(persisted["reviews"]) == 1 and persisted["model_run"]["raw_output"]
+            for workflow, proposal_id in proposals:
+                persisted_proposal = request(port, f"/knowledge/{workflow}/{proposal_id}")
+                assert persisted_proposal["proposal"]["review_status"] == "accepted"
+                assert len(persisted_proposal["reviews"]) == 1
+                assert persisted_proposal["proposal"]["stale"] == (workflow == "relations")
         finally:
             process.stdin.close()
             try:
@@ -252,6 +411,7 @@ def run(executable: Path) -> dict[str, object]:
                     process.wait()
     return {
         "packaged_engine": "passed",
+        "unified_projection_translation_layout_restart": "passed",
         "authentication": "passed",
         "idempotency": "passed",
         "diagnostic_job": "passed",
@@ -265,6 +425,8 @@ def run(executable: Path) -> dict[str, object]:
         "unicode_space_path": "passed",
         "developer_tools_removed_from_child_path": True,
         "knowledge_extraction_review_preview_restart": "passed",
+        "global_model_settings_roles_mock_connection_restart": "passed",
+        "p03_p04_p05_graph_review_restart_and_stale_source": "passed",
         "clean_windows_machine": "not_tested",
     }
 

@@ -8,6 +8,7 @@ import {
 } from "./api";
 
 const names: Record<string, string> = {
+  research_question: "研究问题",
   claim: "主张",
   method: "方法",
   finding: "结果",
@@ -33,6 +34,18 @@ const origins: Record<string, string> = {
   unknown: "归属待确认",
 };
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+function displayText(node: KnowledgeNode): string {
+  const payload = node.payload as Record<string, unknown>;
+  return String(
+    payload.statement_zh ||
+      payload.canonical_name_zh ||
+      payload.name_zh ||
+      payload.label_zh ||
+      payload.dimension_zh ||
+      payload.value_zh ||
+      node.text,
+  );
+}
 
 export function KnowledgeReading({
   versionId,
@@ -66,8 +79,9 @@ function Reading({
   connected: boolean;
 }) {
   const client = useQueryClient();
-  const [provider, setProvider] = useState<"mock" | "configured">("mock");
+  const provider = "project";
   const [allow, setAllow] = useState(false);
+  const pipeline = "unified-v3";
   const [selected, setSelected] = useState("");
   const selection = useRef("");
   const [evidenceId, setEvidenceId] = useState("");
@@ -84,11 +98,6 @@ function Reading({
     queryFn: () => api.knowledge(versionId),
     enabled: connected,
     refetchInterval: 2000,
-  });
-  const providers = useQuery({
-    queryKey: ["providers"],
-    queryFn: api.providers,
-    enabled: connected,
   });
   const runs = useQuery({
     queryKey: ["runs", versionId],
@@ -108,7 +117,7 @@ function Reading({
     retry: false,
   });
   const extract = useMutation({
-    mutationFn: () => api.extract(versionId, provider, allow),
+    mutationFn: () => api.extract(versionId, provider, allow, pipeline),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["jobs"] });
     },
@@ -141,49 +150,23 @@ function Reading({
         来源已验证表示能回查原文；人工接受也不代表科学命题已被证明。
       </p>
       <div className="import-controls">
-        <label>
-          抽取方式{" "}
-          <select
-            value={provider}
-            disabled={!connected}
-            onChange={(e) => {
-              setProvider(e.target.value as typeof provider);
-              setAllow(false);
-            }}
-          >
-            <option value="mock">离线 Mock · 原文摘录验证</option>
-            <option value="configured" disabled={!providers.data?.configured}>
-              已配置模型 {providers.data?.model ?? "（未配置）"}
-            </option>
-          </select>
-        </label>
+        <span>使用全局 Extraction 模型</span>
         <button
           className="button primary"
-          disabled={
-            !connected ||
-            extract.isPending ||
-            (provider === "configured" && !allow)
-          }
+          disabled={!connected || extract.isPending || !allow}
           onClick={() => extract.mutate()}
         >
           开始结构化抽取
         </button>
       </div>
-      {provider === "mock" ? (
-        <p className="quality-note">
-          Mock 只摘录原文并验证保存/审核流程，不作为真实 LLM 科学抽取结果。
-        </p>
-      ) : (
-        <label className="quality-note">
-          <input
-            type="checkbox"
-            checked={allow}
-            onChange={(e) => setAllow(e.target.checked)}
-          />{" "}
-          同意向已配置模型发送当前论文解析片段及证据
-          ID。私人笔记不参与此次抽取。
-        </label>
-      )}
+      <label className="quality-note">
+        <input
+          type="checkbox"
+          checked={allow}
+          onChange={(e) => setAllow(e.target.checked)}
+        />{" "}
+        同意向已配置模型发送当前论文解析片段及证据 ID。私人笔记不参与此次抽取。
+      </label>
       {extract.isSuccess && (
         <p role="status">
           抽取任务已排队，可在上方任务记录查看阶段、取消或重试。
@@ -197,34 +180,39 @@ function Reading({
           </p>
         ))}
       <div className="reading-grid">
-        <nav className="reading-sections" aria-label="论文章节">
-          <h4>章节与证据</h4>
-          {structure.data?.sections.map((section) => (
-            <button
-              className={
-                sectionId === section.id ? "paper-item selected" : "paper-item"
-              }
-              key={section.id}
-              onClick={() => {
-                selection.current = "";
-                setSectionId(section.id);
-                setEvidenceId(
-                  structure.data?.evidence.find(
-                    (e) => e.section_id === section.id,
-                  )?.id ?? "",
-                );
-              }}
-            >
-              {section.title}
-              <small>
-                {section.role === "other" ? "结构待确认" : section.role}
-              </small>
-            </button>
-          ))}
-          {!structure.data?.sections.length && (
-            <p>没有文本结构，扫描件需要另行处理。</p>
-          )}
-        </nav>
+        <details className="reading-sections">
+          <summary>章节与证据索引（按需查看）</summary>
+          <nav aria-label="论文章节">
+            <h4>章节与证据</h4>
+            {structure.data?.sections.map((section) => (
+              <button
+                className={
+                  sectionId === section.id
+                    ? "paper-item selected"
+                    : "paper-item"
+                }
+                key={section.id}
+                onClick={() => {
+                  selection.current = "";
+                  setSectionId(section.id);
+                  setEvidenceId(
+                    structure.data?.evidence.find(
+                      (e) => e.section_id === section.id,
+                    )?.id ?? "",
+                  );
+                }}
+              >
+                {section.title}
+                <small>
+                  {section.role === "other" ? "结构待确认" : section.role}
+                </small>
+              </button>
+            ))}
+            {!structure.data?.sections.length && (
+              <p>没有文本结构，扫描件需要另行处理。</p>
+            )}
+          </nav>
+        </details>
         <div className="evidence-reading" aria-label="证据原文">
           <h4>原文回查</h4>
           {evidence ? (
@@ -294,7 +282,10 @@ function Reading({
               <span>
                 {names[node.kind]} · {reviewNames[node.review_status]}
               </span>
-              <strong>{node.text}</strong>
+              <strong>{displayText(node)}</strong>
+              {displayText(node) !== node.text && (
+                <small>英文原文：{node.text}</small>
+              )}
               <small>
                 {node.source_status === "source_verified"
                   ? "来源已验证"
@@ -337,11 +328,27 @@ function Reading({
               {run.prompt_name} · {run.provider}/{run.model} · {run.status}
             </strong>
             <p className="mono small">
+              运行 {run.id}
+              <br />
               Prompt {run.prompt_hash}
               <br />
               输入 {run.input_hash}
             </p>
             {run.error && <p className="error-text">{run.error}</p>}
+            {Boolean(run.parameters.normalization) && (
+              <p className="quiet-note">
+                已移除模型多出的空占位字段；未重新调用模型，原始响应完整保留。
+              </p>
+            )}
+            {run.prompt_name === "P02_local_link_repair" && (
+              <p className="quiet-note">
+                局部引用修复：仅修复缺失的关系端点，原始抽取结果保留在来源运行中。
+              </p>
+            )}
+            <details>
+              <summary>调用参数与修复来源</summary>
+              <pre>{JSON.stringify(run.parameters, null, 2)}</pre>
+            </details>
             <details>
               <summary>原始输出</summary>
               <pre>{run.raw_output ?? "未返回输出"}</pre>
@@ -358,7 +365,7 @@ function Reading({
   );
 }
 
-function ReviewCard({
+export function ReviewCard({
   detail,
   connected,
   onEvidence,

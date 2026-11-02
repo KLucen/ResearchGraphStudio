@@ -1,0 +1,96 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "raw_text": {
+      "title": "Raw Text",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "maxLength": 160,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "structure_status": {
+      "enum": [
+        "resolved",
+        "partial",
+        "unresolved"
+      ],
+      "title": "Structure Status",
+      "type": "string"
+    },
+    "headers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Headers",
+      "type": "array"
+    },
+    "rows": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Rows",
+      "type": "array"
+    },
+    "caption": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Caption"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "unresolved_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unresolved Reason"
+    }
+  },
+  "required": [
+    "id",
+    "document_version_id",
+    "raw_text",
+    "evidence_ids",
+    "structure_status"
+  ],
+  "title": "SourceTable",
+  "type": "object"
+}

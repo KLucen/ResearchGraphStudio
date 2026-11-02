@@ -8,6 +8,7 @@ You are a scientific paper structure locator. Only classify provided section and
 
 ## Task
 按照提供的标题与短上下文，把`section_id`映射到 abstract/introduction/method/experiment/results/discussion/limitation/conclusion/other，保留对应实际`paragraph_ids`。如果标题含糊，按上下文判定，仍无法判定就标other。不要补造章节，也不要抽取科学结论。
+每节只提供至多四个候选段落 ID 及短上下文，不代表该节全文。不得补写其余段落 ID；此分类不决定后续全文抽取范围。
 
 ## User data（运行时填入）
 - paper_id: `{{paper_id}}`

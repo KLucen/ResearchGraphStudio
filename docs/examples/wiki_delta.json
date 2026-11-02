@@ -1,0 +1,37 @@
+{
+  "wiki_page_id": "wiki-demo",
+  "base_content_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "edits": [
+    {
+      "section_id": "section-a",
+      "operation": "append",
+      "passages": [
+        {
+          "local_ref": "paragraph-a",
+          "text": {
+            "original": "The authors report shorter time under the tested condition.",
+            "language": "en",
+            "zh": null
+          },
+          "attribution": "paper_author",
+          "dependencies": [
+            {
+              "ref_id": "claim-a",
+              "revision": 1,
+              "document_version_id": "dv-demo"
+            }
+          ],
+          "evidence_ids": [
+            "ev-1"
+          ],
+          "caveats": [
+            "No other temperature was evaluated."
+          ]
+        }
+      ],
+      "reason": "Add the source limitation."
+    }
+  ],
+  "requires_explicit_publish": true,
+  "warnings": []
+}

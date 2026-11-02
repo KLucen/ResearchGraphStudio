@@ -1,0 +1,86 @@
+{
+  "$defs": {
+    "NodeLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "node_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Node Id",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "pinned": {
+          "default": false,
+          "title": "Pinned",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "node_id",
+        "x",
+        "y"
+      ],
+      "title": "NodeLayout",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Project Id",
+      "type": "string"
+    },
+    "view_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "View Id",
+      "type": "string"
+    },
+    "layout_revision": {
+      "minimum": 1,
+      "title": "Layout Revision",
+      "type": "integer"
+    },
+    "positions": {
+      "items": {
+        "$ref": "#/$defs/NodeLayout"
+      },
+      "title": "Positions",
+      "type": "array"
+    },
+    "zoom": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Zoom",
+      "type": "number"
+    },
+    "pan_x": {
+      "default": 0,
+      "title": "Pan X",
+      "type": "number"
+    },
+    "pan_y": {
+      "default": 0,
+      "title": "Pan Y",
+      "type": "number"
+    }
+  },
+  "required": [
+    "project_id",
+    "view_id",
+    "layout_revision",
+    "positions"
+  ],
+  "title": "GraphLayoutSnapshot",
+  "type": "object"
+}

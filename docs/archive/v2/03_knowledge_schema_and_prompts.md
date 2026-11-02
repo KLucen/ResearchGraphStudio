@@ -1,5 +1,7 @@
 # ResearchGraph Studio — 核心知识Schema与LLM Prompt设计规范
 
+> 历史归档（2026-11-02）：v2 设计包已由 [v3 规范包](../../README.md)接替。下文保留当时设计、指令模板及实施语境，不作为当前施工指令；现状见[实施进度](../../progress.md)。
+
 > 版本：v1.0（面向 Graph-Centric v2.0 架构）
 > 日期：2026-11-01
 > 工程用途：定义领域知识对象、校验不变量、关系推理结果、统一Knowledge Engine契约，以及 Ingest / Query / Lint / Reading Synthesis / Wiki 所需Prompt。

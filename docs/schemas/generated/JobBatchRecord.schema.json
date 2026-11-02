@@ -1,0 +1,112 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "job_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "batch_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "input_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "prompt_version": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "stage": {
+      "enum": [
+        "indexing",
+        "extracting",
+        "integrating",
+        "selecting",
+        "publishing"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "committed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "committed_revision": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Committed Revision"
+    },
+    "attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "last_error_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Code"
+    }
+  },
+  "required": [
+    "job_id",
+    "batch_id",
+    "input_hash",
+    "document_version_id",
+    "prompt_version",
+    "schema_version",
+    "model_id",
+    "stage",
+    "state"
+  ],
+  "title": "JobBatchRecord",
+  "type": "object"
+}

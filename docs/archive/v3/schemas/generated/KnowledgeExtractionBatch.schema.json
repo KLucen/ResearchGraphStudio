@@ -1,0 +1,404 @@
+{
+  "$defs": {
+    "ClaimDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "statement_en": {
+          "minLength": 1,
+          "title": "Statement En",
+          "type": "string"
+        },
+        "statement_zh": {
+          "minLength": 1,
+          "title": "Statement Zh",
+          "type": "string"
+        },
+        "modality": {
+          "enum": [
+            "asserted",
+            "conditional",
+            "suggested",
+            "speculative",
+            "negated",
+            "unknown"
+          ],
+          "title": "Modality",
+          "type": "string"
+        },
+        "scope_en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope En"
+        },
+        "scope_zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope Zh"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/ConditionCandidate"
+          },
+          "title": "Conditions",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/FindingCandidate"
+          },
+          "title": "Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "statement_en",
+        "statement_zh",
+        "modality"
+      ],
+      "title": "ClaimDetail",
+      "type": "object"
+    },
+    "ConditionCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ConditionState"
+        },
+        "value_en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value En"
+        },
+        "value_zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value Zh"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension",
+        "state"
+      ],
+      "title": "ConditionCandidate",
+      "type": "object"
+    },
+    "ConditionState": {
+      "enum": [
+        "known",
+        "unknown",
+        "not_applicable",
+        "conflicting"
+      ],
+      "title": "ConditionState",
+      "type": "string"
+    },
+    "ExtractedNode": {
+      "additionalProperties": false,
+      "properties": {
+        "local_ref": {
+          "minLength": 1,
+          "title": "Local Ref",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/NodeKind"
+        },
+        "label_zh": {
+          "minLength": 1,
+          "title": "Label Zh",
+          "type": "string"
+        },
+        "label_en": {
+          "minLength": 1,
+          "title": "Label En",
+          "type": "string"
+        },
+        "summary_zh": {
+          "minLength": 1,
+          "title": "Summary Zh",
+          "type": "string"
+        },
+        "summary_en": {
+          "minLength": 1,
+          "title": "Summary En",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "origin": {
+          "$ref": "#/$defs/KnowledgeOrigin"
+        },
+        "claim_detail": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClaimDetail"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "local_ref",
+        "kind",
+        "label_zh",
+        "label_en",
+        "summary_zh",
+        "summary_en",
+        "origin"
+      ],
+      "title": "ExtractedNode",
+      "type": "object"
+    },
+    "FindingCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_en": {
+          "minLength": 1,
+          "title": "Finding En",
+          "type": "string"
+        },
+        "finding_zh": {
+          "minLength": 1,
+          "title": "Finding Zh",
+          "type": "string"
+        },
+        "metric_en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric En"
+        },
+        "metric_zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric Zh"
+        },
+        "reported_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reported Value"
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "finding_en",
+        "finding_zh",
+        "evidence_ids"
+      ],
+      "title": "FindingCandidate",
+      "type": "object"
+    },
+    "GraphLinkCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "source_local_ref": {
+          "title": "Source Local Ref",
+          "type": "string"
+        },
+        "target_local_ref": {
+          "title": "Target Local Ref",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "ABOUT",
+            "USES_METHOD",
+            "INVOLVES_CONCEPT",
+            "STUDIES",
+            "RELATED_TO",
+            "QUESTIONS",
+            "HAS_METHOD"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_local_ref",
+        "target_local_ref",
+        "relation"
+      ],
+      "title": "GraphLinkCandidate",
+      "type": "object"
+    },
+    "KnowledgeOrigin": {
+      "enum": [
+        "paper_author",
+        "citation_report",
+        "user",
+        "model"
+      ],
+      "title": "KnowledgeOrigin",
+      "type": "string"
+    },
+    "NodeKind": {
+      "enum": [
+        "Paper",
+        "Concept",
+        "Method",
+        "Claim",
+        "ResearchQuestion"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document_version_id": {
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "chunk_id": {
+      "minLength": 1,
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ExtractedNode"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "links": {
+      "items": {
+        "$ref": "#/$defs/GraphLinkCandidate"
+      },
+      "title": "Links",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document_version_id",
+    "chunk_id"
+  ],
+  "title": "KnowledgeExtractionBatch",
+  "type": "object"
+}

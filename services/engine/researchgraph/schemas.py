@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -51,12 +51,15 @@ class JobView(BaseModel):
             "diagnostics",
             "outlining",
             "extracting",
+            "resolving",
+            "comparing",
+            "reasoning",
         ]
         | None
     ) = None
     attempt: int
     error: str | None
-    result: dict[str, str | bool] | None
+    result: dict[str, Any] | None
     created_at: str
     updated_at: str
 
@@ -145,6 +148,7 @@ class PaperDetail(BaseModel):
     paper: PaperView
     revisions: list[RevisionView]
     sources: list[SourceView]
+    zotero_links: list[dict[str, str]] = []
 
 
 class ChunkView(BaseModel):

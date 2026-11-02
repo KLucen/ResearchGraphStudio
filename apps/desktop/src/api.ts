@@ -59,7 +59,10 @@ export const api = {
   structure: (id: string) =>
     request<Structure>("GET", `/api/v1/revisions/${id}/structure`),
   knowledge: (id: string) =>
-    request<KnowledgeList>("GET", `/api/v1/revisions/${id}/knowledge`),
+    request<KnowledgeList>(
+      "GET",
+      `/api/v1/revisions/${id}/knowledge?include_test_data=false`,
+    ),
   node: (id: string) =>
     request<NodeDetail>("GET", `/api/v1/knowledge/nodes/${id}`),
   preview: (id: string) =>
@@ -69,13 +72,19 @@ export const api = {
     ),
   extract: (
     id: string,
-    provider: "mock" | "configured",
+    provider: "mock" | "configured" | "project",
     allowNetwork: boolean,
+    pipeline: "unified-v3" | "legacy-v2" = "unified-v3",
   ) =>
     request<Job>(
       "POST",
       "/api/v1/knowledge/extract",
-      { document_version_id: id, provider, allow_network: allowNetwork },
+      {
+        document_version_id: id,
+        provider,
+        allow_network: allowNetwork,
+        pipeline,
+      },
       crypto.randomUUID(),
     ),
   review: (body: ReviewRequest) =>

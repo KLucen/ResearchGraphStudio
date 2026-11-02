@@ -1,0 +1,31 @@
+{
+  "document_version_id": "dv-demo",
+  "input_revision": 7,
+  "recommendations": [
+    {
+      "root_claim_id": "claim-a",
+      "recommendation": "suggest_core",
+      "reasons": [
+        "main_contribution"
+      ],
+      "rationale": "Paper-level contribution and limitation coverage."
+    },
+    {
+      "root_claim_id": "background-a",
+      "recommendation": "keep_retrievable",
+      "reasons": [
+        "background"
+      ],
+      "rationale": "Paper-level contribution and limitation coverage."
+    },
+    {
+      "root_claim_id": "claim-b",
+      "recommendation": "suggest_core",
+      "reasons": [
+        "necessary_limitation"
+      ],
+      "rationale": "Paper-level contribution and limitation coverage."
+    }
+  ],
+  "coverage_gaps": []
+}

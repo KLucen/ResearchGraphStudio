@@ -1,6 +1,8 @@
 # 证据、关系与知识审核的实施约定
 
-版本：v0.2；依据：[QA.md](../../QA.md) 第 437–576 行，以及[补充材料 S2–S4](source-register.md)。与[计划 v0.4](../development-plan-v0.4.md)一致。以下为分阶段领域约束；当前项目、任务、来源/修订/原文块及来源检查已经实现，其余对象按阶段推进。实际接口见 [API](../api.md)。
+> 历史领域约定（v0.2）：保留旧枚举和数据设计以供追溯，不作为当前完整契约。当前设计见 [v3 Schema](../03_schema_design.md)，已实现接口见 [API](../api.md)。
+
+版本：v0.2；依据：[QA.md](../../QA.md) 第 437–576 行，以及[补充材料 S2–S4](source-register.md)。与[计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)一致。以下为分阶段领域约束；当前项目、任务、来源/修订/原文块及来源检查已经实现，其余对象按阶段推进。实际接口见 [API](../api.md)。
 
 ## 数据对象
 
@@ -97,4 +99,4 @@ RELATED_TO 仅属于概念关联，不扩展五类主张关系。主张、关系
 
 审核使用 expected_revision 和幂等键，状态/Review/Event 原子写入。撤回确认可改变当前可见状态，但保留旧接受事件和内容版本；编辑已接受内容以新提案完成。Wiki 批准后只是可发布，实际文件状态由 outbox 单独报告。
 
-Wiki 文件发布/恢复规则见[新计划第 7 节](../development-plan-v0.4.md)：数据库与外部文件不是单一事务；文件哈希检查不是外部编辑器协作的 CAS。默认保留新修订文件，未经并发与恢复验证不启用原位覆盖。
+Wiki 文件发布/恢复规则见[新计划第 7 节](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)：数据库与外部文件不是单一事务；文件哈希检查不是外部编辑器协作的 CAS。默认保留新修订文件，未经并发与恢复验证不启用原位覆盖。

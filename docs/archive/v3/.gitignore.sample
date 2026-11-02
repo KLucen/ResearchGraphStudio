@@ -1,0 +1,25 @@
+# Merge into existing .gitignore after checking tracked files.
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.log
+*.pdf
+*.p12
+*.pem
+*.key
+*.token
+*.bak
+__pycache__/
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+bundle/
+ResearchVault/
+ObsidianVault/
+model_requests_private/

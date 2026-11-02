@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "LintIssueDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "issue_type": {
+          "enum": [
+            "overgeneralization",
+            "incorrect_attribution",
+            "incomparable_claims",
+            "entity_merge_error",
+            "translation_mismatch",
+            "stale_synthesis",
+            "other"
+          ],
+          "title": "Issue Type",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "affected_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Affected Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "title": "Rationale",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "suggested_action": {
+          "title": "Suggested Action",
+          "type": "string"
+        },
+        "requires_review": {
+          "title": "Requires Review",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "issue_type",
+        "severity",
+        "affected_ids",
+        "rationale",
+        "suggested_action",
+        "requires_review"
+      ],
+      "title": "LintIssueDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/LintIssueDraft"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "title": "LintIssueBatch",
+  "type": "object"
+}

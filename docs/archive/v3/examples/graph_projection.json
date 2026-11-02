@@ -1,0 +1,16 @@
+{
+  "project_id": "project-demo",
+  "graph_revision": 12,
+  "filter": {"scope": "paper", "id": "paper-demo", "depth": 2},
+  "nodes": [
+    {"id": "paper-demo", "kind": "Paper", "label_zh": "示例论文A", "label_en": "Fictional Paper A", "detail_ref": "paper:paper-demo", "source_status": "anchored", "review_status": "unreviewed", "knowledge_origin": "paper_author", "badges": ["论文来源"], "size": 1},
+    {"id": "method-001", "kind": "Method", "label_zh": "共享记忆", "label_en": "Shared Memory", "detail_ref": "method:method-001", "source_status": "anchored", "review_status": "unreviewed", "knowledge_origin": "paper_author", "badges": ["原文有据"], "size": 1},
+    {"id": "claim-001", "kind": "Claim", "label_zh": "共享记忆改善合作表现", "label_en": "Shared memory improves cooperation", "detail_ref": "claim:claim-001", "source_status": "anchored", "review_status": "unreviewed", "knowledge_origin": "paper_author", "badges": ["原文有据"], "size": 1}
+  ],
+  "edges": [
+    {"id": "edge-001", "source": "paper-demo", "target": "claim-001", "relation": "PAPER_HAS_CLAIM", "epistemic_status": "source_reported", "review_status": "unreviewed", "is_dashed": false, "detail_ref": "link:edge-001"},
+    {"id": "edge-002", "source": "claim-001", "target": "method-001", "relation": "USES_METHOD", "epistemic_status": "source_reported", "review_status": "unreviewed", "is_dashed": false, "detail_ref": "link:edge-002"}
+  ],
+  "has_more": false,
+  "next_cursor": null
+}

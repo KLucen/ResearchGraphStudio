@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -145,7 +145,7 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0005" {
+        if health["protocol_version"] != 1 || health["schema_version"] != "0009" {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
@@ -154,6 +154,12 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    if allowed_projection(method, path) {
+        return true;
+    }
+    if allowed_reasoning(method, path) {
+        return true;
+    }
     if allowed_knowledge(method, path) {
         return true;
     }
@@ -249,6 +255,144 @@ fn allowed(method: &str, path: &str) -> bool {
     false
 }
 
+fn allowed_projection(method: &str, path: &str) -> bool {
+    if path.contains('?') {
+        return false;
+    }
+    let p: Vec<_> = path.split('/').collect();
+    if p.len() < 7
+        || p[1..4] != ["api", "v1", "projects"]
+        || uuid::Uuid::parse_str(p[4]).is_err()
+        || p[5] != "graph"
+    {
+        return false;
+    }
+    (p.len() == 7
+        && ((method == "POST" && matches!(p[6], "projection" | "layout" | "translate"))
+            || (method == "GET" && p[6] == "layout")))
+        || (p.len() == 8
+            && method == "GET"
+            && p[6] == "nodes"
+            && uuid::Uuid::parse_str(p[7]).is_ok())
+}
+
+fn valid_zotero_url(url: &str) -> bool {
+    let Some(path) = url.strip_prefix("zotero://select/") else {
+        return false;
+    };
+    let p: Vec<_> = path.split('/').collect();
+    let key = match p.as_slice() {
+        ["library", "items", key] => *key,
+        ["groups", id, "items", key]
+            if !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            *key
+        }
+        _ => return false,
+    };
+    key.len() == 8
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+}
+
+#[tauri::command]
+fn open_zotero(url: String) -> Result<(), String> {
+    if !valid_zotero_url(&url) {
+        return Err("无效的 Zotero 条目链接".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        #[link(name = "shell32")]
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut std::ffi::c_void,
+                op: *const u16,
+                file: *const u16,
+                params: *const u16,
+                dir: *const u16,
+                show: i32,
+            ) -> isize;
+        }
+        let wide: Vec<u16> = url.encode_utf16().chain(Some(0)).collect();
+        // Dispatch only validated Zotero URIs to their registered handler, without a command shell.
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                wide.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+            )
+        };
+        if result <= 32 {
+            return Err("无法打开 Zotero，请确认已安装并注册链接处理程序".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("当前平台尚未接入 Zotero 链接处理".into())
+    }
+}
+
+fn allowed_reasoning(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    if route == "/api/v1/graph/subgraph" && method == "GET" {
+        let mut keys = std::collections::HashSet::new();
+        let valid = !query.is_empty()
+            && query.split('&').all(|item| {
+                item.split_once('=').is_some_and(|(key, value)| {
+                    keys.insert(key)
+                        && match key {
+                            "project_id" => uuid::Uuid::parse_str(value).is_ok(),
+                            "cursor" | "focus_id" => {
+                                value.is_empty() || uuid::Uuid::parse_str(value).is_ok()
+                            }
+                            "limit" => value.parse::<u32>().is_ok_and(|n| (1..=120).contains(&n)),
+                            "kind" => matches!(value, "claim" | "concept" | "method"),
+                            "status" => {
+                                matches!(value, "all" | "proposed" | "accepted" | "rejected")
+                            }
+                            _ => false,
+                        }
+                })
+            });
+        return valid && keys.contains("project_id");
+    }
+    if !query.is_empty() || path.contains('?') {
+        return false;
+    }
+    if method == "POST"
+        && matches!(
+            route,
+            "/api/v1/knowledge/candidates"
+                | "/api/v1/knowledge/semantic-reviews"
+                | "/api/v1/knowledge/relations/infer"
+                | "/api/v1/knowledge/alignments/infer"
+        )
+    {
+        return true;
+    }
+    let parts: Vec<_> = route.split('/').collect();
+    if method != "GET" || parts.len() < 6 || parts[1..3] != ["api", "v1"] {
+        return false;
+    }
+    (parts.len() == 6
+        && parts[3] == "projects"
+        && uuid::Uuid::parse_str(parts[4]).is_ok()
+        && parts[5] == "reasoning")
+        || (parts.len() == 6
+            && parts[3] == "knowledge"
+            && matches!(parts[4], "relations" | "alignments")
+            && uuid::Uuid::parse_str(parts[5]).is_ok())
+        || (parts.len() == 7
+            && parts[3..5] == ["knowledge", "nodes"]
+            && uuid::Uuid::parse_str(parts[5]).is_ok()
+            && matches!(parts[6], "context" | "reasoning"))
+}
+
 fn allowed_knowledge(method: &str, path: &str) -> bool {
     let (route, query) = path.split_once('?').unwrap_or((path, ""));
     let parts: Vec<_> = route.split('/').collect();
@@ -296,12 +440,40 @@ fn allowed_knowledge(method: &str, path: &str) -> bool {
             "/api/v1/knowledge/extract"
                 | "/api/v1/knowledge/reviews"
                 | "/api/v1/integrations/zotero/annotations"
+                | "/api/v1/integrations/zotero/browse"
         )
     {
         return true;
     }
     if parts.len() < 5 || parts[1..3] != ["api", "v1"] {
         return false;
+    }
+    if parts[3] == "settings" {
+        return (parts.len() == 5
+            && ((parts[4] == "models" && matches!(method, "GET" | "POST"))
+                || (parts[4] == "model-roles" && method == "POST")))
+            || (parts.len() == 7
+                && parts[4] == "models"
+                && uuid::Uuid::parse_str(parts[5]).is_ok()
+                && matches!(parts[6], "update" | "delete" | "test")
+                && method == "POST");
+    }
+    if parts[3] == "projects" && uuid::Uuid::parse_str(parts[4]).is_ok() {
+        if parts.len() == 6
+            && ((matches!(parts[5], "models" | "zotero-imports")
+                && matches!(method, "GET" | "POST"))
+                || (parts[5] == "model-roles" && method == "POST"))
+        {
+            return true;
+        }
+        if parts.len() == 8
+            && parts[5] == "models"
+            && method == "POST"
+            && uuid::Uuid::parse_str(parts[6]).is_ok()
+            && matches!(parts[7], "update" | "delete" | "test")
+        {
+            return true;
+        }
     }
     if method == "GET" && uuid::Uuid::parse_str(parts[4]).is_ok() {
         if parts[3] == "evidence"
@@ -481,6 +653,15 @@ async fn restart_engine(state: State<'_, Shared>) -> Result<HostStatus, String> 
     .map_err(|e| e.to_string())?
 }
 
+fn request_body_limit(method: &str, path: &str) -> usize {
+    // Layout accepts at most 2000 finite positions; preserve the smaller cap elsewhere.
+    if method == "POST" && path.ends_with("/graph/layout") && allowed(method, path) {
+        512 * 1024
+    } else {
+        16384
+    }
+}
+
 #[tauri::command]
 async fn engine_request(
     state: State<'_, Shared>,
@@ -492,7 +673,10 @@ async fn engine_request(
     if !allowed(&method, &path) {
         return Err("未授权的本地操作".into());
     }
-    if body.as_ref().is_some_and(|b| b.to_string().len() > 16384) {
+    if body
+        .as_ref()
+        .is_some_and(|b| b.to_string().len() > request_body_limit(&method, &path))
+    {
         return Err("请求内容过大".into());
     }
     let (port, token) = {
@@ -504,7 +688,13 @@ async fn engine_request(
     };
     let client = reqwest::Client::builder()
         .no_proxy()
-        .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(if path.ends_with("/test") {
+            190
+        } else if path == "/api/v1/integrations/zotero/browse" {
+            90
+        } else {
+            15
+        }))
         .build()
         .map_err(|e| e.to_string())?;
     let mut request = client
@@ -571,7 +761,8 @@ fn main() {
             import_pdf_file,
             relocate_source_file,
             authorize_notes_directory,
-            engine_request
+            engine_request,
+            open_zotero
         ])
         .build(tauri::generate_context!())
         .expect("无法建立桌面宿主")
@@ -586,7 +777,130 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn projection_routes_and_zotero_links_are_scoped() {
+        let id = "11111111-1111-4111-8111-111111111111";
+        assert!(super::allowed(
+            "POST",
+            &format!("/api/v1/projects/{id}/graph/projection")
+        ));
+        assert!(super::allowed(
+            "POST",
+            &format!("/api/v1/projects/{id}/graph/layout")
+        ));
+        assert!(!super::allowed(
+            "DELETE",
+            &format!("/api/v1/projects/{id}/graph/layout")
+        ));
+        assert!(!super::allowed(
+            "POST",
+            "/api/v1/projects/../graph/projection"
+        ));
+        assert!(super::valid_zotero_url(
+            "zotero://select/library/items/ABC12345"
+        ));
+        assert!(super::valid_zotero_url(
+            "zotero://select/groups/12/items/ABC12345"
+        ));
+        for bad in [
+            "https://example.com",
+            "zotero://select/library/items/ABC12345?cmd=x",
+            "zotero://select/library/items/../../x",
+            "file:///private",
+        ] {
+            assert!(!super::valid_zotero_url(bad));
+        }
+    }
     use super::allowed;
+    #[test]
+    fn layout_payload_budget_is_scoped_and_fits_the_contract() {
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        let path = format!("/api/v1/projects/{id}/graph/layout");
+        let positions: Vec<_> = (0..2000)
+            .map(|_| serde_json::json!({"node_id": id, "x": 123456.123456789, "y": -123456.123456789, "pinned": false}))
+            .collect();
+        let bytes = serde_json::json!({"positions": positions})
+            .to_string()
+            .len();
+        assert!(bytes > 16384);
+        assert!(bytes < super::request_body_limit("POST", &path));
+        assert_eq!(super::request_body_limit("GET", &path), 16384);
+        assert_eq!(
+            super::request_body_limit("POST", "/api/v1/settings/models"),
+            16384
+        );
+        assert_eq!(
+            super::request_body_limit("POST", "/api/v1/projects/../graph/layout"),
+            16384
+        );
+    }
+    #[test]
+    fn reasoning_routes_are_bounded_and_scoped() {
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        assert!(allowed("GET", &format!("/api/v1/graph/subgraph?project_id={id}&kind=claim&limit=24&cursor=&focus_id=&status=all")));
+        assert!(!allowed("GET", "/api/v1/graph/subgraph?limit=24"));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/graph/subgraph?project_id={id}&limit=999")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/graph/subgraph?project_id={id}&path=private")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/graph/subgraph?project_id={id}&project_id={id}")
+        ));
+        assert!(allowed("POST", "/api/v1/knowledge/relations/infer"));
+        assert!(allowed("POST", "/api/v1/knowledge/semantic-reviews"));
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/knowledge/nodes/{id}/context")
+        ));
+        assert!(!allowed(
+            "POST",
+            "/api/v1/knowledge/relations/infer?key=private"
+        ));
+    }
+    #[test]
+    fn project_models_and_zotero_are_scoped() {
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        assert!(allowed("GET", "/api/v1/settings/models"));
+        assert!(allowed("POST", "/api/v1/settings/model-roles"));
+        assert!(allowed(
+            "POST",
+            &format!("/api/v1/settings/models/{id}/test")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/settings/models/{id}/key")
+        ));
+        assert!(!allowed("POST", "/api/v1/settings/models?key=private"));
+        for suffix in ["models", "zotero-imports"] {
+            assert!(allowed("GET", &format!("/api/v1/projects/{id}/{suffix}")));
+            assert!(allowed("POST", &format!("/api/v1/projects/{id}/{suffix}")));
+        }
+        for action in ["update", "delete", "test"] {
+            assert!(allowed(
+                "POST",
+                &format!("/api/v1/projects/{id}/models/{id}/{action}")
+            ));
+        }
+        assert!(allowed("POST", "/api/v1/integrations/zotero/browse"));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/models/{id}/key")
+        ));
+        assert!(!allowed("POST", "/api/v1/projects/private/models"));
+        assert!(!allowed(
+            "POST",
+            "/api/v1/integrations/zotero/browse?path=private"
+        ));
+        assert!(!allowed(
+            "POST",
+            &format!("/api/v1/projects/{id}/models?key=private")
+        ));
+    }
     #[test]
     fn knowledge_routes_preserve_native_path_authorization() {
         let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";

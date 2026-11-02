@@ -43,6 +43,24 @@ experiments/runs/
 *.sqlite-shm
 *.db
 *.log
+*.jsonl
+*.sqlite3-wal
+*.sqlite3-shm
+*.db-wal
+*.db-shm
+*.pdf
+!tests/fixtures/**/*.pdf
+*.epub
+*.bib
+*.ris
+*.exe
+*.msi
+*.zip
+credentials/
+secrets/
+private/
+logs/
+local-settings*.json
 
 # Editors / OS
 .idea/

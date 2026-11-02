@@ -1,0 +1,322 @@
+{
+  "$defs": {
+    "GraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "HAS_CORE_CLAIM",
+            "UNIT_MEMBER",
+            "SOURCE_EVIDENCE",
+            "SCIENCE_RELATION"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "unit_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Id"
+        },
+        "assertion_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assertion Id"
+        },
+        "epistemic_status": {
+          "enum": [
+            "navigation",
+            "source_reported",
+            "model_inferred"
+          ],
+          "title": "Epistemic Status",
+          "type": "string"
+        },
+        "is_dashed": {
+          "default": false,
+          "title": "Is Dashed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "target",
+        "relation",
+        "epistemic_status"
+      ],
+      "title": "GraphEdge",
+      "type": "object"
+    },
+    "GraphNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "Claim",
+                "Method",
+                "Concept",
+                "ResearchQuestion",
+                "Experiment",
+                "Condition",
+                "Finding",
+                "Metric",
+                "Argument",
+                "Limitation"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "Paper",
+                "Evidence"
+              ],
+              "type": "string"
+            }
+          ],
+          "title": "Kind"
+        },
+        "label": {
+          "$ref": "#/$defs/SourceText"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "enum": [
+                "core",
+                "supporting",
+                "retrieval_only"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "paper",
+                "evidence"
+              ],
+              "type": "string"
+            }
+          ],
+          "title": "Role"
+        },
+        "detail_ref": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Detail Ref",
+          "type": "string"
+        },
+        "source_status": {
+          "enum": [
+            "anchored",
+            "needs_evidence",
+            "source_unavailable",
+            "invalid_anchor"
+          ],
+          "title": "Source Status",
+          "type": "string"
+        },
+        "validation_status": {
+          "enum": [
+            "valid",
+            "quarantined",
+            "superseded"
+          ],
+          "title": "Validation Status",
+          "type": "string"
+        },
+        "unit_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Unit Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "role",
+        "detail_ref",
+        "source_status",
+        "validation_status"
+      ],
+      "title": "GraphNode",
+      "type": "object"
+    },
+    "SourceText": {
+      "additionalProperties": false,
+      "description": "Original-language semantic text, not an exact quote or an anchor.",
+      "properties": {
+        "original": {
+          "minLength": 1,
+          "title": "Original",
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 35,
+          "minLength": 2,
+          "title": "Language",
+          "type": "string"
+        },
+        "zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zh"
+        }
+      },
+      "required": [
+        "original",
+        "language"
+      ],
+      "title": "SourceText",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "reading-projection-2.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "project_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Project Id",
+      "type": "string"
+    },
+    "paper_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Paper Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "knowledge_revision": {
+      "minimum": 0,
+      "title": "Knowledge Revision",
+      "type": "integer"
+    },
+    "selection_revision": {
+      "minimum": 1,
+      "title": "Selection Revision",
+      "type": "integer"
+    },
+    "build_state": {
+      "enum": [
+        "partial",
+        "complete"
+      ],
+      "title": "Build State",
+      "type": "string"
+    },
+    "expanded_unit_ids": {
+      "items": {
+        "maxLength": 160,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Expanded Unit Ids",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/GraphNode"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/GraphEdge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    }
+  },
+  "required": [
+    "contract_version",
+    "project_id",
+    "paper_id",
+    "document_version_id",
+    "knowledge_revision",
+    "selection_revision",
+    "build_state",
+    "expanded_unit_ids",
+    "nodes",
+    "edges"
+  ],
+  "title": "GraphProjection",
+  "type": "object"
+}

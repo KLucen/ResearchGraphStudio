@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "EvidenceInput": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "context_group": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Group"
+        },
+        "context_complete": {
+          "default": true,
+          "title": "Context Complete",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "EvidenceInput",
+      "type": "object"
+    },
+    "SourceText": {
+      "additionalProperties": false,
+      "description": "Original-language semantic text, not an exact quote or an anchor.",
+      "properties": {
+        "original": {
+          "minLength": 1,
+          "title": "Original",
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 35,
+          "minLength": 2,
+          "title": "Language",
+          "type": "string"
+        },
+        "zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zh"
+        }
+      },
+      "required": [
+        "original",
+        "language"
+      ],
+      "title": "SourceText",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "reading-extraction-1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "chunk_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "paper_type": {
+      "enum": [
+        "empirical",
+        "methodological",
+        "theoretical",
+        "review",
+        "mixed",
+        "unknown"
+      ],
+      "title": "Paper Type",
+      "type": "string"
+    },
+    "section": {
+      "title": "Section",
+      "type": "string"
+    },
+    "allowed_evidence": {
+      "items": {
+        "$ref": "#/$defs/EvidenceInput"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Allowed Evidence",
+      "type": "array"
+    },
+    "vocabulary": {
+      "items": {
+        "$ref": "#/$defs/SourceText"
+      },
+      "title": "Vocabulary",
+      "type": "array"
+    },
+    "max_items_hint": {
+      "default": 24,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Max Items Hint",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "contract_version",
+    "document_version_id",
+    "chunk_id",
+    "paper_type",
+    "section",
+    "allowed_evidence"
+  ],
+  "title": "ExtractionRequest",
+  "type": "object"
+}

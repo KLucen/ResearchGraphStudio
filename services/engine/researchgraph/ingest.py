@@ -108,6 +108,19 @@ def publish_pdf(
         )
     )
     paper_id = source.paper_id if source else revision.paper_id if revision else None
+    if paper_id is None and job.kind == "zotero_import":
+        from researchgraph.knowledge_models import ZoteroLink
+
+        paper_id = session.scalar(
+            select(ZoteroLink.paper_id)
+            .join(Paper)
+            .where(
+                Paper.project_id == job.project_id,
+                ZoteroLink.library_id == job.payload["library"],
+                ZoteroLink.item_key == job.payload["item_key"],
+            )
+            .limit(1)
+        )
     paper = session.get(Paper, paper_id) if paper_id else None
     if paper is None:
         paper = Paper(
@@ -176,6 +189,15 @@ def publish_pdf(
 
 
 async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
+    metadata: dict[str, Any] | None = None
+    annotations: list[dict[str, Any]] = []
+    with Session(engine) as session:
+        initial = session.get(Job, job_id)
+        zotero = initial is not None and initial.kind == "zotero_import"
+    if zotero:
+        from researchgraph.zotero_batch import prepare_import
+
+        metadata, annotations = await prepare_import(engine, job_id)
     with Session(engine) as session:
         job = session.get(Job, job_id)
         assert job and job.payload
@@ -186,7 +208,7 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
     if not getattr(sys, "frozen", False):
         command += ["-m", "researchgraph"]
         child_environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
-    if kind == "pdf_import":
+    if kind in {"pdf_import", "zotero_import"}:
         command += ["--parse-pdf", payload["path"]]
     else:
         request_file = work / "request.json"
@@ -211,7 +233,7 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
                 current = session.get(Job, job_id)
                 if current is None or current.status != "running":
                     return
-                stage = read_stage(work, kind)
+                stage = read_stage(work, "pdf_import" if zotero else kind)
                 if stage and current.stage != stage:
                     current.stage, current.updated_at = stage, now()
                     session.commit()
@@ -233,9 +255,46 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
             if current and current.status == "running":
                 current.result = (
                     publish_pdf(session, current, result, work, data)
-                    if kind == "pdf_import"
+                    if kind in {"pdf_import", "zotero_import"}
                     else publish_source_check(session, current, result)
                 )
+                if metadata is not None:
+                    result_id = str(current.result["revision_id"])
+                    KnowledgeStore(session).import_annotations(
+                        result_id,
+                        payload["library"],
+                        payload["item_key"],
+                        payload["attachment_key"],
+                        metadata,
+                        annotations,
+                        Path(payload["path"]),
+                    )
+                    paper = session.get(Paper, str(current.result["paper_id"]))
+                    assert paper
+                    # Preserve an existing title when merely deduplicating another source.
+                    if paper.title == Path(payload["path"]).stem:
+                        paper.title = str(metadata.get("data", {}).get("title") or paper.title)
+                if payload.get("extraction_options"):
+                    from researchgraph.knowledge_store import stable_id
+
+                    child_id = stable_id("zotero-extraction", job_id)
+                    if session.get(Job, child_id) is None:
+                        session.add(
+                            Job(
+                                id=child_id,
+                                project_id=current.project_id,
+                                kind="knowledge_extract",
+                                payload={
+                                    **payload["extraction_options"],
+                                    "document_version_id": str(current.result["revision_id"]),
+                                },
+                                status="queued",
+                                attempt=0,
+                                created_at=now(),
+                                updated_at=now(),
+                            )
+                        )
+                    current.result = {**current.result, "extraction_job_id": child_id}
                 current.status, current.updated_at = "succeeded", now()
     finally:
         if process is not None and process.poll() is None:

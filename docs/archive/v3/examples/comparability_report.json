@@ -1,0 +1,12 @@
+{
+  "left_claim_id": "claim-a",
+  "right_claim_id": "claim-b",
+  "overall": "limited",
+  "dimensions": [
+    {"name": "task_type", "source_value": "cooperative", "target_value": "competitive", "comparison": "different", "rationale": "Different task incentives limit comparison.", "evidence_ids": ["ev-a", "ev-b"]},
+    {"name": "metric", "source_value": "success_rate", "target_value": "average_reward", "comparison": "different", "rationale": "Results measure different outcomes.", "evidence_ids": ["ev-a", "ev-b"]},
+    {"name": "agent_architecture", "source_value": null, "target_value": null, "comparison": "unknown", "rationale": "Not specified in the provided excerpts.", "evidence_ids": []}
+  ],
+  "rationale": "Shared memory appears in both, but task and outcome measures differ.",
+  "unresolved_dimensions": ["agent_architecture"]
+}

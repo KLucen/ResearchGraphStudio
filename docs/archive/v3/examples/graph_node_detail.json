@@ -1,0 +1,19 @@
+{
+  "id": "claim-001",
+  "kind": "Claim",
+  "label_zh": "共享记忆改善合作表现",
+  "label_en": "Shared memory improves cooperation",
+  "full_text_en": "Shared memory improved task success in the evaluated cooperative task setting.",
+  "translation_zh": "在所评估的合作任务设置中，共享记忆提高了任务成功率。",
+  "source_status": "anchored",
+  "review_status": "unreviewed",
+  "knowledge_origin": "paper_author",
+  "conditions": [
+    {"dimension": "task_type", "state": "known", "value_en": "cooperative", "value_zh": "合作", "unit": null, "evidence_ids": ["ev-a-1"]}
+  ],
+  "findings": [],
+  "evidence_refs": ["ev-a-1"],
+  "related_node_refs": ["method-001", "paper-demo"],
+  "zotero_item_key": "FICTIONAL",
+  "document_version_id": "dv-demo-a"
+}

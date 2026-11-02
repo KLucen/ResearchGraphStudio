@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "candidate_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "expected_selection_revision": {
+      "minimum": 1,
+      "title": "Expected Selection Revision",
+      "type": "integer"
+    },
+    "action": {
+      "enum": [
+        "include_core",
+        "exclude_core",
+        "reset_automatic"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "document_version_id",
+    "candidate_id",
+    "expected_selection_revision",
+    "action",
+    "reason"
+  ],
+  "title": "SelectionPreference",
+  "type": "object"
+}

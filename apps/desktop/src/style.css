@@ -125,6 +125,101 @@ h3 {
   background: #d7e4d5;
   border-radius: 4px;
 }
+.nav .nav-label {
+  margin: 0;
+  font-size: inherit;
+  background: transparent;
+  text-align: left;
+}
+.sidebar-toggle {
+  align-self: flex-end;
+  background: transparent;
+  color: #28583f;
+  padding: 8px;
+  margin-bottom: 10px;
+}
+.model-settings {
+  margin: 22px 0;
+  display: grid;
+  gap: 16px;
+}
+.model-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.model-form h3,
+.model-form > div {
+  grid-column: 1 / -1;
+}
+.model-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.model-form input:not([type="checkbox"]),
+.model-form select,
+.model-settings select {
+  padding: 9px;
+  border: 1px solid #bccac2;
+  border-radius: 6px;
+  background: white;
+  min-width: 0;
+}
+.project-settings {
+  padding: 18px 0;
+}
+.zotero-import {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 24px;
+}
+.zotero-import select,
+.zotero-import input:not([type="checkbox"]) {
+  padding: 8px;
+  margin-left: 8px;
+  border: 1px solid #bccac2;
+  border-radius: 5px;
+  max-width: 100%;
+}
+.attachment-choice {
+  display: block;
+  margin: 8px 0 0 20px;
+  overflow-wrap: anywhere;
+}
+.import-job {
+  padding: 10px;
+  border-bottom: 1px solid #dbe2db;
+}
+.zotero-import progress {
+  width: 100%;
+  accent-color: #316d53;
+}
+.app-shell.sidebar-collapsed .sidebar {
+  width: 76px;
+  padding: 20px 12px;
+  align-items: center;
+}
+.app-shell.sidebar-collapsed .brand-title,
+.app-shell.sidebar-collapsed .workspace-label,
+.app-shell.sidebar-collapsed .nav-label,
+.app-shell.sidebar-collapsed .nav-count,
+.app-shell.sidebar-collapsed .sidebar-note,
+.app-shell.sidebar-collapsed .connection span,
+.app-shell.sidebar-collapsed .version {
+  display: none;
+}
+.app-shell.sidebar-collapsed nav {
+  margin-top: 30px;
+}
+.app-shell.sidebar-collapsed .sidebar-toggle {
+  align-self: center;
+}
+.app-shell.sidebar-collapsed main {
+  margin-left: 76px;
+  width: calc(100% - 76px);
+  min-width: 0;
+}
 .nav.active {
   background: #dde6d9;
   color: #28583f;
@@ -788,6 +883,27 @@ main {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
+
+.batch-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.batch-status {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 11px;
+}
+
+.batch-status.succeeded {
+  color: var(--success);
+}
+.batch-status.failed {
+  color: var(--danger);
+}
 .task-stage {
   margin: 4px 0 0;
   color: var(--muted, #59636e);
@@ -798,6 +914,150 @@ main {
   margin: 1.2rem 0;
   border-top: 1px solid #d8dedc;
   padding-top: 1rem;
+}
+
+.project-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+.content.project-content {
+  padding-top: 18px;
+}
+.project-title {
+  margin: 8px 0;
+  font-size: 22px;
+}
+.graph-workspace .section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.graph-workspace .section-heading h2 {
+  margin: 8px 0;
+}
+.graph-workspace .import-controls {
+  gap: 10px;
+  margin: 10px 0;
+}
+.graph-workspace .import-controls select {
+  max-width: 280px;
+}
+.graph-workbench {
+  min-width: 0;
+}
+.graph-canvas {
+  height: 510px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cbd6cf;
+  border-radius: 14px;
+  background: #f8faf7;
+}
+.graph-canvas .react-flow__node strong,
+.graph-canvas .react-flow__node small {
+  display: block;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.graph-canvas .react-flow__node strong {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.graph-canvas .react-flow__node small {
+  color: #62746b;
+}
+.graph-node-list,
+.candidate-results,
+.proposal-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+  max-height: 370px;
+  overflow-y: auto;
+}
+.comparison-heading {
+  margin-top: 28px;
+}
+.comparator-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 20px 0;
+}
+.comparator-side {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #d8e0d9;
+  border-radius: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.comparison-quote {
+  margin: 14px 0;
+  padding: 14px;
+  background: #fff9e9;
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.evidence-choices {
+  display: flex;
+  flex-wrap: wrap;
+}
+.condition-table {
+  overflow-x: auto;
+  margin: 18px 0;
+}
+.condition-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+.condition-table caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 10px 0;
+}
+.condition-table th,
+.condition-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px;
+  border: 1px solid #d8e0d9;
+  max-width: 340px;
+  overflow-wrap: anywhere;
+}
+.graph-workbench pre {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  padding: 14px;
+  background: #eef3ee;
+}
+.graph-workbench .import-controls input {
+  max-width: 250px;
+  padding: 8px;
+  border: 1px solid #cbd6cf;
+  border-radius: 6px;
+}
+.graph-workbench .import-controls input[type="number"] {
+  width: 70px;
+}
+.graph-workbench details {
+  margin: 12px 0;
+}
+@media (max-width: 1100px) {
+  .comparator-columns {
+    gap: 10px;
+  }
+  .comparator-side {
+    padding: 12px;
+  }
 }
 .reading-grid {
   display: grid;
@@ -898,5 +1158,160 @@ main {
   .knowledge-cards {
     grid-column: 1 / -1;
     max-height: 400px;
+  }
+}
+.projection-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 370px);
+  gap: 16px;
+}
+.workbench-section {
+  margin: 16px 0;
+  border: 1px solid #d9deda;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.workbench-section > h2 {
+  margin: 0;
+}
+.section-disclosure {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  background: #f7f9f6;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.section-disclosure small {
+  font-size: 12px;
+  font-weight: 400;
+  color: #63776d;
+}
+.workbench-section-body {
+  padding: 16px;
+}
+.import-source-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.projection-canvas {
+  height: calc(100vh - 345px);
+  min-height: 420px;
+  position: relative;
+  border: 1px solid var(--border, #d9deda);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f7f8f5;
+}
+/* Dots retain a generous pointer target; labels are visual, never card containers. */
+.projection-canvas .react-flow__node.graph-dot {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: none;
+  font-size: 11px;
+}
+.projection-canvas .react-flow__node.graph-dot::before {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+}
+.projection-canvas .react-flow__node.graph-dot.dragging {
+  cursor: grabbing;
+}
+.projection-canvas .graph-dot.selected {
+  outline: 3px solid #adc9bc;
+  outline-offset: 4px;
+}
+.projection-canvas .graph-dot.pinned {
+  box-shadow:
+    0 0 0 2px #f7f8f5,
+    0 0 0 4px #798d83;
+}
+.projection-canvas .dot-label {
+  position: absolute;
+  top: 23px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #52615a;
+  width: max-content;
+  max-width: 130px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.projection-canvas .dot-label small {
+  display: block;
+  font-size: 10px;
+}
+.projection-canvas .react-flow__handle {
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+}
+.projection-canvas .react-flow__edge-text {
+  font-size: 10px;
+  fill: #52615a;
+}
+.projection-canvas .react-flow__edge-textwrapper {
+  pointer-events: none;
+}
+.node-inspector {
+  max-height: 75vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #d9deda;
+  border-radius: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.node-inspector details {
+  margin: 14px 0;
+}
+.node-inspector .evidence-image {
+  width: 100%;
+}
+.node-inspector pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.inspector-fact {
+  border-left: 2px solid #bccdc5;
+  padding-left: 10px;
+  margin: 12px 0;
+}
+.inspector-fact p {
+  margin: 4px 0;
+}
+.graph-empty {
+  position: absolute;
+  top: 40%;
+  left: 15%;
+  pointer-events: none;
+}
+@media (max-width: 1100px) {
+  .projection-grid {
+    grid-template-columns: 1fr;
+  }
+  .node-inspector {
+    max-height: 500px;
   }
 }

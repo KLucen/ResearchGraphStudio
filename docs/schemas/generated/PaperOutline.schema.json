@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "OutlineSection": {
+      "additionalProperties": false,
+      "properties": {
+        "local_ref": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Local Ref",
+          "type": "string"
+        },
+        "heading": {
+          "$ref": "#/$defs/SourceText"
+        },
+        "paragraph_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Paragraph Ids",
+          "type": "array"
+        },
+        "section_type": {
+          "enum": [
+            "abstract",
+            "introduction",
+            "related_work",
+            "method",
+            "experiment",
+            "result",
+            "theory",
+            "proof",
+            "review",
+            "discussion",
+            "conclusion",
+            "references",
+            "other"
+          ],
+          "title": "Section Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_ref",
+        "heading",
+        "paragraph_ids",
+        "section_type"
+      ],
+      "title": "OutlineSection",
+      "type": "object"
+    },
+    "SourceText": {
+      "additionalProperties": false,
+      "description": "Original-language semantic text, not an exact quote or an anchor.",
+      "properties": {
+        "original": {
+          "minLength": 1,
+          "title": "Original",
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 35,
+          "minLength": 2,
+          "title": "Language",
+          "type": "string"
+        },
+        "zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zh"
+        }
+      },
+      "required": [
+        "original",
+        "language"
+      ],
+      "title": "SourceText",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "paper_type": {
+      "enum": [
+        "empirical",
+        "methodological",
+        "theoretical",
+        "review",
+        "mixed",
+        "unknown"
+      ],
+      "title": "Paper Type",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/OutlineSection"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "document_version_id",
+    "paper_type",
+    "sections"
+  ],
+  "title": "PaperOutline",
+  "type": "object"
+}

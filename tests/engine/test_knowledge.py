@@ -12,11 +12,11 @@ from alembic import command
 from alembic.config import Config
 from researchgraph import extraction
 from researchgraph.knowledge_contracts import ExtractionBatch
-from researchgraph.knowledge_models import EvidenceSpan, KnowledgeNode, ModelRun
+from researchgraph.knowledge_models import EvidenceSpan, KnowledgeNode, KnowledgeOperation, ModelRun
 from researchgraph.knowledge_store import DOMAIN_VERSION, KnowledgeError, KnowledgeStore
 from researchgraph.models import AttachmentRevision, Chunk, Job, Paper, Project, now
 from researchgraph.providers import ConfiguredProvider, MockProvider
-from researchgraph.storage import make_engine
+from researchgraph.storage import SCHEMA_HEAD, make_engine
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -381,6 +381,127 @@ def test_model_failures_preserved_without_fake_success(tmp_path, source, monkeyp
         assert wait_job(api, retry)["status"] == "succeeded"
 
 
+def test_extraction_separates_outline_ids_from_citable_evidence(tmp_path, source, monkeypatch):
+    paragraph_ids = set()
+    inputs = []
+
+    class Inspecting(MockProvider):
+        async def complete(self, prompt, data, schema):
+            if schema["title"] == "PaperOutline":
+                assert len(data["sections"]) <= 8
+                assert all(s["context"] for s in data["sections"])
+                paragraph_ids.update(data["allowed_paragraph_ids"])
+            else:
+                assert paragraph_ids
+                assert not paragraph_ids.intersection(data["allowed_evidence_ids"])
+                assert all(set(e) == {"id", "quote"} for e in data["evidence_texts"])
+                inputs.append(data)
+            return await super().complete(prompt, data, schema)
+
+    monkeypatch.setattr(extraction, "provider_for", lambda *_: Inspecting())
+    with client(tmp_path / "data", worker=True) as api:
+        project = post(api, "/projects", {"name": "Evidence namespaces"}).json()["id"]
+        imported = wait_job(api, queue(api, project, source, "namespace-import"))
+        version = imported["result"]["revision_id"]
+        result = wait_job(
+            api, post(api, "/knowledge/extract", {"document_version_id": version}).json()
+        )
+        assert result["status"] == "succeeded", result
+        assert inputs
+        runs = api.get(f"/api/v1/revisions/{version}/runs").json()
+        p02 = next(r for r in runs if r["prompt_name"].startswith("P02"))
+        assert p02["input_hash"] == extraction.digest(inputs[0])
+        aliases = p02["parameters"]["input_manifest"]["evidence_aliases"]
+        assert set(aliases) == set(inputs[0]["allowed_evidence_ids"])
+        assert all(key.startswith("ev") for key in aliases)
+        claim = next(
+            n
+            for n in api.get(f"/api/v1/revisions/{version}/knowledge").json()["items"]
+            if n["kind"] == "claim"
+        )
+        detail = api.get(f"/api/v1/knowledge/nodes/{claim['id']}").json()
+        assert detail["evidence"][0]["id"] in aliases.values()
+
+
+def test_short_evidence_ids_are_exact_and_cannot_rewrite_other_fields():
+    resolved = extraction.resolve_evidence_aliases(
+        {"statement": "ev0001", "evidence_span_ids": ["ev0001"]}, {"ev0001": "real-id"}
+    )
+    assert resolved == {"statement": "ev0001", "evidence_span_ids": ["real-id"]}
+    for invalid in ("ev1", "real-id", "ev0002"):
+        with pytest.raises(ValueError, match="白名单"):
+            extraction.resolve_evidence_aliases(
+                {"evidence_span_id": invalid}, {"ev0001": "real-id"}
+            )
+
+
+def test_failed_later_batch_preserves_saved_progress(tmp_path, monkeypatch):
+    source = tmp_path / "Large synthetic.pdf"
+    with pymupdf.open() as document:
+        for page_index in range(14):
+            page = document.new_page()
+            page.insert_textbox(
+                (40, 40, 550, 800),
+                f"Synthetic page marker {page_index}. "
+                + "Our synthetic method improves accuracy in the toy task. " * 65,
+                fontsize=11,
+            )
+        document.save(source)
+
+    class LaterFailure(MockProvider):
+        def __init__(self):
+            self.calls = []
+            self.outline_calls = 0
+            self.fail_later_batch = True
+
+        async def complete(self, prompt, data, schema):
+            if schema["title"] == "ExtractionBatch":
+                signature = extraction.digest(data)
+                self.calls.append(signature)
+                # The second batch remains unavailable across all bounded
+                # retries; the first batch must still remain committed.
+                if self.fail_later_batch and len(self.calls) >= 2:
+                    raise TimeoutError()
+            elif schema["title"] == "PaperOutline":
+                self.outline_calls += 1
+            return await super().complete(prompt, data, schema)
+
+    provider = LaterFailure()
+    monkeypatch.setattr(extraction, "provider_for", lambda *_: provider)
+    with client(tmp_path / "data", worker=True) as api:
+        project = post(api, "/projects", {"name": "Partial progress"}).json()["id"]
+        imported = wait_job(api, queue(api, project, source, "large-import"))
+        version = imported["result"]["revision_id"]
+        job = wait_job(
+            api, post(api, "/knowledge/extract", {"document_version_id": version}).json()
+        )
+        assert job["status"] == "failed", job
+        assert job["result"]["completed_batches"] == "1"
+        # This fixture is deliberately sized to the seven-batch recovery case.
+        # Keeping the exact count catches accidental changes to the chunking
+        # contract that would alter resume semantics and token costs.
+        assert job["result"]["total_batches"] == "7"
+        assert api.get(f"/api/v1/revisions/{version}/knowledge").json()["items"]
+        first_batch_signature = provider.calls[0]
+        saved_outline_calls = provider.outline_calls
+        provider.fail_later_batch = False
+        retry = post(api, f"/jobs/{job['id']}/retry", key="resume-partial-extraction").json()
+        recovered = wait_job(api, retry)
+        assert recovered["status"] == "succeeded", recovered
+        assert recovered["result"]["completed_batches"] == recovered["result"]["total_batches"]
+        assert provider.calls.count(first_batch_signature) == 1
+        assert provider.outline_calls == saved_outline_calls
+        with Session(api.app.state.engine) as session:
+            persisted_node_ids = {
+                node_id
+                for operation in session.scalars(
+                    select(KnowledgeOperation).where(KnowledgeOperation.key.like("extraction:%"))
+                )
+                for node_id in operation.response["node_ids"]
+            }
+        assert int(recovered["result"]["knowledge_count"]) == len(persisted_node_ids)
+
+
 def test_cancel_model_does_not_kill_worker_or_publish(tmp_path, source, monkeypatch):
     class Slow(MockProvider):
         async def complete(self, prompt, data, schema):
@@ -439,7 +560,7 @@ def test_0004_migration_preserves_old_sources_and_creates_backup(tmp_path):
             api.get("/api/v1/revisions/v/structure").json()["evidence"][0]["paragraph_id"]
             == "chunk"
         )
-        assert api.get("/api/v1/health").json()["schema_version"] == "0005"
+        assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD
     (backup,) = (tmp_path / "backups").glob("*.sqlite3")
     with sqlite3.connect(backup) as db:
         assert db.execute("select version_num from alembic_version").fetchone()[0] == "0004"

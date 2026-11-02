@@ -1,6 +1,8 @@
 # ResearchGraph Studio — Development Plan v2.0
 
-> 日期：2026-11-01 | 使用者：Codex / 软件工程师 | 开发状态：**P1 兼容补全与 P2 最小闭环已实现，外部验收限制见[实际进度](progress.md)**
+> 历史归档（2026-11-02）：v2 设计包已由 [v3 规范包](../../README.md)接替。下文保留当时设计、指令模板及实施语境，不作为当前施工指令；现状见[实施进度](../../progress.md)。
+
+> 日期：2026-11-01 | 使用者：Codex / 软件工程师 | 开发状态：**P1–P3 最小功能闭环已实现；真实关系候选→审核→图谱边仍待通过，见[实际进度](../../progress.md)与[Phase 3 验收](../../phase3-verification.md)**
 > 文档层级：`01_product_design.md` 定义产品目标；**本文件**定义工程与分期；`03_knowledge_schema_and_prompts.md`定义数据与LLM契约。
 > 这是旧版 `development_plan.md` 的**架构更新版**；保持 Phase 0～6 名称，但职责按 Graph-Centric Knowledge Lifecycle 重排。
 
@@ -226,6 +228,10 @@ researchgraph-studio/
 ### API草案
 
 `POST /knowledge/relations/infer`、`GET /knowledge/relations`、`GET /graph/subgraph`、`POST /knowledge/reviews`。
+
+### 2026-11-01 实施记录
+
+继承现有 P0–P2，实现全局模型设置、安全凭据、Zotero 分类批量选择及导航折叠，随后完成真实 P2 验证与 P03–P05。统一 Store、0008 迁移、当前条件快照、失效审核保护、FTS5/BM25 召回、有界 React Flow 和 Comparator 已落地。具体取舍见 [ADR v2-0002](../../adr/0002-phase3-models-and-reasoning.md)，实际测试见 [进度](../../progress.md)。图谱首版展示 Paper 分组及 Claim/Concept/Method；Question/综合知识节点随其所属阶段引入。实体对齐仅保存可审核判断，不执行物理合并。完整索引召回率/科学关系质量基准仍待专项评测。本轮不推进 P4。
 
 ## 9. P4 — Query：混合检索、证据问答、知识沉淀
 

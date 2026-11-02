@@ -1,0 +1,336 @@
+{
+  "document_version_id": "dv-demo",
+  "input_revision": 7,
+  "paper_type": "empirical",
+  "candidates": [
+    {
+      "id": "claim-a",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "claim-a",
+        "kind": "Claim",
+        "label": {
+          "original": "Protocol A reduced time at the tested temperature",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Protocol A reduced time at the tested temperature",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-1"
+        ],
+        "statement": {
+          "original": "The authors report a shorter time with protocol A at 20 C.",
+          "language": "en",
+          "zh": "作者报告在 20 C 时协议 A 耗时较短。"
+        },
+        "contribution_type": "empirical_result",
+        "modality": "conditional"
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "main_contribution",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "method-a",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "method-a",
+        "kind": "Method",
+        "label": {
+          "original": "Protocol A",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Protocol A",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-1"
+        ],
+        "method_role": "used"
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "necessary_support",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "finding-a",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "finding-a",
+        "kind": "Finding",
+        "label": {
+          "original": "8 s versus 10 s",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "8 s versus 10 s",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-1"
+        ],
+        "result": {
+          "original": "Reported time: A 8 s; B 10 s.",
+          "language": "en",
+          "zh": null
+        },
+        "reported_value": "8",
+        "unit": "s",
+        "baseline": {
+          "original": "Protocol B: 10 s",
+          "language": "en",
+          "zh": null
+        }
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "necessary_support",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "condition-a",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "condition-a",
+        "kind": "Condition",
+        "label": {
+          "original": "Temperature 20 C",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Temperature 20 C",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-1"
+        ],
+        "dimension": "temperature",
+        "state": "known",
+        "value": {
+          "original": "20",
+          "language": "en",
+          "zh": null
+        },
+        "unit": "C",
+        "alternatives": []
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "necessary_support",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "background-a",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "background-a",
+        "kind": "Claim",
+        "label": {
+          "original": "Earlier work is discussed",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Earlier work is discussed",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "citation_report",
+        "evidence_ids": [
+          "ev-3"
+        ],
+        "statement": {
+          "original": "The introduction discusses prior measurement protocols.",
+          "language": "en",
+          "zh": null
+        },
+        "contribution_type": "background",
+        "modality": "asserted"
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "context",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "claim-b",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "claim-b",
+        "kind": "Claim",
+        "label": {
+          "original": "Long-term stability is not established",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Long-term stability is not established",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-2"
+        ],
+        "statement": {
+          "original": "The authors did not evaluate long-term stability of protocol A.",
+          "language": "en",
+          "zh": null
+        },
+        "contribution_type": "limitation",
+        "modality": "negated"
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "main_contribution",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    },
+    {
+      "id": "limitation-b",
+      "document_version_id": "dv-demo",
+      "revision": 1,
+      "content": {
+        "local_ref": "limitation-b",
+        "kind": "Limitation",
+        "label": {
+          "original": "Long-term stability untested",
+          "language": "en",
+          "zh": null
+        },
+        "summary": {
+          "original": "Long-term stability untested",
+          "language": "en",
+          "zh": null
+        },
+        "origin": "paper_author",
+        "evidence_ids": [
+          "ev-2"
+        ],
+        "limitation_type": "scope"
+      },
+      "source_status": "anchored",
+      "validation_status": "valid",
+      "legacy_review_status": null,
+      "quality": {
+        "relevance": "necessary_support",
+        "evidence_completeness": "sufficient",
+        "duplicate_status": "distinct",
+        "blocking_issues": [],
+        "caveats": [],
+        "rationale": "Synthetic source explicitly states the content.",
+        "assessed_by": "rules",
+        "policy_version": "reading-policy-1"
+      },
+      "model_run_id": "run-demo",
+      "canonical_id": null
+    }
+  ],
+  "allowed_evidence": [
+    {
+      "id": "ev-1",
+      "text": "In this fictional example, protocol A took 8 s at 20 C versus 10 s for protocol B. No other temperature was tested.",
+      "context_group": "results",
+      "context_complete": true
+    },
+    {
+      "id": "ev-2",
+      "text": "The authors also note that protocol A was not evaluated for long-term stability.",
+      "context_complete": true
+    },
+    {
+      "id": "ev-3",
+      "text": "The introduction cites earlier work on measurement protocols.",
+      "context_complete": true
+    }
+  ],
+  "coverage_gaps": []
+}

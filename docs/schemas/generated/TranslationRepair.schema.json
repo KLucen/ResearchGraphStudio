@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "source_revision": {
+      "minimum": 1,
+      "title": "Source Revision",
+      "type": "integer"
+    },
+    "label_zh": {
+      "title": "Label Zh",
+      "type": "string"
+    },
+    "summary_zh": {
+      "title": "Summary Zh",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "source_revision",
+    "label_zh",
+    "summary_zh"
+  ],
+  "title": "TranslationRepair",
+  "type": "object"
+}

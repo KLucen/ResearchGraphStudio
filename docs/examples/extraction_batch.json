@@ -1,0 +1,220 @@
+{
+  "contract_version": "reading-extraction-1.0",
+  "document_version_id": "dv-demo",
+  "chunk_id": "results-demo",
+  "items": [
+    {
+      "local_ref": "claim-a",
+      "kind": "Claim",
+      "label": {
+        "original": "Protocol A reduced time at the tested temperature",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Protocol A reduced time at the tested temperature",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-1"
+      ],
+      "statement": {
+        "original": "The authors report a shorter time with protocol A at 20 C.",
+        "language": "en",
+        "zh": "作者报告在 20 C 时协议 A 耗时较短。"
+      },
+      "contribution_type": "empirical_result",
+      "modality": "conditional"
+    },
+    {
+      "local_ref": "method-a",
+      "kind": "Method",
+      "label": {
+        "original": "Protocol A",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Protocol A",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-1"
+      ],
+      "method_role": "used"
+    },
+    {
+      "local_ref": "finding-a",
+      "kind": "Finding",
+      "label": {
+        "original": "8 s versus 10 s",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "8 s versus 10 s",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-1"
+      ],
+      "result": {
+        "original": "Reported time: A 8 s; B 10 s.",
+        "language": "en",
+        "zh": null
+      },
+      "reported_value": "8",
+      "unit": "s",
+      "baseline": {
+        "original": "Protocol B: 10 s",
+        "language": "en",
+        "zh": null
+      }
+    },
+    {
+      "local_ref": "condition-a",
+      "kind": "Condition",
+      "label": {
+        "original": "Temperature 20 C",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Temperature 20 C",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-1"
+      ],
+      "dimension": "temperature",
+      "state": "known",
+      "value": {
+        "original": "20",
+        "language": "en",
+        "zh": null
+      },
+      "unit": "C",
+      "alternatives": []
+    },
+    {
+      "local_ref": "background-a",
+      "kind": "Claim",
+      "label": {
+        "original": "Earlier work is discussed",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Earlier work is discussed",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "citation_report",
+      "evidence_ids": [
+        "ev-3"
+      ],
+      "statement": {
+        "original": "The introduction discusses prior measurement protocols.",
+        "language": "en",
+        "zh": null
+      },
+      "contribution_type": "background",
+      "modality": "asserted"
+    },
+    {
+      "local_ref": "claim-b",
+      "kind": "Claim",
+      "label": {
+        "original": "Long-term stability is not established",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Long-term stability is not established",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-2"
+      ],
+      "statement": {
+        "original": "The authors did not evaluate long-term stability of protocol A.",
+        "language": "en",
+        "zh": null
+      },
+      "contribution_type": "limitation",
+      "modality": "negated"
+    },
+    {
+      "local_ref": "limitation-b",
+      "kind": "Limitation",
+      "label": {
+        "original": "Long-term stability untested",
+        "language": "en",
+        "zh": null
+      },
+      "summary": {
+        "original": "Long-term stability untested",
+        "language": "en",
+        "zh": null
+      },
+      "origin": "paper_author",
+      "evidence_ids": [
+        "ev-2"
+      ],
+      "limitation_type": "scope"
+    }
+  ],
+  "links": [
+    {
+      "source_local_ref": "claim-a",
+      "target_local_ref": "method-a",
+      "relation": "ASSOCIATED_METHOD",
+      "evidence_ids": [
+        "ev-1"
+      ]
+    },
+    {
+      "source_local_ref": "claim-a",
+      "target_local_ref": "finding-a",
+      "relation": "SUPPORTED_BY",
+      "evidence_ids": [
+        "ev-1"
+      ]
+    },
+    {
+      "source_local_ref": "claim-a",
+      "target_local_ref": "condition-a",
+      "relation": "HAS_CONDITION",
+      "evidence_ids": [
+        "ev-1"
+      ]
+    },
+    {
+      "source_local_ref": "claim-b",
+      "target_local_ref": "method-a",
+      "relation": "ASSOCIATED_METHOD",
+      "evidence_ids": [
+        "ev-2"
+      ]
+    },
+    {
+      "source_local_ref": "claim-b",
+      "target_local_ref": "limitation-b",
+      "relation": "LIMITED_BY",
+      "evidence_ids": [
+        "ev-2"
+      ]
+    }
+  ],
+  "warnings": []
+}

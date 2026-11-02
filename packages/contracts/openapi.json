@@ -135,6 +135,16 @@
               "type": "string",
               "title": "Version Id"
             }
+          },
+          {
+            "name": "include_test_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Test Data"
+            }
           }
         ],
         "responses": {
@@ -733,6 +743,1546 @@
                     "additionalProperties": true
                   },
                   "title": "Response Notes Api V1 Integrations Obsidian  Root Id  Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/models": {
+      "get": {
+        "summary": "Settings",
+        "operationId": "settings_api_v1_projects__project_id__models_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create",
+        "operationId": "create_api_v1_projects__project_id__models_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/models": {
+      "get": {
+        "summary": "Settings",
+        "operationId": "settings_api_v1_settings_models_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create",
+        "operationId": "create_api_v1_settings_models_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/models/{profile_id}/update": {
+      "post": {
+        "summary": "Update",
+        "operationId": "update_api_v1_projects__project_id__models__profile_id__update_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/models/{profile_id}/update": {
+      "post": {
+        "summary": "Update",
+        "operationId": "update_api_v1_settings_models__profile_id__update_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/models/{profile_id}/delete": {
+      "post": {
+        "summary": "Remove",
+        "operationId": "remove_api_v1_projects__project_id__models__profile_id__delete_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Remove Api V1 Projects  Project Id  Models  Profile Id  Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/models/{profile_id}/delete": {
+      "post": {
+        "summary": "Remove",
+        "operationId": "remove_api_v1_settings_models__profile_id__delete_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Remove Api V1 Settings Models  Profile Id  Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/model-roles": {
+      "post": {
+        "summary": "Select Models",
+        "operationId": "select_models_api_v1_projects__project_id__model_roles_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/model-roles": {
+      "post": {
+        "summary": "Select Models",
+        "operationId": "select_models_api_v1_settings_model_roles_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/models/{profile_id}/test": {
+      "post": {
+        "summary": "Test Connection",
+        "operationId": "test_connection_api_v1_projects__project_id__models__profile_id__test_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Connection Api V1 Projects  Project Id  Models  Profile Id  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/models/{profile_id}/test": {
+      "post": {
+        "summary": "Test Connection",
+        "operationId": "test_connection_api_v1_settings_models__profile_id__test_post",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Connection Api V1 Settings Models  Profile Id  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/zotero/browse": {
+      "post": {
+        "summary": "Browse",
+        "operationId": "browse_api_v1_integrations_zotero_browse_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionBrowse"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/zotero-imports": {
+      "post": {
+        "summary": "Submit",
+        "operationId": "submit_api_v1_projects__project_id__zotero_imports_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportStatus"
+                  },
+                  "title": "Response Submit Api V1 Projects  Project Id  Zotero Imports Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_v1_projects__project_id__zotero_imports_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportStatus"
+                  },
+                  "title": "Response History Api V1 Projects  Project Id  Zotero Imports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/candidates": {
+      "post": {
+        "summary": "Retrieve",
+        "operationId": "retrieve_api_v1_knowledge_candidates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/nodes/{node_id}/context": {
+      "get": {
+        "summary": "Context",
+        "operationId": "context_api_v1_knowledge_nodes__node_id__context_get",
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContextView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/{workflow}/infer": {
+      "post": {
+        "summary": "Infer",
+        "operationId": "infer_api_v1_knowledge__workflow__infer_post",
+        "parameters": [
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "relations",
+                "alignments"
+              ],
+              "type": "string",
+              "title": "Workflow"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/reasoning": {
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_v1_projects__project_id__reasoning_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasoningHistory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/nodes/{node_id}/reasoning": {
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_v1_knowledge_nodes__node_id__reasoning_get",
+        "parameters": [
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Node Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasoningHistory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/{workflow}/{proposal_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_v1_knowledge__workflow___proposal_id__get",
+        "parameters": [
+          {
+            "name": "workflow",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "relations",
+                "alignments"
+              ],
+              "type": "string",
+              "title": "Workflow"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/semantic-reviews": {
+      "post": {
+        "summary": "Review",
+        "operationId": "review_api_v1_knowledge_semantic_reviews_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SemanticReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/graph/subgraph": {
+      "get": {
+        "summary": "Graph",
+        "operationId": "graph_api_v1_graph_subgraph_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "claim",
+                "concept",
+                "method"
+              ],
+              "type": "string",
+              "default": "claim",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "proposed",
+                "accepted",
+                "rejected"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 120,
+              "minimum": 1,
+              "default": 60,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "focus_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Focus Id"
+            }
+          },
+          {
+            "name": "include_test_data",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Test Data"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/graph/projection": {
+      "post": {
+        "summary": "Projection",
+        "operationId": "projection_api_v1_projects__project_id__graph_projection_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectionQuery"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphProjection"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/graph/nodes/{node_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_v1_projects__project_id__graph_nodes__node_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/graph/layout": {
+      "get": {
+        "summary": "Layout",
+        "operationId": "layout_api_v1_projects__project_id__graph_layout_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save Layout",
+        "operationId": "save_layout_api_v1_projects__project_id__graph_layout_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/graph/translate": {
+      "post": {
+        "summary": "Translate",
+        "operationId": "translate_api_v1_projects__project_id__graph_translate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
                 }
               }
             }
@@ -1455,6 +3005,216 @@
   },
   "components": {
     "schemas": {
+      "AttachmentChoice": {
+        "properties": {
+          "item_key": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8}$",
+            "title": "Item Key"
+          },
+          "attachment_key": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8}$",
+            "title": "Attachment Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_key",
+          "attachment_key"
+        ],
+        "title": "AttachmentChoice"
+      },
+      "AttemptView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "output": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output"
+          },
+          "snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Snapshot"
+          },
+          "model_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Model Run Ids"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "source_id",
+          "target_id",
+          "mode",
+          "comparison",
+          "output",
+          "snapshot",
+          "model_run_ids",
+          "created_at"
+        ],
+        "title": "AttemptView"
+      },
+      "BatchImport": {
+        "properties": {
+          "library": {
+            "type": "string",
+            "title": "Library",
+            "default": "users/0"
+          },
+          "collection_key": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8}$",
+            "title": "Collection Key"
+          },
+          "selections": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentChoice"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Selections"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "managed"
+            ],
+            "title": "Mode",
+            "default": "reference"
+          },
+          "extract_after_parse": {
+            "type": "boolean",
+            "title": "Extract After Parse",
+            "default": false
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "project"
+            ],
+            "title": "Provider",
+            "default": "project"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "collection_key",
+          "selections"
+        ],
+        "title": "BatchImport"
+      },
+      "CandidateList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NodeView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "strategy": {
+            "type": "string",
+            "title": "Strategy",
+            "default": "fts5-bm25-or-v1"
+          },
+          "graph_revision": {
+            "type": "integer",
+            "title": "Graph Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "graph_revision"
+        ],
+        "title": "CandidateList"
+      },
+      "CandidateRequest": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "include_test_data": {
+            "type": "boolean",
+            "title": "Include Test Data",
+            "default": true
+          },
+          "query": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Query",
+            "default": ""
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 10
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id"
+        ],
+        "title": "CandidateRequest"
+      },
       "ChunkList": {
         "properties": {
           "items": {
@@ -1528,6 +3288,126 @@
           "bbox"
         ],
         "title": "ChunkView"
+      },
+      "CollectionBrowse": {
+        "properties": {
+          "library": {
+            "type": "string",
+            "title": "Library",
+            "default": "users/0"
+          },
+          "collection_key": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8}$",
+            "title": "Collection Key"
+          },
+          "search": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Search",
+            "default": ""
+          },
+          "start": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Start",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "collection_key"
+        ],
+        "title": "CollectionBrowse"
+      },
+      "CollectionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ZoteroPaper"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Start"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_start"
+        ],
+        "title": "CollectionPage"
+      },
+      "ContextView": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeView"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "dependencies": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Dependencies"
+          },
+          "dimensions": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Dimensions"
+          },
+          "root_evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Root Evidence Ids"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceView"
+            },
+            "type": "array",
+            "title": "Evidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "root_id",
+          "nodes",
+          "dependencies",
+          "dimensions",
+          "root_evidence_ids",
+          "evidence"
+        ],
+        "title": "ContextView"
       },
       "DocumentStructure": {
         "properties": {
@@ -1639,15 +3519,25 @@
             "type": "string",
             "enum": [
               "mock",
-              "configured"
+              "configured",
+              "project"
             ],
             "title": "Provider",
-            "default": "mock"
+            "default": "project"
           },
           "allow_network": {
             "type": "boolean",
             "title": "Allow Network",
             "default": false
+          },
+          "pipeline": {
+            "type": "string",
+            "enum": [
+              "legacy-v2",
+              "unified-v3"
+            ],
+            "title": "Pipeline",
+            "default": "unified-v3"
           }
         },
         "additionalProperties": false,
@@ -1689,6 +3579,120 @@
           "observed_sha256"
         ],
         "title": "FileCheck"
+      },
+      "GraphProjection": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "graph_revision": {
+            "type": "integer",
+            "title": "Graph Revision"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectionNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectionEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "context_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Context Node Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id",
+          "graph_revision",
+          "nodes",
+          "edges",
+          "has_more",
+          "next_cursor"
+        ],
+        "title": "GraphProjection"
+      },
+      "GraphView": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeView"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalView"
+            },
+            "type": "array",
+            "title": "Relations"
+          },
+          "papers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Papers"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "graph_revision": {
+            "type": "integer",
+            "title": "Graph Revision"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": "bounded; only edges with both endpoints in this view"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "nodes",
+          "relations",
+          "papers",
+          "next_cursor",
+          "graph_revision"
+        ],
+        "title": "GraphView"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1752,6 +3756,72 @@
           "fts5"
         ],
         "title": "Health"
+      },
+      "ImportStatus": {
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/JobView"
+          },
+          "item_key": {
+            "type": "string",
+            "title": "Item Key"
+          },
+          "attachment_key": {
+            "type": "string",
+            "title": "Attachment Key"
+          },
+          "collection_key": {
+            "type": "string",
+            "title": "Collection Key"
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "job",
+          "item_key",
+          "attachment_key",
+          "collection_key",
+          "library"
+        ],
+        "title": "ImportStatus"
+      },
+      "InferenceRequest": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "project"
+            ],
+            "title": "Provider",
+            "default": "project"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id"
+        ],
+        "title": "InferenceRequest"
       },
       "JobCreate": {
         "properties": {
@@ -1839,7 +3909,10 @@
                   "saving",
                   "diagnostics",
                   "outlining",
-                  "extracting"
+                  "extracting",
+                  "resolving",
+                  "comparing",
+                  "reasoning"
                 ]
               },
               {
@@ -1866,16 +3939,7 @@
           "result": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "boolean"
-                    }
-                  ]
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -1938,6 +4002,239 @@
           "conflicting"
         ],
         "title": "KnownState"
+      },
+      "LayoutPosition": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Node Id"
+          },
+          "x": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Y"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node_id",
+          "x",
+          "y"
+        ],
+        "title": "LayoutPosition"
+      },
+      "LayoutRequest": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/LayoutPosition"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Positions"
+          },
+          "zoom": {
+            "type": "number",
+            "maximum": 4.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Zoom"
+          },
+          "pan_x": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Pan X"
+          },
+          "pan_y": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "minimum": -1000000.0,
+            "title": "Pan Y"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "positions",
+          "zoom",
+          "pan_x",
+          "pan_y"
+        ],
+        "title": "LayoutRequest"
+      },
+      "LayoutView": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 0
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/LayoutPosition"
+            },
+            "type": "array",
+            "title": "Positions"
+          },
+          "zoom": {
+            "type": "number",
+            "title": "Zoom",
+            "default": 1
+          },
+          "pan_x": {
+            "type": "number",
+            "title": "Pan X",
+            "default": 0
+          },
+          "pan_y": {
+            "type": "number",
+            "title": "Pan Y",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "LayoutView"
+      },
+      "ModelCapabilities": {
+        "properties": {
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000000.0,
+                "minimum": 128.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 1024.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "provider_default"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ModelCapabilities"
+      },
+      "ModelParameters": {
+        "properties": {
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "top_p": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top P"
+          },
+          "max_output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000000.0,
+                "minimum": 128.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Output Tokens",
+            "deprecated": true
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "reasoning_effort": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "minimal",
+                  "low",
+                  "medium",
+                  "high",
+                  "xhigh"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Effort"
+          },
+          "timeout_seconds": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 5.0,
+            "title": "Timeout Seconds",
+            "default": 90
+          },
+          "json_mode": {
+            "type": "boolean",
+            "title": "Json Mode",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ModelParameters"
       },
       "ModelRunView": {
         "properties": {
@@ -2248,6 +4545,17 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "zotero_links": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Zotero Links",
+            "default": []
           }
         },
         "type": "object",
@@ -2314,6 +4622,35 @@
         ],
         "title": "PaperView"
       },
+      "PdfChoice": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "filename",
+          "available"
+        ],
+        "title": "PdfChoice"
+      },
       "PdfImport": {
         "properties": {
           "path": {
@@ -2362,6 +4699,128 @@
           "page_index"
         ],
         "title": "Preview"
+      },
+      "ProfileInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "compatible",
+              "local",
+              "mock"
+            ],
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Base Url",
+            "default": ""
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/ModelParameters"
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2400,
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "clear_key": {
+            "type": "boolean",
+            "title": "Clear Key",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "provider",
+          "model"
+        ],
+        "title": "ProfileInput"
+      },
+      "ProfileView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/ModelParameters"
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "title": "Has Api Key"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "provider",
+          "base_url",
+          "model",
+          "parameters",
+          "has_api_key",
+          "updated_at"
+        ],
+        "title": "ProfileView"
       },
       "ProjectCreate": {
         "properties": {
@@ -2444,6 +4903,449 @@
           "created_at"
         ],
         "title": "ProjectView"
+      },
+      "ProjectionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "document_version_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Version Ids"
+          },
+          "zotero_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zotero Url"
+          },
+          "node": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NodeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "display": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Display"
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/NodeView"
+            },
+            "type": "array",
+            "title": "Related"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceView"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "graph_revision": {
+            "type": "integer",
+            "title": "Graph Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "title",
+          "document_version_ids",
+          "zotero_url",
+          "node",
+          "display",
+          "related",
+          "evidence",
+          "counts",
+          "graph_revision"
+        ],
+        "title": "ProjectionDetail"
+      },
+      "ProjectionEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "label_zh": {
+            "type": "string",
+            "title": "Label Zh"
+          },
+          "epistemic_status": {
+            "type": "string",
+            "enum": [
+              "source_reported",
+              "model_inferred",
+              "user_confirmed"
+            ],
+            "title": "Epistemic Status"
+          },
+          "review_status": {
+            "type": "string",
+            "title": "Review Status"
+          },
+          "is_dashed": {
+            "type": "boolean",
+            "title": "Is Dashed"
+          },
+          "detail_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail Ref"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target",
+          "relation",
+          "label_zh",
+          "epistemic_status",
+          "review_status",
+          "is_dashed"
+        ],
+        "title": "ProjectionEdge"
+      },
+      "ProjectionNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "Paper",
+              "Concept",
+              "Method",
+              "Claim",
+              "ResearchQuestion"
+            ],
+            "title": "Kind"
+          },
+          "label_zh": {
+            "type": "string",
+            "title": "Label Zh"
+          },
+          "label_en": {
+            "type": "string",
+            "title": "Label En"
+          },
+          "detail_ref": {
+            "type": "string",
+            "title": "Detail Ref"
+          },
+          "source_status": {
+            "type": "string",
+            "title": "Source Status"
+          },
+          "review_status": {
+            "type": "string",
+            "title": "Review Status"
+          },
+          "knowledge_origin": {
+            "type": "string",
+            "title": "Knowledge Origin"
+          },
+          "badges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Badges"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "kind",
+          "label_zh",
+          "label_en",
+          "detail_ref",
+          "source_status",
+          "review_status",
+          "knowledge_origin",
+          "badges"
+        ],
+        "title": "ProjectionNode"
+      },
+      "ProjectionQuery": {
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "Paper",
+                "Concept",
+                "Method",
+                "Claim",
+                "ResearchQuestion"
+              ]
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Kinds"
+          },
+          "search": {
+            "type": "string",
+            "maxLength": 160,
+            "title": "Search",
+            "default": ""
+          },
+          "paper_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Paper Id",
+            "default": ""
+          },
+          "focus_id": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Focus Id",
+            "default": ""
+          },
+          "depth": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Depth",
+            "default": 1
+          },
+          "include_ai_candidates": {
+            "type": "boolean",
+            "title": "Include Ai Candidates",
+            "default": true
+          },
+          "diagnostics": {
+            "type": "boolean",
+            "title": "Diagnostics",
+            "default": false
+          },
+          "include_test_data": {
+            "type": "boolean",
+            "title": "Include Test Data",
+            "default": false
+          },
+          "include_paper_context": {
+            "type": "boolean",
+            "title": "Include Paper Context",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 60
+          },
+          "cursor": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Cursor",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectionQuery"
+      },
+      "ProposalDetail": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/ProposalView"
+          },
+          "attempt": {
+            "$ref": "#/components/schemas/AttemptView"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRunView"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/SemanticReviewView"
+            },
+            "type": "array",
+            "title": "Reviews"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "proposal",
+          "attempt",
+          "runs",
+          "reviews"
+        ],
+        "title": "ProposalDetail"
+      },
+      "ProposalView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "attempt_id": {
+            "type": "string",
+            "title": "Attempt Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "relation_type": {
+            "type": "string",
+            "title": "Relation Type"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "review_status": {
+            "type": "string",
+            "title": "Review Status"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "attempt_id",
+          "project_id",
+          "source_id",
+          "target_id",
+          "relation_type",
+          "rationale",
+          "evidence_ids",
+          "review_status",
+          "revision",
+          "created_at"
+        ],
+        "title": "ProposalView"
+      },
+      "ReasoningHistory": {
+        "properties": {
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/AttemptView"
+            },
+            "type": "array",
+            "title": "Attempts"
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalView"
+            },
+            "type": "array",
+            "title": "Relations"
+          },
+          "alignments": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalView"
+            },
+            "type": "array",
+            "title": "Alignments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempts",
+          "relations",
+          "alignments"
+        ],
+        "title": "ReasoningHistory"
       },
       "ReviewRequest": {
         "properties": {
@@ -2609,6 +5511,35 @@
         ],
         "title": "RevisionView"
       },
+      "RolesInput": {
+        "properties": {
+          "extraction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extraction"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RolesInput"
+      },
       "RootRequest": {
         "properties": {
           "project_id": {
@@ -2668,6 +5599,118 @@
           "parser"
         ],
         "title": "SectionView"
+      },
+      "SemanticReviewRequest": {
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "title": "Proposal Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "relation",
+              "alignment"
+            ],
+            "title": "Kind"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "kind",
+          "expected_revision",
+          "action",
+          "reason"
+        ],
+        "title": "SemanticReviewRequest"
+      },
+      "SemanticReviewView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "before": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Before"
+          },
+          "after": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "After"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "reason",
+          "before",
+          "after",
+          "created_at"
+        ],
+        "title": "SemanticReviewView"
+      },
+      "SettingsView": {
+        "properties": {
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileView"
+            },
+            "type": "array",
+            "title": "Profiles"
+          },
+          "roles": {
+            "$ref": "#/components/schemas/RolesInput"
+          },
+          "credential_backend": {
+            "type": "string",
+            "title": "Credential Backend",
+            "default": "Windows Credential Manager"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "profiles",
+          "roles"
+        ],
+        "title": "SettingsView"
       },
       "SourceAction": {
         "properties": {
@@ -2793,6 +5836,39 @@
         ],
         "title": "SourceView"
       },
+      "TranslationRequest": {
+        "properties": {
+          "node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Node Ids"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mock",
+              "project"
+            ],
+            "title": "Provider",
+            "default": "project"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node_ids"
+        ],
+        "title": "TranslationRequest"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2858,6 +5934,38 @@
         },
         "type": "object",
         "title": "WorkspaceCleanup"
+      },
+      "ZoteroPaper": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "item_type": {
+            "type": "string",
+            "title": "Item Type"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/PdfChoice"
+            },
+            "type": "array",
+            "title": "Attachments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "item_type",
+          "attachments"
+        ],
+        "title": "ZoteroPaper"
       },
       "ZoteroRequest": {
         "properties": {

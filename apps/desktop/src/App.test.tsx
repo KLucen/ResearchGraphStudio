@@ -6,6 +6,7 @@ import App from "./App";
 import { api } from "./api";
 
 vi.mock("./api", () => ({
+  request: vi.fn().mockResolvedValue({ profiles: [], roles: {} }),
   api: {
     host: vi.fn(),
     health: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("./api", () => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   vi.mocked(api.host).mockResolvedValue({
     running: true,
     data_dir: "test-data",
@@ -52,7 +54,7 @@ function mount() {
     </QueryClientProvider>,
   );
 }
-test("create project persists via API and shows saved project", async () => {
+test("create project persists via API and opens the project workspace", async () => {
   const user = userEvent.setup();
   vi.mocked(api.createProject).mockResolvedValue({
     id: "project-1",
@@ -69,7 +71,7 @@ test("create project persists via API and shows saved project", async () => {
       name: "创建项目",
     }),
   );
-  await screen.findByText("项目已保存");
+  expect(await screen.findByRole("heading", { name: "研究一" })).toBeVisible();
   expect(api.createProject).toHaveBeenCalledWith(
     { name: "研究一", description: "" },
     expect.any(String),
@@ -100,7 +102,7 @@ test("failed creation keeps the dialog and reuses idempotency key when retried",
       name: "创建项目",
     }),
   );
-  await screen.findByText("项目已保存");
+  expect(await screen.findByRole("heading", { name: "A" })).toBeVisible();
   expect(vi.mocked(api.createProject).mock.calls[0][1]).toBe(
     vi.mocked(api.createProject).mock.calls[1][1],
   );
@@ -111,4 +113,24 @@ test("offline engine displays failure rather than fabricated projects", async ()
   await screen.findByRole("alert");
   expect(screen.getByRole("button", { name: "新建研究项目" })).toBeDisabled();
   expect(api.projects).not.toHaveBeenCalled();
+});
+test("collapsed navigation survives navigation and a new application mount", async () => {
+  const user = userEvent.setup();
+  const first = mount();
+  await user.click(screen.getByRole("button", { name: "折叠侧边栏" }));
+  await user.click(screen.getByRole("button", { name: "设置与诊断" }));
+  expect(screen.getByRole("button", { name: "展开侧边栏" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  first.unmount();
+  mount();
+  expect(screen.getByRole("button", { name: "展开侧边栏" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(screen.getByRole("button", { name: "研究项目" })).toHaveAttribute(
+    "title",
+    "研究项目",
+  );
 });

@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "AssociationProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Target Id",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "SUPPORTED_BY",
+            "ASSOCIATED_METHOD",
+            "HAS_CONDITION",
+            "REPORTS_FINDING",
+            "MEASURED_WITH",
+            "ABOUT_CONCEPT",
+            "ADDRESSES",
+            "LIMITED_BY"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "target_id",
+        "relation",
+        "evidence_ids",
+        "rationale"
+      ],
+      "title": "AssociationProposal",
+      "type": "object"
+    },
+    "DuplicateProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Candidate Ids",
+          "type": "array"
+        },
+        "representative_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Representative Id",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_ids",
+        "representative_id",
+        "rationale"
+      ],
+      "title": "DuplicateProposal",
+      "type": "object"
+    },
+    "UnitProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "local_ref": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Local Ref",
+          "type": "string"
+        },
+        "root_claim_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Root Claim Id",
+          "type": "string"
+        },
+        "member_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Member Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_ref",
+        "root_claim_id",
+        "member_ids",
+        "rationale"
+      ],
+      "title": "UnitProposal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "reading-integration-1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "input_revision": {
+      "minimum": 0,
+      "title": "Input Revision",
+      "type": "integer"
+    },
+    "units": {
+      "items": {
+        "$ref": "#/$defs/UnitProposal"
+      },
+      "title": "Units",
+      "type": "array"
+    },
+    "associations": {
+      "items": {
+        "$ref": "#/$defs/AssociationProposal"
+      },
+      "title": "Associations",
+      "type": "array"
+    },
+    "duplicates": {
+      "items": {
+        "$ref": "#/$defs/DuplicateProposal"
+      },
+      "title": "Duplicates",
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_version",
+    "document_version_id",
+    "input_revision",
+    "units"
+  ],
+  "title": "PaperIntegrationProposal",
+  "type": "object"
+}

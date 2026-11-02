@@ -1,0 +1,105 @@
+{
+  "contract_version": "reading-selection-1.0",
+  "id": "selection-demo",
+  "document_version_id": "dv-demo",
+  "knowledge_revision": 7,
+  "selection_revision": 1,
+  "policy_version": "reading-policy-1",
+  "density": "standard",
+  "build_state": "complete",
+  "coverage_gaps": [],
+  "entries": [
+    {
+      "candidate_id": "claim-a",
+      "graph_role": "core",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "method-a",
+      "graph_role": "supporting",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "finding-a",
+      "graph_role": "supporting",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "condition-a",
+      "graph_role": "supporting",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "background-a",
+      "graph_role": "retrieval_only",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "claim-b",
+      "graph_role": "core",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    },
+    {
+      "candidate_id": "limitation-b",
+      "graph_role": "supporting",
+      "selected_by": "automatic",
+      "reason": "Paper contribution and supporting context; background stays retrievable."
+    }
+  ],
+  "units": [
+    {
+      "id": "unit-a",
+      "document_version_id": "dv-demo",
+      "root_claim_id": "claim-a",
+      "revision": 1,
+      "memberships": [
+        {
+          "member_id": "method-a",
+          "association_ids": [
+            "assoc-0"
+          ]
+        },
+        {
+          "member_id": "finding-a",
+          "association_ids": [
+            "assoc-1"
+          ]
+        },
+        {
+          "member_id": "condition-a",
+          "association_ids": [
+            "assoc-2"
+          ]
+        }
+      ],
+      "integration_run_id": "run-integration-demo"
+    },
+    {
+      "id": "unit-b",
+      "document_version_id": "dv-demo",
+      "root_claim_id": "claim-b",
+      "revision": 1,
+      "memberships": [
+        {
+          "member_id": "method-a",
+          "association_ids": [
+            "assoc-3"
+          ]
+        },
+        {
+          "member_id": "limitation-b",
+          "association_ids": [
+            "assoc-4"
+          ]
+        }
+      ],
+      "integration_run_id": "run-integration-demo"
+    }
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "KnowledgeUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "document_version_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Document Version Id",
+          "type": "string"
+        },
+        "root_claim_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Root Claim Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "memberships": {
+          "items": {
+            "$ref": "#/$defs/UnitMembership"
+          },
+          "title": "Memberships",
+          "type": "array"
+        },
+        "integration_run_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Integration Run Id"
+        }
+      },
+      "required": [
+        "id",
+        "document_version_id",
+        "root_claim_id",
+        "revision",
+        "memberships"
+      ],
+      "title": "KnowledgeUnit",
+      "type": "object"
+    },
+    "SelectionEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "graph_role": {
+          "enum": [
+            "core",
+            "supporting",
+            "retrieval_only"
+          ],
+          "title": "Graph Role",
+          "type": "string"
+        },
+        "selected_by": {
+          "enum": [
+            "automatic",
+            "user_preference"
+          ],
+          "title": "Selected By",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "graph_role",
+        "selected_by",
+        "reason"
+      ],
+      "title": "SelectionEntry",
+      "type": "object"
+    },
+    "UnitMembership": {
+      "additionalProperties": false,
+      "properties": {
+        "member_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Member Id",
+          "type": "string"
+        },
+        "association_ids": {
+          "items": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Association Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "member_id",
+        "association_ids"
+      ],
+      "title": "UnitMembership",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "reading-selection-1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    },
+    "knowledge_revision": {
+      "minimum": 0,
+      "title": "Knowledge Revision",
+      "type": "integer"
+    },
+    "selection_revision": {
+      "minimum": 1,
+      "title": "Selection Revision",
+      "type": "integer"
+    },
+    "policy_version": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "density": {
+      "enum": [
+        "concise",
+        "standard",
+        "detailed"
+      ],
+      "title": "Density",
+      "type": "string"
+    },
+    "build_state": {
+      "enum": [
+        "partial",
+        "complete"
+      ],
+      "title": "Build State",
+      "type": "string"
+    },
+    "coverage_gaps": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Coverage Gaps",
+      "type": "array"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/SelectionEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    },
+    "units": {
+      "items": {
+        "$ref": "#/$defs/KnowledgeUnit"
+      },
+      "title": "Units",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_version",
+    "id",
+    "document_version_id",
+    "knowledge_revision",
+    "selection_revision",
+    "policy_version",
+    "density",
+    "build_state",
+    "coverage_gaps",
+    "entries",
+    "units"
+  ],
+  "title": "GraphSelection",
+  "type": "object"
+}

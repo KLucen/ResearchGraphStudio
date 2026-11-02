@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Source Id",
+      "type": "string"
+    },
+    "target_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Target Id",
+      "type": "string"
+    },
+    "relation": {
+      "enum": [
+        "SUPPORTED_BY",
+        "ASSOCIATED_METHOD",
+        "HAS_CONDITION",
+        "REPORTS_FINDING",
+        "MEASURED_WITH",
+        "ABOUT_CONCEPT",
+        "ADDRESSES",
+        "LIMITED_BY"
+      ],
+      "title": "Relation",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "maxLength": 160,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "rationale": {
+      "minLength": 1,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "document_version_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Document Version Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "target_id",
+    "relation",
+    "evidence_ids",
+    "rationale",
+    "id",
+    "document_version_id"
+  ],
+  "title": "SourceAssociation",
+  "type": "object"
+}
