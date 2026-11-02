@@ -11,6 +11,9 @@ use std::{
 };
 use tauri::{Manager, State};
 
+const ENGINE_PROTOCOL_VERSION: u64 = 1;
+const ENGINE_SCHEMA_VERSION: &str = "0010";
+
 #[derive(Default)]
 struct Host {
     child: Option<Child>,
@@ -77,6 +80,17 @@ impl Host {
             self.stop();
             self.error = Some(error.clone());
         }
+        // Diagnostic receipt confirms the host accepted the health handshake.
+        // No session token, port, source data or model credentials are written.
+        let receipt = json!({
+            "desktop_pid": std::process::id(),
+            "engine_pid": self.child.as_ref().map(Child::id),
+            "connected": result.is_ok() && self.port.is_some(),
+            "protocol_version": ENGINE_PROTOCOL_VERSION,
+            "schema_version": ENGINE_SCHEMA_VERSION,
+            "error": self.error,
+        });
+        let _ = std::fs::write(self.data_dir.join("host-startup.json"), receipt.to_string());
         result
     }
 
@@ -125,7 +139,7 @@ impl Host {
             .recv_timeout(Duration::from_secs(45))
             .map_err(|_| "引擎启动失败或超时，请查看数据目录中的 engine-startup.log")?;
         let ready: Value = serde_json::from_str(&payload).map_err(|_| "无效的就绪信号")?;
-        if ready["protocol"] != 1 {
+        if ready["protocol"] != ENGINE_PROTOCOL_VERSION {
             return Err("引擎协议版本不匹配".into());
         }
         let port = ready["port"]
@@ -145,12 +159,19 @@ impl Host {
             .map_err(|_| "引擎健康检查失败")?
             .json()
             .map_err(|_| "引擎健康响应无效")?;
-        if health["protocol_version"] != 1 || health["schema_version"] != "0009" {
+        if !health_compatible(&health) {
             return Err("引擎或数据库版本不匹配".into());
         }
         self.port = Some(port);
         Ok(())
     }
+}
+
+fn health_compatible(health: &Value) -> bool {
+    health["protocol_version"] == ENGINE_PROTOCOL_VERSION
+        && health["schema_version"] == ENGINE_SCHEMA_VERSION
+        && health["database"] == "ready"
+        && health["fts5"] == true
 }
 
 fn allowed(method: &str, path: &str) -> bool {
@@ -806,6 +827,77 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn accepts_current_schema_and_rejects_previous_schema() {
+        assert!(super::health_compatible(&super::json!({
+            "protocol_version": 1,
+            "schema_version": "0010",
+            "database": "ready",
+            "fts5": true
+        })));
+        assert!(!super::health_compatible(&super::json!({
+            "protocol_version": 1,
+            "schema_version": "0009",
+            "database": "ready",
+            "fts5": true
+        })));
+        assert!(!super::health_compatible(&super::json!({
+            "protocol_version": 2,
+            "schema_version": "0010",
+            "database": "ready",
+            "fts5": true
+        })));
+        for invalid in [
+            super::json!({"protocol_version":1,"schema_version":"0010"}),
+            super::json!({"protocol_version":1,"schema_version":"0010","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"0010","database":"ready","fts5":false}),
+        ] {
+            assert!(!super::health_compatible(&invalid));
+        }
+    }
+
+    #[test]
+    fn host_schema_tracks_engine_migration_head() {
+        let storage = include_str!("../../../../services/engine/researchgraph/storage.py");
+        let head = storage
+            .lines()
+            .find_map(|line| line.strip_prefix("SCHEMA_HEAD = \"")?.strip_suffix('"'))
+            .expect("Python migration head missing");
+        assert_eq!(super::ENGINE_SCHEMA_VERSION, head);
+    }
+
+    #[test]
+    #[ignore = "requires packaged engine; run after build-engine with RGS_TEST_ENGINE_PATH"]
+    fn packaged_engine_connects_through_native_host_and_restarts() {
+        let executable = std::path::PathBuf::from(
+            std::env::var_os("RGS_TEST_ENGINE_PATH").expect("RGS_TEST_ENGINE_PATH required"),
+        );
+        let data_dir = std::env::temp_dir().join(format!("rgs-host-{}", uuid::Uuid::new_v4()));
+        let mut host = super::Host {
+            executable,
+            data_dir: data_dir.clone(),
+            ..Default::default()
+        };
+        for _ in 0..2 {
+            let result = host.start();
+            let connected = host.status().running;
+            let receipt: super::Value =
+                serde_json::from_slice(&std::fs::read(data_dir.join("host-startup.json")).unwrap())
+                    .unwrap();
+            host.stop();
+            assert!(result.is_ok(), "native handshake failed: {result:?}");
+            assert!(connected);
+            assert_eq!(receipt["connected"], true);
+            assert_eq!(receipt["desktop_pid"], std::process::id());
+            assert!(receipt["engine_pid"].is_u64());
+            assert!(receipt["error"].is_null());
+            assert!(!host.status().running);
+        }
+        let resolved = data_dir.canonicalize().unwrap();
+        assert!(resolved.starts_with(std::env::temp_dir().canonicalize().unwrap()));
+        std::fs::remove_dir_all(resolved).unwrap();
+    }
+
     #[test]
     fn reading_routes_are_scoped() {
         let id = "00000000-0000-4000-8000-000000000001";

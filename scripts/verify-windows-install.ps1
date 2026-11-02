@@ -136,8 +136,19 @@ function Test-HttpStatus($Failure, [int]$Status) {
 
 function Wait-DesktopEngine {
     $deadline = [DateTime]::UtcNow.AddSeconds(45)
+    $receiptPath = Join-Path $nativeData 'com.researchgraph.studio/host-startup.json'
     do {
         Assert-Probe (-not $script:desktop.HasExited) 'Desktop exited during startup.'
+        $receipt = $null
+        if (Test-Path -LiteralPath $receiptPath) {
+            # The host writes this only after its own authenticated health check.
+            # A 401 from the child alone does not prove host/engine compatibility.
+            try { $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json }
+            catch { $receipt = $null } # Retry a concurrent file write.
+        }
+        if ($null -ne $receipt -and $receipt.desktop_pid -eq $script:desktop.Id -and $receipt.error) {
+            throw ('Desktop rejected its engine handshake: ' + $receipt.error)
+        }
         $children = @(Get-CimInstance Win32_Process -Filter "Name='researchgraph-engine.exe'" |
             Where-Object { $_.ParentProcessId -eq $script:desktop.Id })
         if ($children.Count -eq 1) {
@@ -147,12 +158,18 @@ function Wait-DesktopEngine {
                 $script:desktopEngine = Get-Process -Id $children[0].ProcessId
                 $script:baseUrl = 'http://127.0.0.1:' + $listeners[0].LocalPort + '/api/v1'
                 try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
-                catch { if (Test-HttpStatus $_ 401) { return } }
+                catch {
+                    if ((Test-HttpStatus $_ 401) -and $null -ne $receipt -and
+                        $receipt.desktop_pid -eq $script:desktop.Id -and
+                        $receipt.engine_pid -eq $children[0].ProcessId -and
+                        $receipt.connected -eq $true -and $receipt.protocol_version -eq 1 -and
+                        $receipt.schema_version -eq '0010') { return }
+                }
             }
         }
         Start-Sleep -Milliseconds 250
     } while ([DateTime]::UtcNow -lt $deadline)
-    throw 'Desktop did not start its authenticated loopback engine.'
+    throw 'Desktop did not accept its authenticated engine handshake.'
 }
 
 try {
@@ -290,6 +307,7 @@ try {
         $script:desktop = Start-ProbeProcess $desktopFile ''
         Wait-DesktopEngine
         $report.checks['desktop_sidecar_startup'] = 'passed'
+        $report.checks['desktop_host_handshake'] = 'passed'
         $second = Start-ProbeProcess $desktopFile ''
         Assert-Probe ($second.WaitForExit(10000) -and $second.ExitCode -eq 0) 'Single instance launch failed.'
         $report.checks['single_instance'] = 'passed'

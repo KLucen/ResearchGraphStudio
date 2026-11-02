@@ -58,6 +58,9 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:RGS_TEST_ENGINE_PATH = (Resolve-Path 'apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe').Path
+          cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked packaged_engine_connects_through_native_host_and_restarts -- --ignored
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           pnpm --dir apps/desktop tauri build --bundles nsis
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4

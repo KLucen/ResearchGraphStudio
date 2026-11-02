@@ -888,6 +888,22 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 修正后 CI [41426893999](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41426893999) 全部成功：Windows 178 Python/39 React/7 Rust、冻结引擎、NSIS 及 installed-app 验证通过。GitHub 工件 ID 为 13133122133（安装器）和 13132573949（安装验收报告）；本机交付包仍以 `.local/releases/reading-graph-20261102/` 的 SHA256 为准。
 - 两篇真实论文的局部链路与本机安装器保持，全文/原生反馈仍未完成，不进入P4/P5。
 
+## 2026-11-02 19:03 · DEV-0032 · 修复原生宿主Schema握手与安装验收盲区
+
+### 目标与实际改动
+
+- 用户安装后提示本地引擎未连接。定位到 `apps/desktop/src-tauri/src/main.rs` 仍比较Schema0009，而Python返回0010；修复为协议/Schema常量，并检查database ready及FTS5。
+- 增加对Python迁移head的版本一致性测试、真实打包引擎通过原生Host启动/停止/重启测试。`.github/workflows/phase0.yml`显式执行打包集成测试。
+- 修正 `scripts/verify-windows-install.ps1`：子进程返回401不再足够，必须读取无凭据的宿主启动握手记录并匹配父子进程。上一轮CI确实success，但没有测到宿主已接受版本，现明确更正其验收范围。
+- 更新progress和阅读图谱验收报告；不改正式库、来源原件、密钥或旧知识，不进入后续Phase。
+
+### 验证
+
+- Rust9通过/1显式忽略，打包集成另行1通过；fmt/clippy通过。PowerShell5.1对实际握手检查函数的6项合成场景通过。独立数据，无Computer Use。
+- 本轮PyInstaller/Tauri/NSIS、冻结smoke与PowerShell5.1 EnginePath已通过；增加握手记录后重建最终宿主与安装器，包哈希和交付结果在完成后补记。
+- 用户本机覆盖安装后的连接/数据反馈待验证；前轮全文抽取和质量限制保持，不将此启动修复写成全文验收完成。
+- 最终修复包38,523,711字节，SHA256 `3ef49f88f70b5d6b4f82cdbacc3f7185e85500f39734b5d0d3b14b2cb0661203`，保存在本机 `.local/releases/reading-graph-20261102-schema-fix/ResearchGraph Studio_0.0.1_x64-setup.exe`，未替用户执行覆盖安装。
+
 ## 后续条目模板
 
 ```markdown

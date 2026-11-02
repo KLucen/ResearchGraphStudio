@@ -1,5 +1,9 @@
 # 实施进度
 
+更新：2026-11-02 19:03（Asia/Shanghai）。修复用户安装后的“引擎或数据库版本不匹配”：Rust 宿主仍要求0009，Python已为0010。宿主改为0010并验证数据库ready/FTS5，新增跨语言版本一致性和真实打包引擎的宿主握手/重启回归。旧CI只检查子进程401，存在误判；现安装检查必须匹配宿主握手记录与父子进程ID。9项Rust单测及另行运行的1项打包集成测试、clippy和PowerShell5.1的6项检查逻辑场景通过。修复包及后续结果见[验收补记](reading-implementation-verification-20261102.md#安装后版本不匹配修复)。未修改正式库或进入下一Phase。
+
+以下保留此前实现及验收记录；上一轮CI成功不代表旧安装包的宿主版本握手已经通过。
+
 更新：2026-11-02 17:30（Asia/Shanghai）。**R1–R4 已实现，R5 自动化及两篇真实论文局部链路通过，全文/安装体验仍未全部验收。** Alembic head 0010，新入口 paper-reading-v1；旧任务维持旧协议。未进入 P4/P5。实测范围、失败与操作步骤见[本轮验收](reading-implementation-verification-20261102.md)和[ADR 0009](adr/0009-reading-pipeline-implementation.md)。
 
 - 先完成 306 文件既有成果安全提交并推送 `8d3ba1d`，远端 CI 41415123193 全部成功。

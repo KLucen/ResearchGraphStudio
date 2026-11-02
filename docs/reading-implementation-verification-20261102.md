@@ -1,5 +1,7 @@
 # 阅读辅助图谱 R1–R5 实际验收（2026-11-02）
 
+> 安装反馈更正：旧安装包的宿主仍要求Schema0009，导致0010引擎被拒绝。此前installed-app只检查子进程端口401，不能证明宿主已连接；该验收缺口已补上，修复包与实测范围见本文末尾。
+
 本轮先安全提交既有 P3/v3/R0 成果并推送 `8d3ba1d`，再按顺序实现 R1–R4，执行 R5。**R5 部分通过，不能称全部完成；未进入 P4/P5。** 实现决策见 [ADR 0009](adr/0009-reading-pipeline-implementation.md)。
 
 ## 已实施
@@ -87,3 +89,18 @@ P12 还提出部分无根路径成员，保留为检索候选并显示覆盖限�
 - 收尾同步 API首页、Schema说明、文档导航和下一轮模板，明确0010/reading入口与R5剩余范围。
 - CI修正针对性回归：`pytest tests/engine/test_extraction_refinement.py tests/engine/test_ingest.py -q` 为19 passed（23.41秒），Ruff/format通过。
 - 修正后的 [CI 41426893999](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41426893999) 已全部成功：Windows job 178 Python、39 React、7 Rust 测试通过，冻结引擎与 NSIS 构建通过；`installed-app` job 通过。对应 GitHub artifacts 为 `researchgraph-phase0-windows`（ID 13133122133）和 `researchgraph-installed-verification`（ID 13132573949）。
+
+## 安装后版本不匹配修复
+
+2026-11-02 用户安装后报告“本地引擎未连接 / 引擎或数据库版本不匹配”。根因是 `main.rs` 健康握手仍比较0009，后端和迁移已经为0010；并非根据该提示即可判断数据库损坏。宿主统一版本常量并校验database=ready/fts5；版本一致性测试对照Python迁移head，避免之后只升级一端。
+
+此前CI存在验收盲区：仅看到子进程401即可通过，尚未确认宿主完成握手。现在宿主每次启动写无凭据的 `host-startup.json`（父子进程ID、connected、预期协议/Schema及错误），安装脚本必须确认对应宿主和子进程已成功握手。记录不是实时连接状态，也不包含Token、端口、论文或模型配置；写入失败不影响正常启动，但验收不能通过。
+
+实际命令与结果：
+
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked`：9通过；依赖打包引擎的1项显式忽略。
+- 设置 `RGS_TEST_ENGINE_PATH` 后另行运行 `cargo test ... packaged_engine_connects_through_native_host_and_restarts -- --ignored`：1通过，调用实际Host.start/status/stop及冻结引擎，在独立临时库完成两次握手与重启；已加入CI。
+- `cargo fmt --check`、`cargo clippy ... --all-targets -- -D warnings`通过；Windows PowerShell5.1直接解析并执行安装脚本握手检查函数，6个合成场景通过（成功、宿主拒绝、仅子进程、父进程过期、子进程过期、Schema不符）。这不是原生界面验收。
+- PyInstaller/Tauri/NSIS构建、冻结引擎smoke及PowerShell5.1 EnginePath验证通过；宿主握手记录加入后另行重建最终安装包。没有用正式库做升级实验，没有更改用户PDF/Zotero/凭据，没有调用真实模型。
+- 新安装包不改变Schema、不需要降级或删除数据库。退出旧窗口后覆盖安装，再确认设置页连接和原项目数据；用户本机反馈尚待收到。
+- 最终修复安装器位于本机 `.local/releases/reading-graph-20261102-schema-fix/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,523,711字节，SHA256 `3ef49f88f70b5d6b4f82cdbacc3f7185e85500f39734b5d0d3b14b2cb0661203`。替代上文旧安装包，源码仓库不含安装器。
