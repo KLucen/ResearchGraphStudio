@@ -192,7 +192,7 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                 extraction_options = {
                     "provider": body.provider,
                     "allow_network": body.allow_network,
-                    "pipeline": "unified-v3",
+                    "pipeline": "paper-reading-v1",
                 }
                 if body.provider == "project":
                     from researchgraph.model_settings import from_snapshot, snapshot_for

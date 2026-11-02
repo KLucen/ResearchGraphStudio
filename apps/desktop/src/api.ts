@@ -74,7 +74,8 @@ export const api = {
     id: string,
     provider: "mock" | "configured" | "project",
     allowNetwork: boolean,
-    pipeline: "unified-v3" | "legacy-v2" = "unified-v3",
+    pipeline:
+      "paper-reading-v1" | "unified-v3" | "legacy-v2" = "paper-reading-v1",
   ) =>
     request<Job>(
       "POST",

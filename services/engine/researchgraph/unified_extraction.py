@@ -72,7 +72,13 @@ def split_group(group: list[dict[str, str]]) -> list[list[dict[str, str]]]:
     return [group[:middle], group[middle:]]
 
 
-async def run_unified_extraction(engine: Engine, job_id: str) -> None:
+async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool = False) -> None:
+    from researchgraph.reading_contracts import KnowledgeExtractionBatch as ReadingBatch
+
+    schema_type = ReadingBatch if reading else KnowledgeExtractionBatch
+    operation_prefix = "reading-extract" if reading else "unified"
+    if reading:
+        stage(engine, job_id, "indexing")
     with Session(engine, expire_on_commit=False) as session, session.begin():
         job = session.get(Job, job_id)
         assert job and job.payload
@@ -113,18 +119,28 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
         provider = provider_for(payload["provider"], payload["allow_network"])
     if isinstance(provider, ConfiguredProvider):
         await provider.prepare()
+    if reading and payload.get("reading_only"):
+        from researchgraph.reading_pipeline import finish_reading
+
+        await finish_reading(engine, job_id, provider)
+        return
     legacy = bool(previous_result.get("batches")) and not payload.get("unified_plan")
     plan = payload.get("unified_plan")
     prompt_name = (
         plan.get("prompt_name", LEGACY_PROMPT) if plan else LEGACY_PROMPT if legacy else PROMPT
     )
-    if prompt_name not in {PROMPT, LEGACY_PROMPT}:
+    if reading:
+        prompt_name = "P02_reading_extract"
+    if prompt_name not in {PROMPT, LEGACY_PROMPT, "P02_reading_extract"}:
         raise ValueError("抽取计划使用未知 Prompt 版本，拒绝继续")
     limit = getattr(getattr(provider, "capabilities", None), "max_output_tokens", None)
-    base_budget = 8000 if prompt_name == PROMPT else 12000
+    base_budget = 6000 if reading else 8000 if prompt_name == PROMPT else 12000
     budget = min(base_budget, max(1500, limit)) if limit else base_budget
     groups = plan_sections(
-        spans, legacy=legacy, budget=budget, max_evidence=64 if prompt_name == PROMPT else None
+        spans,
+        legacy=legacy,
+        budget=budget,
+        max_evidence=48 if reading else 64 if prompt_name == PROMPT else None,
     )
     config = digest(
         {
@@ -134,9 +150,11 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
             "provider": provider.name,
             "endpoint": getattr(provider, "base_url", "offline"),
             "parameters": getattr(provider, "parameters", {}),
-            "schema": KnowledgeExtractionBatch.model_json_schema(),
+            "schema": schema_type.model_json_schema(),
             "prompt": text_hash((PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")),
-            "planner": "section-6000-v1"
+            "planner": "reading-adjacent-6000-48-v1"
+            if reading
+            else "section-6000-v1"
             if legacy
             else "adjacent-8000-64-v3"
             if prompt_name == PROMPT
@@ -149,7 +167,7 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
             "model": provider.model,
             "endpoint": getattr(provider, "base_url", "offline"),
             "parameters": getattr(provider, "parameters", {}),
-            "schema": KnowledgeExtractionBatch.model_json_schema(),
+            "schema": schema_type.model_json_schema(),
             "prompt": text_hash((PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")),
         }
     )
@@ -184,11 +202,14 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                 ):
                     state["split_required"] = True
     saved: set[str] = set()
+    batch_warnings: list[str] = []
     with Session(engine) as session:
         # Split markers are shared by identical runs; no successful child is recalled.
         i = 0
         while i < len(states):
-            split = session.get(KnowledgeOperation, f"unified:{config}:{states[i]['key']}:split")
+            split = session.get(
+                KnowledgeOperation, f"{operation_prefix}:{config}:{states[i]['key']}:split"
+            )
             if split:
                 planned_children = [dict(c) for c in split.response["children"]]
                 evidence = {e["id"]: e for e in groups[i]}
@@ -198,10 +219,13 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                 i += 1
         for i, state in enumerate(states):
             state["index"] = i
-            operation = session.get(KnowledgeOperation, f"unified:{config}:{state['key']}")
+            operation = session.get(
+                KnowledgeOperation, f"{operation_prefix}:{config}:{state['key']}"
+            )
             if operation:
                 states[i]["status"] = "succeeded"
                 saved.update(operation.response["node_ids"])
+                batch_warnings.extend(operation.response.get("warnings", []))
             elif (
                 state.get("error_code") == "timeout" and state["depth"] == 0 and len(groups[i]) > 1
             ):
@@ -255,12 +279,13 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
             }
             current.result = {
                 **(current.result or {}),
-                "pipeline": "unified-v3",
+                "pipeline": "paper-reading-v1" if reading else "unified-v3",
                 "document_version_id": version_id,
                 "total_batches": str(len(groups)),
                 "completed_batches": str(sum(s["status"] == "succeeded" for s in states)),
                 "knowledge_count": str(len(saved)),
                 "batches": [{k: v for k, v in s.items() if k != "ids"} for s in states],
+                "coverage_gaps": list(dict.fromkeys(batch_warnings)) if reading else [],
                 "usage": usage,
                 "model_calls": sum(len(r.parameters.get("attempts", [{}])) for r in runs),
                 "model": provider.model,
@@ -281,8 +306,8 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
         aliases = {f"ev{i + 1:04d}": e["id"] for i, e in enumerate(group)}
         manifest = {
             "evidence_aliases": aliases,
-            "pipeline": "unified-v3",
-            "schema_hash": digest(KnowledgeExtractionBatch.model_json_schema()),
+            "pipeline": "paper-reading-v1" if reading else "unified-v3",
+            "schema_hash": digest(schema_type.model_json_schema()),
         }
         data = {
             "document_version_id": version_id,
@@ -298,6 +323,26 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                 for alias, entry in zip(aliases, group, strict=True)
             ],
         }
+        if reading:
+            data = {
+                "contract_version": "reading-extraction-1.0",
+                "document_version_id": version_id,
+                "chunk_id": digest(group),
+                "paper_type": payload.get("paper_type", "unknown"),
+                "section": data["section"],
+                "vocabulary": [],
+                "max_items_hint": data["max_items_hint"],
+                "allowed_evidence": [
+                    {
+                        **e,
+                        "context_group": group[i]["section"],
+                        "context_complete": not any(
+                            w in e["text"].lower() for w in ["table", "表格"]
+                        ),
+                    }
+                    for i, e in enumerate(data["allowed_evidence"])
+                ],
+            }
         run_id = None
         try:
             split_required = states[index].pop("split_required", False)
@@ -321,29 +366,43 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                     provider,
                     prompt_name,
                     data,
-                    KnowledgeExtractionBatch.model_json_schema(),
+                    schema_type.model_json_schema(),
                     manifest,
                     adaptive_timeout=True,
                 )
-            run_id, validated = await validate_or_repair(
-                engine, job_id, provider, run_id, raw, data, manifest
-            )
+            validated: Any
+            if reading:
+                from researchgraph.reading_validation import validate_batch
+
+                validated, quarantined = validate_batch(raw, set(aliases))
+                if quarantined:
+                    with Session(engine) as session, session.begin():
+                        run = session.get(ModelRun, run_id)
+                        assert run
+                        run.parameters = {**run.parameters, "quarantined_associations": quarantined}
+            else:
+                run_id, validated = await validate_or_repair(
+                    engine, job_id, provider, run_id, raw, data, manifest
+                )
             candidate = resolve(validated.model_dump(mode="json"), aliases)
             stage(engine, job_id, "saving")
             with Session(engine) as session, session.begin():
                 current = session.get(Job, job_id)
                 if not current or current.status != "running":
                     raise ValueError("任务已取消，已收到结果保留供恢复")
-                response = KnowledgeStore(session).apply_unified(
+                store = KnowledgeStore(session)
+                apply_batch = store.reading().apply_candidates if reading else store.apply_unified
+                response = apply_batch(
                     candidate=candidate,
                     version_id=version_id,
                     paper_id=paper_id,
                     chunk_id=data["chunk_id"],
                     allowed=set(aliases.values()),
                     run_id=run_id,
-                    key=f"unified:{config}:{states[index]['key']}",
+                    key=f"{operation_prefix}:{config}:{states[index]['key']}",
                 )
                 saved.update(response["node_ids"])
+                batch_warnings.extend(response.get("warnings", []))
                 # Operation, ModelRun and progress are committed together for successful batches.
                 run = session.get(ModelRun, run_id)
                 assert run
@@ -399,7 +458,7 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                         for part, child in enumerate(children)
                     ]
                     with Session(engine) as session, session.begin():
-                        marker = f"unified:{config}:{state['key']}:split"
+                        marker = f"{operation_prefix}:{config}:{state['key']}:split"
                         if not session.get(KnowledgeOperation, marker):
                             session.add(
                                 KnowledgeOperation(
@@ -413,7 +472,7 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
                     with Session(engine) as session:
                         for child in replacements:
                             operation = session.get(
-                                KnowledgeOperation, f"unified:{config}:{child['key']}"
+                                KnowledgeOperation, f"{operation_prefix}:{config}:{child['key']}"
                             )
                             if operation:
                                 child["status"] = "succeeded"
@@ -438,7 +497,12 @@ async def run_unified_extraction(engine: Engine, job_id: str) -> None:
             progress(index, "failed", message)
             raise ValueError(message) from None
     progress()
-    with Session(engine) as session, session.begin():
-        job = session.get(Job, job_id)
-        if job and job.status == "running":
-            job.status, job.stage, job.updated_at = "succeeded", "saving", now()
+    if reading:
+        from researchgraph.reading_pipeline import finish_reading
+
+        await finish_reading(engine, job_id, provider)
+    else:
+        with Session(engine) as session, session.begin():
+            job = session.get(Job, job_id)
+            if job and job.status == "running":
+                job.status, job.stage, job.updated_at = "succeeded", "saving", now()

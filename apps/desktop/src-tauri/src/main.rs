@@ -154,6 +154,9 @@ impl Host {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    if allowed_reading(method, path) {
+        return true;
+    }
     if allowed_projection(method, path) {
         return true;
     }
@@ -253,6 +256,32 @@ fn allowed(method: &str, path: &str) -> bool {
             || (method == "POST" && parts.len() == 2 && matches!(parts[1], "cancel" | "retry"));
     }
     false
+}
+
+fn allowed_reading(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    let p: Vec<_> = route.split('/').collect();
+    if p.len() < 6 || p[1..4] != ["api", "v1", "papers"] || uuid::Uuid::parse_str(p[4]).is_err() {
+        return false;
+    }
+    if p.len() == 6 && method == "GET" {
+        if p[5] == "candidates" {
+            return query.is_empty()
+                || query.split('&').all(|item| {
+                    item.split_once('=').is_some_and(|(key, value)| {
+                        matches!(key, "search" | "cursor") && value.len() <= 1000
+                            || key == "limit"
+                                && value.parse::<u32>().is_ok_and(|n| (1..=100).contains(&n))
+                    })
+                });
+        }
+        return query.is_empty() && matches!(p[5], "knowledge-units" | "graph-selection");
+    }
+    p.len() == 7
+        && method == "POST"
+        && query.is_empty()
+        && p[5] == "graph-selection"
+        && matches!(p[6], "rebuild" | "preferences")
 }
 
 fn allowed_projection(method: &str, path: &str) -> bool {
@@ -777,6 +806,41 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn reading_routes_are_scoped() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        for suffix in [
+            "graph-selection",
+            "knowledge-units",
+            "candidates?search=abc&limit=40&cursor=",
+        ] {
+            assert!(super::allowed(
+                "GET",
+                &format!("/api/v1/papers/{id}/{suffix}")
+            ));
+        }
+        assert!(super::allowed(
+            "POST",
+            &format!("/api/v1/papers/{id}/graph-selection/preferences")
+        ));
+        assert!(super::allowed(
+            "POST",
+            &format!("/api/v1/papers/{id}/graph-selection/rebuild")
+        ));
+        assert!(!super::allowed(
+            "GET",
+            &format!("/api/v1/papers/{id}/candidates?path=private")
+        ));
+        assert!(!super::allowed(
+            "GET",
+            &format!("/api/v1/papers/{id}/candidates?limit=1000")
+        ));
+        assert!(!super::allowed(
+            "POST",
+            "/api/v1/papers/../graph-selection/rebuild"
+        ));
+    }
+
     #[test]
     fn projection_routes_and_zotero_links_are_scoped() {
         let id = "11111111-1111-4111-8111-111111111111";

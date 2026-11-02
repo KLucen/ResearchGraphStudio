@@ -147,3 +147,16 @@ Zotero 批量导入新增 extract_after_parse（旧 API 默认 false）、provid
 Tauri 宿主对已授权 graph/layout POST 提供 512 KiB 有界请求预算，与最多 2000 个位置的服务端契约匹配；其他桥接请求仍为 16 KiB。
 
 统一抽取的缺失局部引用错误提供 links[index].source_local_ref/target_local_ref 路径。`P02_local_link_repair` 辅助运行只返回端点补丁；每份错误响应一次修复记录，`ModelRun.parameters.input_manifest.repair_of_run_id` 指向原始运行。重试可复用旧 invalid 响应和已收到的修复结果，但不重复修复已失败记录；其他非法 JSON/证据输出仍可重抽未完成批次。源错误、已合法端点和科学内容不能被补丁改写，修复后仍经 Store 完整验证。不改变 API DTO 或数据库 Schema 0009。
+
+
+## 2026-11-02：reading pipeline / 0010
+
+- POST `/api/v1/knowledge/extract` 新增显式 `pipeline=paper-reading-v1`、density、paper_type。保留 legacy-v2/unified-v3 旧任务与默认 API 兼容，正常前端和 Zotero 子任务显式选 reading。
+- 阶段增加 indexing/integrating/selecting/publishing；result 保留批次、整合窗口、已发布单元、coverage_gaps、build_state、全部模型用量。
+- GET `/api/v1/papers/{id}/candidates?search=&cursor=&limit=40`：全部候选/来源有效性/选择原因；签名光标在候选或选择变化后拒绝继续。
+- GET `/api/v1/papers/{id}/graph-selection` / `knowledge-units`：当前快照与引用成员，无选择时 revision=0。
+- POST `/api/v1/papers/{id}/graph-selection/rebuild`：document_version_id、density、expected_revision、allow_network。已有有效选择不调模型；首次整合只排已有候选阶段，不抽 PDF。
+- POST `/api/v1/papers/{id}/graph-selection/preferences`：candidate_id、expected_revision、action=include_core/exclude_core/reset_automatic、reason；不写 review，不绕过来源门槛。
+- POST `/api/v1/projects/{id}/graph/projection`：view=paper_backbone、expanded_unit_ids、原筛选/分页字段；响应 reading-projection-2.0、selections、build_state、coverage_gaps，节点 graph_role/unit_ids，边 navigation 明确区别科学推断。view=legacy 留旧客户端兼容。
+- 原详情、布局、模型历史、retry/cancel 接口继续使用。新增桌面桥接仅允许明确路径/方法/查询参数，鉴权和正文上限沿用原实现。
+- 设计 `GraphSelection` 与运行快照的少量内部字段不同，不能直接调用 docs 参考模型替代 OpenAPI；历史审核路由保留但正常界面不再调用。

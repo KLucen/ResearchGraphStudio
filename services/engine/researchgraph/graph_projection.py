@@ -386,6 +386,11 @@ class GraphProjectionService:
         )
         related_ids = {node_id}
         if node:
+            related_ids.update(
+                self.session.scalars(
+                    select(SourceAssertion.target_id).where(SourceAssertion.source_id == node_id)
+                )
+            )
             for _ in range(3):
                 related_ids.update(
                     self.session.scalars(
@@ -467,6 +472,10 @@ def register_graph_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     @app.post("/api/v1/projects/{project_id}/graph/projection", response_model=GraphProjection)
     def projection(project_id: str, body: ProjectionQuery) -> GraphProjection:
         with Session(engine()) as session:
+            if body.view == "paper_backbone":
+                from researchgraph.reading_projection import project
+
+                return project(GraphProjectionService(session, project_id), body)
             return GraphProjectionService(session, project_id).project(body)
 
     @app.get("/api/v1/projects/{project_id}/graph/nodes/{node_id}", response_model=ProjectionDetail)

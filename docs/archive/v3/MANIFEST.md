@@ -1,26 +1,26 @@
-# 原 v3 设计归档清单
+# 原 v3 历史规范资产清单
 
-2026-11-02 归档。Markdown 加历史标记并修复相对链接；Schema/Prompt/示例的历史含义不改，非 Markdown 参考资产与归档前字节一致。本清单对应归档后的字节，不冒充原交付包哈希。
+2026-11-02：按仓库 .gitattributes 的 LF 字节核验，便于远端复现。归档内容含义保持，排除私人数据和运行产物。
 
-共 52 项；相对本目录。清单与 SHA256SUMS 不包含自身。
+共 52 项。清单和SHA256SUMS不含自身。
 
 | 相对路径 | 字节 |
 | --- | ---: |
 | `.gitignore.sample` | 292 |
-| `00_decisions_and_scope.md` | 4259 |
-| `01_product_design.md` | 7732 |
-| `02_architecture_and_workflows.md` | 10278 |
-| `03_schema_design.md` | 11521 |
-| `04_graph_interaction_spec.md` | 7234 |
-| `05_prompt_engineering.md` | 5810 |
-| `06_development_migration_plan.md` | 9156 |
-| `07_api_and_events.md` | 4432 |
-| `08_validation_and_security.md` | 5092 |
-| `09_reference_implementation_notes.md` | 2634 |
-| `AGENTS.template.md` | 1613 |
-| `CHANGELOG_FROM_V2.md` | 1497 |
-| `CODEX_NEXT_TURN.md` | 1917 |
-| `README.md` | 6369 |
+| `00_decisions_and_scope.md` | 4215 |
+| `01_product_design.md` | 7604 |
+| `02_architecture_and_workflows.md` | 10151 |
+| `03_schema_design.md` | 11348 |
+| `04_graph_interaction_spec.md` | 7135 |
+| `05_prompt_engineering.md` | 5738 |
+| `06_development_migration_plan.md` | 9030 |
+| `07_api_and_events.md` | 4358 |
+| `08_validation_and_security.md` | 5030 |
+| `09_reference_implementation_notes.md` | 2592 |
+| `AGENTS.template.md` | 1598 |
+| `CHANGELOG_FROM_V2.md` | 1478 |
+| `CODEX_NEXT_TURN.md` | 1902 |
+| `README.md` | 6291 |
 | `examples/comparability_report.json` | 842 |
 | `examples/evidence_span.json` | 270 |
 | `examples/extraction_batch.json` | 3384 |
@@ -28,17 +28,17 @@
 | `examples/graph_node_detail.json` | 784 |
 | `examples/graph_projection.json` | 1494 |
 | `examples/relation_no_decision.json` | 379 |
-| `prompts/P01_section_outline.md` | 1239 |
-| `prompts/P02_unified_section_extract.md` | 4031 |
-| `prompts/P03_entity_alignment.md` | 1160 |
-| `prompts/P04_label_translation_repair.md` | 1106 |
-| `prompts/P05_comparability.md` | 1186 |
-| `prompts/P06_relation_inference.md` | 1009 |
-| `prompts/P07_graph_grounded_query.md` | 997 |
-| `prompts/P08_query_distillation.md` | 866 |
-| `prompts/P09_graph_lint.md` | 1014 |
-| `prompts/P10_reading_synthesis.md` | 1145 |
-| `prompts/P11_wiki_delta.md` | 948 |
+| `prompts/P01_section_outline.md` | 1214 |
+| `prompts/P02_unified_section_extract.md` | 3978 |
+| `prompts/P03_entity_alignment.md` | 1141 |
+| `prompts/P04_label_translation_repair.md` | 1087 |
+| `prompts/P05_comparability.md` | 1171 |
+| `prompts/P06_relation_inference.md` | 994 |
+| `prompts/P07_graph_grounded_query.md` | 979 |
+| `prompts/P08_query_distillation.md` | 850 |
+| `prompts/P09_graph_lint.md` | 1000 |
+| `prompts/P10_reading_synthesis.md` | 1131 |
+| `prompts/P11_wiki_delta.md` | 934 |
 | `schemas/contracts.py` | 15490 |
 | `schemas/generated/ComparabilityReport.schema.json` | 2286 |
 | `schemas/generated/EntityAlignmentBatch.schema.json` | 1868 |

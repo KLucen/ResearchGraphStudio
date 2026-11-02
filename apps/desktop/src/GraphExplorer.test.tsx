@@ -158,7 +158,7 @@ test("candidate selection shows current conditions and requires explicit real-mo
   await user.click(screen.getByRole("button", { name: "检索跨论文候选" }));
   await user.click(
     await screen.findByRole("button", {
-      name: /Synthetic shared memory claim b.*needs_review|Synthetic shared memory claim b.*待审查/,
+      name: /Synthetic shared memory claim b.*有限证据/,
     }),
   );
   expect(await screen.findByText("当前条件节点")).toBeInTheDocument();
@@ -186,17 +186,21 @@ test("candidate selection shows current conditions and requires explicit real-mo
     expect.any(String),
   );
 });
-test("stale proposal prevents acceptance while retaining model provenance", async () => {
+test("stale proposal shows provenance without review controls", async () => {
   stale = true;
   const user = userEvent.setup();
   mount();
   await user.click(
     await screen.findByRole("button", { name: /RELATED.*Both discuss/ }),
   );
-  await screen.findByText(/来源已变化：不能接受/);
-  await user.type(screen.getByLabelText("审核理由"), "Evidence was changed");
-  expect(screen.getByRole("button", { name: "接受候选" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "驳回候选" })).toBeEnabled();
+  await screen.findByText(/来源已变化，请重新推理/);
+  expect(screen.queryByLabelText("审核理由")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "接受候选" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "驳回候选" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByText(/P05.*mock/)).toBeInTheDocument();
 });
 

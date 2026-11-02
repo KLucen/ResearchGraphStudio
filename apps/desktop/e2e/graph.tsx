@@ -39,16 +39,67 @@ const initial = {
 function Harness() {
   const [layout, setLayout] = useState(initial);
   const [selected, setSelected] = useState("");
+  const [reading, setReading] = useState(false);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [poll, setPoll] = useState(0);
+  const ids = new Set([
+    "n0",
+    "n1",
+    "n2",
+    ...(expanded.includes("a") ? ["n3", "n4"] : []),
+    ...(expanded.includes("b") ? ["n3", "n5"] : []),
+  ]);
+  const layered = {
+    ...graph,
+    nodes: graph.nodes.filter((n) => ids.has(n.id)),
+    edges: [
+      ...graph.edges.slice(0, 2),
+      ...([
+        ...["a", "b"]
+          .filter((x) => expanded.includes(x))
+          .flatMap((x) => [
+            {
+              id: `${x}-shared`,
+              source: x === "a" ? "n1" : "n2",
+              target: "n3",
+              relation: "UNIT_MEMBER",
+              label_zh: "共享方法",
+              is_dashed: false,
+            },
+            {
+              id: `${x}-member`,
+              source: x === "a" ? "n1" : "n2",
+              target: x === "a" ? "n4" : "n5",
+              relation: "UNIT_MEMBER",
+              label_zh: "条件",
+              is_dashed: false,
+            },
+          ]),
+      ] as Graph["edges"]),
+    ],
+  };
   return (
     <>
       <button onClick={() => setPoll(poll + 1)}>模拟轮询</button>
+      <button onClick={() => setReading(!reading)}>分层模式</button>
+      {["a", "b"].map((x) => (
+        <button
+          key={x}
+          onClick={() =>
+            setExpanded((old) =>
+              old.includes(x) ? old.filter((i) => i !== x) : [...old, x],
+            )
+          }
+        >
+          切换支撑 {x}
+        </button>
+      ))}
       <output data-testid="layout" hidden>
         {JSON.stringify(layout)}
       </output>
       <div className="projection-canvas" style={{ height: 650, width: 1000 }}>
         <ForceGraph
-          graph={{ ...graph, graph_revision: 1 + poll }}
+          graph={{ ...(reading ? layered : graph), graph_revision: 1 + poll }}
           layout={layout}
           selected={selected}
           language="zh"

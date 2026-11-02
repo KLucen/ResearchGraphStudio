@@ -1,5 +1,7 @@
 # 00 — 阅读辅助知识图谱：决策与范围（设计 v3.3）
 
+> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
+
 日期：2026-11-02。决策见 [ADR 0008](adr/0008-reading-knowledge-graph.md)。本版替代 v3 平铺投影目标；[旧设计](archive/v3/README.md)保留追溯。设计版本不是应用版本、Prompt 运行版本或数据库迁移号。
 
 ## 产品目标

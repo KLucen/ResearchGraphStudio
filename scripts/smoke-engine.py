@@ -354,6 +354,40 @@ def run(executable: Path) -> dict[str, object]:
                 port, request(port, "/knowledge/extract", "POST", unified_body, key="v3-repeat")
             )
             assert repeated["result"]["model_calls"] == 0
+            reading_job = completed(
+                port,
+                request(
+                    port,
+                    "/knowledge/extract",
+                    "POST",
+                    {
+                        "document_version_id": other_version,
+                        "pipeline": "paper-reading-v1",
+                        "provider": "mock",
+                        "allow_network": False,
+                    },
+                    key="reading-extract",
+                ),
+            )
+            assert reading_job["status"] == "succeeded", reading_job
+            backbone = request(
+                port,
+                graph_route + "/projection",
+                "POST",
+                {
+                    "view": "paper_backbone",
+                    "kinds": ["Paper", "Claim", "Method"],
+                },
+            )
+            assert backbone["contract_version"] == "reading-projection-2.0"
+            assert any(e["relation"] == "HAS_CORE_CLAIM" for e in backbone["edges"])
+            assert all(
+                e["relation"] == "HAS_CORE_CLAIM"
+                for e in backbone["edges"]
+                if e["epistemic_status"] == "navigation"
+            )
+            reading_paper = next(n["paper_id"] for n in backbone["nodes"] if n["kind"] == "Claim")
+            reading_selection = request(port, f"/papers/{reading_paper}/graph-selection")
             orphan = data / "import-work" / str(uuid4())
             orphan.mkdir()
             (orphan / "workspace.json").write_text(
@@ -387,6 +421,7 @@ def run(executable: Path) -> dict[str, object]:
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
             assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
             assert request(port, graph_route + "/layout") == layout
+            assert request(port, f"/papers/{reading_paper}/graph-selection") == reading_selection
             assert (
                 request(port, graph_route + "/nodes/" + visible["id"])["display"][
                     "translation_status"
@@ -411,6 +446,7 @@ def run(executable: Path) -> dict[str, object]:
                     process.wait()
     return {
         "packaged_engine": "passed",
+        "reading_pipeline_backbone_selection_restart": "passed",
         "unified_projection_translation_layout_restart": "passed",
         "authentication": "passed",
         "idempotency": "passed",

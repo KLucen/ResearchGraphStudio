@@ -1,5 +1,7 @@
 # 05 — 阅读辅助 Prompt 与调用协议（设计 v3.3）
 
+> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
+
 当前参考模板统一版本 `reading-1.0`，各文件声明 output_contract。现有运行 P02 3.2 / unified-v3.1 保留原文件、哈希与任务计划；本次文档不能直接覆盖它们。对照见 [迁移计划](06_development_migration_plan.md)。
 
 ## 模板职责

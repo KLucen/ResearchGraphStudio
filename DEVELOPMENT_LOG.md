@@ -845,6 +845,35 @@
 - 真实响应超时仍 6/17、真实科学关系边和安装/干净机仍有未验收项；参考 Schema 不等于科学准确或真实 Provider 兼容。模型预算/输出体积需在 R2/R3 真实验证。
 - 四份外部补充原文登记路径仍不可用，历史来源/QA 保留。用户现有知识、原始资料和安装版本未改。
 
+
+## 2026-11-02 17:36 · DEV-0030 · 安全推送基线与 R1–R5 阅读图谱实现
+
+### 目标
+
+用户授权先提交推送已有成果，再顺序开发 R1–R5；保留私人数据与现有知识，不进入 P4/P5。
+
+### 实际改动
+
+- 先提交306文件既有P3/v3/R0成果 `8d3ba1d`，内容扫描304暂存文件、候选440与13提交历史Gitleaks通过，官方SSH443普通推送main并核对远端；HTTPS实测连接失败，没有修改全局Git/网络。该提交CI 41415123193全部成功。
+- R1：Alembic0010和reading_models/store，新增候选质量、结论单元/成员、选择快照/活跃指针、展示偏好、阶段检查点；复用原知识/原文/证据/模型表。隔离备份当前正式库275知识，迁移前后所有旧表逐行一致，原文/原模型输出保留。
+- R2：独立reading_contracts/P02_reading_extract，10类候选及严格证据/归属/状态；正常PDF/Zotero入口显式paper-reading-v1，旧任务不换Prompt/签名。R3：P12/P13有界整合、重复组范围检查、根路径闭合、冻结窗口与跨任务缓存、CAS发布和密度/偏好重算。见[ADR0009](docs/adr/0009-reading-pipeline-implementation.md)。
+- 实测修正：严格候选合法时仅隔离非法端点关联，参数记录原因且原输出不改；无路径成员保留可检索并标partial，不编造替代关系。
+- R4：graph_projection/reading_projection及GraphWorkspace/ReadingControls/KnowledgeReading，默认论文→核心Claim→展开支撑、共享节点、候选搜索、密度/偏好，无人工审核控件。旧API与review历史保留。Comparator能读取新SourceAssertion支撑条件。
+- Tauri桥接新增白名单，任务阶段/用量/覆盖缺口展示，OpenAPI生成同步；更新README、AGENTS、docs00–09、progress、ADR和实际验收。
+
+### 实际验证
+
+- Conda researchgraph-studio；`scripts/check-phase0.ps1`最终通过：175 Python passed / 2 symlink skipped，Ruff/format/mypy、依赖、契约、前端格式/类型/lint/build。之后新增共享投影用例，针对性4通过；React最终39通过。浏览器真实React Flow3通过，Rust7通过和clippy -D warnings通过；参考docs/tests78通过。
+- 7批第2批超时离线故障注入：首批不再调用、续跑7/7，8次抽取请求含1失败；整合/选择失败不重抽。Mock仅自动化，不作为真实质量证明。
+- 真实API：两篇真实论文最初全文尝试分别0/9、0/34停在非法关联，另一次90秒timeout。修正后复用两份已收P02响应，局部21候选、2/3核心单元经真实P12/P13发布且标partial，实际投影Paper边2/3条。已知71,260 Tokens，timeout用量未知。不是全文或科学质量通过；详细范围见[验收](docs/reading-implementation-verification-20261102.md)。
+- 最终PyInstaller/Tauri/NSIS通过；冻结引擎smoke包含paper-reading-v1完整离线闭环及重启，原功能兼容通过；PowerShell5.1仅System32 PATH测试通过。首次PowerShell受执行策略阻止，使用当前进程Bypass执行；又发现旧0009断言，更新0010后通过，未更改系统策略。
+- 安装包仅本机 `.local/releases/reading-graph-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,526,897字节，SHA256 `a7fd43ef7818a682a3ff490dd7706f58b6e3965a9aca59c60ca5171de0794660`。未安装替换当前软件，未使用Computer Use。
+- 17:58 收尾去除 Comparator 遗留审核筛选/文案，保留明确标识的历史状态；边详情区分导航/原文/模型推断。React39、TS/eslint/格式、重打包与冻结smoke、PowerShell5.1再次通过。测试启动曾遇 Vitest 不支持 runInBand、Conda 控制台编码错误，改为直接 Node 命令；文案断言不一致修正后完整前端通过，未将失败尝试记为通过。
+
+### 问题与下一步
+
+R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖、不同论文类型科学质量、用户安装体验仍待验收。精确表格/OCR/逐字定位未完成；四份外部补充原文路径不可用。提供安装操作步骤，下一步只补当前R5，不进入P4/P5。私人PDF、批注、密钥、数据库、原输出、日志、安装器继续留本机，最终提交安全检查和远端结果追加记录。
+
 ## 后续条目模板
 
 ```markdown

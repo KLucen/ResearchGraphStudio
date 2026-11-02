@@ -21,7 +21,11 @@ const stages: Record<NonNullable<Job["stage"]>, string> = {
   saving: "保存结果",
   diagnostics: "检查数据库",
   outlining: "识别论文结构",
-  extracting: "抽取带证据的知识",
+  extracting: "抽取候选知识",
+  indexing: "建立证据索引",
+  integrating: "整合结论与支撑",
+  selecting: "选择核心结论",
+  publishing: "发布分层图谱",
   resolving: "分析实体对齐候选",
   comparing: "比较实验条件",
   reasoning: "推理候选关系",
@@ -148,6 +152,29 @@ export function JobHistory({
                     </div>
                   </details>
                 )}
+                {typeof job.result?.integrated_windows === "number" && (
+                  <small>
+                    整合 {String(job.result.integrated_windows)} /{" "}
+                    {String(job.result.integration_windows)} 个窗口
+                  </small>
+                )}
+                {typeof job.result?.published_units === "number" && (
+                  <p className="task-stage">
+                    已发布 {String(job.result.published_units)} 个结论单元 ·{" "}
+                    {job.result.build_state === "complete"
+                      ? "构建完成"
+                      : "部分构建，仍有覆盖缺口"}
+                  </p>
+                )}
+                {Array.isArray(job.result?.coverage_gaps) &&
+                  job.result.coverage_gaps.length > 0 && (
+                    <details>
+                      <summary>覆盖范围与限制</summary>
+                      {(job.result.coverage_gaps as string[]).map((g, i) => (
+                        <p key={i}>{g}</p>
+                      ))}
+                    </details>
+                  )}
                 {typeof job.result?.model_calls === "number" && (
                   <small>
                     模型调用 {String(job.result.model_calls)} 次 · Token{" "}

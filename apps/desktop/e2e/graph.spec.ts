@@ -100,3 +100,26 @@ test("pin, zoom, fast drag and container resize preserve the real renderer", asy
   await node.dblclick();
   await expect(node).not.toHaveClass(/pinned/);
 });
+
+test("shared support survives collapsing another unit and preserves pinned layout", async ({
+  page,
+}) => {
+  await page.goto("/e2e/graph.html");
+  await page.getByRole("button", { name: "分层模式" }).click();
+  const nodes = page.locator(".react-flow__node");
+  await expect(nodes).toHaveCount(3);
+  await page.getByRole("button", { name: "切换支撑 a" }).click();
+  await expect(nodes).toHaveCount(5);
+  const shared = page.locator('.react-flow__node[data-id="n3"]');
+  await shared.dblclick();
+  await expect(shared).toHaveClass(/pinned/);
+  const position = await shared.getAttribute("style");
+  await page.getByRole("button", { name: "切换支撑 b" }).click();
+  await expect(nodes).toHaveCount(6);
+  await page.getByRole("button", { name: "切换支撑 a" }).click();
+  await expect(nodes).toHaveCount(5);
+  await expect(shared).toHaveClass(/pinned/);
+  expect(await shared.getAttribute("style")).toBe(position);
+  await page.getByRole("button", { name: "切换支撑 b" }).click();
+  await expect(nodes).toHaveCount(3);
+});

@@ -341,7 +341,7 @@ def test_0007_upgrade_preserves_existing_tables_and_fts_backfills(tmp_path):
     engine.dispose()
     with client(tmp_path) as api:
         assert api.get("/api/v1/projects").json()["items"][0]["name"] == "old project"
-        assert api.get("/api/v1/health").json()["schema_version"] == "0009"
+        assert api.get("/api/v1/health").json()["schema_version"] == "0010"
         with sqlite3.connect(tmp_path / "researchgraph.sqlite3") as db:
             assert db.execute(
                 "select node_id from knowledge_fts where knowledge_fts match 'memory'"

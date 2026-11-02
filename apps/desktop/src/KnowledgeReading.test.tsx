@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -129,52 +129,40 @@ test("real extraction requires explicit text transfer consent", async () => {
   mount();
   await user.click(screen.getByRole("button", { name: /论文结构与知识/ }));
   expect(screen.queryByText(/离线 Mock|旧 P01/)).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "开始结构化抽取" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "生成论文知识图谱" }),
+  ).toBeDisabled();
   await user.click(screen.getByRole("checkbox"));
-  await user.click(screen.getByRole("button", { name: "开始结构化抽取" }));
-  expect(api.extract).toHaveBeenCalledWith("v", "project", true, "unified-v3");
+  await user.click(screen.getByRole("button", { name: "生成论文知识图谱" }));
+  expect(api.extract).toHaveBeenCalledWith(
+    "v",
+    "project",
+    true,
+    "paper-reading-v1",
+  );
 });
 
-test("human revision includes optimistic versions and preserves evidence payload", async () => {
+test("reading retains provenance without requiring human review", async () => {
   const user = userEvent.setup();
   mount();
   await user.click(screen.getByRole("button", { name: /论文结构与知识/ }));
   await user.click(
     await screen.findByRole("button", { name: /No improvement was observed/ }),
   );
+  expect(await screen.findByText("原始模型与修改历史")).toBeInTheDocument();
   expect(
-    await screen.findByRole("button", { name: "保存修订待审" }),
-  ).toBeDisabled();
-  await user.clear(screen.getByLabelText("修订内容"));
-  await user.type(
-    screen.getByLabelText("修订内容"),
-    "No significant improvement in this setting.",
-  );
-  await user.type(
-    screen.getByLabelText("审核理由"),
-    "Checked against original",
-  );
-  await user.click(screen.getByRole("button", { name: "保存修订待审" }));
-  await waitFor(() =>
-    expect(api.review).toHaveBeenCalledWith(
-      expect.objectContaining({
-        node_id: "n",
-        expected_revision: 1,
-        expected_graph_revision: 2,
-        action: "revise",
-        payload: expect.objectContaining({
-          statement: "No significant improvement in this setting.",
-          origin: "author_claim",
-        }),
-      }),
-    ),
-  );
+    screen.queryByRole("button", { name: "保存修订待审" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("审核理由")).not.toBeInTheDocument();
+  expect(api.review).not.toHaveBeenCalled();
 });
 
 test("offline reading disables extraction without issuing new calls", async () => {
   const user = userEvent.setup();
   mount(false);
   await user.click(screen.getByRole("button", { name: /论文结构与知识/ }));
-  expect(screen.getByRole("button", { name: "开始结构化抽取" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "生成论文知识图谱" }),
+  ).toBeDisabled();
   expect(api.knowledge).not.toHaveBeenCalled();
 });

@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from researchgraph.graph_models import SourceAssertion
 from researchgraph.knowledge_contracts import EvidenceView, NodeView
 from researchgraph.knowledge_models import (
     EvidenceSpan,
@@ -100,6 +101,18 @@ def node_context(session: Session, node: KnowledgeNode) -> dict[str, Any]:
     # Conditions/methods/experiment context are current nodes, never stale embedded DTOs.
     for _ in range(3):
         next_ids = set()
+        for association in session.scalars(
+            select(SourceAssertion).where(SourceAssertion.source_id.in_(frontier))
+        ):
+            dependency = session.get(KnowledgeNode, association.target_id)
+            if not dependency or dependency.document_version_id != node.document_version_id:
+                raise KnowledgeError("INVALID_DEPENDENCY", "关联超出当前来源版本")
+            if not usable(dependency):
+                raise KnowledgeError("INVALID_DEPENDENCY", "关联来源已失效")
+            links.append([association.source_id, association.target_id, association.relation])
+            if dependency.id not in nodes:
+                nodes[dependency.id] = dependency
+                next_ids.add(dependency.id)
         for edge in session.scalars(
             select(KnowledgeDependency)
             .where(KnowledgeDependency.node_id.in_(frontier))
@@ -141,9 +154,8 @@ def node_context(session: Session, node: KnowledgeNode) -> dict[str, Any]:
         raise KnowledgeError("NEEDS_EVIDENCE", "主张或实体没有可回查原文")
     dimensions: dict[str, dict[str, Any]] = {}
     conditions = [n for n in nodes.values() if n.kind == "condition"]
-    for name in sorted(
-        {"task_type", "dataset", "metric"} | {n.dimension for n in conditions if n.dimension}
-    ):
+    defaults = set() if "label" in node.payload else {"task_type", "dataset", "metric"}
+    for name in sorted(defaults | {n.dimension for n in conditions if n.dimension}):
         values = [n for n in conditions if n.dimension == name]
         # An absent Claim condition does not contradict explicit experiment context.
         # Only values already stored with provenance may supply the missing dimension.

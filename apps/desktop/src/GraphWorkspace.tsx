@@ -7,7 +7,7 @@ import "@xyflow/react/dist/style.css";
 import type { components } from "../../../packages/contracts/generated";
 import { api, request, type Job } from "./api";
 import { GraphExplorer, ProposalReview } from "./GraphExplorer";
-import { ReviewCard } from "./KnowledgeReading";
+import { ReadingControls } from "./ReadingControls";
 import { JobHistory } from "./JobHistory";
 import { placeNodes } from "./graphLayout";
 
@@ -21,6 +21,12 @@ const kinds: Record<Kind, string> = {
   Method: "方法",
   Claim: "主张",
   ResearchQuestion: "研究问题",
+  Experiment: "实验",
+  Condition: "条件",
+  Finding: "结果",
+  Metric: "指标",
+  Argument: "论证",
+  Limitation: "限制",
 };
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -76,6 +82,7 @@ function ProjectionExplorer({
 }) {
   const client = useQueryClient();
   const base = `/api/v1/projects/${projectId}/graph`;
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<Kind | "">("");
@@ -120,9 +127,12 @@ function ProjectionExplorer({
       depth,
       ai,
       cursors.at(-1),
+      expanded,
     ],
     queryFn: () =>
       request<Graph>("POST", `${base}/projection`, {
+        view: "paper_backbone",
+        expanded_unit_ids: expanded,
         search: query,
         kinds: kind ? [kind] : Object.keys(kinds),
         paper_id: paper,
@@ -342,6 +352,21 @@ function ProjectionExplorer({
           </>
         )}
       </div>
+      {paper && (
+        <ReadingControls
+          paperId={paper}
+          connected={connected}
+          onSelect={setSelected}
+        />
+      )}
+      {!!graph.data?.coverage_gaps?.length && (
+        <details>
+          <summary>构建范围与限制</summary>
+          {graph.data.coverage_gaps.map((g, i) => (
+            <p key={i}>{g}</p>
+          ))}
+        </details>
+      )}
       <button
         className="text-button"
         disabled={!current || !graph.data?.nodes.length}
@@ -350,9 +375,8 @@ function ProjectionExplorer({
         重新布局未固定节点
       </button>
       <p className="quiet-note">
-        单击查看 · 拖动联动 · 双击固定/解除 · 滚轮缩放 ·
-        实线为原文关联或用户确认，虚线为 AI 候选。版本{" "}
-        {graph.data?.graph_revision ?? "—"} ·{" "}
+        单击查看 · 拖动联动 · 双击固定/解除 · 滚轮缩放 · 实线为结论导航，虚线为
+        AI 科学关系推断。版本 {graph.data?.graph_revision ?? "—"} ·{" "}
         {dirty ? "布局待保存" : "布局已同步"}
       </p>
       {[graph.error, layout.error, detail.error, save.error]
@@ -414,6 +438,27 @@ function ProjectionExplorer({
           {detail.data ? (
             <>
               <div className="import-controls">
+                {graph.data?.nodes.find((n) => n.id === selected)
+                  ?.graph_role === "core" &&
+                  (
+                    graph.data.nodes.find((n) => n.id === selected)?.unit_ids ??
+                    []
+                  ).map((uid) => (
+                    <button
+                      key={uid}
+                      className="button secondary"
+                      onClick={() => {
+                        setExpanded((old) =>
+                          old.includes(uid)
+                            ? old.filter((x) => x !== uid)
+                            : [...old, uid],
+                        );
+                        setCursors([""]);
+                      }}
+                    >
+                      {expanded.includes(uid) ? "收起支撑" : "展开支撑"}
+                    </button>
+                  ))}
                 <button
                   className="text-button"
                   onClick={() => {
@@ -458,7 +503,13 @@ function ProjectionExplorer({
             <>
               <h3>{edge.label_zh}</h3>
               <p>
-                {edge.epistemic_status} · {edge.review_status}
+                {edge.epistemic_status === "navigation"
+                  ? "导航连接"
+                  : edge.epistemic_status === "model_inferred"
+                    ? "模型推断关系"
+                    : edge.epistemic_status === "source_reported"
+                      ? "原文关系"
+                      : edge.epistemic_status}
               </p>
               {edge.detail_ref?.includes("/relations/") ? (
                 <ProposalReview
@@ -572,8 +623,7 @@ function NodeInspector({
         <p>{String(detail.display.summary_en ?? detail.node?.text ?? "")}</p>
       )}
       <p className="quiet-note">
-        {detail.node?.source_status} · {detail.node?.review_status} ·{" "}
-        {detail.node?.origin}
+        {detail.node?.source_status} · {detail.node?.origin}
         {detail.display.translation_status
           ? ` · 译文 ${String(detail.display.translation_status)}`
           : ""}
@@ -620,7 +670,7 @@ function NodeInspector({
           {detail.related.map((n) => (
             <article className="inspector-fact" key={n.id}>
               <small>
-                {n.kind} · {n.known_state ?? n.review_status}
+                {n.kind} · {n.known_state ?? "原文候选"}
               </small>
               <p>
                 {language === "en"
@@ -673,13 +723,7 @@ function NodeInspector({
       </details>
       {node.data && (
         <details>
-          <summary>可选纠错与审核历史</summary>
-          <ReviewCard
-            key={`${node.data.node.id}:${node.data.node.revision}`}
-            detail={node.data}
-            connected={connected}
-            onEvidence={setEvidenceId}
-          />
+          <summary>模型来源与历史</summary>
           <details>
             <summary>原始模型记录</summary>
             <pre>{JSON.stringify(node.data.model_run, null, 2)}</pre>

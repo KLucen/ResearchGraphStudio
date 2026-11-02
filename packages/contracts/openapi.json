@@ -2240,6 +2240,285 @@
         }
       }
     },
+    "/api/v1/papers/{paper_id}/graph-selection": {
+      "get": {
+        "summary": "Selection",
+        "operationId": "selection_api_v1_papers__paper_id__graph_selection_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Selection Api V1 Papers  Paper Id  Graph Selection Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/knowledge-units": {
+      "get": {
+        "summary": "Units",
+        "operationId": "units_api_v1_papers__paper_id__knowledge_units_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Units Api V1 Papers  Paper Id  Knowledge Units Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/candidates": {
+      "get": {
+        "summary": "Candidates",
+        "operationId": "candidates_api_v1_papers__paper_id__candidates_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 160,
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 300,
+              "default": "",
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 40,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Candidates Api V1 Papers  Paper Id  Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/graph-selection/rebuild": {
+      "post": {
+        "summary": "Rebuild",
+        "operationId": "rebuild_api_v1_papers__paper_id__graph_selection_rebuild_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingRebuild"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/graph-selection/preferences": {
+      "post": {
+        "summary": "Preference",
+        "operationId": "preference_api_v1_papers__paper_id__graph_selection_preferences_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingPreferenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Preference Api V1 Papers  Paper Id  Graph Selection Preferences Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/graph/translate": {
       "post": {
         "summary": "Translate",
@@ -3534,10 +3813,34 @@
             "type": "string",
             "enum": [
               "legacy-v2",
-              "unified-v3"
+              "unified-v3",
+              "paper-reading-v1"
             ],
             "title": "Pipeline",
             "default": "unified-v3"
+          },
+          "density": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "standard",
+              "detailed"
+            ],
+            "title": "Density",
+            "default": "standard"
+          },
+          "paper_type": {
+            "type": "string",
+            "enum": [
+              "empirical",
+              "methodological",
+              "theoretical",
+              "review",
+              "mixed",
+              "unknown"
+            ],
+            "title": "Paper Type",
+            "default": "unknown"
           }
         },
         "additionalProperties": false,
@@ -3582,6 +3885,30 @@
       },
       "GraphProjection": {
         "properties": {
+          "contract_version": {
+            "type": "string",
+            "title": "Contract Version",
+            "default": "graph-projection-v3"
+          },
+          "selections": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Selections"
+          },
+          "coverage_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Coverage Gaps"
+          },
+          "build_state": {
+            "type": "string",
+            "title": "Build State",
+            "default": "legacy"
+          },
           "project_id": {
             "type": "string",
             "title": "Project Id"
@@ -3910,6 +4237,10 @@
                   "diagnostics",
                   "outlining",
                   "extracting",
+                  "indexing",
+                  "integrating",
+                  "selecting",
+                  "publishing",
                   "resolving",
                   "comparing",
                   "reasoning"
@@ -5021,7 +5352,8 @@
             "enum": [
               "source_reported",
               "model_inferred",
-              "user_confirmed"
+              "user_confirmed",
+              "navigation"
             ],
             "title": "Epistemic Status"
           },
@@ -5076,7 +5408,13 @@
               "Concept",
               "Method",
               "Claim",
-              "ResearchQuestion"
+              "ResearchQuestion",
+              "Experiment",
+              "Condition",
+              "Finding",
+              "Metric",
+              "Argument",
+              "Limitation"
             ],
             "title": "Kind"
           },
@@ -5110,6 +5448,18 @@
             },
             "type": "array",
             "title": "Badges"
+          },
+          "graph_role": {
+            "type": "string",
+            "title": "Graph Role",
+            "default": "legacy"
+          },
+          "unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unit Ids"
           }
         },
         "additionalProperties": false,
@@ -5130,6 +5480,23 @@
       },
       "ProjectionQuery": {
         "properties": {
+          "view": {
+            "type": "string",
+            "enum": [
+              "legacy",
+              "paper_backbone"
+            ],
+            "title": "View",
+            "default": "legacy"
+          },
+          "expanded_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 120,
+            "title": "Expanded Unit Ids"
+          },
           "kinds": {
             "items": {
               "type": "string",
@@ -5138,11 +5505,17 @@
                 "Concept",
                 "Method",
                 "Claim",
-                "ResearchQuestion"
+                "ResearchQuestion",
+                "Experiment",
+                "Condition",
+                "Finding",
+                "Metric",
+                "Argument",
+                "Limitation"
               ]
             },
             "type": "array",
-            "maxItems": 5,
+            "maxItems": 11,
             "minItems": 1,
             "title": "Kinds"
           },
@@ -5313,6 +5686,78 @@
           "created_at"
         ],
         "title": "ProposalView"
+      },
+      "ReadingPreferenceRequest": {
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "title": "Candidate Id"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "include_core",
+              "exclude_core",
+              "reset_automatic"
+            ],
+            "title": "Action"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "default": "用户显示偏好"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "expected_revision",
+          "action"
+        ],
+        "title": "ReadingPreferenceRequest"
+      },
+      "ReadingRebuild": {
+        "properties": {
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "density": {
+            "type": "string",
+            "enum": [
+              "concise",
+              "standard",
+              "detailed"
+            ],
+            "title": "Density",
+            "default": "standard"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Revision"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_version_id",
+          "expected_revision"
+        ],
+        "title": "ReadingRebuild"
       },
       "ReasoningHistory": {
         "properties": {

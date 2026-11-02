@@ -1,5 +1,7 @@
 # 下一轮开发模板（需要用户明确启动）
 
+> 2026-11-02 实现更新：R1–R4 已接入，R5 部分验收；Schema head 0010，产品入口 paper-reading-v1。P02_reading_extract/P12_reading_integration/P13_reading_selection 为独立运行模板，旧任务模板不改。默认分层图谱、全部候选搜索与显示偏好已可用，无人工审核。下一步限于 R5 全文质量/响应可靠性与安装反馈，未进入 P4/P5。当前正式库 275 条知识在隔离迁移中逐行保持。报告见 docs/reading-implementation-verification-20261102.md（相对仓库根）。
+
 当前 R0 规范交付，软件仍在 P3/v3 自动建图迭代，未进入 P4/P5。阅读根 AGENTS、README、progress、最新开发日志及 00–09，按 [R1–R5 计划](06_development_migration_plan.md)推进。
 
 下一步先做 R1：

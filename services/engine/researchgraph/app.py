@@ -289,6 +289,9 @@ def create_app(
     register_zotero_batch_api(app, engine)
     register_reasoning_api(app, engine)
     register_graph_api(app, engine)
+    from researchgraph.reading_api import register_reading_api
+
+    register_reading_api(app, engine)
     from researchgraph.translation import register_translation_api
 
     register_translation_api(app, engine)

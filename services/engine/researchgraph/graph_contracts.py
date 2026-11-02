@@ -6,7 +6,19 @@ from pydantic import Field, model_validator
 
 from researchgraph.knowledge_contracts import EvidenceView, NodeView, StrictModel
 
-VisualKind = Literal["Paper", "Concept", "Method", "Claim", "ResearchQuestion"]
+VisualKind = Literal[
+    "Paper",
+    "Concept",
+    "Method",
+    "Claim",
+    "ResearchQuestion",
+    "Experiment",
+    "Condition",
+    "Finding",
+    "Metric",
+    "Argument",
+    "Limitation",
+]
 
 
 def default_kinds() -> list[VisualKind]:
@@ -14,10 +26,12 @@ def default_kinds() -> list[VisualKind]:
 
 
 class ProjectionQuery(StrictModel):
+    view: Literal["legacy", "paper_backbone"] = "legacy"
+    expanded_unit_ids: list[str] = Field(default_factory=list, max_length=120)
     kinds: list[VisualKind] = Field(
         default_factory=default_kinds,
         min_length=1,
-        max_length=5,
+        max_length=11,
     )
     search: str = Field(default="", max_length=160)
     paper_id: str = Field(default="", max_length=36)
@@ -42,6 +56,8 @@ class ProjectionNode(StrictModel):
     review_status: str
     knowledge_origin: str
     badges: list[str]
+    graph_role: str = "legacy"
+    unit_ids: list[str] = Field(default_factory=list)
 
 
 class ProjectionEdge(StrictModel):
@@ -50,13 +66,17 @@ class ProjectionEdge(StrictModel):
     target: str
     relation: str
     label_zh: str
-    epistemic_status: Literal["source_reported", "model_inferred", "user_confirmed"]
+    epistemic_status: Literal["source_reported", "model_inferred", "user_confirmed", "navigation"]
     review_status: str
     is_dashed: bool
     detail_ref: str | None = None
 
 
 class GraphProjection(StrictModel):
+    contract_version: str = "graph-projection-v3"
+    selections: dict[str, int] = Field(default_factory=dict)
+    coverage_gaps: list[str] = Field(default_factory=list)
+    build_state: str = "legacy"
     project_id: str
     graph_revision: int
     nodes: list[ProjectionNode]

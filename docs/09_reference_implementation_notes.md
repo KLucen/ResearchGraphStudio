@@ -1,5 +1,7 @@
 # 09 — 实施注记（设计 v3.3）
 
+> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
+
 ## 工程原则
 
 按职责重构，以设计合理性和可测试性决定范围。保留有效解析、证据、来源、任务、凭据和 Store，不复制一个新系统；不以“最小侵入”阻止必要的抽取/整合/选择拆分。不要为改目录名搬动全工程。

@@ -77,7 +77,9 @@ async def call_model(
                 prompt_name=prompt_name,
                 prompt_hash=text_hash(prompt),
                 schema_version=(
-                    "unified-v3.1"
+                    "reading-1.0"
+                    if prompt_name.startswith(("P02_reading", "P12_reading", "P13_reading"))
+                    else "unified-v3.1"
                     if schema.get("title")
                     in {"KnowledgeExtractionBatch", "TranslationRepair", "LocalLinkRepair"}
                     else DOMAIN_VERSION
@@ -217,7 +219,9 @@ def reusable_model_run(
                 ModelRun.input_hash == digest(data),
                 ModelRun.schema_version
                 == (
-                    "unified-v3.1"
+                    "reading-1.0"
+                    if prompt_name.startswith(("P02_reading", "P12_reading", "P13_reading"))
+                    else "unified-v3.1"
                     if prompt_name
                     in {
                         "P02_unified_section_extract",
@@ -240,7 +244,13 @@ def reusable_model_run(
                 if not reusable_invalid_output(run.raw_output or ""):
                     continue
             parameters = dict(run.parameters)
-            for field in ("usage", "attempts", "duration_seconds", "normalization"):
+            for field in (
+                "usage",
+                "attempts",
+                "duration_seconds",
+                "normalization",
+                "quarantined_associations",
+            ):
                 parameters.pop(field, None)
             if run.raw_output and parameters == expected_parameters:
                 return run.id, run.raw_output
@@ -277,10 +287,15 @@ async def run_extraction(engine: Engine, job_id: str) -> None:
             and dispatch_job.payload
             and dispatch_job.payload.get("pipeline") == "unified-v3"
         )
-    if unified:
+    reading = bool(
+        dispatch_job
+        and dispatch_job.payload
+        and dispatch_job.payload.get("pipeline") == "paper-reading-v1"
+    )
+    if unified or reading:
         from researchgraph.unified_extraction import run_unified_extraction
 
-        await run_unified_extraction(engine, job_id)
+        await run_unified_extraction(engine, job_id, reading=reading)
         return
     with Session(engine) as session, session.begin():
         job = session.get(Job, job_id)

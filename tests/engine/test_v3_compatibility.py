@@ -52,7 +52,7 @@ def test_0009_migration_preserves_every_old_row_and_backup(tmp_path):
         before = {t: db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() for t in tables}
     migrate(engine, tmp_path)
     with sqlite3.connect(dbfile) as db:
-        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0009"
+        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0010"
         assert all(
             db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() == rows
             for t, rows in before.items()
@@ -132,7 +132,7 @@ def test_zotero_parse_directly_queues_unified_extraction_without_copy(tmp_path, 
         assert imported["status"] == "succeeded", imported
         child = wait_job(api, {"id": imported["result"]["extraction_job_id"]})
         assert child["status"] == "succeeded", child
-        assert child["result"]["pipeline"] == "unified-v3"
+        assert child["result"]["pipeline"] == "paper-reading-v1"
         with Session(api.app.state.engine) as session:
             assert all(s.managed_path is None for s in session.scalars(select(PaperSource)))
             child_count = len(

@@ -10,12 +10,12 @@ type History = components["schemas"]["ReasoningHistory"];
 type Proposal = components["schemas"]["ProposalView"];
 type Detail = components["schemas"]["ProposalDetail"];
 const statusNames: Record<string, string> = {
-  proposed: "候选",
-  unreviewed: "未审核",
-  needs_review: "待审查",
-  accepted: "已接受",
-  rejected: "已驳回",
-  superseded: "已替代",
+  proposed: "模型候选",
+  unreviewed: "来源候选",
+  needs_review: "有限证据",
+  accepted: "历史已接受",
+  rejected: "历史已驳回",
+  superseded: "历史已替代",
 };
 const kindNames: Record<string, string> = {
   claim: "主张",
@@ -44,7 +44,6 @@ export function GraphExplorer({
 }) {
   const client = useQueryClient();
   const [kind, setKind] = useState("claim");
-  const [status, setStatus] = useState("all");
   const [cursors, setCursors] = useState([""]);
   const [focusId, setFocusId] = useState("");
   const [sourceId, setSourceId] = useState(initialSourceId);
@@ -58,11 +57,11 @@ export function GraphExplorer({
     kind: "relation" | "alignment";
   } | null>(null);
   const graph = useQuery({
-    queryKey: ["graph", projectId, kind, status, cursors.at(-1), focusId],
+    queryKey: ["graph", projectId, kind, cursors.at(-1), focusId],
     queryFn: () =>
       request<Graph>(
         "GET",
-        `/api/v1/graph/subgraph?project_id=${projectId}&kind=${kind}&status=${status}&limit=24&cursor=${cursors.at(-1)}&focus_id=${focusId}&include_test_data=false`,
+        `/api/v1/graph/subgraph?project_id=${projectId}&kind=${kind}&status=all&limit=24&cursor=${cursors.at(-1)}&focus_id=${focusId}&include_test_data=false`,
       ),
     enabled: connected,
     refetchInterval: 5000,
@@ -157,7 +156,7 @@ export function GraphExplorer({
         <span>图谱版本 {graph.data?.graph_revision ?? "—"}</span>
       </div>
       <p className="quiet-note">
-        选择节点检索其他论文的候选，再并排核对条件和原文。虚线表示待审核关系；人工接受也不等于科学事实。
+        选择节点检索其他论文的候选，再并排核对条件和原文。虚线表示模型候选关系，关系类型和证据来源始终单独显示。
       </p>
       <div className="import-controls">
         <label>
@@ -174,21 +173,6 @@ export function GraphExplorer({
             <option value="claim">主张</option>
             <option value="concept">概念</option>
             <option value="method">方法</option>
-          </select>
-        </label>
-        <label>
-          关系审核状态{" "}
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setCursors([""]);
-            }}
-          >
-            <option value="all">全部</option>
-            <option value="proposed">候选关系</option>
-            <option value="accepted">已接受</option>
-            <option value="rejected">已驳回</option>
           </select>
         </label>
         <button
@@ -406,7 +390,7 @@ export function GraphExplorer({
         </>
       )}
       <JobHistory projectId={projectId} connected={connected} />
-      <h3>推理与审核记录 · 最近 50 次</h3>
+      <h3>模型推理记录 · 最近 50 次</h3>
       <div className="proposal-list">
         {allProposals.map(({ p, mode }) => (
           <button
@@ -548,8 +532,6 @@ export function ProposalReview({
   selection: { id: string; kind: "relation" | "alignment" };
   connected: boolean;
 }) {
-  const client = useQueryClient();
-  const [reason, setReason] = useState("");
   const detail = useQuery({
     queryKey: ["proposal", selection.id],
     queryFn: () =>
@@ -560,38 +542,14 @@ export function ProposalReview({
     enabled: connected,
     refetchInterval: 5000,
   });
-  const review = useMutation({
-    mutationFn: (action: "accept" | "reject") =>
-      request<Proposal>(
-        "POST",
-        "/api/v1/knowledge/semantic-reviews",
-        {
-          proposal_id: selection.id,
-          kind: selection.kind,
-          expected_revision: detail.data?.proposal.revision,
-          action,
-          reason,
-        },
-        crypto.randomUUID(),
-      ),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["proposal"] });
-      void client.invalidateQueries({ queryKey: ["reasoning"] });
-      void client.invalidateQueries({ queryKey: ["graph"] });
-      setReason("");
-    },
-  });
   const data = detail.data;
   return (
-    <section className="review-panel" aria-label="关系与实体审核">
-      <h3>候选审核</h3>
+    <section className="review-panel" aria-label="关系与实体解释">
+      <h3>AI 关系解释</h3>
       {detail.error && <p role="alert">{errorText(detail.error)}</p>}
       {data && (
         <>
-          <strong>
-            {data.proposal.relation_type} ·{" "}
-            {statusNames[data.proposal.review_status]}
-          </strong>
+          <strong>{data.proposal.relation_type} · AI 推断</strong>
           <p>
             {String(
               data.attempt.output?.reason_zh ||
@@ -604,12 +562,10 @@ export function ProposalReview({
             <p>{data.proposal.rationale}</p>
           </details>
           {data.proposal.stale && (
-            <p role="alert">
-              来源已变化：不能接受此版本，请重新推理。原判断与审核历史仍保留。
-            </p>
+            <p role="alert">来源已变化，请重新推理。原判断和历史仍保留。</p>
           )}
           {selection.kind === "alignment" && (
-            <p>接受只记录对齐判断；本阶段不合并或改写原实体。</p>
+            <p>对齐建议保留为模型推断，不自动合并或改写原实体。</p>
           )}
           {data.attempt.comparison && (
             <details open>
@@ -626,34 +582,6 @@ export function ProposalReview({
               </pre>
             </details>
           )}
-          <label>
-            审核理由
-            <input
-              maxLength={2000}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          </label>
-          <button
-            className="button primary"
-            disabled={
-              !connected ||
-              !reason.trim() ||
-              review.isPending ||
-              data.proposal.stale
-            }
-            onClick={() => review.mutate("accept")}
-          >
-            接受候选
-          </button>{" "}
-          <button
-            className="button secondary"
-            disabled={!connected || !reason.trim() || review.isPending}
-            onClick={() => review.mutate("reject")}
-          >
-            驳回候选
-          </button>
-          {review.error && <p role="alert">{errorText(review.error)}</p>}
           <h4>模型来源与原始结果</h4>
           {data.runs.map((r) => (
             <details key={r.id}>
@@ -667,7 +595,7 @@ export function ProposalReview({
               <pre>{r.raw_output}</pre>
             </details>
           ))}
-          <h4>审核历史 · {data.reviews.length}</h4>
+          <h4>历史记录 · {data.reviews.length}</h4>
           {data.reviews.map((r) => (
             <details key={r.id}>
               <summary>

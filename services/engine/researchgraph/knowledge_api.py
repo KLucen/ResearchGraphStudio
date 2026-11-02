@@ -238,7 +238,13 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             raise KnowledgeError("PROVIDER_NOT_CONFIGURED", str(error)) from None
         with Session(engine()) as session, session.begin():
             request_body = body.model_dump(
-                exclude={"pipeline"} if body.pipeline == "legacy-v2" else set()
+                exclude=(
+                    {"pipeline", "density", "paper_type"}
+                    if body.pipeline == "legacy-v2"
+                    else {"density", "paper_type"}
+                    if body.pipeline == "unified-v3"
+                    else set()
+                )
             )
             previous = remembered(session, "extract:" + idempotency_key, request_body)
             if previous:

@@ -1,5 +1,7 @@
 # 02 — 统一引擎与自动建图工作流（设计 v3.3）
 
+> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
+
 ## 职责与数据流
 
 ```mermaid

@@ -1,11 +1,6 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  api,
-  type KnowledgeNode,
-  type NodeDetail,
-  type ReviewRequest,
-} from "./api";
+import { api, type KnowledgeNode } from "./api";
 
 const names: Record<string, string> = {
   research_question: "研究问题",
@@ -16,14 +11,8 @@ const names: Record<string, string> = {
   concept: "概念",
   experiment: "实验",
   metric: "指标",
-};
-const reviewNames: Record<string, string> = {
-  unreviewed: "未审核",
-  needs_review: "待审查",
-  accepted: "已接受",
-  rejected: "已驳回",
-  proposed: "候选",
-  superseded: "已替代",
+  argument: "论证",
+  limitation: "限制",
 };
 const origins: Record<string, string> = {
   author_claim: "作者主张",
@@ -36,8 +25,11 @@ const origins: Record<string, string> = {
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function displayText(node: KnowledgeNode): string {
   const payload = node.payload as Record<string, unknown>;
+  const source = (payload.statement || payload.summary) as
+    { zh?: string } | undefined;
   return String(
-    payload.statement_zh ||
+    source?.zh ||
+      payload.statement_zh ||
       payload.canonical_name_zh ||
       payload.name_zh ||
       payload.label_zh ||
@@ -81,7 +73,7 @@ function Reading({
   const client = useQueryClient();
   const provider = "project";
   const [allow, setAllow] = useState(false);
-  const pipeline = "unified-v3";
+  const pipeline = "paper-reading-v1";
   const [selected, setSelected] = useState("");
   const selection = useRef("");
   const [evidenceId, setEvidenceId] = useState("");
@@ -147,7 +139,7 @@ function Reading({
     <div>
       <h3>Paper & Reading</h3>
       <p className="quiet-note">
-        来源已验证表示能回查原文；人工接受也不代表科学命题已被证明。
+        来源已验证表示能回查原文；作者主张及模型解释不等于科学事实。
       </p>
       <div className="import-controls">
         <span>使用全局 Extraction 模型</span>
@@ -156,7 +148,7 @@ function Reading({
           disabled={!connected || extract.isPending || !allow}
           onClick={() => extract.mutate()}
         >
-          开始结构化抽取
+          生成论文知识图谱
         </button>
       </div>
       <label className="quality-note">
@@ -279,9 +271,7 @@ function Reading({
               onClick={() => void choose(node)}
               key={node.id}
             >
-              <span>
-                {names[node.kind]} · {reviewNames[node.review_status]}
-              </span>
+              <span>{names[node.kind]} · 候选知识</span>
               <strong>{displayText(node)}</strong>
               {displayText(node) !== node.text && (
                 <small>英文原文：{node.text}</small>
@@ -307,18 +297,19 @@ function Reading({
         </div>
       </div>
       {detail.data && (
-        <ReviewCard
-          key={`${detail.data.node.id}:${detail.data.node.revision}`}
-          detail={detail.data}
-          connected={connected}
-          onEvidence={(id) => {
-            setEvidenceId(id);
-            setSectionId(
-              structure.data?.evidence.find((e) => e.id === id)?.section_id ??
-                "",
-            );
-          }}
-        />
+        <details>
+          <summary>原始模型与修改历史</summary>
+          <pre>
+            {JSON.stringify(
+              {
+                model_run: detail.data.model_run,
+                reviews: detail.data.reviews,
+              },
+              null,
+              2,
+            )}
+          </pre>
+        </details>
       )}
       <details>
         <summary>模型调用与原始结果 · {runs.data?.length ?? 0} 次</summary>
@@ -362,185 +353,6 @@ function Reading({
         onEvidence={setEvidenceId}
       />
     </div>
-  );
-}
-
-export function ReviewCard({
-  detail,
-  connected,
-  onEvidence,
-}: {
-  detail: NodeDetail;
-  connected: boolean;
-  onEvidence: (id: string) => void;
-}) {
-  const client = useQueryClient();
-  const node = detail.node;
-  const field =
-    node.kind === "claim" || node.kind === "finding"
-      ? "statement"
-      : node.kind === "concept"
-        ? "canonical_name"
-        : node.kind === "experiment"
-          ? "label"
-          : node.kind === "condition"
-            ? "value"
-            : "name";
-  const [text, setText] = useState(String(node.payload[field] ?? ""));
-  const [origin, setOrigin] = useState(node.origin);
-  const [reason, setReason] = useState("");
-  const [value, setValue] = useState(node.value ?? "");
-  const [unit, setUnit] = useState(node.unit ?? "");
-  const [known, setKnown] = useState(node.known_state ?? "unknown");
-  const review = useMutation({
-    mutationFn: (action: ReviewRequest["action"]) => {
-      const payload = { ...node.payload, [field]: text };
-      if (node.kind === "claim") payload.origin = origin;
-      if (node.kind === "finding") {
-        payload.value = value || null;
-        payload.unit = unit || null;
-      }
-      if (node.kind === "condition") {
-        payload.known_state = known;
-        payload.value =
-          known === "unknown" || known === "not_applicable" ? null : text;
-        payload.unit = unit || null;
-      }
-      return api.review({
-        node_id: node.id,
-        expected_revision: node.revision,
-        expected_graph_revision: detail.graph_revision,
-        action,
-        reason,
-        payload: action === "revise" ? payload : null,
-      });
-    },
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["node", node.id] });
-      void client.invalidateQueries({
-        queryKey: ["knowledge", node.document_version_id],
-      });
-    },
-  });
-  return (
-    <section className="review-panel" aria-label="知识审核">
-      <h4>
-        {names[node.kind]}审核 · 版本 {node.revision}
-      </h4>
-      <div>
-        {detail.evidence.map((e, i) => (
-          <button
-            className="button secondary"
-            key={e.id}
-            onClick={() => onEvidence(e.id)}
-          >
-            查看证据 {i + 1} · 第 {e.page_index + 1} 页
-          </button>
-        ))}
-      </div>
-      {node.issues.length > 0 && (
-        <p className="quality-note">待核对：{node.issues.join("、")}</p>
-      )}
-      <label>
-        修订内容
-        <textarea
-          aria-label="修订内容"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          disabled={!connected}
-        />
-      </label>
-      {node.kind === "claim" && (
-        <label>
-          主张归属{" "}
-          <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
-            {Object.entries(origins).map(([v, n]) => (
-              <option key={v} value={v}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {node.kind === "condition" && (
-        <label>
-          条件状态{" "}
-          <select
-            value={known}
-            onChange={(e) => setKnown(e.target.value as typeof known)}
-          >
-            {["known", "unknown", "not_applicable", "conflicting"].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-      )}
-      {node.kind === "finding" && (
-        <label>
-          数值{" "}
-          <input value={value} onChange={(e) => setValue(e.target.value)} />
-        </label>
-      )}
-      {["finding", "condition"].includes(node.kind) && (
-        <label>
-          单位 <input value={unit} onChange={(e) => setUnit(e.target.value)} />
-        </label>
-      )}
-      <label>
-        审核或修改理由{" "}
-        <input
-          aria-label="审核理由"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          maxLength={2000}
-        />
-      </label>
-      <div className="import-controls">
-        {(["revise", "accept", "reject"] as const).map((action) => (
-          <button
-            className="button secondary"
-            disabled={
-              !connected ||
-              review.isPending ||
-              !reason.trim() ||
-              (action === "revise" && node.kind === "metric")
-            }
-            key={action}
-            onClick={() => review.mutate(action)}
-          >
-            {action === "revise"
-              ? "保存修订待审"
-              : action === "accept"
-                ? "接受当前记录"
-                : "驳回当前记录"}
-          </button>
-        ))}
-      </div>
-      <p className="muted">
-        接受/驳回针对当前已保存版本；改动内容请先保存修订。每次操作保留原始模型结果和前后版本。
-      </p>
-      {review.error && (
-        <p role="alert" className="error-text">
-          {errorText(review.error)}
-        </p>
-      )}
-      <details>
-        <summary>修改与审核历史 · {detail.reviews.length}</summary>
-        {detail.reviews.map((r) => (
-          <article className="text-chunk" key={r.id}>
-            <strong>
-              {r.action} · {r.actor}
-            </strong>
-            <p>
-              {r.reason} · {new Date(r.created_at).toLocaleString("zh-CN")}
-            </p>
-            <pre>
-              {String(r.before.text ?? "")} → {String(r.after.text ?? "")}
-            </pre>
-          </article>
-        ))}
-      </details>
-    </section>
   );
 }
 

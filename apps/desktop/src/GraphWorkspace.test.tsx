@@ -73,6 +73,8 @@ vi.mock("@xyflow/react", () => ({
   ),
 }));
 const graph = {
+  contract_version: "reading-projection-2.0",
+  build_state: "complete",
   project_id: "p",
   graph_revision: 2,
   nodes: [
@@ -87,6 +89,7 @@ const graph = {
       review_status: "unreviewed",
       knowledge_origin: "paper_author",
       badges: [],
+      graph_role: "core",
     },
   ],
   edges: [],

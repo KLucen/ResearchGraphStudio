@@ -27,6 +27,13 @@ class MockProvider:
 
     async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
         await asyncio.sleep(0)
+        if data.get("contract_version") == "reading-extraction-1.0" or schema.get("title") in {
+            "PaperIntegrationProposal",
+            "CoreSelectionProposal",
+        }:
+            from researchgraph.reading_mock import complete as reading_complete
+
+            return json.dumps(reading_complete(schema["title"], data), ensure_ascii=False)
         if schema.get("title") == "KnowledgeExtractionBatch":
             from researchgraph.unified_mock import complete as unified_complete
 

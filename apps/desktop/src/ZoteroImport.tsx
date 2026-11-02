@@ -149,7 +149,7 @@ export function ZoteroImport({
           document_version_id: revisionId,
           provider,
           allow_network: allow,
-          pipeline: "unified-v3",
+          pipeline: "paper-reading-v1",
         },
         crypto.randomUUID(),
       ),

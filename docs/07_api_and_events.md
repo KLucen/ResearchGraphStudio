@@ -1,6 +1,8 @@
-# 07 — 目标 API 与事件（设计 v3.3，尚未接入）
+# 07 — 目标 API 与事件（设计 v3.3，与实现差异）
 
-已实现接口只见 [api.md](api.md)。下列路径/字段是下一开发阶段的目标，不修改当前 OpenAPI 或 Tauri 白名单，不可当作现有可调用能力。
+> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
+
+已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好和 paper_backbone 已接入；下文目标字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。
 
 ## 自动构建
 

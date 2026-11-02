@@ -185,7 +185,11 @@ class ExtractionRequest(StrictModel):
     document_version_id: str
     provider: Literal["mock", "configured", "project"] = "project"
     allow_network: bool = False
-    pipeline: Literal["legacy-v2", "unified-v3"] = "unified-v3"
+    pipeline: Literal["legacy-v2", "unified-v3", "paper-reading-v1"] = "unified-v3"
+    density: Literal["concise", "standard", "detailed"] = "standard"
+    paper_type: Literal[
+        "empirical", "methodological", "theoretical", "review", "mixed", "unknown"
+    ] = "unknown"
 
 
 class ReviewRequest(StrictModel):

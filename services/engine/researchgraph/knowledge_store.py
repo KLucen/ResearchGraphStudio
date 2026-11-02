@@ -107,6 +107,11 @@ class KnowledgeStore:
 
         return apply_unified(self, **request)
 
+    def reading(self) -> Any:
+        from researchgraph.reading_store import ReadingMutations
+
+        return ReadingMutations(self)
+
     def apply_reasoning(self, **request: Any) -> dict[str, Any]:
         from researchgraph.reasoning_store import ReasoningMutations
 
