@@ -47,3 +47,13 @@
 2026-11-02 23:36（Asia/Shanghai）：77文件已提交`1c28137`并普通推送main。提交前全内容489文件、暂存77文件的Gitleaks与私人路径检查通过。首次[CI 41468861276](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41468861276)通过回归/契约，打包成功，但smoke读取关系详情404，installed-app跳过。
 
 验收脚本先前分别选择两份合成论文列表的首条Claim；批内证据ID/时间并列排序不能保证它们是同一段落，NO_DECISION正确返回空proposal_id。原脚本本机普通复跑5次均通过，但控制首条样本顺序后复现了同样空ID与404。现按显式共同原文选择双方Claim/Method，并断言proposal_id非空，继续完整执行关系、历史审核兼容和重启/stale检查，不放宽产品的NO_DECISION规则。修复脚本本机连续两次冻结smoke通过，Ruff检查/格式通过；无产品源码变动，现有安装器仍适用。远端复跑和新安装验收包待补记。
+
+## 最终交付
+
+2026-11-03 00:08（Asia/Shanghai）：功能提交`1c28137`与验收脚本修复`a4cd365`均已普通推送main。[CI 41474458777](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41474458777)的windows、installed-app均成功，替代上一次失败的交付状态。代码检查、冻结smoke、Rust及安装器构建均通过。
+
+独立Windows Server 2022 runner使用Windows PowerShell5.1执行安装验收，报告20项全部通过：安装、鉴权、诊断、PDF导入与来源重定位、任务历史/阶段、离线抽取/证据/历史审核兼容、临时工作区恢复、重启持久化与原件保留、EOF退出、桌面Sidecar启动及宿主握手、单实例、正常退出、崩溃清理、卸载。子进程PATH仅System32；runner本身有开发工具，报告明确不认证干净机G0。离线验收不冒充真实模型质量通过，也不代表用户本机已经安装反馈。
+
+源码内容489文件与修复暂存4文件的Gitleaks/路径扫描通过；随后21个Git提交全历史扫描无泄露。文档143份Markdown/500本地链接/88资产清单通过，四份不可用外部原文仍单独保留限制。私人数据库、原文、模型响应/日志和安装器未进入源码提交；原正式库未修改。最终仅补交交付文档，不改变已通过CI的产品代码。
+
+00:12补记：对应CI安装器与验收报告已保存到本机忽略目录`.local/releases/schema-recovery-ci-41474458777/`，包含两个原始artifact ZIP及delivery.json。安装器位于其`researchgraph-phase0-windows/ResearchGraph Studio_0.0.1_x64-setup.exe`，38462458字节，SHA256 `6e07f886c438e5103a1677dcc9672f13d84a636e38d19c389a58affbd06e5c53`，与远端安装报告逐字一致。此为CI编译包，与前述本机编译包哈希不同，源代码一致；均未替用户安装。收尾文档链接复核为143 Markdown/501本地链接/88资产，四份外部原文仍不可用。
