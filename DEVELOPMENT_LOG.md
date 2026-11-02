@@ -903,6 +903,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 本轮PyInstaller/Tauri/NSIS、冻结smoke与PowerShell5.1 EnginePath已通过；增加握手记录后重建最终宿主与安装器，包哈希和交付结果在完成后补记。
 - 用户本机覆盖安装后的连接/数据反馈待验证；前轮全文抽取和质量限制保持，不将此启动修复写成全文验收完成。
 - 最终修复包38,523,711字节，SHA256 `3ef49f88f70b5d6b4f82cdbacc3f7185e85500f39734b5d0d3b14b2cb0661203`，保存在本机 `.local/releases/reading-graph-20261102-schema-fix/ResearchGraph Studio_0.0.1_x64-setup.exe`，未替用户执行覆盖安装。
+- 修复提交 `21b64f6` 已普通推送main，远端与本机一致；462候选文件/6暂存文件及该提交Gitleaks通过，工作区无私人运行产物。新的 [CI 41433986320](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41433986320) 已触发，截至记录时仍运行，未计为通过。
 
 ## 后续条目模板
 

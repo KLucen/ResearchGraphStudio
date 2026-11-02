@@ -104,3 +104,4 @@ P12 还提出部分无根路径成员，保留为检索候选并显示覆盖限�
 - PyInstaller/Tauri/NSIS构建、冻结引擎smoke及PowerShell5.1 EnginePath验证通过；宿主握手记录加入后另行重建最终安装包。没有用正式库做升级实验，没有更改用户PDF/Zotero/凭据，没有调用真实模型。
 - 新安装包不改变Schema、不需要降级或删除数据库。退出旧窗口后覆盖安装，再确认设置页连接和原项目数据；用户本机反馈尚待收到。
 - 最终修复安装器位于本机 `.local/releases/reading-graph-20261102-schema-fix/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,523,711字节，SHA256 `3ef49f88f70b5d6b4f82cdbacc3f7185e85500f39734b5d0d3b14b2cb0661203`。替代上文旧安装包，源码仓库不含安装器。
+- `21b64f6` 已通过内容/Gitleaks扫描并推送；修复后的 [CI 41433986320](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41433986320) 已启动，记录时尚未完成。本机定向测试通过不能代替这次远端安装验证或用户反馈。
