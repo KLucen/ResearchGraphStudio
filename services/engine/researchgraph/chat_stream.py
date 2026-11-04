@@ -6,7 +6,7 @@ from typing import Any
 
 
 class ChatStream:
-    def __init__(self) -> None:
+    def __init__(self, *, accept_refusal: bool = False) -> None:
         self.decoder = codecs.getincrementaldecoder("utf-8")()
         self.buffer = ""
         self.event: list[str] = []
@@ -16,6 +16,8 @@ class ChatStream:
         self.content_bytes = 0
         self.finish_reason: str | None = None
         self.done = False
+        self.refused = False
+        self.accept_refusal = accept_refusal
         self.usage: dict[str, Any] = {}
 
     def feed(self, part: bytes) -> None:
@@ -59,6 +61,9 @@ class ChatStream:
             raise ProviderError("response", "模型流增量格式无效")
         if delta.get("tool_calls") or delta.get("function_call"):
             raise ProviderError("response", "模型返回了工具调用，抽取仅允许 JSON 文本")
+        if delta.get("refusal"):
+            # Keep presence only: the refusal text can echo private source data.
+            self.refused = True
         text = delta.get("content")
         if text is not None:
             if not isinstance(text, str) or (self.finish_reason is not None and text):
@@ -82,13 +87,17 @@ class ChatStream:
         if self.buffer.startswith("data:"):
             self.event.append(self.buffer[5:].strip())
         self.dispatch()
-        if not self.done or self.finish_reason not in {"stop", "length"}:
+        valid_ends = {"stop", "length"} | ({"content_filter"} if self.accept_refusal else set())
+        if not self.done or self.finish_reason not in valid_ends:
             raise ProviderError(
                 "incomplete_stream", "模型响应流未正常完成；部分输出已保留，未入库或自动重发"
             )
         return {
             "choices": [
-                {"message": {"content": "".join(self.parts)}, "finish_reason": self.finish_reason}
+                {
+                    "message": {"content": "".join(self.parts), "refusal": self.refused},
+                    "finish_reason": self.finish_reason,
+                }
             ],
             "usage": self.usage,
         }

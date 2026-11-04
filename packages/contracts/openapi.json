@@ -3732,6 +3732,18 @@
             },
             "type": "array",
             "title": "Evidence"
+          },
+          "structured_document": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Document"
           }
         },
         "additionalProperties": false,
@@ -4611,6 +4623,16 @@
             "type": "boolean",
             "title": "Json Mode",
             "default": true
+          },
+          "output_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutputPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -4908,6 +4930,73 @@
         ],
         "title": "NodeView"
       },
+      "OutputPolicy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "const": "structured-output-1",
+            "title": "Version",
+            "default": "structured-output-1"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "native_json_schema",
+              "json_object",
+              "prompt"
+            ],
+            "title": "Mode"
+          },
+          "provider": {
+            "type": "string",
+            "maxLength": 24,
+            "minLength": 1,
+            "title": "Provider"
+          },
+          "endpoint": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Endpoint"
+          },
+          "model": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Model"
+          },
+          "support": {
+            "type": "string",
+            "enum": [
+              "documented",
+              "requested",
+              "disabled"
+            ],
+            "title": "Support"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Source"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "provider",
+          "endpoint",
+          "model",
+          "support",
+          "source",
+          "reason"
+        ],
+        "title": "OutputPolicy"
+      },
       "PaperBuildStatus": {
         "properties": {
           "paper_id": {
@@ -4974,6 +5063,16 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "ranking_status": {
+            "type": "string",
+            "title": "Ranking Status",
+            "default": "unknown"
+          },
+          "selection_mode": {
+            "type": "string",
+            "title": "Selection Mode",
+            "default": "ranked"
           }
         },
         "additionalProperties": false,
@@ -5631,6 +5730,14 @@
             "type": "array",
             "maxItems": 120,
             "title": "Expanded Unit Ids"
+          },
+          "collapsed_unit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 120,
+            "title": "Collapsed Unit Ids"
           },
           "kinds": {
             "items": {

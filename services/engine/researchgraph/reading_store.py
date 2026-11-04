@@ -37,6 +37,87 @@ class ReadingMutations:
 
         return publish(self, **request)
 
+    def form_units(self, version_id: str, snapshot: str, key: str) -> dict[str, Any]:
+        """Compute membership from validated explicit paths, without another model."""
+        from researchgraph.reading_models import ReadingMember, ReadingUnit
+        from researchgraph.reading_support import (
+            reachable_supports,
+            support_context,
+            support_paths,
+            validate_member_paths,
+        )
+
+        fingerprint = digest([version_id, snapshot, "support-closure-1"])
+        cached = self.checkpoint(key, fingerprint)
+        _, paper = self.source(version_id)
+        if self.snapshot(version_id) != snapshot:
+            raise KnowledgeError("INTEGRATION_CONTEXT_STALE", "候选快照已改变")
+        nodes = {n.id: n for n in self.nodes(version_id) if self.source_valid(n)}
+        paths = support_paths(self, version_id, nodes)
+        context = support_context(self, version_id, nodes)
+        if cached is not None:
+            if cached.get("support_context", context) != context:
+                raise KnowledgeError("SUPPORT_CONTEXT_CHANGED", "结论关联已变化，请创建新构建")
+            cached_roots = set()
+            for uid in cached["unit_ids"]:
+                unit = self.session.get(ReadingUnit, uid)
+                if (
+                    not unit
+                    or unit.document_version_id != version_id
+                    or unit.snapshot_hash != snapshot
+                ):
+                    raise KnowledgeError("SUPPORT_CONTEXT_CHANGED", "缓存结论单元已变化")
+                members = list(
+                    self.session.scalars(select(ReadingMember).where(ReadingMember.unit_id == uid))
+                )
+                validate_member_paths(
+                    self,
+                    version_id,
+                    unit.root_claim_id,
+                    [(m.node_id, m.association_ids) for m in members],
+                    nodes,
+                    paths,
+                )
+                reached = reachable_supports(unit.root_claim_id, nodes, paths)
+                if {m.node_id for m in members} != set(reached) - {unit.root_claim_id}:
+                    raise KnowledgeError(
+                        "SUPPORT_CONTEXT_CHANGED", "缓存支撑范围已变化，请创建新构建"
+                    )
+                cached_roots.add(unit.root_claim_id)
+            if cached_roots != {nid for nid, n in nodes.items() if n.kind == "claim"}:
+                raise KnowledgeError("SUPPORT_CONTEXT_CHANGED", "缓存结论集合已变化")
+            return cached
+        unit_ids = []
+        for root in sorted(nid for nid, n in nodes.items() if n.kind == "claim"):
+            reached = reachable_supports(root, nodes, paths)
+            uid = stable_id("reading-unit-rules", digest([snapshot, root, reached]))
+            if self.session.get(ReadingUnit, uid) is None:
+                self.session.add(
+                    ReadingUnit(
+                        id=uid,
+                        document_version_id=version_id,
+                        root_claim_id=root,
+                        snapshot_hash=snapshot,
+                        model_run_id=None,
+                        rationale="程序根据已验证关联计算结论支撑路径；不推断新的科学关系",
+                    )
+                )
+                self.session.flush()
+                for member, associations in sorted(reached.items()):
+                    if member != root:
+                        self.session.add(
+                            ReadingMember(unit_id=uid, node_id=member, association_ids=associations)
+                        )
+            unit_ids.append(uid)
+        response = {
+            "unit_ids": unit_ids,
+            "warnings": [],
+            "membership_policy": "support-closure-1",
+            "support_context": context,
+        }
+        self.store.event(paper.project_id, "paper.support_units_computed", response)
+        return self.save_checkpoint(key, version_id, "integrating", fingerprint, response)
+
     def set_preference(self, node_id: str, action: str, reason: str) -> None:
         from researchgraph.reading_models import ReadingPreference
 

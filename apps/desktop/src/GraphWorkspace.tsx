@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  LocateFixed,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { type Viewport } from "@xyflow/react";
 import { ForceGraph } from "./ForceGraph";
@@ -8,27 +19,34 @@ import type { components } from "../../../packages/contracts/generated";
 import { api, request, type Job } from "./api";
 import { GraphExplorer, ProposalReview } from "./GraphExplorer";
 import { ReadingControls } from "./ReadingControls";
-import { JobHistory } from "./JobHistory";
+import { GraphPanel } from "./GraphPanel";
+import { GraphLegend, graphKindLabels } from "./graphAppearance";
 import { placeNodes } from "./graphLayout";
 
 type Graph = components["schemas"]["GraphProjection"];
 type Layout = components["schemas"]["LayoutView"];
 type Detail = components["schemas"]["ProjectionDetail"];
 type Kind = Graph["nodes"][number]["kind"];
-const kinds: Record<Kind, string> = {
-  Paper: "论文",
-  Concept: "概念",
-  Method: "方法",
-  Claim: "主张",
-  ResearchQuestion: "研究问题",
-  Experiment: "实验",
-  Condition: "条件",
-  Finding: "结果",
-  Metric: "指标",
-  Argument: "论证",
-  Limitation: "限制",
-};
+const kinds = graphKindLabels;
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+async function listGraphPapers(projectId: string) {
+  const items = new Map<
+    string,
+    Awaited<ReturnType<typeof api.papers>>["items"][number]
+  >();
+  let cursor: number | null = 0;
+  const visited = new Set<number>();
+  while (cursor !== null) {
+    if (visited.has(cursor))
+      throw new Error("论文列表分页已变化，请刷新后重试");
+    visited.add(cursor);
+    const page = await api.papers(projectId, cursor);
+    page.items.forEach((paper) => items.set(paper.id, paper));
+    cursor = page.next_cursor;
+  }
+  return { items: [...items.values()], next_cursor: null };
+}
 
 export function GraphWorkspace({
   projectId,
@@ -83,10 +101,12 @@ function ProjectionExplorer({
   const client = useQueryClient();
   const base = `/api/v1/projects/${projectId}/graph`;
   const [expanded, setExpanded] = useState<string[]>([]);
+  const [collapsed, setCollapsed] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<Kind | "">("");
   const [paper, setPaper] = useState("");
+  const [optionsPaper, setOptionsPaper] = useState("");
   const [focus, setFocus] = useState("");
   const [depth, setDepth] = useState(1);
   const [ai, setAi] = useState(true);
@@ -95,6 +115,7 @@ function ProjectionExplorer({
   const [edge, setEdge] = useState<Graph["edges"][number] | null>(null);
   const [language, setLanguage] = useState("zh");
   const [reset, setReset] = useState(0);
+  const [fitRequest, setFitRequest] = useState(0);
   const [layoutEpoch, setLayoutEpoch] = useState(0);
   const [pinRequest, setPinRequest] = useState<{
     id: string;
@@ -116,6 +137,14 @@ function ProjectionExplorer({
   const [dirty, setDirty] = useState(!!draft);
   const [conflict, setConflict] = useState(false);
   const generation = useRef(0);
+  const viewKey = JSON.stringify([
+    query,
+    kind,
+    paper,
+    focus,
+    depth,
+    cursors.at(-1),
+  ]);
   const graph = useQuery({
     queryKey: [
       "projection",
@@ -128,11 +157,13 @@ function ProjectionExplorer({
       ai,
       cursors.at(-1),
       expanded,
+      collapsed,
     ],
-    queryFn: () =>
-      request<Graph>("POST", `${base}/projection`, {
+    queryFn: async () => ({
+      ...(await request<Graph>("POST", `${base}/projection`, {
         view: "paper_backbone",
         expanded_unit_ids: expanded,
+        collapsed_unit_ids: collapsed,
         search: query,
         kinds: kind ? [kind] : Object.keys(kinds),
         paper_id: paper,
@@ -142,15 +173,31 @@ function ProjectionExplorer({
         include_paper_context: true,
         limit: 60,
         cursor: cursors.at(-1),
-      }),
+      })),
+      viewKey,
+    }),
     enabled: connected,
+    placeholderData: keepPreviousData,
     refetchInterval: cursors.length === 1 ? 3000 : false,
   });
   const papers = useQuery({
     queryKey: ["graph-papers", projectId],
-    queryFn: () => api.papers(projectId),
+    queryFn: () => listGraphPapers(projectId),
     enabled: connected,
+    refetchInterval: 15000,
   });
+  const readingPapers = useMemo(() => {
+    const values = new Map(
+      (papers.data?.items ?? []).map((p) => [
+        p.id,
+        { id: p.id, title: p.title },
+      ]),
+    );
+    graph.data?.paper_builds?.forEach((p) =>
+      values.set(p.paper_id, { id: p.paper_id, title: p.title }),
+    );
+    return [...values.values()];
+  }, [papers.data, graph.data]);
   const layout = useQuery({
     queryKey: ["layout", projectId],
     queryFn: () => request<Layout>("GET", `${base}/layout`),
@@ -247,6 +294,15 @@ function ProjectionExplorer({
   function rearrange() {
     setReset((value) => value + 1);
   }
+  function resetFilters() {
+    setSearch("");
+    setQuery("");
+    setKind("");
+    setPaper("");
+    setFocus("");
+    setDepth(1);
+    resetPage();
+  }
   const detail = useQuery({
     queryKey: [
       "projection-detail",
@@ -259,331 +315,436 @@ function ProjectionExplorer({
   });
   return (
     <>
-      <div className="import-controls">
+      <section className="graph-query-toolbar" aria-label="图谱搜索与筛选">
         <form
+          className="graph-search"
           onSubmit={(e) => {
             e.preventDefault();
             setQuery(search);
+            setFocus("");
             resetPage();
           }}
         >
+          <Search size={18} aria-hidden="true" />
           <input
             aria-label="搜索图谱"
             placeholder="搜索知识或论文"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button className="button secondary">搜索</button>
-        </form>
-        <select
-          aria-label="节点类型"
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value as Kind | "");
-            setFocus("");
-            resetPage();
-          }}
-        >
-          <option value="">全部类型</option>
-          {Object.entries(kinds).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="论文筛选"
-          value={paper}
-          onChange={(e) => {
-            setPaper(e.target.value);
-            setFocus("");
-            resetPage();
-          }}
-        >
-          <option value="">全部论文</option>
-          {papers.data?.items.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.title}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="图谱语言"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
-        >
-          <option value="zh">中文优先</option>
-          <option value="en">English</option>
-          <option value="both">中英对照</option>
-        </select>
-        <label>
-          <input
-            type="checkbox"
-            checked={ai}
-            onChange={(e) => {
-              setAi(e.target.checked);
-              resetPage();
-            }}
-          />{" "}
-          AI 候选关系
-        </label>
-        {focus && (
-          <>
-            <label>
-              邻域深度{" "}
-              <select
-                value={depth}
-                onChange={(e) => setDepth(Number(e.target.value))}
-              >
-                {[1, 2, 3].map((n) => (
-                  <option key={n}>{n}</option>
-                ))}
-              </select>
-            </label>
+          <button className="button">搜索</button>
+          {(query || kind || paper || focus) && (
             <button
               className="text-button"
-              onClick={() => {
+              type="button"
+              onClick={resetFilters}
+            >
+              重置筛选
+            </button>
+          )}
+        </form>
+        <div className="graph-filters">
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          <label>
+            节点类型
+            <select
+              aria-label="节点类型"
+              value={kind}
+              onChange={(e) => {
+                setKind(e.target.value as Kind | "");
                 setFocus("");
                 resetPage();
               }}
             >
-              返回项目全图
-            </button>
-          </>
-        )}
-      </div>
-      {graph.data?.paper_builds
-        ?.filter((b) => b.published_units === 0)
-        .map((build) => (
-          <article className="inspector-fact" key={build.paper_id}>
-            <strong>{build.title}</strong>
-            <p>
-              已保存 {build.candidate_count} 条新版候选 · 核心图谱尚未发布
-              {build.total_batches > 0 &&
-                ` · 抽取 ${build.completed_batches}/${build.total_batches} 批`}
-            </p>
-            <button
-              className="text-button"
-              onClick={() => {
-                setPaper(build.paper_id);
+              <option value="">全部类型</option>
+              {Object.entries(kinds).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            论文
+            <select
+              aria-label="论文筛选"
+              value={paper}
+              onChange={(e) => {
+                setPaper(e.target.value);
+                setFocus("");
                 resetPage();
               }}
             >
-              查看已保存候选与建图选项
-            </button>
-          </article>
-        ))}
-      {paper && (
-        <ReadingControls
-          paperId={paper}
-          connected={connected}
-          onSelect={setSelected}
-        />
-      )}
-      {!!graph.data?.coverage_gaps?.length && (
-        <details>
-          <summary>构建范围与限制</summary>
-          {graph.data.coverage_gaps.map((g, i) => (
-            <p key={i}>{g}</p>
-          ))}
-        </details>
-      )}
-      <button
-        className="text-button"
-        disabled={!current || !graph.data?.nodes.length}
-        onClick={rearrange}
-      >
-        重新布局未固定节点
-      </button>
-      <p className="quiet-note">
-        单击查看 · 拖动联动 · 双击固定/解除 · 滚轮缩放 · 实线为结论导航，虚线为
-        AI 科学关系推断。版本 {graph.data?.graph_revision ?? "—"} ·{" "}
-        {dirty ? "布局待保存" : "布局已同步"}
-      </p>
-      {[graph.error, layout.error, detail.error, save.error]
-        .filter(Boolean)
-        .map((e, i) => (
-          <p role="alert" key={i}>
-            {errorText(e)}
-          </p>
-        ))}
-      {conflict && (
-        <button
-          className="button secondary"
-          onClick={async () => {
-            const value = await layout.refetch();
-            if (value.data) {
-              generation.current++;
-              localStorage.removeItem(draftKey);
-              setDraft(value.data);
-              setDirty(false);
-              setConflict(false);
-              setLayoutEpoch((value) => value + 1);
-              save.reset();
-            }
-          }}
-        >
-          重新加载服务器布局（放弃未保存位置）
-        </button>
-      )}
-      <div className="projection-grid">
-        <div className="projection-canvas" aria-label="交互知识图谱">
-          {current && graph.data && (
-            <ForceGraph
-              key={layoutEpoch}
-              graph={graph.data}
-              layout={current}
-              reset={reset}
-              pinRequest={pinRequest}
-              selected={selected}
-              language={language}
-              onPositions={commitPositions}
-              onViewport={viewportChanged}
-              onSelect={(id) => {
-                setSelected(id);
-                setEdge(null);
+              <option value="">全部论文</option>
+              {readingPapers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            显示语言
+            <select
+              aria-label="图谱语言"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              <option value="zh">中文优先</option>
+              <option value="en">English</option>
+              <option value="both">中英对照</option>
+            </select>
+          </label>
+          <label className="graph-filters__checkbox">
+            <input
+              type="checkbox"
+              checked={ai}
+              onChange={(e) => {
+                setAi(e.target.checked);
+                resetPage();
               }}
-              onEdge={(id) => {
-                setEdge(graph.data?.edges.find((e) => e.id === id) ?? null);
-                setSelected("");
-              }}
-            />
-          )}
-          {graph.data?.nodes.length === 0 && (
-            <p className="graph-empty">
-              当前筛选下暂无知识。选择 Zotero 论文开始建图。
-            </p>
+            />{" "}
+            AI 候选关系
+          </label>
+          {focus && (
+            <>
+              <label>
+                邻域深度{" "}
+                <select
+                  value={depth}
+                  onChange={(e) => setDepth(Number(e.target.value))}
+                >
+                  {[1, 2, 3].map((n) => (
+                    <option key={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="text-button" onClick={resetFilters}>
+                返回项目全图
+              </button>
+            </>
           )}
         </div>
-        <aside className="node-inspector" aria-label="节点详情">
-          {detail.data ? (
-            <>
-              <div className="import-controls">
-                {graph.data?.nodes.find((n) => n.id === selected)
-                  ?.graph_role === "core" &&
-                  (
-                    graph.data.nodes.find((n) => n.id === selected)?.unit_ids ??
-                    []
-                  ).map((uid) => (
-                    <button
-                      key={uid}
-                      className="button secondary"
-                      onClick={() => {
-                        setExpanded((old) =>
-                          old.includes(uid)
-                            ? old.filter((x) => x !== uid)
-                            : [...old, uid],
-                        );
-                        setCursors([""]);
-                      }}
-                    >
-                      {expanded.includes(uid) ? "收起支撑" : "展开支撑"}
-                    </button>
-                  ))}
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setPinRequest((previous) => ({
-                      id: selected,
-                      seq: (previous?.seq ?? 0) + 1,
-                    }));
-                  }}
-                >
-                  {visible.get(selected)?.pinned ? "解除固定" : "固定节点"}
-                </button>
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setFocus(selected);
-                    setCursors([""]);
-                  }}
-                >
-                  聚焦邻域
-                </button>
-                {detail.data.node &&
-                  ["claim", "concept", "method"].includes(
-                    detail.data.node.kind,
-                  ) && (
-                    <button
-                      className="text-button"
-                      onClick={() => onCompare(selected)}
-                    >
-                      比较 / 对齐
-                    </button>
-                  )}
-              </div>
-              <NodeInspector
-                key={selected}
-                detail={detail.data}
-                projectId={projectId}
-                connected={connected}
-                language={language}
-              />
-            </>
-          ) : edge ? (
-            <>
-              <h3>{edge.label_zh}</h3>
-              <p>
-                {edge.epistemic_status === "navigation"
-                  ? "导航连接"
-                  : edge.epistemic_status === "model_inferred"
-                    ? "模型推断关系"
-                    : edge.epistemic_status === "source_reported"
-                      ? "原文关系"
-                      : edge.epistemic_status}
-              </p>
-              {edge.detail_ref?.includes("/relations/") ? (
-                <ProposalReview
-                  key={edge.id}
-                  selection={{ id: edge.id, kind: "relation" }}
-                  connected={connected}
-                />
-              ) : (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    setSelected(edge.source);
-                    setEdge(null);
-                  }}
-                >
-                  查看来源节点与证据
-                </button>
-              )}
-            </>
-          ) : (
-            <p className="muted">
-              选择节点查看完整知识、实验条件、原文证据与历史。
+        {papers.error && <p role="alert">{errorText(papers.error)}</p>}
+      </section>
+      <GraphPanel
+        title="知识图谱展示"
+        legend={<GraphLegend />}
+        toolbar={
+          <>
+            <button
+              className="text-button"
+              disabled={!graph.data?.nodes.length}
+              onClick={() => setFitRequest((value) => value + 1)}
+            >
+              <LocateFixed size={15} aria-hidden="true" />
+              适应图谱
+            </button>
+            <button
+              className="text-button"
+              disabled={!current || !graph.data?.nodes.length}
+              onClick={rearrange}
+            >
+              <RotateCcw size={15} aria-hidden="true" />
+              重新布局未固定节点
+            </button>
+            {collapsed.length > 0 && (
+              <button
+                className="text-button"
+                onClick={() => {
+                  setCollapsed([]);
+                  setExpanded([]);
+                  resetPage();
+                }}
+              >
+                展开全部支撑
+              </button>
+            )}
+          </>
+        }
+      >
+        {(graph.isPending || graph.isPlaceholderData) && (
+          <p className="quiet-note" role="status">
+            正在加载筛选结果…
+          </p>
+        )}
+        {graph.data?.paper_builds
+          ?.filter((b) => b.ranking_status === "pending")
+          .map((build) => (
+            <p
+              className="quiet-note"
+              key={`ranking:${build.paper_id}`}
+              role="status"
+            >
+              {build.title}：核心贡献排序未完成，当前展示结论候选与已有支撑。
             </p>
+          ))}
+        {!!graph.data?.coverage_gaps?.length && (
+          <details>
+            <summary>构建范围与限制</summary>
+            {graph.data.coverage_gaps.map((g, i) => (
+              <p key={i}>{g}</p>
+            ))}
+          </details>
+        )}
+        <p className="quiet-note">
+          单击查看 · 拖动联动 · 双击固定/解除 · 滚轮缩放 ·
+          实线为结论导航，虚线为 AI 科学关系推断。版本{" "}
+          {graph.data?.graph_revision ?? "—"} ·{" "}
+          {dirty ? "布局待保存" : "布局已同步"}
+        </p>
+        {[graph.error, layout.error, detail.error, save.error]
+          .filter(Boolean)
+          .map((e, i) => (
+            <p role="alert" key={i}>
+              {errorText(e)}
+            </p>
+          ))}
+        {conflict && (
+          <button
+            className="button secondary"
+            onClick={async () => {
+              const value = await layout.refetch();
+              if (value.data) {
+                generation.current++;
+                localStorage.removeItem(draftKey);
+                setDraft(value.data);
+                setDirty(false);
+                setConflict(false);
+                setLayoutEpoch((value) => value + 1);
+                save.reset();
+              }
+            }}
+          >
+            重新加载服务器布局（放弃未保存位置）
+          </button>
+        )}
+        <div className="projection-grid">
+          <div className="projection-canvas" aria-label="交互知识图谱">
+            {current && graph.data && (
+              <ForceGraph
+                key={layoutEpoch}
+                graph={graph.data}
+                layout={current}
+                reset={reset}
+                pinRequest={pinRequest}
+                selected={selected}
+                language={language}
+                viewKey={graph.data.viewKey}
+                fitRequest={fitRequest}
+                onPositions={commitPositions}
+                onViewport={viewportChanged}
+                onSelect={(id) => {
+                  setSelected(id);
+                  setEdge(null);
+                }}
+                onEdge={(id) => {
+                  setEdge(graph.data?.edges.find((e) => e.id === id) ?? null);
+                  setSelected("");
+                }}
+              />
+            )}
+            {graph.data?.nodes.length === 0 && (
+              <p className="graph-empty">
+                当前筛选下暂无知识。选择 Zotero 论文开始建图。
+              </p>
+            )}
+          </div>
+          <aside className="node-inspector" aria-label="节点详情">
+            {detail.data ? (
+              <>
+                <div className="import-controls">
+                  {["core", "provisional"].includes(
+                    graph.data?.nodes.find((n) => n.id === selected)
+                      ?.graph_role ?? "",
+                  ) &&
+                    (
+                      graph.data?.nodes.find((n) => n.id === selected)
+                        ?.unit_ids ?? []
+                    ).map((uid) => (
+                      <button
+                        key={uid}
+                        className="button secondary"
+                        onClick={() => {
+                          if (collapsed.includes(uid)) {
+                            setCollapsed((old) => old.filter((x) => x !== uid));
+                            setExpanded((old) => [...old, uid]);
+                          } else {
+                            setExpanded((old) => old.filter((x) => x !== uid));
+                            setCollapsed((old) => [...old, uid]);
+                          }
+                          setCursors([""]);
+                        }}
+                      >
+                        {collapsed.includes(uid) ? "展开支撑" : "收起支撑"}
+                      </button>
+                    ))}
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setPinRequest((previous) => ({
+                        id: selected,
+                        seq: (previous?.seq ?? 0) + 1,
+                      }));
+                    }}
+                  >
+                    {visible.get(selected)?.pinned ? "解除固定" : "固定节点"}
+                  </button>
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setFocus(selected);
+                      setCursors([""]);
+                    }}
+                  >
+                    聚焦邻域
+                  </button>
+                  {detail.data.node &&
+                    ["claim", "concept", "method"].includes(
+                      detail.data.node.kind,
+                    ) && (
+                      <button
+                        className="text-button"
+                        onClick={() => onCompare(selected)}
+                      >
+                        比较 / 对齐
+                      </button>
+                    )}
+                </div>
+                <NodeInspector
+                  key={selected}
+                  detail={detail.data}
+                  projectId={projectId}
+                  connected={connected}
+                  language={language}
+                />
+              </>
+            ) : edge ? (
+              <>
+                <h3>{edge.label_zh}</h3>
+                <p>
+                  {edge.epistemic_status === "navigation"
+                    ? "导航连接"
+                    : edge.epistemic_status === "model_inferred"
+                      ? "模型推断关系"
+                      : edge.epistemic_status === "source_reported"
+                        ? "原文关系"
+                        : edge.epistemic_status}
+                </p>
+                {edge.detail_ref?.includes("/relations/") ? (
+                  <ProposalReview
+                    key={edge.id}
+                    selection={{ id: edge.id, kind: "relation" }}
+                    connected={connected}
+                  />
+                ) : (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setSelected(edge.source);
+                      setEdge(null);
+                    }}
+                  >
+                    查看来源节点与证据
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="muted">
+                选择节点查看完整知识、实验条件、原文证据与历史。
+              </p>
+            )}
+          </aside>
+        </div>
+        <div className="import-controls">
+          {cursors.length > 1 && (
+            <button className="text-button" onClick={resetPage}>
+              返回第一页
+            </button>
           )}
-        </aside>
-      </div>
-      <div className="import-controls">
-        <button
-          className="button secondary"
-          disabled={cursors.length === 1}
-          onClick={() => {
-            setCursors(cursors.slice(0, -1));
-            setSelected("");
-          }}
-        >
-          上一页
-        </button>
-        <button
-          className="button secondary"
-          disabled={!graph.data?.next_cursor}
-          onClick={() => {
-            setCursors([...cursors, graph.data!.next_cursor!]);
-            setSelected("");
-          }}
-        >
-          下一页
-        </button>
-        <span>
-          本页 {graph.data?.nodes.length ?? 0} 个节点
-          {graph.data?.has_more ? " · 还有更多，可缩小筛选或聚焦邻域" : ""}
-        </span>
-      </div>
-      <JobHistory projectId={projectId} connected={connected} />
+          <button
+            className="button secondary"
+            disabled={cursors.length === 1 || graph.isPlaceholderData}
+            onClick={() => {
+              setCursors(cursors.slice(0, -1));
+              setSelected("");
+              setEdge(null);
+            }}
+          >
+            上一页
+          </button>
+          <button
+            className="button secondary"
+            disabled={!graph.data?.next_cursor || graph.isPlaceholderData}
+            onClick={() => {
+              setCursors([...cursors, graph.data!.next_cursor!]);
+              setSelected("");
+              setEdge(null);
+            }}
+          >
+            下一页
+          </button>
+          <span>
+            本页 {new Set(graph.data?.nodes.map((node) => node.paper_id)).size}{" "}
+            篇论文 · {graph.data?.nodes.length ?? 0} 个节点
+            {graph.data?.has_more
+              ? " · 还有更多节点，可翻页或筛选单篇论文"
+              : ""}
+          </span>
+        </div>
+      </GraphPanel>
+      <section
+        className="graph-reading-options"
+        aria-label="论文候选与建图选项"
+      >
+        <h3>论文候选与建图选项</h3>
+        {readingPapers.length === 0 && <p className="muted">项目暂无论文。</p>}
+        {readingPapers.map((item) => {
+          const build = graph.data?.paper_builds?.find(
+            (value) => value.paper_id === item.id,
+          );
+          const open = optionsPaper === item.id;
+          return (
+            <article className="graph-reading-paper" key={item.id}>
+              <div className="graph-reading-paper__heading">
+                <div>
+                  <h4>{item.title}</h4>
+                  {build && (
+                    <p className="quiet-note">
+                      已保存 {build.candidate_count} 条新版候选 ·{" "}
+                      {build.published_units
+                        ? `${build.published_units} 个结论单元`
+                        : "核心图谱尚未发布"}
+                      {build.total_batches > 0 &&
+                        ` · 抽取 ${build.completed_batches}/${build.total_batches} 批`}
+                    </p>
+                  )}
+                </div>
+                <button
+                  className="text-button"
+                  aria-expanded={open}
+                  aria-controls={`reading-options-${item.id}`}
+                  onClick={() => setOptionsPaper(open ? "" : item.id)}
+                >
+                  {open ? "收起候选与建图选项" : "查看已保存候选与建图选项"}
+                </button>
+              </div>
+              {open && (
+                <div id={`reading-options-${item.id}`}>
+                  <ReadingControls
+                    paperId={item.id}
+                    connected={connected}
+                    onSelect={(id) => {
+                      setSelected(id);
+                      setEdge(null);
+                    }}
+                  />
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
     </>
   );
 }

@@ -52,7 +52,7 @@ def test_0009_migration_preserves_every_old_row_and_backup(tmp_path):
         before = {t: db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() for t in tables}
     migrate(engine, tmp_path)
     with sqlite3.connect(dbfile) as db:
-        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0010"
+        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0011"
         assert all(
             db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() == rows
             for t, rows in before.items()

@@ -22,12 +22,25 @@ VisualKind = Literal[
 
 
 def default_kinds() -> list[VisualKind]:
-    return ["Paper", "Concept", "Method", "Claim", "ResearchQuestion"]
+    return [
+        "Paper",
+        "Concept",
+        "Method",
+        "Claim",
+        "ResearchQuestion",
+        "Experiment",
+        "Condition",
+        "Finding",
+        "Metric",
+        "Argument",
+        "Limitation",
+    ]
 
 
 class ProjectionQuery(StrictModel):
     view: Literal["legacy", "paper_backbone"] = "legacy"
     expanded_unit_ids: list[str] = Field(default_factory=list, max_length=120)
+    collapsed_unit_ids: list[str] = Field(default_factory=list, max_length=120)
     kinds: list[VisualKind] = Field(
         default_factory=default_kinds,
         min_length=1,
@@ -84,6 +97,8 @@ class PaperBuildStatus(StrictModel):
     total_batches: int
     extraction_incomplete: bool
     active: bool
+    ranking_status: str = "unknown"
+    selection_mode: str = "ranked"
 
 
 class GraphProjection(StrictModel):

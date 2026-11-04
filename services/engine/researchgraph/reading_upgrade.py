@@ -8,7 +8,7 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from researchgraph import reading_wire
+from researchgraph import reading_transport, reading_wire
 from researchgraph.knowledge_models import KnowledgeOperation, ModelRun
 from researchgraph.knowledge_store import KnowledgeError
 from researchgraph.model_adapters import new_task_parameters
@@ -28,7 +28,7 @@ def upgrade_available(job: Any) -> bool:
         and not payload.get("reading_only")
         and not payload.get("reading_finish_plan")
         and plan.get("prompt_name")
-        and plan["prompt_name"] != reading_wire.PROMPT
+        and plan["prompt_name"] not in {reading_wire.PROMPT, reading_transport.PROMPT}
     )
 
 

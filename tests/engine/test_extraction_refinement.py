@@ -1,16 +1,21 @@
 """Output capability discovery, bounded split recovery and old job compatibility."""
 
 import asyncio
+import copy
 import json
 from types import SimpleNamespace
 
 import httpx
 import pymupdf
 import pytest
+from researchgraph.knowledge_models import EvidenceSpan, KnowledgeNode, Section
+from researchgraph.knowledge_store import KnowledgeStore
 from researchgraph.model_capabilities import parse_capabilities
 from researchgraph.models import Job
 from researchgraph.providers import ConfiguredProvider, MockProvider, ProviderError
+from researchgraph.structure_models import DocumentParse
 from researchgraph.unified_extraction import plan_sections
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from test_engine import client, post
 from test_ingest import queue, wait_job
@@ -102,6 +107,42 @@ def document(path, pages):
         pdf.save(path)
 
 
+def legacy_source_fixture(engine, version_id, pages):
+    """Model an imported pre-structure library in this test's isolated database."""
+    with Session(engine) as session, session.begin():
+        # This runs immediately after synthetic import, before any extraction. Never
+        # erase anchors that have knowledge attached merely to manufacture a fixture.
+        assert (
+            session.scalar(
+                select(KnowledgeNode.id).where(KnowledgeNode.document_version_id == version_id)
+            )
+            is None
+        )
+        session.execute(delete(EvidenceSpan).where(EvidenceSpan.document_version_id == version_id))
+        session.execute(delete(Section).where(Section.document_version_id == version_id))
+        session.execute(
+            delete(DocumentParse).where(DocumentParse.document_version_id == version_id)
+        )
+        session.flush()
+        KnowledgeStore(session).ensure_document(version_id)
+        session.flush()
+        spans = list(
+            session.scalars(
+                select(EvidenceSpan)
+                .where(EvidenceSpan.document_version_id == version_id)
+                .order_by(EvidenceSpan.page_index, EvidenceSpan.start_offset)
+            )
+        )
+        sections = list(
+            session.scalars(select(Section).where(Section.document_version_id == version_id))
+        )
+        assert len(sections) == pages and {s.parser for s in sections} == {"blocks-sections-v1"}
+        groups = plan_sections(spans, legacy=True)
+        assert len(groups) == pages
+        assert all(len(group) == 1 for group in groups)
+        return [[e["id"] for e in group] for group in groups]
+
+
 def test_truncation_splits_only_uncommitted_batches_and_repeated_job_reuses_children(
     tmp_path, monkeypatch
 ):
@@ -175,6 +216,7 @@ def test_old_48_batch_job_retains_first_commit_after_upgrade(tmp_path, monkeypat
         project = post(api, "/projects", {"name": "Old 48 batches"}).json()["id"]
         imported = wait_job(api, queue(api, project, tmp_path / "paper.pdf", "old-import"))
         version = imported["result"]["revision_id"]
+        legacy_groups = legacy_source_fixture(api.app.state.engine, version, 48)
         # Queue via API while pausing dispatch, then seed only the legacy progress shape.
         from researchgraph import app as app_module
 
@@ -200,8 +242,12 @@ def test_old_48_batch_job_retains_first_commit_after_upgrade(tmp_path, monkeypat
             ).json(),
         )
         assert failed["result"]["completed_batches"] == "1", failed
+        assert failed["result"]["total_batches"] == "48"
         with Session(api.app.state.engine) as session, session.begin():
             job = session.get(Job, failed["id"])
+            frozen = copy.deepcopy(job.payload["unified_plan"])
+            assert frozen["planner"] == "section-6000-v1"
+            assert [leaf["ids"] for leaf in frozen["leaves"]] == legacy_groups
             job.payload = {k: v for k, v in job.payload.items() if k != "unified_plan"}
         monkeypatch.setattr(app_module, "run_extraction", original)
         provider.fail = False
@@ -215,3 +261,10 @@ def test_old_48_batch_job_retains_first_commit_after_upgrade(tmp_path, monkeypat
         assert resumed["status"] == "succeeded", resumed
         assert resumed["result"]["completed_batches"] == "48"
         assert calls.count(calls[0]) == 1 and len(calls) == 49
+        with Session(api.app.state.engine) as session:
+            plan = session.get(Job, resumed["id"]).payload["unified_plan"]
+            assert [leaf["ids"] for leaf in plan["leaves"]] == legacy_groups
+            assert [leaf["chunk_id"] for leaf in plan["leaves"]] == [
+                leaf["chunk_id"] for leaf in frozen["leaves"]
+            ]
+            assert plan["config"] == frozen["config"]

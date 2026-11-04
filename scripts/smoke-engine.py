@@ -384,6 +384,12 @@ def run(executable: Path) -> dict[str, object]:
                 ),
             )
             assert reading_job["status"] == "succeeded", reading_job
+            assert reading_job["result"]["ranking_protocol"] == "reading-ranking-keyed-1"
+            assert (
+                reading_job["result"]["ranking_completed_claims"]
+                == reading_job["result"]["ranking_total_claims"]
+                > 0
+            )
             backbone = request(
                 port,
                 graph_route + "/projection",
@@ -396,9 +402,14 @@ def run(executable: Path) -> dict[str, object]:
             assert backbone["contract_version"] == "reading-projection-2.0"
             assert any(e["relation"] == "HAS_CORE_CLAIM" for e in backbone["edges"])
             assert all(
-                e["relation"] == "HAS_CORE_CLAIM"
+                e["relation"] in {"HAS_CORE_CLAIM", "UNIT_MEMBER"}
                 for e in backbone["edges"]
                 if e["epistemic_status"] == "navigation"
+            )
+            assert all(
+                e["relation"] == "HAS_CORE_CLAIM"
+                for e in backbone["edges"]
+                if next(n for n in backbone["nodes"] if n["id"] == e["source"])["kind"] == "Paper"
             )
             reading_paper = next(n["paper_id"] for n in backbone["nodes"] if n["kind"] == "Claim")
             reading_selection = request(port, f"/papers/{reading_paper}/graph-selection")
@@ -461,6 +472,7 @@ def run(executable: Path) -> dict[str, object]:
     return {
         "packaged_engine": "passed",
         "reading_pipeline_backbone_selection_restart": "passed",
+        "keyed_ranking_protocol_complete": "passed",
         "unified_projection_translation_layout_restart": "passed",
         "authentication": "passed",
         "idempotency": "passed",

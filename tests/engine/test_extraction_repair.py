@@ -1,17 +1,19 @@
 """Regression for a real provider's dangling local_ref, using synthetic sources."""
 
+import copy
 import json
 
 import pytest
 from pydantic import ValidationError
 from researchgraph import unified_extraction
 from researchgraph.knowledge_models import KnowledgeNode, ModelRun
+from researchgraph.models import Job
 from researchgraph.providers import MockProvider
 from researchgraph.unified_contracts import KnowledgeExtractionBatch
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from test_engine import client, post
-from test_extraction_refinement import document
+from test_extraction_refinement import document, legacy_source_fixture
 from test_ingest import queue, wait_job
 
 
@@ -22,6 +24,7 @@ def test_old_failure_reuses_response_repairs_once_and_resumes_seven_batches(tmp_
         unified_extraction, "plan_sections", lambda spans, **_: real_plan(spans, legacy=True)
     )
     calls = []
+    extraction_chunks = []
     raw_outputs = []
 
     class TypoProvider(MockProvider):
@@ -35,6 +38,7 @@ def test_old_failure_reuses_response_repairs_once_and_resumes_seven_batches(tmp_
                         ]
                     }
                 )
+            extraction_chunks.append(data["chunk_id"])
             raw = await super().complete(prompt, data, schema)
             if len(calls) == 2:
                 value = json.loads(raw)
@@ -54,17 +58,22 @@ def test_old_failure_reuses_response_repairs_once_and_resumes_seven_batches(tmp_
     with client(tmp_path / "data", worker=True) as api:
         project = post(api, "/projects", {"name": "Repair regression"}).json()["id"]
         imported = wait_job(api, queue(api, project, tmp_path / "paper.pdf", "repair-import"))
-        body = {"document_version_id": imported["result"]["revision_id"], "pipeline": "unified-v3"}
+        version = imported["result"]["revision_id"]
+        legacy_groups = legacy_source_fixture(api.app.state.engine, version, 7)
+        body = {"document_version_id": version, "pipeline": "unified-v3"}
         failed = wait_job(api, post(api, "/knowledge/extract", body, "repair-extract").json())
         assert failed["status"] == "failed" and failed["result"]["completed_batches"] == "1", failed
         assert "links[0].source_local_ref" in failed["error"]
         assert "claim_typo_missing" in failed["error"]
         with Session(api.app.state.engine) as session:
             old_nodes = {n.id: n.payload for n in session.scalars(select(KnowledgeNode))}
+            frozen = copy.deepcopy(session.get(Job, failed["id"]).payload["unified_plan"])
+            assert [leaf["ids"] for leaf in frozen["leaves"]] == legacy_groups
         monkeypatch.setattr(unified_extraction, "validate_or_repair", real_validate)
         resumed = wait_job(api, post(api, f"/jobs/{failed['id']}/retry", key="repair-retry").json())
         assert resumed["status"] == "succeeded", resumed
         assert resumed["result"]["completed_batches"] == "7"
+        assert len(extraction_chunks) == 7 and len(set(extraction_chunks)) == 7
         assert (
             calls
             == ["KnowledgeExtractionBatch"] * 2
@@ -72,6 +81,12 @@ def test_old_failure_reuses_response_repairs_once_and_resumes_seven_batches(tmp_
             + ["KnowledgeExtractionBatch"] * 5
         )
         with Session(api.app.state.engine) as session:
+            plan = session.get(Job, resumed["id"]).payload["unified_plan"]
+            assert [leaf["ids"] for leaf in plan["leaves"]] == legacy_groups
+            assert [leaf["chunk_id"] for leaf in plan["leaves"]] == [
+                leaf["chunk_id"] for leaf in frozen["leaves"]
+            ]
+            assert plan["config"] == frozen["config"]
             runs = list(session.scalars(select(ModelRun).where(ModelRun.job_id == failed["id"])))
             invalid = next(r for r in runs if r.status == "validation_failed")
             repair = next(r for r in runs if r.prompt_name == "P02_local_link_repair")

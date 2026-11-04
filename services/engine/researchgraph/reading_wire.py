@@ -6,7 +6,7 @@ from typing import Any
 from researchgraph.reading_contracts import KnowledgeExtractionBatch
 
 LEGACY_PROMPT = "P02_reading_extract_compact"
-PROMPT = "P02_reading_extract_compact_v2"
+PROMPT = "P02_reading_extract_compact_v3"
 FORMAT = "reading-compact-1"
 SUMMARY_SOURCE = {"Claim": "statement", "Finding": "result", "Experiment": "protocol"}
 

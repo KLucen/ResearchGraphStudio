@@ -46,6 +46,8 @@ def parse_pdf(path: str, directory: str) -> None:
         characters = 0
         report_stage(work, "parsing")
         with pymupdf.open(stream=content, filetype="pdf") as document:
+            from researchgraph.pdf_structure import parse_structure
+
             if document.needs_pass:
                 raise ValueError("加密 PDF 暂不支持，请使用已解密的副本")
             if not 0 < document.page_count <= MAX_PAGES:
@@ -74,6 +76,7 @@ def parse_pdf(path: str, directory: str) -> None:
                 "page_count": document.page_count,
                 "warnings": warnings,
                 "chunks": chunks,
+                "structure": parse_structure(document),
             }
         # Snapshot matches exactly the bytes parsed, even if the original changes later.
         (work / "snapshot.pdf").write_bytes(content)
@@ -168,7 +171,10 @@ def publish_pdf(
     source.generation = (source.generation or 0) + 1
     source.last_check = None
     session.flush()
-    KnowledgeStore(session).ensure_document(revision.id)
+    store = KnowledgeStore(session)
+    if result.get("structure"):
+        store.apply_document_structure(revision.id, result["sha256"], result["structure"])
+    store.ensure_document(revision.id)
     if not reused:
         KnowledgeStore(session).source_version_added(paper.id, revision.id)
     session.add(
@@ -186,6 +192,84 @@ def publish_pdf(
         )
     )
     return {"paper_id": paper.id, "revision_id": revision.id, "reused": reused}
+
+
+async def ensure_structured_source(
+    engine: Engine, job_id: str, version_id: str, data: Path
+) -> None:
+    """Reparse unchanged source in a cancellable child; retain all old anchor rows."""
+    from researchgraph.document_structure import current_structure
+    from researchgraph.knowledge_store import KnowledgeError
+
+    with Session(engine) as session:
+        if current_structure(session, version_id):
+            return
+        version = session.get(AttachmentRevision, version_id)
+        if not version:
+            raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
+        source_hash = version.sha256
+        paths = [
+            path
+            for source in session.scalars(
+                select(PaperSource).where(PaperSource.paper_id == version.paper_id)
+            )
+            for path in (source.managed_path, source.path)
+            if path
+        ]
+    work = create_workspace(data)
+    process = None
+    try:
+        for path in dict.fromkeys(paths):
+            command = [sys.executable]
+            child_environment = os.environ.copy()
+            if not getattr(sys, "frozen", False):
+                command += ["-m", "researchgraph"]
+                child_environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
+            command += ["--parse-pdf", path, "--output-dir", str(work)]
+            for name in ("result.json", "error.txt"):
+                (work / name).unlink(missing_ok=True)
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=child_environment,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            deadline = time.monotonic() + 120
+            while process.poll() is None:
+                with Session(engine) as session:
+                    job = session.get(Job, job_id)
+                    if not job or job.status != "running":
+                        raise ValueError("任务已取消，不再建立结构解析")
+                if time.monotonic() > deadline:
+                    raise KnowledgeError("PARSE_TIMEOUT", "结构解析超时（120 秒），请检查原文件")
+                await asyncio.sleep(0.1)
+            if process.returncode or not (work / "result.json").exists():
+                continue
+            result = json.loads((work / "result.json").read_text(encoding="utf-8"))
+            if result["sha256"] != source_hash:
+                continue
+            with Session(engine) as session, session.begin():
+                job = session.get(Job, job_id)
+                if not job or job.status != "running":
+                    raise ValueError("任务已取消，不再写入结构解析")
+                KnowledgeStore(session).apply_document_structure(
+                    version_id, source_hash, result["structure"]
+                )
+            return
+        raise KnowledgeError(
+            "SOURCE_UNAVAILABLE", "原版本 PDF 不可用或已变化，请重新定位来源后建立章节结构"
+        )
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        clean_workspace(work)
 
 
 async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -91,6 +91,7 @@ const graph = {
       knowledge_origin: "paper_author",
       badges: [],
       graph_role: "core",
+      unit_ids: ["u"],
     },
   ],
   edges: [],
@@ -205,6 +206,57 @@ test("drag persists coordinates without implicitly pinning", async () => {
   );
 });
 
+test("support is visible by default and explicit collapse and restore only change projection", async () => {
+  const user = userEvent.setup();
+  const lastProjection = () =>
+    vi
+      .mocked(request)
+      .mock.calls.filter((c) => c[1].endsWith("/projection"))
+      .at(-1)?.[2];
+  mount();
+  await user.click(await screen.findByRole("button", { name: "n" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/projects/p/graph/projection",
+      expect.objectContaining({
+        expanded_unit_ids: [],
+        collapsed_unit_ids: [],
+      }),
+    ),
+  );
+  await user.click(await screen.findByRole("button", { name: "收起支撑" }));
+  await waitFor(() =>
+    expect(lastProjection()).toEqual(
+      expect.objectContaining({ collapsed_unit_ids: ["u"] }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "展开支撑" }));
+  await waitFor(() =>
+    expect(lastProjection()).toEqual(
+      expect.objectContaining({
+        expanded_unit_ids: ["u"],
+        collapsed_unit_ids: [],
+      }),
+    ),
+  );
+  await user.click(screen.getByRole("button", { name: "收起支撑" }));
+  await user.click(screen.getByRole("button", { name: "展开全部支撑" }));
+  await waitFor(() =>
+    expect(lastProjection()).toEqual(
+      expect.objectContaining({
+        expanded_unit_ids: [],
+        collapsed_unit_ids: [],
+      }),
+    ),
+  );
+  expect(
+    vi
+      .mocked(request)
+      .mock.calls.some((c) => c[1].includes("knowledge/extract")),
+  ).toBe(false);
+});
+
 test("navigation before autosave recovers pending layout without overwriting it", async () => {
   const user = userEvent.setup();
   const view = mount();
@@ -303,4 +355,132 @@ test("an unpublished paper graph explains saved candidates and opens recovery co
       .mocked(request)
       .mock.calls.some((c) => c[1].includes("knowledge/extract")),
   ).toBe(false);
+});
+
+test("an unfinished ranking shows candidate graph status and allows support collapse", async () => {
+  const original = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation(async (method, path, ...args) => {
+    if (path.endsWith("/projection"))
+      return {
+        ...graph,
+        build_state: "partial",
+        nodes: graph.nodes.map((node) => ({
+          ...node,
+          graph_role: "provisional",
+        })),
+        paper_builds: [
+          { paper_id: "paper", title: "Paper", ranking_status: "pending" },
+        ],
+      };
+    return original(method, path, ...args);
+  });
+  mount();
+  expect(await screen.findByText(/核心贡献排序未完成/)).toBeVisible();
+  await userEvent.click(await screen.findByRole("button", { name: "n" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: "收起支撑" }),
+  );
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/projects/p/graph/projection",
+      expect.objectContaining({ collapsed_unit_ids: ["u"] }),
+    ),
+  );
+  expect(
+    vi
+      .mocked(request)
+      .mock.calls.some((call) => call[1].includes("knowledge/extract")),
+  ).toBe(false);
+});
+
+test("all published papers have footer options without changing graph scope or duplicating jobs", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.papers).mockImplementation(
+    async (_project, cursor) =>
+      ({
+        items:
+          cursor === 0
+            ? [
+                { id: "a", title: "Paper A" },
+                { id: "b", title: "Paper B" },
+              ]
+            : [{ id: "c", title: "Paper C" }],
+        next_cursor: cursor === 0 ? 50 : null,
+      }) as never,
+  );
+  const original = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(api.paper).mockResolvedValue({ revisions: [{ id: "v" }] } as never);
+  vi.mocked(request).mockImplementation(async (method, path, ...args) => {
+    if (path.endsWith("/graph-selection"))
+      return { selection_revision: 0, build_state: "not_built" };
+    if (path.includes("/candidates?")) return { items: [], next_cursor: null };
+    return original(method, path, ...args);
+  });
+  mount();
+  await screen.findByRole("option", { name: "Paper C" });
+  const search = screen.getByRole("region", { name: "图谱搜索与筛选" });
+  const panel = screen.getByRole("region", { name: "知识图谱展示" });
+  const footer = screen.getByRole("region", { name: "论文候选与建图选项" });
+  expect(
+    search.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(
+    panel.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+  expect(api.papers).toHaveBeenCalledWith("p", 50);
+  expect(
+    within(footer).getAllByRole("button", { name: "查看已保存候选与建图选项" }),
+  ).toHaveLength(3);
+  await user.selectOptions(screen.getByLabelText("论文筛选"), "b");
+  await user.click(
+    within(footer).getAllByRole("button", {
+      name: "查看已保存候选与建图选项",
+    })[2],
+  );
+  await screen.findByLabelText("搜索全部候选");
+  expect(screen.getByLabelText("论文筛选")).toHaveValue("b");
+  expect(api.paper).toHaveBeenCalledWith("c");
+  expect(api.projectJobs).not.toHaveBeenCalled();
+  expect(screen.queryByText("任务记录")).not.toBeInTheDocument();
+});
+
+test("fullscreen retains the canvas and returns to the filtered graph with Escape", async () => {
+  const user = userEvent.setup();
+  mount();
+  const node = await screen.findByRole("button", { name: "n" });
+  await user.click(screen.getByRole("button", { name: "全屏显示图谱" }));
+  expect(screen.getByRole("dialog", { name: "知识图谱展示" })).toContainElement(
+    node,
+  );
+  expect(screen.getByRole("button", { name: "n" })).toBe(node);
+  expect(screen.getByLabelText("图谱节点类型说明")).toBeVisible();
+  await user.keyboard("{Escape}");
+  expect(screen.getByRole("region", { name: "知识图谱展示" })).toContainElement(
+    node,
+  );
+  expect(screen.getByRole("button", { name: "全屏显示图谱" })).toHaveFocus();
+});
+
+test("a stale projection cursor can return directly to the first page", async () => {
+  const user = userEvent.setup();
+  const original = vi.mocked(request).getMockImplementation()!;
+  vi.mocked(request).mockImplementation(async (method, path, body) => {
+    if (path.endsWith("/projection")) {
+      if ((body as { cursor: string }).cursor)
+        throw new Error("CURSOR_STALE：图谱已变化，请重新分页");
+      return { ...graph, next_cursor: "page-2", has_more: true };
+    }
+    return original(method, path, body);
+  });
+  mount();
+  await screen.findByRole("button", { name: "n" });
+  await user.click(screen.getByRole("button", { name: "下一页" }));
+  await screen.findByText(/CURSOR_STALE/);
+  await user.click(screen.getByRole("button", { name: "返回第一页" }));
+  await screen.findByRole("button", { name: "n" });
+  expect(screen.queryByText(/CURSOR_STALE/)).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "返回第一页" }),
+  ).not.toBeInTheDocument();
 });

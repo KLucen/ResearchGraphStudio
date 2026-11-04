@@ -31,6 +31,11 @@ class LocalLinkRepair(StrictModel):
 
 def validation_message(error: Exception) -> str:
     """Never dump the full Pydantic input (private source text) into job errors."""
+    if isinstance(error, json.JSONDecodeError):
+        return (
+            f"模型返回的 JSON 格式无效（第 {error.lineno} 行，第 {error.colno} 列）；"
+            "原始响应与成功阶段已保留，可从任务历史继续"
+        )
     if isinstance(error, ValidationError):
         parts = []
         for issue in error.errors(include_input=False, include_url=False)[:4]:

@@ -112,6 +112,13 @@ class KnowledgeStore:
 
         return ReadingMutations(self)
 
+    def apply_document_structure(
+        self, version_id: str, source_hash: str, structure: dict[str, Any]
+    ) -> Any:
+        from researchgraph.document_structure import apply_structure
+
+        return apply_structure(self, version_id, source_hash, structure)
+
     def apply_reasoning(self, **request: Any) -> dict[str, Any]:
         from researchgraph.reasoning_store import ReasoningMutations
 
@@ -204,6 +211,15 @@ class KnowledgeStore:
         if version is None:
             raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
         if self.session.scalar(select(Section).where(Section.document_version_id == version_id)):
+            return
+        from researchgraph.document_structure import current_structure, index_structure
+
+        artifact = current_structure(self.session, version_id)
+        if artifact:
+            index_structure(self, artifact)
+            paper = self.session.get(Paper, version.paper_id)
+            assert paper
+            self.event(paper.project_id, "EVIDENCE_INDEXED", {"document_version_id": version_id})
             return
         paper = self.session.get(Paper, version.paper_id)
         assert paper

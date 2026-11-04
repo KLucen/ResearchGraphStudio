@@ -4,7 +4,7 @@
 
 > 运行契约说明：本页对应保留的 v2 P1–P3 与本轮 v3 M0–M6 增量。[v3 API/事件](07_api_and_events.md)仍包含后续目标；实际差异见 [ADR 0004](adr/0004-v3-projection-and-unified-extraction.md)。
 
-版本：0.0.1 开发增量；协议：1；数据库 Schema：0010；新任务 paper-reading-v1 / reading-extraction-1.0；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1 继续兼容。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口。
+版本：0.0.1 开发增量；协议：1；数据库 Schema：0011；新任务 paper-reading-v1 / reading-extraction-1.0；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1 继续兼容。Pydantic 为单一来源，生成文件为 [OpenAPI](../packages/contracts/openapi.json) 与 [TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口，带日期的小节保留当轮兼容背景；当前增量见文末。
 
 ## 连接和权限
 
@@ -28,13 +28,15 @@ Tauri 启动随安装包分发的 Python 引擎，通过私有 stdin 传入随�
 | GET `/api/v1/projects/{id}/papers?cursor=0&limit=50` | 项目文献分页 |
 | GET `/api/v1/papers/{id}` | 文献、全部已保存附件修订和来源路径；路径是登记记录，不保证当前可读取 |
 | GET `/api/v1/revisions/{id}/chunks?cursor=0&limit=50` | 不可变文本块、0 起始页索引、page label、块索引与 bbox |
-| POST `/api/v1/jobs/{id}/retry` | failed/interrupted/cancelled 重排队；最多执行 3 次 |
+| POST `/api/v1/jobs/{id}/retry` | 普通failed/interrupted/cancelled任务重排队，最多执行3次；旧协议兼容续接可返回独立后继Job，包括已存在的queued/running/succeeded/failed后继，不保证返回原id或queued |
 | POST `/api/v1/sources/{id}/check` | expected_generation；202 返回来源检查 Job，原文件与托管副本分别核对 |
 | POST `/api/v1/sources/{id}/relocate` | expected_generation、path；仅原生 relocate_source_file 选择器提交；202 返回重定位 Job，普通桥禁止此路由 |
 
 SourceView 包含 generation 与 last_check。last_check 为空表示尚未检查当前来源；否则包含 checked_at、original 和可选 managed，每项为 state 与 observed_sha256。状态为 available（内容一致）、changed、missing、unreadable、too_large 或 unstable；不是持续可用性承诺，也不是证据审核结果。重定位必须匹配来源绑定的修订哈希；排队后 generation 改变时任务失败且不应用结果。详见 [ADR 0005](decisions/0005-source-check-relocation.md)。
 
 项目/任务创建、知识抽取与审核等幂等写接口必须带 8–120 字符的 `Idempotency-Key`。相同操作/标识/内容返回首次保存的响应，不重复写入；同标识不同内容返回 409。任务响应可能是首次提交时的状态，应再次查询取得最新状态。项目任务历史使用 `(created_at DESC, id DESC)` 固定顺序，并以 SQLite 插入序号记录第一页快照；继续请求时只传递上页返回的 `next_cursor`，不要解析或自行构造游标。无效游标、跨项目游标或越界 `limit` 返回 422 `INVALID_CURSOR` 或校验错误。游标发出后，新任务（包括创建时间相同的任务）、状态更新和重试都不会改变该分页快照。
+
+历史任务续接时，客户端必须读取返回Job的id/status/result并展示实际响应，不能只刷新原历史行。原错误记录保留，不因后继成功而覆盖；已成功后继不重新排队或调用模型。续接结果可能不在当前分页快照中，应显示其实际状态并提供定位入口；若后继失败，定位实际失败任务及原因，不能宣称已开始执行。
 
 `JobView.stage` 只表示引擎已经观察到的阶段：`starting`、`reading`、`parsing`、`outlining`、`extracting`、`resolving`、`comparing`、`reasoning`、`checking`、`saving` 或 `diagnostics`。阶段不代表百分比；排队时为 `null`，取消/失败保留最后阶段和已保存批次进度，重试重新排队并清空阶段。清理暂存目录失败不会把已经提交的任务改为失败。
 
@@ -56,7 +58,7 @@ Windows 默认数据位置为 `%LOCALAPPDATA%\com.researchgraph.studio`，以设
 
 | 方法与路径 | 行为 |
 | --- | --- |
-| GET `/api/v1/revisions/{id}/structure` | 持久化章节与 EvidenceSpan，保守解析，不伪造语义结构 |
+| GET `/api/v1/revisions/{id}/structure` | 章节与 EvidenceSpan；新增可空 structured_document（pdf-structure-1），含跨页章节、原文行/块与可恢复表格结构 |
 | GET `/api/v1/evidence/{id}` | 再校验版本、paragraph、原文 hash、offset、quote 后返回 |
 | GET `/api/v1/evidence/{id}/preview` | 校验可用 PDF SHA-256，内存生成 PNG data URL；块级高亮，不改 PDF |
 | GET `/api/v1/revisions/{id}/knowledge` | 知识卡片和项目 graph_revision |
@@ -158,6 +160,8 @@ Tauri 宿主对已授权 graph/layout POST 提供 512 KiB 有界请求预算，�
 - POST `/api/v1/papers/{id}/graph-selection/rebuild`：document_version_id、density、expected_revision、allow_network。已有有效选择不调模型；首次整合只排已有候选阶段，不抽 PDF。
 - POST `/api/v1/papers/{id}/graph-selection/preferences`：candidate_id、expected_revision、action=include_core/exclude_core/reset_automatic、reason；不写 review，不绕过来源门槛。
 - POST `/api/v1/projects/{id}/graph/projection`：view=paper_backbone、expanded_unit_ids、原筛选/分页字段；响应 reading-projection-2.0、selections、build_state、coverage_gaps，节点 graph_role/unit_ids，边 navigation 明确区别科学推断。view=legacy 留旧客户端兼容。
+
+paper_backbone 的当前主节点排序为 paper-round-robin-1：论文之间轮换、单篇中心优先并交替结论与支撑。默认 60/最大 120 主节点，上下文另补；首篇不能占满多论文首屏。cursor 绑定排序版本与 graph_revision，旧光标或知识变化返回 422 CURSOR_STALE，可“返回第一页”重新分页；前文旧 legacy 的409/至多24父论文条款不适用于此模式。has_more 为分页状态，与 build_state/coverage_gaps 独立；paper_builds/selections 覆盖当前筛选的全部论文。前端取全论文列表分页供筛选和末尾选项，不一次无界返回全部图节点。详见[图谱接口](07_api_and_events.md#图谱与详情)。
 - 原详情、布局、模型历史、retry/cancel 接口继续使用。新增桌面桥接仅允许明确路径/方法/查询参数，鉴权和正文上限沿用原实现。
 - 设计 `GraphSelection` 与运行快照的少量内部字段不同，不能直接调用 docs 参考模型替代 OpenAPI；历史审核路由保留但正常界面不再调用。
 
@@ -179,3 +183,39 @@ Tauri 宿主对已授权 graph/layout POST 提供 512 KiB 有界请求预算，�
 - 旧unified生产任务按新版重新抽取，不将旧图谱静默转换为新版候选。显式Mock/旧测试API保留兼容。无额外供应商操作入口。
 
 主张比较器的GET /graph/subgraph及POST /knowledge/candidates也支持current_schema_only（兼容默认false）；正常界面发送true。筛选在分页/召回中生效，旧候选作为比较源会明确拒绝；历史详情保持可读。
+
+## 当前结构解析与支撑图谱（2026-11-03 / 0011）
+
+- 0011 仅新增 document_parses，文献版本/解析器版本唯一；不改既有 Chunk/EvidenceSpan/知识/ModelRun。GET `/api/v1/revisions/{id}/structure` 保留 sections/evidence，并附 structured_document 或 null。结构 schema_version=pdf-structure-1，包含 parser_version、blocks（原文、bbox、lines、ordinal、section_ref、excluded）、sections（parent_id、level、start/end_page、role）、tables（header、rows、cells 的行列/跨度/bbox/块引用、structure_status）和 warnings。查询本身不发模型请求。
+- 新导入 PDF 用完整原文块建立 span。旧来源补解析需源 SHA-256 与每个原文块的精确文本/坐标匹配；不匹配返回 PARSE_SOURCE_MISMATCH/PARSE_ANCHOR_MISMATCH，旧记录保留。References 和页眉页脚保留在结构中，但排除新抽取输入；无 OCR，不保证复杂表格或公式语义恢复。
+- 新任务冻结 P02_reading_extract_compact_v3、reading-compact-1、section-context-v1 及 parse_artifact_id，领域仍 reading-extraction-1.0。按跨页章节输入，各章节同规则，无 6000 字符/48 证据目标。只有模型上下文容量不足才按完整段落/表格组拆分，不截断原文；完整单组无法容纳明确失败。输入 allowed_evidence 带 section_path/context_group/context_complete，可附 source_tables；表格/章节 ref 不能充当 EvidenceSpan ID。旧冻结任务计划和成功操作不重排，超时/重试仍有界。
+- POST `/api/v1/projects/{id}/graph/projection` 的 paper_backbone 新增 collapsed_unit_ids（默认空，最多 120）；expanded_unit_ids 保留且优先。默认显示核心 Claim 的已验证非 Claim 支撑，包括方法、实验、条件、结果、指标；显式收起隐藏相应分支。旧选择漏列但存在合法有向关联的支撑可只读补全，不改快照、不依共享证据猜边。Paper 只连核心，UNIT_MEMBER 仅作导航，端点闭合和共享 ID 保持。
+- 对已观察的 Claim.kind_note_unused=null 仅执行精确无损规范化，紧凑响应审计记 ModelRun.parameters.reading_wire.expanded_fields，其他响应记 ModelRun.parameters.reading_envelope_normalization；raw_output 不变。非 null、其他 kind/未知字段仍拒绝；之后仍经过完整领域/来源/Store 校验。已收到失败响应完整重验通过，可零调用复用；具体结果见 progress，不把本地回放当成新 Prompt 真实生成或全文验收。
+
+详见 [ADR0014](adr/0014-structured-pdf-and-support-graph.md)。这些变化不增加人工审核步骤，未实现 P4 Query/P5 Lint/Wiki。
+
+## 当前语义协议与阶段恢复（2026-11-03 / head 0011 不变）
+
+上述带日期段落保留其历史范围；新任务按 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 使用 P02_reading_extract_compact_v4 / reading-semantic-1，以及 semantic-reading-1 的 P12_reading_associations_v1 / P13_reading_ranking_v1。入口仍为 paper-reading-v1，领域仍为 reading-extraction-1.0；没有新表、迁移或人工审核接口。
+
+- P02 模型根仅 items/links/warnings，版本/批次/默认语言由冻结 transport_context 绑定，展开后执行完整领域与来源校验。章节输入、References 排除、完整段落/表格组及有界重试规则保持；不新增固定字符/证据目标。
+- P12 仅提出语义关联和重复建议，KnowledgeStore 沿全部已验证有向路径组单元；P13 完整且唯一覆盖请求内 claim_ref，仅给贡献建议。正式身份及发布由程序负责，旧冻结计划、签名与成功检查点继续原路径。
+- 新 Provider 快照冻结 output_policy（structured-output-1）：仅代码登记的精确官方能力启用 native_json_schema；兼容 json_object 为 requested，不宣称 strict 已验证。能力冲突不自动降级重发，真实 strict API 尚待验收。
+
+现有路由增加的可选响应信息如下，生成契约见 packages/contracts，旧客户端和旧快照仍可读取：
+
+| 位置/字段 | 行为与兼容 |
+| --- | --- |
+| GraphProjection.paper_builds[].ranking_status | 当前可展示选择的排序状态；契约默认 unknown，首次临时视图 pending，有效历史选择缺标记按 complete 解释 |
+| GraphProjection.paper_builds[].selection_mode | ranked/provisional，兼容默认 ranked；状态对应当前图，新任务失败可与保留旧图并存 |
+| graph-selection 快照 contribution_order | 可选完整唯一根顺序，仅新语义发布传入；旧路径缺省不改变旧顺序及幂等指纹 |
+| 根 entries / 已选 units 的 contribution_rank | 可选、从 1 开始，表示贡献建议顺序；不表示科学置信度，不规定力导向坐标 |
+| Job.result.ranking_status | pending/complete/not_applicable；保留 stage_failure、previous_graph_retained、preview_selection_revision 等诊断，失败任务仍可继续未完成阶段 |
+| Job.result.model_calls / model_calls_status / model_calls_unrecorded_runs | 从本 Job 的持久化 ModelRun.attempts 计实际记录请求；缺少明细的历史运行单列，状态 known_attempts_only，否则 recorded |
+| Job.result.usage / cost / cost_status | 汇总供应商提供的非负整数 prompt/completion/total/reasoning Tokens，包含失败阶段；cost=null、provider_not_reported 表示未知费用 |
+
+首次语义整合/排序失败且没有旧图时，只能发布通过保守来源/归属门槛的 provisional/pending/partial 视图。投影临时根 graph_role=provisional，Paper→根为 HAS_CANDIDATE_CLAIM（排序未完成）；完成选择的根为 core/HAS_CORE_CLAIM。根→有据支撑为 UNIT_MEMBER，支撑角色仍为 supporting。这些都是导航边，不是科学关系。已有有效图时失败保留旧图；来源或候选快照变化不发布临时替代。
+
+新响应与 received/succeeded/validation_failed 缓存共用 validate_stage 完整终验，不能仅凭状态复用。response_invalid=true 才把模型记录更新为 validation_failed 并更新 error/finished_at；可信来源、候选或冻结快照变化 response_invalid=false 时保留历史 status/error/finished_at，只在 parameters.stage_validation 写本次分类/code/input/raw 哈希等复用诊断并停止。raw_output、历史供应商用量及结束原因不改，不为来源冲突发起新收费请求。
+
+新语义阶段的调用统计在成功和失败路径均刷新；缓存复用不新增调用，缺少 attempts 不推定为一次请求，超时未返回用量不能推定零费用。三阶段严格拒绝重复键/NaN/Infinity/未知外壳；ADR0016 的限定单字符语法恢复只留在旧 P13 路径。来源与 Store 验证不省略；实际测试和未验证项以 [progress](progress.md) 为准。

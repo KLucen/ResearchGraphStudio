@@ -231,6 +231,7 @@ class DocumentStructure(StrictModel):
     document_version_id: str
     sections: list[SectionView]
     evidence: list[EvidenceView]
+    structured_document: dict[str, Any] | None = None
 
 
 class NodeView(StrictModel):

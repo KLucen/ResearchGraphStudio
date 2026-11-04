@@ -196,6 +196,7 @@ export const api = {
   createProject: (body: { name: string; description: string }, key: string) =>
     request<Project>("POST", "/api/v1/projects", body, key),
   jobs: () => request<Job[]>("GET", "/api/v1/jobs"),
+  job: (id: string) => request<Job>("GET", `/api/v1/jobs/${id}`),
   diagnose: (key: string) =>
     request<Job>("POST", "/api/v1/jobs", { kind: "diagnostics" }, key),
   jobAction: (id: string, action: "cancel" | "retry", key: string) =>

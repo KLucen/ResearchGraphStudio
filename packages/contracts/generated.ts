@@ -1185,6 +1185,10 @@ export interface components {
             sections: components["schemas"]["SectionView"][];
             /** Evidence */
             evidence: components["schemas"]["EvidenceView"][];
+            /** Structured Document */
+            structured_document?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** EvidenceView */
         EvidenceView: {
@@ -1520,6 +1524,7 @@ export interface components {
              * @default true
              */
             json_mode: boolean;
+            output_policy?: components["schemas"]["OutputPolicy"] | null;
         };
         /** ModelRunView */
         ModelRunView: {
@@ -1607,6 +1612,35 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** OutputPolicy */
+        OutputPolicy: {
+            /**
+             * Version
+             * @default structured-output-1
+             * @constant
+             */
+            version: "structured-output-1";
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "native_json_schema" | "json_object" | "prompt";
+            /** Provider */
+            provider: string;
+            /** Endpoint */
+            endpoint: string;
+            /** Model */
+            model: string;
+            /**
+             * Support
+             * @enum {string}
+             */
+            support: "documented" | "requested" | "disabled";
+            /** Source */
+            source: string;
+            /** Reason */
+            reason: string;
+        };
         /** PaperBuildStatus */
         PaperBuildStatus: {
             /** Paper Id */
@@ -1631,6 +1665,16 @@ export interface components {
             extraction_incomplete: boolean;
             /** Active */
             active: boolean;
+            /**
+             * Ranking Status
+             * @default unknown
+             */
+            ranking_status: string;
+            /**
+             * Selection Mode
+             * @default ranked
+             */
+            selection_mode: string;
         };
         /** PaperDetail */
         PaperDetail: {
@@ -1870,6 +1914,8 @@ export interface components {
             view: "legacy" | "paper_backbone";
             /** Expanded Unit Ids */
             expanded_unit_ids?: string[];
+            /** Collapsed Unit Ids */
+            collapsed_unit_ids?: string[];
             /** Kinds */
             kinds?: ("Paper" | "Concept" | "Method" | "Claim" | "ResearchQuestion" | "Experiment" | "Condition" | "Finding" | "Metric" | "Argument" | "Limitation")[];
             /**

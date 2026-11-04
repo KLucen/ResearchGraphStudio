@@ -1,5 +1,6 @@
 """Lossless duplicate handling and quarantine of invalid navigation suggestions."""
 
+import copy
 import json
 from typing import Any, Self
 
@@ -48,7 +49,27 @@ def validate_batch(
         from researchgraph.reading_wire import expand
 
         data = expand(data, wire_changes)
-    # All fields, list limits and evidence are checked BEFORE removing anything.
+    # One observed provider placeholder carries no semantic content. Strip only
+    # this exact Claim/null pair; every other extra key/value stays forbidden.
+    # The original response is retained for raw duplicate comparison and audit.
+    if isinstance(data.get("items"), list):
+        data = copy.deepcopy(data)
+        for index, item in enumerate(data["items"]):
+            if (
+                isinstance(item, dict)
+                and item.get("kind") == "Claim"
+                and "kind_note_unused" in item
+                and item["kind_note_unused"] is None
+            ):
+                del item["kind_note_unused"]
+                if wire_changes is not None:
+                    wire_changes.append(
+                        {
+                            "path": f"items.{index}.kind_note_unused",
+                            "rule": "empty-unused-claim-note-v1",
+                        }
+                    )
+    # Validate the normalized fields, list limits and evidence before deduplication.
     fields = _BatchFields.model_validate(data)
     if evidence_ids(data) - allowed:
         raise ValueError("Reading output referenced evidence outside the input whitelist")
@@ -156,9 +177,10 @@ def normalize_stage_notes(
 
 def validate_selection(raw: str) -> tuple[dict[str, Any], list[dict[str, str]]]:
     from researchgraph.reading_contracts import CoreSelectionProposal
+    from researchgraph.reading_json import load_selection
 
-    data = json.loads(raw)
     audit: list[dict[str, str]] = []
+    data = load_selection(raw, audit)
     if isinstance(data, dict) and data.get("contract_version") in (
         "reading-selection-1.0",
         "paper-reading-v1",

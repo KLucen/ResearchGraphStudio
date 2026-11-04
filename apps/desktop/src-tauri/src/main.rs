@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "0010";
+const ENGINE_SCHEMA_VERSION: &str = "0011";
 
 #[derive(Default)]
 struct Host {
@@ -833,26 +833,26 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0010",
+            "schema_version": "0011",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0009",
+            "schema_version": "0010",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "0010",
+            "schema_version": "0011",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"0010"}),
-            super::json!({"protocol_version":1,"schema_version":"0010","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"0010","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"0011"}),
+            super::json!({"protocol_version":1,"schema_version":"0011","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"0011","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

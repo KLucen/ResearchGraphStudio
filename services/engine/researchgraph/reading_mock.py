@@ -3,6 +3,45 @@
 from typing import Any
 
 
+def semantic_complete(title: str, data: dict[str, Any]) -> dict[str, Any]:
+    """Explicit offline fixture; never advertises model quality or API support."""
+    if title == "SemanticIntegration":
+        return {"associations": [], "duplicates": [], "warnings": []}
+    if title == "KeyedContributionRanking":
+        return {
+            "assessments": {
+                ref: {
+                    "recommendation": "suggest_core",
+                    "reasons": ["main_contribution"],
+                    "rationale": "Synthetic keyed assessment fixture",
+                    "priority": 50,
+                }
+                for ref in data["assessment_refs"]
+            },
+            "warnings": [],
+        }
+    if title == "ContributionRanking":
+        return {
+            "ranked_claims": [
+                {
+                    "claim_ref": unit["claim_ref"],
+                    "recommendation": "suggest_core",
+                    "reasons": ["main_contribution"],
+                    "rationale": "Synthetic ranking fixture",
+                }
+                for unit in data["units"]
+            ],
+            "warnings": [],
+        }
+    from researchgraph.reading_transport import fixture
+
+    candidate = complete(
+        "KnowledgeExtractionBatch",
+        {**data, "document_version_id": "fixture-version", "chunk_id": "fixture-chunk"},
+    )
+    return fixture(candidate, data.get("source_language", "en"))
+
+
 def complete(title: str, data: dict[str, Any]) -> dict[str, Any]:
     version = data["document_version_id"]
     if title == "PaperIntegrationProposal":

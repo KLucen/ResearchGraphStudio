@@ -445,7 +445,14 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            from researchgraph.reading_finish_upgrade import available as finish_upgrade_available
+            from researchgraph.reading_finish_upgrade import upgrade_job as upgrade_finish_job
             from researchgraph.reading_upgrade import upgrade_available, upgrade_job
+
+            if action == "retry" and finish_upgrade_available(job):
+                response = JobView.model_validate(upgrade_finish_job(session, job))
+                remember(session, key, payload, response.model_dump())
+                return response
 
             if action == "retry" and upgrade_available(job):
                 response = JobView.model_validate(upgrade_job(session, job))

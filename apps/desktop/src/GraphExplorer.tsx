@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { components } from "../../../packages/contracts/generated";
 import { api, request, type Evidence, type Job } from "./api";
-import { JobHistory } from "./JobHistory";
 
 type Graph = components["schemas"]["GraphView"];
 type Context = components["schemas"]["ContextView"];
@@ -395,7 +394,6 @@ export function GraphExplorer({
           )}
         </>
       )}
-      <JobHistory projectId={projectId} connected={connected} />
       <h3>模型推理记录 · 最近 50 次</h3>
       <div className="proposal-list">
         {allProposals.map(({ p, mode }) => (

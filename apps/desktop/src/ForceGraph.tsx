@@ -1,18 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Controls, ReactFlow, type Node, type Viewport } from "@xyflow/react";
+import {
+  Controls,
+  ReactFlow,
+  type Node,
+  type ReactFlowInstance,
+  type Viewport,
+} from "@xyflow/react";
 import type { components } from "../../../packages/contracts/generated";
 import { ForceSimulation } from "./forceSimulation";
 import { placeNodes } from "./graphLayout";
+import { getGraphAppearance } from "./graphAppearance";
 
 type Graph = components["schemas"]["GraphProjection"];
 type Layout = components["schemas"]["LayoutView"];
-const colors: Record<string, string> = {
-  Paper: "#537b98",
-  Concept: "#927fba",
-  Method: "#508e80",
-  Claim: "#b38e54",
-  ResearchQuestion: "#ad7c91",
-};
 
 export function ForceGraph({
   graph,
@@ -25,6 +25,8 @@ export function ForceGraph({
   onViewport,
   reset,
   pinRequest,
+  viewKey,
+  fitRequest = 0,
 }: {
   graph: Graph;
   layout: Layout;
@@ -32,6 +34,8 @@ export function ForceGraph({
   language: string;
   reset: number;
   pinRequest: { id: string; seq: number } | null;
+  viewKey?: string;
+  fitRequest?: number;
   onSelect: (id: string) => void;
   onEdge: (id: string) => void;
   onPositions: (positions: Layout["positions"]) => void;
@@ -43,6 +47,11 @@ export function ForceGraph({
   );
   const sim = useRef<ForceSimulation | null>(null);
   const frame = useRef(0);
+  const flow = useRef<Pick<ReactFlowInstance, "fitView"> | null>(null);
+  const fitFrame = useRef(0);
+  const pendingFit = useRef(false);
+  const previousView = useRef(viewKey);
+  const previousFit = useRef(fitRequest);
   const persist = useRef(onPositions);
   const layoutRef = useRef(layout);
   const graphRef = useRef(graph);
@@ -56,6 +65,26 @@ export function ForceGraph({
     graph.nodes.map((n) => n.id),
     graph.edges.map((e) => [e.source, e.target]),
   ]);
+  const scheduleFit = () => {
+    pendingFit.current = true;
+    if (!flow.current || fitFrame.current) return;
+    fitFrame.current = requestAnimationFrame(() => {
+      fitFrame.current = 0;
+      if (!pendingFit.current || !flow.current) return;
+      pendingFit.current = false;
+      void flow.current.fitView({ duration: 0, padding: 0.18 });
+    });
+  };
+  useEffect(() => {
+    if (previousView.current === viewKey) return;
+    previousView.current = viewKey;
+    scheduleFit();
+  }, [viewKey]);
+  useEffect(() => {
+    if (previousFit.current === fitRequest) return;
+    previousFit.current = fitRequest;
+    if (fitRequest) scheduleFit();
+  }, [fitRequest]);
   const animate = () => {
     if (frame.current) return;
     const reduced = window.matchMedia?.(
@@ -122,6 +151,10 @@ export function ForceGraph({
         cancelAnimationFrame(frame.current);
         frame.current = 0;
       }
+      if (fitFrame.current) {
+        cancelAnimationFrame(fitFrame.current);
+        fitFrame.current = 0;
+      }
     },
     [],
   );
@@ -137,6 +170,7 @@ export function ForceGraph({
     const p = byId.get(n.id);
     return {
       id: n.id,
+      type: "default",
       position: { x: p?.x ?? 0, y: p?.y ?? 0 },
       // Controlled nodes are recreated as physics/highlighting changes. Without
       // dimensions React Flow clears its measurement and hides them each frame.
@@ -148,20 +182,25 @@ export function ForceGraph({
       ariaLabel: `${n.label_zh || n.label_en}${p?.pinned ? "，已固定" : ""}`,
       data: {
         label: (
-          <span className="dot-label" title={n.label_en}>
+          <span className="dot-label" title={n.label_en} data-kind={n.kind}>
             {language === "en" ? n.label_en : n.label_zh || n.label_en}
             {language === "both" && n.label_zh && <small>{n.label_en}</small>}
           </span>
         ),
       },
       style: {
-        background: colors[n.kind],
+        // The built-in default node is white without a background override.
+        background: getGraphAppearance(n.kind).color,
         opacity: !active || neighbors.has(n.id) ? 1 : 0.2,
       },
     };
   });
   return (
     <ReactFlow
+      onInit={(instance) => {
+        flow.current = instance;
+        if (pendingFit.current) scheduleFit();
+      }}
       nodes={nodes}
       edges={graph.edges.map((e) => ({
         id: e.id,

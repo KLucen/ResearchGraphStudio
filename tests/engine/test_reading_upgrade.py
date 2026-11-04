@@ -95,8 +95,9 @@ def test_legacy_knowledge_is_retained_but_not_used_in_new_reading(seeded):
     assert recall.status_code >= 400
 
 
+@pytest.mark.parametrize("extra_note", ["waiver", "kind_note_unused"])
 def test_upgrade_replays_failed_response_without_calling_model_or_changing_history(
-    seeded, monkeypatch
+    seeded, monkeypatch, extra_note
 ):
     api, engine, _ = seeded
     # Produce a genuine frozen older plan with a received, failed envelope.
@@ -107,7 +108,11 @@ def test_upgrade_replays_failed_response_without_calling_model_or_changing_histo
             raw = await super().complete(prompt, data, schema)
             if schema["title"] == "KnowledgeExtractionBatch":
                 value = json.loads(raw)
-                value["waiver"] = "only source evidence"
+                if extra_note == "kind_note_unused":
+                    claim = next(item for item in value["items"] if item["kind"] == "Claim")
+                    claim["kind_note_unused"] = None
+                else:
+                    value["waiver"] = "only source evidence"
                 # Simulate the pre-fix validator by rejecting after receiving this response.
                 return json.dumps(value)
             return raw
@@ -124,11 +129,11 @@ def test_upgrade_replays_failed_response_without_calling_model_or_changing_histo
     original_validate = reading_validation.validate_batch
 
     def failed(*args, **kwargs):
-        raise ValueError("Schema 校验失败：waiver (extra_forbidden)")
+        raise ValueError(f"Schema 校验失败：{extra_note} (extra_forbidden)")
 
     monkeypatch.setattr(reading_validation, "validate_batch", failed)
     monkeypatch.setattr(unified_extraction, "provider_for", lambda *a: Extra())
-    with pytest.raises(ValueError, match="waiver"):
+    with pytest.raises(ValueError, match="阶段协议或证据校验"):
         asyncio.run(unified_extraction.run_unified_extraction(engine, "job", reading=True))
     monkeypatch.setattr(reading_validation, "validate_batch", original_validate)
     monkeypatch.setattr(reading_wire, "PROMPT", "P02_reading_extract_compact_v2")
@@ -145,11 +150,14 @@ def test_upgrade_replays_failed_response_without_calling_model_or_changing_histo
     jid = response.json()["id"]
     assert jid != "job" and post(api, "/jobs/job/retry", key="upgrade-again").json()["id"] == jid
 
+    model_calls = []
+
     class NoExtraction(MockProvider):
         async def complete(self, prompt, data, schema):
             assert schema["title"] != "KnowledgeExtractionBatch", (
                 "Reused response must cost zero extraction calls"
             )
+            model_calls.append(schema["title"])
             return await super().complete(prompt, data, schema)
 
     monkeypatch.setattr(unified_extraction, "provider_for", lambda *a: NoExtraction())
@@ -175,3 +183,24 @@ def test_upgrade_replays_failed_response_without_calling_model_or_changing_histo
             and reused[0].raw_output == raw
             and reused[0].parameters["attempts"] == []
         )
+        successor_payload = copy.deepcopy(session.get(Job, jid).payload)
+        successor_result = copy.deepcopy(session.get(Job, jid).result)
+        original_error = session.get(Job, "job").error
+    calls_after_completion = list(model_calls)
+    # Repeating the action on a historical failed row resolves to the existing
+    # successful successor. It must not queue another extraction or mutate the
+    # old failure/raw; the UI has to surface this successful returned task.
+    for key in ("upgrade-after-success-one", "upgrade-after-success-two"):
+        response = post(api, "/jobs/job/retry", key=key)
+        assert response.status_code == 200, response.text
+        assert response.json()["id"] == jid and response.json()["status"] == "succeeded"
+        assert response.json()["result"] == successor_result
+    assert model_calls == calls_after_completion
+    with Session(engine) as session:
+        assert session.get(Job, jid).payload == successor_payload
+        assert session.get(Job, jid).status == "succeeded"
+        assert session.get(Job, "job").status == "failed"
+        assert session.get(Job, "job").error == original_error
+        assert session.get(Job, "job").payload == before
+        assert session.get(ModelRun, rid).raw_output == raw
+        assert session.get(ModelRun, rid).status == status

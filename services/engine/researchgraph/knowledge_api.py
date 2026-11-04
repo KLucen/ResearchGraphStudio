@@ -85,11 +85,15 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
 
     @app.get("/api/v1/revisions/{version_id}/structure", response_model=DocumentStructure)
     def structure(version_id: str) -> DocumentStructure:
+        from researchgraph.document_structure import current_structure
+
         with Session(engine()) as session:
             if session.get(AttachmentRevision, version_id) is None:
                 raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
+            artifact = current_structure(session, version_id)
             return DocumentStructure(
                 document_version_id=version_id,
+                structured_document=artifact.data if artifact else None,
                 sections=[
                     SectionView.model_validate(s)
                     for s in session.scalars(
@@ -261,6 +265,10 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             if paper is None:
                 raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
             payload = body.model_dump()
+            if body.pipeline == "paper-reading-v1":
+                from researchgraph.reading_finish_wire import POLICY
+
+                payload["reading_flow_policy"] = POLICY
             if body.provider == "project":
                 from researchgraph.model_settings import from_snapshot, snapshot_for
 

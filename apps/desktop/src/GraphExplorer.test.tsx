@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
 import { GraphExplorer } from "./GraphExplorer";
-import { request } from "./api";
+import { api, request } from "./api";
 const viewport = vi.hoisted(() => ({
   width: 1200,
   height: 500,
@@ -174,6 +174,8 @@ test("candidate selection shows current conditions and requires explicit real-mo
   );
   await user.click(screen.getByRole("button", { name: "比较条件并推理关系" }));
   await screen.findByText(/推理任务已排队/);
+  expect(api.projectJobs).not.toHaveBeenCalled();
+  expect(screen.queryByText("任务记录")).not.toBeInTheDocument();
   expect(request).toHaveBeenCalledWith(
     "POST",
     "/api/v1/knowledge/relations/infer",

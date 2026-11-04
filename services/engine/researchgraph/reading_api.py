@@ -151,11 +151,15 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 "allow_network": body.allow_network,
                 "provider": "project",
             }
+            from researchgraph.reading_finish_wire import POLICY
+
+            payload["reading_flow_policy"] = POLICY
             if (
                 current
                 and current_selection(current)
                 and current.document_version_id == body.document_version_id
                 and current.snapshot_hash == reading.snapshot(body.document_version_id)
+                and current.data.get("ranking_status") != "pending"
             ):
                 data = reading.publish(
                     version_id=body.document_version_id,
@@ -165,6 +169,7 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                     density=body.density,
                     expected_revision=current.revision,
                     key="reading-density:" + idempotency_key,
+                    contribution_order=current.data.get("contribution_order"),
                 )
                 result = {
                     "selection_revision": data["selection_revision"],
@@ -248,6 +253,8 @@ def register_reading_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 density=current.data["density"],
                 expected_revision=current.revision,
                 key="reading-preference:" + idempotency_key,
+                selection_mode=current.data.get("selection_mode", "ranked"),
+                contribution_order=current.data.get("contribution_order"),
             )
             KnowledgeStore(session).event(
                 reading.source(current.document_version_id)[1].project_id,

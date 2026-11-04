@@ -15,6 +15,7 @@ from researchgraph.knowledge_store import KnowledgeError
 from researchgraph.model_capabilities import ModelCapabilities
 from researchgraph.models import Base, Project, now
 from researchgraph.providers import ConfiguredProvider, MockProvider, Provider
+from researchgraph.structured_output import OutputPolicy, freeze_output_policy
 
 
 class ModelParameters(StrictModel):
@@ -29,6 +30,7 @@ class ModelParameters(StrictModel):
     adapter_policy: Literal["tencent-deepseek-v41-structured-v1"] | None = None
     timeout_seconds: int = Field(default=90, ge=5, le=180)
     json_mode: bool = True
+    output_policy: OutputPolicy | None = None
 
 
 class ProfileInput(StrictModel):
@@ -186,6 +188,8 @@ def save_profile(
     parameters = body.parameters.model_dump()
     parameters["max_output_tokens"] = None
     parameters["capabilities"] = ModelCapabilities().model_dump()
+    # A profile cannot claim strict support; only new task creation freezes it.
+    parameters["output_policy"] = None
     profile.parameters, profile.updated_at = parameters, now()
     session.flush()
     return profile_view(profile)
@@ -216,6 +220,12 @@ def snapshot_for(session: Session, project_id: str, role: str) -> dict[str, Any]
     from researchgraph.model_adapters import new_task_parameters
 
     snapshot["parameters"] = new_task_parameters(p.base_url, p.model, p.parameters, role)
+    snapshot["parameters"] = {
+        **snapshot["parameters"],
+        "output_policy": freeze_output_policy(
+            p.provider, p.base_url, p.model, snapshot["parameters"]
+        ),
+    }
     return snapshot
 
 

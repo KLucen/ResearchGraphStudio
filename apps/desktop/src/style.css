@@ -936,6 +936,121 @@ main {
 .graph-workspace .section-heading h2 {
   margin: 8px 0;
 }
+.graph-query-toolbar {
+  padding: 14px 16px;
+  border: 1px solid #d5ded7;
+  border-radius: 12px;
+  background: #fafbf8;
+}
+.graph-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.graph-search > svg,
+.graph-filters > svg {
+  flex-shrink: 0;
+  color: #6e8577;
+}
+.graph-search input {
+  flex: 1 1 240px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #becdc2;
+  border-radius: 8px;
+  background: #fff;
+}
+.graph-search input:focus-visible {
+  outline: 2px solid #457b61;
+  outline-offset: 2px;
+}
+.graph-search .button,
+.graph-search .text-button {
+  flex-shrink: 0;
+}
+.graph-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e1e7e0;
+}
+.graph-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #526459;
+  font-size: 13px;
+}
+.graph-filters select {
+  max-width: 260px;
+  min-width: 112px;
+  padding: 7px 9px;
+  border: 1px solid #cbd6cd;
+  border-radius: 7px;
+  background: #fff;
+  color: #31483a;
+}
+.graph-filters__checkbox {
+  cursor: pointer;
+}
+.graph-panel__toolbar .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.graph-reading-options {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid #d9e1d9;
+}
+.graph-reading-options > h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.graph-reading-paper {
+  margin: 10px 0;
+  padding: 14px 16px;
+  border: 1px solid #d7e0d6;
+  border-radius: 10px;
+  background: #fafbf8;
+}
+.graph-reading-paper__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+.graph-reading-paper__heading > div {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.graph-reading-paper__heading h4 {
+  overflow-wrap: anywhere;
+}
+.graph-reading-paper__heading .quiet-note {
+  margin: 6px 0 0;
+}
+@media (max-width: 760px) {
+  .graph-query-toolbar {
+    padding: 12px;
+  }
+  .graph-search {
+    flex-wrap: wrap;
+  }
+  .graph-filters {
+    gap: 10px;
+  }
+  .graph-filters > svg {
+    display: none;
+  }
+  .graph-filters select {
+    max-width: min(260px, 60vw);
+  }
+}
 .graph-workspace .import-controls {
   gap: 10px;
   margin: 10px 0;

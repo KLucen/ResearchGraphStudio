@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -84,7 +85,10 @@ async def call_model(
     input_manifest: dict[str, Any] | None = None,
     *,
     adaptive_timeout: bool = False,
+    max_attempts: int = 3,
 ) -> tuple[str, str]:
+    if not 1 <= max_attempts <= 3:
+        raise ValueError("模型请求次数必须介于 1 与 3")
     prompt = (PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")
     run_id = str(uuid4())
     with Session(engine) as session, session.begin():
@@ -144,7 +148,7 @@ async def call_model(
 
     try:
         raw = ""
-        for attempt in range(3):
+        for attempt in range(max_attempts):
             attempts.append({"attempt": attempt + 1, "started_at": now()})
             try:
                 raw = await asyncio.wait_for(
@@ -166,7 +170,7 @@ async def call_model(
                     and error.timeout_phase in {"response_headers", "response_body", "total"}
                 ):
                     raise
-                if error.category not in retryable or attempt == 2:
+                if error.category not in retryable or attempt == max_attempts - 1:
                     raise
                 await asyncio.sleep(min(error.retry_after or 2**attempt, 8))
             except TimeoutError:
@@ -175,10 +179,14 @@ async def call_model(
                 record_attempt("timeout")
                 if adaptive_timeout:
                     raise ProviderError(
-                        "timeout", "模型总请求达到时限，当前未完成批次将缩小", timeout_phase="total"
+                        "timeout",
+                        "模型总请求达到时限，已停止本次请求并保留已保存结果",
+                        timeout_phase="total",
                     ) from None
-                if attempt == 2:
-                    raise ProviderError("timeout", "模型请求超时，已重试 3 次") from None
+                if attempt == max_attempts - 1:
+                    raise ProviderError(
+                        "timeout", f"模型请求超时，共尝试 {max_attempts} 次"
+                    ) from None
                 await asyncio.sleep(min(2**attempt, 8))
         if len(raw) > 2_000_000:
             raise ValueError("模型响应超过大小限制")
@@ -228,6 +236,7 @@ def reusable_model_run(
     input_manifest: dict[str, Any] | None = None,
     *,
     include_invalid: bool = False,
+    validator: Callable[[str], Any] | None = None,
 ) -> tuple[str, str] | None:
     """Reuse an already received identical model response after a retry."""
     prompt = (PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")
@@ -236,7 +245,7 @@ def reusable_model_run(
     )
     if input_manifest:
         expected_parameters["input_manifest"] = input_manifest
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:
         runs = session.scalars(
             select(ModelRun)
             .where(
@@ -268,35 +277,14 @@ def reusable_model_run(
             )
             .order_by(ModelRun.created_at.desc())
         ).all()
+        # A validator may open its own read transaction. This engine uses BEGIN
+        # IMMEDIATE, so release the lookup transaction before invoking callbacks.
+        session.commit()
         for run in runs:
-            if run.status == "validation_failed":
-                if prompt_name.startswith("P02_reading_extract"):
-                    from researchgraph.reading_validation import reusable_reading_output
-
-                    reusable = reusable_reading_output(
-                        run.raw_output or "",
-                        data,
-                        set((input_manifest or {}).get("evidence_aliases", {})),
-                    )
-                elif prompt_name.startswith(("P12_reading", "P13_reading")):
-                    from researchgraph.reading_validation import (
-                        validate_integration,
-                        validate_selection,
-                    )
-
-                    try:
-                        validator = (
-                            validate_integration
-                            if prompt_name.startswith("P12")
-                            else validate_selection
-                        )
-                        validator(run.raw_output or "")
-                        reusable = True
-                    except (ValueError, TypeError):
-                        reusable = False
-                else:
-                    reusable = reusable_invalid_output(run.raw_output or "")
-                if not reusable:
+            if run.status == "validation_failed" and not (
+                validator or prompt_name.startswith(("P02_reading", "P12_reading", "P13_reading"))
+            ):
+                if not reusable_invalid_output(run.raw_output or ""):
                     continue
             parameters = dict(run.parameters)
             for field in (
@@ -312,9 +300,47 @@ def reusable_model_run(
                 "quarantined_integration_associations",
                 "rejected_integration_duplicates",
                 "integration_context_quarantine",
+                "stage_validation",
             ):
                 parameters.pop(field, None)
             if run.raw_output and parameters == expected_parameters:
+                from researchgraph.reading_stage_validation import (
+                    StageValidationError,
+                    validate_stage,
+                )
+
+                try:
+                    if validator:
+                        validator(run.raw_output)
+                    elif prompt_name.startswith(("P02_reading", "P12_reading", "P13_reading")):
+                        validate_stage(
+                            session,
+                            "P02"
+                            if prompt_name.startswith("P02")
+                            else "P12"
+                            if prompt_name.startswith("P12")
+                            else "P13",
+                            run.raw_output,
+                            data,
+                            input_manifest=input_manifest,
+                        )
+                except StageValidationError as error:
+                    if error.response_invalid:
+                        run.status, run.error, run.finished_at = (
+                            "validation_failed",
+                            str(error),
+                            now(),
+                        )
+                    run.parameters = {
+                        **run.parameters,
+                        "stage_validation": error.audit(run.raw_output, digest(data)),
+                    }
+                    # A stale trusted input blocks this reuse; it does not rewrite
+                    # the historical model outcome. Keep the reuse audit separate.
+                    session.commit()
+                    if not error.response_invalid:
+                        raise
+                    continue
                 return run.id, run.raw_output
     return None
 
@@ -393,6 +419,9 @@ async def run_extraction(engine: Engine, job_id: str) -> None:
                 "context": "\n".join(e.quote for e in spans if e.section_id == s.id)[:1200],
             }
             for s in sections
+            # A structural parent can have children but no directly citable text.
+            # P01 classifies only sections with supplied evidence, not empty containers.
+            if any(e.section_id == s.id for e in spans)
         ]
     if not spans:
         raise ValueError("该文献没有可提取文本，不能进行结构化抽取")

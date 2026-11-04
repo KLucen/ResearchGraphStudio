@@ -7,13 +7,14 @@ from typing import Any
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from researchgraph import reading_wire
+from researchgraph import reading_transport, reading_wire
 from researchgraph.extraction import PROMPT_DIR, call_model, mark_run, reusable_model_run, stage
 from researchgraph.extraction_repair import validate_or_repair, validation_message
 from researchgraph.knowledge_models import EvidenceSpan, KnowledgeOperation, ModelRun, Section
 from researchgraph.knowledge_store import KnowledgeStore, digest, text_hash
 from researchgraph.models import AttachmentRevision, Chunk, Job, Paper, now
 from researchgraph.providers import ConfiguredProvider, ProviderError, provider_for
+from researchgraph.section_planner import PLANNER, plan_reading_sections, split_context_group
 from researchgraph.unified_contracts import KnowledgeExtractionBatch
 
 LEGACY_PROMPT = "P02_unified_section_extract"
@@ -40,8 +41,9 @@ def plan_sections(
     spans: list[EvidenceSpan],
     *,
     legacy: bool = False,
-    budget: int = 12000,
+    budget: int | None = 12000,
     max_evidence: int | None = None,
+    sectioned: bool = False,
 ) -> list[list[dict[str, str]]]:
     """Pack adjacent paragraphs without treating every fallback page as a chapter.
 
@@ -53,9 +55,12 @@ def plan_sections(
         if (
             not groups
             or (max_evidence is not None and len(groups[-1]) >= max_evidence)
-            or (legacy and groups[-1][0]["section"] != span.section_id)
-            or sum(len(s["text"]) for s in groups[-1]) + len(span.quote)
-            > (6000 if legacy else budget)
+            or ((legacy or sectioned) and groups[-1][0]["section"] != span.section_id)
+            or (
+                budget is not None
+                and sum(len(s["text"]) for s in groups[-1]) + len(span.quote)
+                > (6000 if legacy else budget)
+            )
         ):
             groups.append([])
         groups[-1].append({"id": span.id, "text": span.quote, "section": span.section_id})
@@ -91,24 +96,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         paper = session.get(Paper, version.paper_id)
         assert paper
         paper_id, title = paper.id, paper.title
-        KnowledgeStore(session).ensure_document(version_id)
-        spans = list(
-            session.scalars(
-                select(EvidenceSpan)
-                .join(Chunk, Chunk.id == EvidenceSpan.paragraph_id)
-                .where(EvidenceSpan.document_version_id == version_id)
-                .order_by(EvidenceSpan.page_index, Chunk.block_index, EvidenceSpan.start_offset)
-            )
-        )
-        sections = {
-            s.id: s.title
-            for s in session.scalars(
-                select(Section).where(Section.document_version_id == version_id)
-            )
-        }
         previous_result = dict(job.result or {})
-    if not spans:
-        raise ValueError("该文献没有可用原文证据")
     if payload.get("model_snapshot"):
         from researchgraph.model_settings import from_snapshot
 
@@ -126,41 +114,164 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
 
         await finish_reading(engine, job_id, provider)
         return
+    from researchgraph.document_structure import current_structure, section_entries
+
+    if (
+        reading
+        and not payload.get("unified_plan")
+        and not payload.get("reading_upgrade", {}).get("leaves")
+        and not previous_result.get("batches")
+        and provider.name != "mock"
+    ):
+        from researchgraph.ingest import ensure_structured_source
+
+        await ensure_structured_source(
+            engine, job_id, version_id, Path(str(engine.url.database)).parent
+        )
+    with Session(engine, expire_on_commit=False) as session, session.begin():
+        KnowledgeStore(session).ensure_document(version_id)
+        spans = list(
+            session.scalars(
+                select(EvidenceSpan)
+                .join(Chunk, Chunk.id == EvidenceSpan.paragraph_id)
+                .where(EvidenceSpan.document_version_id == version_id)
+                .order_by(EvidenceSpan.page_index, Chunk.block_index, EvidenceSpan.start_offset)
+            )
+        )
+        sections = {
+            s.id: s.title
+            for s in session.scalars(
+                select(Section).where(Section.document_version_id == version_id)
+            )
+        }
+        artifact = current_structure(session, version_id) if reading else None
+        frozen_artifact = payload.get("unified_plan", {}).get("parse_artifact_id")
+        if reading and frozen_artifact:
+            from researchgraph.structure_models import DocumentParse
+
+            artifact = session.get(DocumentParse, frozen_artifact)
+            if not artifact or artifact.document_version_id != version_id:
+                raise ValueError("抽取计划引用的结构解析不可用，原任务与成功批次保持")
+        structured_entries, source_context = (
+            section_entries(artifact, spans) if artifact else ([], {})
+        )
+        artifact_id = artifact.id if artifact else None
+        if artifact:
+            sections.update({s["section_id"]: s["title"] for s in artifact.data["sections"]})
+    if not spans:
+        raise ValueError("该文献没有可用原文证据")
     legacy = bool(previous_result.get("batches")) and not payload.get("unified_plan")
     plan = payload.get("unified_plan")
     prompt_name = (
         plan.get("prompt_name", LEGACY_PROMPT) if plan else LEGACY_PROMPT if legacy else PROMPT
     )
     if reading:
+        from researchgraph.reading_finish_wire import POLICY
+
         prompt_name = (
             plan.get("prompt_name", "P02_reading_extract")
             if plan
-            else ("P02_reading_extract" if legacy else reading_wire.PROMPT)
+            else (
+                "P02_reading_extract"
+                if legacy
+                else reading_transport.PROMPT
+                if payload.get("reading_flow_policy") == POLICY
+                else reading_wire.PROMPT
+            )
         )
     supported_prompts = (
-        {"P02_reading_extract", reading_wire.LEGACY_PROMPT, reading_wire.PROMPT}
+        {
+            "P02_reading_extract",
+            reading_wire.LEGACY_PROMPT,
+            "P02_reading_extract_compact_v2",
+            reading_wire.PROMPT,
+            reading_transport.PROMPT,
+        }
         if reading
         else {PROMPT, LEGACY_PROMPT}
     )
     if prompt_name not in supported_prompts:
         raise ValueError("抽取计划使用未知 Prompt 版本，拒绝继续")
-    compact = reading and prompt_name in {reading_wire.PROMPT, reading_wire.LEGACY_PROMPT}
+    compact = reading and prompt_name in {
+        reading_wire.PROMPT,
+        "P02_reading_extract_compact_v2",
+        reading_wire.LEGACY_PROMPT,
+    }
+    semantic_transport = reading and prompt_name == reading_transport.PROMPT
+    if semantic_transport:
+        reading_transport.assert_prompt_contract()
     output_schema = (
-        reading_wire.current_output_schema()
-        if prompt_name == reading_wire.PROMPT
+        reading_transport.output_schema()
+        if semantic_transport
+        else reading_wire.current_output_schema()
+        if prompt_name in {reading_wire.PROMPT, "P02_reading_extract_compact_v2"}
         else reading_wire.output_schema()
         if compact
         else schema_type.model_json_schema()
     )
-    limit = getattr(getattr(provider, "capabilities", None), "max_output_tokens", None)
-    base_budget = 6000 if reading else 8000 if prompt_name == PROMPT else 12000
-    budget = min(base_budget, max(1500, limit)) if limit else base_budget
-    groups = plan_sections(
-        spans,
-        legacy=legacy,
-        budget=budget,
-        max_evidence=48 if reading else 64 if prompt_name == PROMPT else None,
+    capabilities = getattr(provider, "capabilities", None)
+    limit = getattr(capabilities, "max_output_tokens", None)
+    structured_plan = bool(
+        reading
+        and artifact_id
+        and (
+            plan.get("planner") == PLANNER
+            if plan
+            else not legacy and not payload.get("reading_upgrade", {}).get("leaves")
+        )
     )
+    if structured_plan:
+        if plan and plan.get("parse_artifact_id") != artifact_id:
+            raise ValueError("结构解析版本已变化，不能重排已保存的抽取计划")
+        groups = (
+            [structured_entries]
+            if plan
+            else plan_reading_sections(
+                structured_entries,
+                source_context,
+                context_window=getattr(capabilities, "context_window", None),
+                max_output_tokens=limit,
+                overhead=len((PROMPT_DIR / (prompt_name + ".md")).read_bytes())
+                + len(json.dumps(output_schema, ensure_ascii=False).encode("utf-8"))
+                + 2048,
+            )
+        )
+    else:
+        base_budget = (
+            6000 if reading and (plan or legacy) else 8000 if prompt_name == PROMPT else 12000
+        )
+        budget = min(base_budget, max(1500, limit)) if limit else base_budget
+        groups = plan_sections(
+            spans,
+            legacy=legacy,
+            budget=None if reading and not plan and not legacy else budget,
+            max_evidence=48
+            if reading and (plan or legacy)
+            else 64
+            if prompt_name == PROMPT
+            else None,
+            sectioned=reading and not plan and not legacy,
+        )
+    if not groups:
+        raise ValueError("该文献没有可抽取的正文证据（参考文献不参与抽取）")
+    planner_name = (
+        PLANNER
+        if structured_plan
+        else "reading-existing-sections-v1"
+        if reading
+        and not plan
+        and not legacy
+        and not payload.get("reading_upgrade", {}).get("leaves")
+        else "reading-adjacent-6000-48-v1"
+        if reading
+        else "section-6000-v1"
+        if legacy
+        else "adjacent-8000-64-v3"
+        if prompt_name == PROMPT
+        else "adjacent-12000-v2"
+    )
+    if plan:
+        planner_name = plan.get("planner", planner_name)
     config = digest(
         {
             "document_version_id": version_id,
@@ -171,13 +282,8 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             "parameters": getattr(provider, "parameters", {}),
             "schema": output_schema,
             "prompt": text_hash((PROMPT_DIR / (prompt_name + ".md")).read_text(encoding="utf-8")),
-            "planner": "reading-adjacent-6000-48-v1"
-            if reading
-            else "section-6000-v1"
-            if legacy
-            else "adjacent-8000-64-v3"
-            if prompt_name == PROMPT
-            else "adjacent-12000-v2",
+            "planner": planner_name,
+            **({"parse_artifact_id": artifact_id} if structured_plan else {}),
         }
     )
     signature = digest(
@@ -195,7 +301,11 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         if plan.get("signature", signature) != signature:
             raise ValueError("模型、Prompt 或 Schema 已变化；请创建新任务，旧批次仍然保留")
         config = plan["config"]
-        by_id = {s.id: {"id": s.id, "text": s.quote, "section": s.section_id} for s in spans}
+        by_id = (
+            {e["id"]: e for e in structured_entries}
+            if structured_plan
+            else {s.id: {"id": s.id, "text": s.quote, "section": s.section_id} for s in spans}
+        )
         groups = [[by_id[eid] for eid in leaf["ids"]] for leaf in plan["leaves"]]
         states = [dict(s) for s in plan["leaves"]]
         if any(digest(g) != s["chunk_id"] for g, s in zip(groups, states, strict=True)):
@@ -316,10 +426,13 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             current.payload = {
                 **(current.payload or {}),
                 "unified_plan": {
+                    **(plan or {}),
                     "config": config,
                     "signature": signature,
                     "prompt_name": prompt_name,
                     "leaves": [dict(s) for s in states],
+                    "planner": planner_name,
+                    **({"parse_artifact_id": artifact_id} if structured_plan else {}),
                 },
             }
             current.result = {
@@ -349,7 +462,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
         stage(engine, job_id, "extracting")
         progress(index, "running")
         aliases = {f"ev{i + 1:04d}": e["id"] for i, e in enumerate(group)}
-        manifest = {
+        manifest: dict[str, Any] = {
             "evidence_aliases": aliases,
             "pipeline": "paper-reading-v1" if reading else "unified-v3",
             "schema_hash": digest(output_schema),
@@ -360,8 +473,11 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             "paper_metadata": {"title": title},
             "section": " / ".join(dict.fromkeys(sections[e["section"]] for e in group)),
             "domain_vocabulary": [],
-            "max_items_hint": min(16, max(4, (sum(len(e["text"]) for e in group) + 749) // 750))
-            if prompt_name == PROMPT or compact
+            "max_items_hint": min(
+                100 if structured_plan else 16,
+                max(4, (sum(len(e["text"]) for e in group) + 749) // 750),
+            )
+            if prompt_name == PROMPT or compact or semantic_transport
             else states[index].get("max_items_hint", 16),
             "allowed_evidence": [
                 {"id": alias, "text": entry["text"]}
@@ -390,6 +506,88 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             }
             if compact:
                 data["wire_format"] = reading_wire.FORMAT
+            if structured_plan:
+                evidence_aliases = {
+                    entry["id"]: alias for alias, entry in zip(aliases, group, strict=True)
+                }
+                data["allowed_evidence"] = [
+                    {
+                        **entry,
+                        **{
+                            key: value
+                            for key, value in source_context[group[i]["id"]].items()
+                            if key != "table"
+                        },
+                    }
+                    for i, entry in enumerate(data["allowed_evidence"])
+                ]
+                tables = {}
+                for entry in group:
+                    metadata = source_context[entry["id"]]
+                    if "table" in metadata:
+                        table = metadata["table"]
+                        tables[table["ref"]] = {
+                            **{
+                                k: table[k]
+                                for k in (
+                                    "ref",
+                                    "page_index",
+                                    "rows",
+                                    "header",
+                                    "cells",
+                                    "structure_status",
+                                    "notes",
+                                )
+                            },
+                            "evidence_ids": [
+                                alias
+                                for eid, alias in evidence_aliases.items()
+                                if source_context[eid]["context_group"] == table["ref"]
+                            ],
+                        }
+                data["source_tables"] = list(tables.values())
+        validation_data = data
+        if semantic_transport:
+            transport_context = {
+                "document_version_id": version_id,
+                "chunk_id": digest(group),
+                "source_language": reading_transport.detect_language(
+                    "\n".join(e["text"] for e in group)
+                ),
+            }
+            manifest["transport_context"] = transport_context
+            data = {
+                key: value
+                for key, value in data.items()
+                if key not in reading_transport.BOUND_FIELDS
+            }
+            data["source_language"] = transport_context["source_language"]
+
+        def terminal(
+            raw: str,
+            validation_data: dict[str, Any] = validation_data,
+            manifest: dict[str, Any] = manifest,
+        ) -> Any:
+            from researchgraph.reading_stage_validation import validate_stage
+
+            def bind(text: str) -> str:
+                return json.dumps(
+                    reading_transport.bind(
+                        reading_transport.loads(text), **manifest["transport_context"]
+                    ),
+                    ensure_ascii=False,
+                )
+
+            with Session(engine) as session:
+                return validate_stage(
+                    session,
+                    "P02",
+                    raw,
+                    validation_data,
+                    input_manifest=manifest,
+                    wire_validator=bind if semantic_transport else None,
+                )
+
         run_id = None
         try:
             split_required = states[index].pop("split_required", False)
@@ -401,7 +599,14 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     timeout_phase="total" if category == "timeout" else None,
                 )
             cached = reusable_model_run(
-                engine, job_id, provider, prompt_name, data, manifest, include_invalid=True
+                engine,
+                job_id,
+                provider,
+                prompt_name,
+                data,
+                manifest,
+                include_invalid=True,
+                validator=terminal if reading else None,
             )
             reused = states[index].get("response_run_id")
             if reused:
@@ -425,25 +630,57 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                 )
             validated: Any
             if reading:
-                from researchgraph.reading_validation import validate_batch
+                from researchgraph.reading_contracts import KnowledgeExtractionBatch as ReadingDTO
+                from researchgraph.reading_stage_validation import (
+                    StageValidationError,
+                    record_validation_failure,
+                )
 
                 duplicates: list[dict[str, int]] = []
                 wire_changes: list[dict[str, str]] = []
-                validated, quarantined = validate_batch(
-                    raw,
-                    set(aliases),
-                    removed_duplicates=duplicates,
-                    compact=("wire_format" in json.loads(raw)) if reused else compact,
-                    wire_changes=wire_changes,
-                )
-                if quarantined or duplicates or compact or wire_changes:
+                if semantic_transport:
+                    wire_changes.extend(
+                        {"path": field, "rule": "engine-bound-source-v1"}
+                        for field in sorted(reading_transport.BOUND_FIELDS)
+                    )
+                try:
+                    # A copied historical raw response retains its own transport.
+                    if reused:
+                        from researchgraph.reading_validation import validate_batch
+
+                        validated, quarantined = validate_batch(
+                            raw,
+                            set(aliases),
+                            removed_duplicates=duplicates,
+                            compact="wire_format" in json.loads(raw),
+                            wire_changes=wire_changes,
+                        )
+                        # Terminal source and chunk checks also apply to successor reuse.
+                        old_data = {**validation_data}
+                        old_data.pop("wire_format", None)
+                        from researchgraph.reading_stage_validation import validate_stage
+
+                        with Session(engine) as session:
+                            validate_stage(session, "P02", raw, old_data, input_manifest=manifest)
+                    else:
+                        result = terminal(raw)
+                        validated = ReadingDTO.model_validate(result.value)
+                        quarantined = result.quarantined
+                        duplicates.extend(result.removed_duplicates)
+                        wire_changes.extend(result.normalization)
+                except StageValidationError as error:
+                    record_validation_failure(engine, run_id, error, data, raw)
+                    raise
+                if quarantined or duplicates or compact or semantic_transport or wire_changes:
                     with Session(engine) as session, session.begin():
                         run = session.get(ModelRun, run_id)
                         assert run
                         audit: dict[str, Any] = dict(run.parameters)
-                        if compact:
+                        if compact or semantic_transport:
                             audit["reading_wire"] = {
-                                "format": json.loads(raw).get("wire_format", "canonical-1.0"),
+                                "format": reading_transport.FORMAT
+                                if semantic_transport
+                                else json.loads(raw).get("wire_format", "canonical-1.0"),
                                 "canonical_contract": "reading-extraction-1.0",
                                 "expanded_fields": wire_changes,
                             }
@@ -474,7 +711,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     candidate=candidate,
                     version_id=version_id,
                     paper_id=paper_id,
-                    chunk_id=data["chunk_id"],
+                    chunk_id=validation_data["chunk_id"],
                     allowed=set(aliases.values()),
                     run_id=run_id,
                     key=f"{operation_prefix}:{config}:{states[index]['key']}",
@@ -503,7 +740,7 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                     cancelled = current is None or current.status != "running"
                     recorded = session.get(ModelRun, run_id)
                     received = recorded is not None and recorded.status == "received"
-                if not cancelled and received:
+                if not cancelled and received and getattr(error, "response_invalid", True):
                     mark_run(
                         engine,
                         run_id,
@@ -518,8 +755,14 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
             }
             if category in {"output_limit", "context_limit"} or timeout_split:
                 state = states[index]
-                if len(group) > 1 and state["depth"] < (1 if timeout_split else 3):
-                    children = split_group(group)
+                children = (
+                    split_context_group(group, source_context)
+                    if structured_plan
+                    else split_group(group)
+                    if len(group) > 1
+                    else None
+                )
+                if children and state["depth"] < (1 if timeout_split else 3):
                     replacements = [
                         {
                             "key": f"{state['key']}.{part}",
@@ -530,7 +773,8 @@ async def run_unified_extraction(engine: Engine, job_id: str, *, reading: bool =
                             "split_reason": category,
                             "source_characters": sum(len(e["text"]) for e in child),
                             "max_items_hint": min(
-                                16, max(4, (sum(len(e["text"]) for e in child) + 749) // 750)
+                                100 if structured_plan else 16,
+                                max(4, (sum(len(e["text"]) for e in child) + 749) // 750),
                             ),
                         }
                         for part, child in enumerate(children)

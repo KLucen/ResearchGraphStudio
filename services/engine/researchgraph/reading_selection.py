@@ -1,11 +1,12 @@
 """Validated unit paths and compare-and-swap publication, independent of layout."""
 
+import re
 from typing import Any
 
 from sqlalchemy import select
 
 from researchgraph.graph_models import SourceAssertion
-from researchgraph.knowledge_models import EvidenceSpan, KnowledgeDependency
+from researchgraph.knowledge_models import EvidenceSpan, NodeEvidence
 from researchgraph.knowledge_store import KnowledgeError, digest, stable_id, validate_evidence
 from researchgraph.models import now
 from researchgraph.reading_contracts import (
@@ -23,6 +24,32 @@ from researchgraph.reading_models import (
 )
 from researchgraph.reading_scope import SCOPE
 from researchgraph.reading_store import POLICY, ReadingMutations
+from researchgraph.reading_support import reachable_supports, support_paths, validate_member_paths
+
+FRAGMENT_EVIDENCE_REASON = "引用仅含公式/标记碎片，缺少可解释原文上下文"
+
+
+def _fragment_only(text: str) -> bool:
+    """Recognize only obvious marker-only quotes, never scientific entailment.
+
+    A word or a short CJK phrase is enough to leave this conservative filter.
+    Formulae remain valid evidence when any cited span also supplies readable
+    context. There is no source truncation or minimum paragraph size.
+    """
+    text = re.sub(r"\\(?:begin|end)\s*\{[^{}]*\}", " ", text)
+    text = re.sub(r"\\[A-Za-z]+\*?", " ", text)
+    return not any(len(word) > 1 for word in re.findall(r"[^\W\d_]+", text))
+
+
+def _fragment_claim(store: ReadingMutations, node_id: str) -> bool:
+    quotes = list(
+        store.session.scalars(
+            select(EvidenceSpan.quote)
+            .join(NodeEvidence, NodeEvidence.evidence_id == EvidenceSpan.id)
+            .where(NodeEvidence.node_id == node_id)
+        )
+    )
+    return bool(quotes) and all(_fragment_only(quote) for quote in quotes)
 
 
 def integrate(
@@ -108,31 +135,12 @@ def integrate(
             )
         )
     )
-    # Existing explicit dependency edges are usable paths, never inferred from proximity.
-    paths = [(a.source_id, a.target_id, a.id) for a in associations]
-    paths += [
-        (d.node_id, d.dependee_id, f"dependency:{d.node_id}:{d.dependee_id}:{d.role}")
-        for d in store.session.scalars(
-            select(KnowledgeDependency).where(
-                KnowledgeDependency.node_id.in_(nodes), KnowledgeDependency.dependee_id.in_(nodes)
-            )
-        )
-    ]
+    paths = support_paths(store, version_id, nodes)
     unit_ids = []
     for unit in value.units:
         if nodes[unit.root_claim_id].kind != "claim":
             raise KnowledgeError("INVALID_UNIT_ROOT", "结论单元必须以 Claim 为根")
-        allowed = {unit.root_claim_id, *unit.member_ids}
-        allowed -= {nid for nid in unit.member_ids if nodes[nid].kind == "claim"}
-        reached: dict[str, list[str]] = {unit.root_claim_id: []}
-        for _ in range(len(allowed)):
-            changed = False
-            for source_id, target_id, aid in paths:
-                if source_id in reached and target_id in allowed and target_id not in reached:
-                    reached[target_id] = [*reached[source_id], aid]
-                    changed = True
-            if not changed:
-                break
+        reached = reachable_supports(unit.root_claim_id, nodes, paths)
         unreachable = set(unit.member_ids) - reached.keys()
         if unreachable:
             integration_warnings.append(
@@ -151,8 +159,8 @@ def integrate(
                 )
             )
             store.session.flush()
-            for mid in unit.member_ids:
-                if mid not in reached:
+            for mid in sorted(reached):
+                if mid == unit.root_claim_id:
                     continue
                 store.session.add(
                     ReadingMember(unit_id=uid, node_id=mid, association_ids=reached[mid])
@@ -200,15 +208,20 @@ def publish(
     density: str,
     expected_revision: int,
     key: str,
+    selection_mode: str = "ranked",
+    contribution_order: list[str] | None = None,
 ) -> dict[str, Any]:
     hint = CoreSelectionProposal.model_validate(proposal)
-    fingerprint = digest([version_id, snapshot, unit_ids, proposal, density, expected_revision])
+    identity = [version_id, snapshot, unit_ids, proposal, density, expected_revision]
+    if selection_mode != "ranked":
+        identity.append(selection_mode)
+    if contribution_order is not None:
+        identity.append({"contribution_order": contribution_order})
+    fingerprint = digest(identity)
     cached = store.checkpoint(key, fingerprint)
-    if cached is not None:
-        return cached
     _, paper = store.source(version_id)
     current = store.current(paper.id)
-    if (current.revision if current else 0) != expected_revision:
+    if cached is None and (current.revision if current else 0) != expected_revision:
         raise KnowledgeError("SELECTION_REVISION_CONFLICT", "选择已更新，请刷新后再试")
     if (
         store.snapshot(version_id) != snapshot
@@ -218,6 +231,8 @@ def publish(
         raise KnowledgeError("INTEGRATION_CONTEXT_STALE", "候选或来源已改变，请重新整合")
     if density not in {"concise", "standard", "detailed"}:
         raise KnowledgeError("INVALID_DENSITY", "未知图谱密度")
+    if selection_mode not in {"ranked", "provisional"}:
+        raise KnowledgeError("INVALID_SELECTION_MODE", "未知选择模式")
     nodes = {n.id: n for n in store.nodes(version_id)}
     units: dict[str, ReadingUnit] = {}
     for uid in unit_ids:
@@ -227,9 +242,41 @@ def publish(
         if unit.root_claim_id in units:
             raise KnowledgeError("DUPLICATE_UNIT", "结论存在多个单元")
         units[unit.root_claim_id] = unit
+    paths = support_paths(store, version_id, nodes)
+    unit_members = {
+        unit.id: list(
+            store.session.scalars(select(ReadingMember).where(ReadingMember.unit_id == unit.id))
+        )
+        for unit in units.values()
+    }
+    for root, unit in units.items():
+        validate_member_paths(
+            store,
+            version_id,
+            root,
+            [(m.node_id, m.association_ids) for m in unit_members[unit.id]],
+            nodes,
+            paths,
+        )
+    if cached is not None:
+        if any(
+            entry["graph_role"] == "core" and _fragment_claim(store, entry["candidate_id"])
+            for entry in cached["entries"]
+        ):
+            raise KnowledgeError("CORE_EVIDENCE_CONTEXT_REQUIRED", FRAGMENT_EVIDENCE_REASON)
+        return cached
     hints = {h.root_claim_id: h for h in hint.recommendations}
     if set(hints) != set(units):
         raise KnowledgeError("SELECTION_INCOMPLETE", "选择必须逐一说明所有结论单元")
+    if contribution_order is not None and (
+        len(contribution_order) != len(units) or set(contribution_order) != set(units)
+    ):
+        raise KnowledgeError("INVALID_CONTRIBUTION_ORDER", "贡献排序必须唯一覆盖全部结论单元")
+    ranks = (
+        {root: index for index, root in enumerate(contribution_order, 1)}
+        if contribution_order is not None
+        else {}
+    )
     store.adapt(version_id)
     entries: dict[str, dict[str, Any]] = {
         nid: {
@@ -242,16 +289,26 @@ def publish(
     }
     selected = []
     gaps = list(hint.coverage_gaps)
-    for root, unit in units.items():
+    for root in contribution_order if contribution_order is not None else units:
+        unit = units[root]
         node = nodes[root]
         metadata = store.session.get(CandidateMetadata, root)
         preference = store.session.get(ReadingPreference, root)
         assert metadata
         h = hints[root]
-        members = list(
-            store.session.scalars(select(ReadingMember).where(ReadingMember.unit_id == unit.id))
+        members = unit_members[unit.id]
+        caveats = list(
+            dict.fromkeys(
+                [
+                    *node.issues,
+                    *(
+                        f"支撑 {member.node_id}：{issue}"
+                        for member in members
+                        for issue in nodes[member.node_id].issues
+                    ),
+                ]
+            )
         )
-        caveats = list(node.issues)
         blocked = []
         if not store.source_valid(node) or any(
             not store.source_valid(nodes[m.node_id]) for m in members
@@ -271,19 +328,42 @@ def publish(
             blocked.append("转述或未知归属不是本文结论")
         if metadata.canonical_id:
             blocked.append("已有同范围结论代表")
+        fragment_evidence = _fragment_claim(store, root)
+        if fragment_evidence:
+            blocked.append(FRAGMENT_EVIDENCE_REASON)
+        if selection_mode == "provisional" and (
+            node.payload.get("contribution_type") in {None, "background"}
+            or node.payload.get("modality") in {"speculative", "unknown"}
+            or node.issues
+        ):
+            blocked.append("自动贡献排序尚未完成，暂不展示背景、归属不明或有未解疑点的结论")
         if not members:
             caveats.append("仅有直接原文依据，尚无独立支撑成员")
         if h.recommendation == "needs_context":
             blocked.append("证据上下文不足")
-        relevance = "main_contribution" if h.recommendation == "suggest_core" else "context"
+        relevance = (
+            "unresolved"
+            if selection_mode == "provisional"
+            else "main_contribution"
+            if h.recommendation == "suggest_core"
+            else "context"
+        )
         metadata.quality = {
             "relevance": relevance,
-            "evidence_completeness": "limited" if caveats else "sufficient",
+            "evidence_completeness": (
+                "insufficient"
+                if fragment_evidence
+                or h.recommendation == "needs_context"
+                or "insufficient_support" in h.reasons
+                else "limited"
+                if caveats
+                else "sufficient"
+            ),
             "duplicate_status": "duplicate" if metadata.canonical_id else "distinct",
             "blocking_issues": blocked,
             "caveats": caveats,
             "rationale": h.rationale,
-            "assessed_by": "model_assisted",
+            "assessed_by": "rules" if selection_mode == "provisional" else "model_assisted",
             "policy_version": POLICY,
         }
         include = h.recommendation == "suggest_core"
@@ -301,6 +381,8 @@ def publish(
         if blocked:
             include = False
         entries[root]["reason"] = "；".join(blocked) if blocked else h.rationale
+        if ranks:
+            entries[root]["contribution_rank"] = ranks[root]
         if not include:
             continue
         entries[root].update(
@@ -324,6 +406,7 @@ def publish(
                 "memberships": member_data,
                 "rationale": unit.rationale,
                 "caveats": caveats,
+                **({"contribution_rank": ranks[root]} if ranks else {}),
             }
         )
     if not selected:
@@ -347,6 +430,10 @@ def publish(
         "integration_unit_ids": unit_ids,
         "selection_proposal": proposal,
     }
+    if selection_mode == "provisional":
+        data.update(selection_mode="provisional", ranking_status="pending", build_state="partial")
+    if contribution_order is not None:
+        data["contribution_order"] = list(contribution_order)
     store.session.add(
         ReadingSelection(
             id=sid,

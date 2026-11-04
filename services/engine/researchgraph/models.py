@@ -38,10 +38,11 @@ class Job(Base):
 
     @property
     def resume_adapter_available(self) -> bool:
+        from researchgraph.reading_finish_upgrade import available as ranking_upgrade_available
         from researchgraph.reading_resume import adapter_available
         from researchgraph.reading_upgrade import upgrade_available
 
-        return adapter_available(self) or upgrade_available(self)
+        return ranking_upgrade_available(self) or adapter_available(self) or upgrade_available(self)
 
 
 class Event(Base):

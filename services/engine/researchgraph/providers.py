@@ -27,6 +27,15 @@ class MockProvider:
     model = "offline-extractive-fixture-v1"
 
     async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
+        if schema.get("title") in {
+            "ReadingSemanticBatch",
+            "SemanticIntegration",
+            "ContributionRanking",
+            "KeyedContributionRanking",
+        }:
+            from researchgraph.reading_mock import semantic_complete
+
+            return json.dumps(semantic_complete(schema["title"], data), ensure_ascii=False)
         await asyncio.sleep(0)
         if data.get("contract_version") == "reading-extraction-1.0" or schema.get("title") in {
             "PaperIntegrationProposal",
@@ -240,6 +249,30 @@ class ConfiguredProvider:
         private test hook. Production extraction uses ``complete`` so cancellation
         closes the async socket instead of leaving a worker thread behind.
         """
+        output_audit = None
+        response_format = None
+        supplied_schema = schema
+        if self.parameters.get("output_policy") is not None:
+            from researchgraph.structured_output import checked_policy, response_format_for
+
+            try:
+                policy = checked_policy(
+                    self.parameters["output_policy"],
+                    self.name,
+                    self.base_url,
+                    self.model,
+                    self.parameters,
+                )
+                response_format, output_audit = response_format_for(schema, policy)
+            except ValueError as error:
+                raise ProviderError("structured_output_unsupported", str(error)) from None
+            if response_format and response_format["type"] == "json_schema":
+                supplied_schema = response_format["json_schema"]["schema"]
+                prompt += (
+                    "\nNative strict output requires every schema property to be present. "
+                    "Use null only where the provided schema explicitly permits it; "
+                    "do not invent values for unknown fields."
+                )
         body: dict[str, Any] = {
             "model": self.model,
             "messages": [
@@ -257,7 +290,8 @@ class ConfiguredProvider:
                 {
                     "role": "user",
                     "content": json.dumps(
-                        {"untrusted_source_data": data, "output_schema": schema}, ensure_ascii=False
+                        {"untrusted_source_data": data, "output_schema": supplied_schema},
+                        ensure_ascii=False,
                     ),
                 },
             ],
@@ -265,6 +299,9 @@ class ConfiguredProvider:
         for parameter in ("temperature", "top_p", "reasoning_effort"):
             if self.parameters.get(parameter) is not None:
                 body[parameter] = self.parameters[parameter]
+        if output_audit and output_audit["mode"] == "native_json_schema":
+            # The exact documented non-reasoning models do not accept this knob.
+            body.pop("reasoning_effort", None)
         output_limit = self.capabilities.max_output_tokens
         if output_limit and self.capabilities.context_window:
             # Conservative estimate includes schema/instructions and non-ASCII source.
@@ -288,7 +325,11 @@ class ConfiguredProvider:
             ),
             "evidence_count": len(data.get("allowed_evidence", [])),
         }
-        if self.parameters.get("json_mode", True):
+        if output_audit is not None:
+            self.request_metadata["structured_output"] = output_audit
+            if response_format is not None:
+                body["response_format"] = response_format
+        elif self.parameters.get("json_mode", True):
             body["response_format"] = {"type": "json_object"}
         self.request_metadata.update(
             adapt_request(self.base_url, self.model, self.parameters, body)
@@ -403,7 +444,9 @@ class ConfiguredProvider:
                         )
                     raw = bytearray()
                     if "text/event-stream" in response.headers.get("content-type", ""):
-                        stream = ChatStream()
+                        stream = ChatStream(
+                            accept_refusal=self.parameters.get("output_policy") is not None
+                        )
                     async for part in response.aiter_bytes():
                         response_bytes += len(part)
                         # SSE envelopes repeat per token; bound wire traffic separately
@@ -436,7 +479,21 @@ class ConfiguredProvider:
             details = envelope.get("usage", {}).get("completion_tokens_details", {})
             if isinstance(details, dict) and type(details.get("reasoning_tokens")) is int:
                 self.usage["reasoning_tokens"] = max(0, details["reasoning_tokens"])
-            content = envelope["choices"][0]["message"]["content"]
+            message = envelope["choices"][0]["message"]
+            finish_reason = envelope["choices"][0].get("finish_reason")
+            self.request_metadata["finish_reason"] = (
+                finish_reason
+                if finish_reason in {"stop", "length", "content_filter"}
+                else "unknown"
+            )
+            if self.parameters.get("output_policy") is not None and (
+                message.get("refusal") or finish_reason == "content_filter"
+            ):
+                self.request_metadata["structured_output_refused"] = True
+                raise ProviderError(
+                    "structured_output_refused", "模型拒绝返回本次结构化结果；未自动重发或降级"
+                )
+            content = message["content"]
             if isinstance(content, str) and self.key and self.key in content:
                 raise ValueError("模型响应包含凭据，已拒绝保存")
             if envelope["choices"][0].get("finish_reason") == "length":

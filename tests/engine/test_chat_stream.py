@@ -70,6 +70,7 @@ def test_sse_utf8_chunks_reasoning_and_last_content_usage(monkeypatch):
         "reasoning_tokens": 13,
     }
     assert provider.request_metadata["reasoning_characters"] == len("private reasoning")
+    assert provider.request_metadata["finish_reason"] == "stop"
     assert "private reasoning" not in str(provider.request_metadata)
     assert requests[0]["stream"] is True and requests[0]["stream_options"]["include_usage"]
     assert stream.closed
@@ -93,6 +94,8 @@ def test_incomplete_stream_never_returns_json_and_preserves_safe_partial(
     with pytest.raises(ProviderError) as caught:
         asyncio.run(provider.complete("JSON", {}, {}))
     assert caught.value.category == category
+    if category == "output_limit":
+        assert provider.request_metadata["finish_reason"] == "length"
     assert "private diagnostic" not in str(caught.value)
     assert provider.partial_output == '{"partial":'
     assert len(requests) == 1 and stream.closed

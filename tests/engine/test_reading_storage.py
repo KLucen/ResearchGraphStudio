@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from test_knowledge import apply, batch
 
 
-def test_0010_preserves_all_old_tables_and_backup(tmp_path):
+def test_0011_preserves_all_old_tables_and_backup(tmp_path):
     engine = make_engine(tmp_path)
     config = Config()
     config.set_main_option(
@@ -37,7 +37,7 @@ def test_0010_preserves_all_old_tables_and_backup(tmp_path):
         assert {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables} == before
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0010",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0011",)
     with sqlite3.connect(next((tmp_path / "backups").glob("*.sqlite3"))) as backup:
         assert backup.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
         assert backup.execute("SELECT * FROM projects").fetchall() == before["projects"]

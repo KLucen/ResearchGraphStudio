@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "@xyflow/react/dist/style.css";
 import "../src/style.css";
 import { ForceGraph } from "../src/ForceGraph";
+import { GraphLegend, graphNodeKinds } from "../src/graphAppearance";
 import type { components } from "../../../packages/contracts/generated";
 type Graph = components["schemas"]["GraphProjection"];
 type Layout = components["schemas"]["LayoutView"];
@@ -24,6 +25,13 @@ const graph = {
     is_dashed: false,
   })),
 } as Graph;
+const palette = {
+  ...graph,
+  nodes: graph.nodes.map((node, i) => ({
+    ...node,
+    kind: [...Object.keys(graphNodeKinds), "UnsupportedKind"][i],
+  })),
+} as Graph;
 const initial = {
   version: 1,
   zoom: 1,
@@ -40,23 +48,38 @@ function Harness() {
   const [layout, setLayout] = useState(initial);
   const [selected, setSelected] = useState("");
   const [reading, setReading] = useState(false);
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const [typePreview, setTypePreview] = useState(false);
+  const [paperScope, setPaperScope] = useState(false);
+  const [fitRequest, setFitRequest] = useState(0);
+  const [collapsed, setCollapsed] = useState<string[]>([]);
   const [poll, setPoll] = useState(0);
   const ids = new Set([
     "n0",
     "n1",
     "n2",
-    ...(expanded.includes("a") ? ["n3", "n4"] : []),
-    ...(expanded.includes("b") ? ["n3", "n5"] : []),
+    ...(!collapsed.includes("a") ? ["n3", "n4"] : []),
+    ...(!collapsed.includes("b") ? ["n3", "n5"] : []),
   ]);
   const layered = {
     ...graph,
-    nodes: graph.nodes.filter((n) => ids.has(n.id)),
+    nodes: graph.nodes
+      .filter((n) => ids.has(n.id))
+      .map((n) => ({
+        ...n,
+        kind:
+          n.id === "n3"
+            ? ("Method" as const)
+            : n.id === "n4"
+              ? ("Condition" as const)
+              : n.id === "n5"
+                ? ("Experiment" as const)
+                : n.kind,
+      })),
     edges: [
       ...graph.edges.slice(0, 2),
       ...([
         ...["a", "b"]
-          .filter((x) => expanded.includes(x))
+          .filter((x) => !collapsed.includes(x))
           .flatMap((x) => [
             {
               id: `${x}-shared`,
@@ -78,15 +101,25 @@ function Harness() {
       ] as Graph["edges"]),
     ],
   };
+  const scoped = {
+    ...graph,
+    nodes: graph.nodes.slice(0, 6),
+    edges: graph.edges.slice(0, 5),
+  };
   return (
     <>
       <button onClick={() => setPoll(poll + 1)}>模拟轮询</button>
       <button onClick={() => setReading(!reading)}>分层模式</button>
+      <button onClick={() => setTypePreview(!typePreview)}>类型颜色示例</button>
+      <button onClick={() => setPaperScope(!paperScope)}>切换论文范围</button>
+      <button onClick={() => setFitRequest((value) => value + 1)}>
+        适应图谱
+      </button>
       {["a", "b"].map((x) => (
         <button
           key={x}
           onClick={() =>
-            setExpanded((old) =>
+            setCollapsed((old) =>
               old.includes(x) ? old.filter((i) => i !== x) : [...old, x],
             )
           }
@@ -99,12 +132,23 @@ function Harness() {
       </output>
       <div className="projection-canvas" style={{ height: 650, width: 1000 }}>
         <ForceGraph
-          graph={{ ...(reading ? layered : graph), graph_revision: 1 + poll }}
+          graph={{
+            ...(typePreview
+              ? palette
+              : reading
+                ? layered
+                : paperScope
+                  ? scoped
+                  : graph),
+            graph_revision: 1 + poll,
+          }}
           layout={layout}
           selected={selected}
           language="zh"
           reset={0}
           pinRequest={null}
+          viewKey={paperScope ? "paper" : "all"}
+          fitRequest={fitRequest}
           onSelect={setSelected}
           onEdge={() => {}}
           onPositions={(positions) =>
@@ -115,6 +159,7 @@ function Harness() {
           }
         />
       </div>
+      <GraphLegend />
     </>
   );
 }

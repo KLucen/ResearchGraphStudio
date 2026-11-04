@@ -60,7 +60,7 @@ export function ModelSettings({ connected }: { connected: boolean }) {
       }>("POST", path, body);
       setNotice(
         result.connected
-          ? `真实模型连接成功；JSON 校验${result.valid_json ? "通过" : "未通过"}`
+          ? `真实模型连接成功；固定测试 JSON 校验${result.valid_json ? "通过" : "未通过"}。连接成功不代表论文结构化抽取通过。`
           : "设置已保存",
       );
       await client.invalidateQueries({
@@ -390,8 +390,12 @@ function ProfileEditor({
                 setParams({ ...params, json_mode: e.target.checked })
               }
             />
-            请求 JSON Object 模式（服务需支持）
+            兼容路径请求 JSON Object 模式（服务需支持）
           </label>
+          <p className="quiet-note">
+            已登记支持严格 Schema
+            的端点与模型使用原生结构化输出；其他接口仅请求兼容模式，字段与证据仍由本地校验。测试连接通过不代表论文抽取通过。
+          </p>
         </>
       )}
       <div>

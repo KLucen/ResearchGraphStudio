@@ -161,7 +161,7 @@ def test_conflicting_duplicate_suggestion_does_not_fold_or_abort_other_units(see
         assert all(session.get(CandidateMetadata, root).canonical_id is None for root in roots)
 
 
-def test_large_support_window_reserves_root_and_reports_gaps(seeded):
+def test_large_support_window_retains_all_candidates_without_budget_gaps(seeded):
     _, engine, eid = seeded
     data = candidate_batch(eid)
     method = data["items"][1]
@@ -174,13 +174,24 @@ def test_large_support_window_reserves_root_and_reports_gaps(seeded):
     with Session(engine) as session, session.begin():
         session.get(Job, "job").payload = {"document_version_id": "version"}
         root = session.scalar(select(KnowledgeNode).where(KnowledgeNode.kind == "claim"))
+        root_id = root.id
         # Verify this fixture actually would evict the root under UUID ordering.
         preceding = [
             n for n in KnowledgeStore(session).reading().nodes("version") if n.id < root.id
         ]
         assert sum(len(json.dumps(n.payload)) for n in preceding) > 26000
-    asyncio.run(finish_reading(engine, "job", MockProvider()))
+
+    class CompleteInput(MockProvider):
+        async def complete(self, prompt, data, schema):
+            if schema["title"] == "PaperIntegrationProposal":
+                assert len(data["candidates"]) == 18
+                assert len(json.dumps(data["candidates"])) > 26000
+                assert root_id in data["root_claim_ids"]
+                assert {e["id"] for e in data["allowed_evidence"]} == {eid}
+            return await super().complete(prompt, data, schema)
+
+    asyncio.run(finish_reading(engine, "job", CompleteInput()))
     with Session(engine) as session:
         assert session.get(Job, "job").status == "succeeded"
         selection = KnowledgeStore(session).reading().current("paper")
-        assert selection.data["units"] and selection.data["coverage_gaps"]
+        assert selection.data["units"] and not selection.data["coverage_gaps"]

@@ -57,6 +57,12 @@ def build_status(session: Session, paper: Paper, version_id: str | None = None) 
         total_batches=total,
         extraction_incomplete=not total or completed < total,
         active=any(j.status in {"queued", "running"} for j in jobs),
+        ranking_status=current.data.get("ranking_status", "complete")
+        if current_selection(current) and current
+        else "unknown",
+        selection_mode=current.data.get("selection_mode", "ranked")
+        if current_selection(current) and current
+        else "ranked",
     )
 
 

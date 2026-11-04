@@ -29,6 +29,7 @@ $report = [ordered]@{
     clean_windows_G0 = 'not_certified_by_this_script'
     developer_commands_on_host = @(@('python', 'node', 'conda', 'cargo') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
     child_path = 'System32 only'
+    model_validation = 'offline synthetic fixtures only; real model and scientific quality not tested'
     checks = [ordered]@{}
 }
 
@@ -163,7 +164,7 @@ function Wait-DesktopEngine {
                         $receipt.desktop_pid -eq $script:desktop.Id -and
                         $receipt.engine_pid -eq $children[0].ProcessId -and
                         $receipt.connected -eq $true -and $receipt.protocol_version -eq 1 -and
-                        $receipt.schema_version -eq '0010') { return }
+                        $receipt.schema_version -eq '0011') { return }
                 }
             }
         }
@@ -193,7 +194,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0010') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0011') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
@@ -213,6 +214,7 @@ try {
     $report.checks['diagnostics'] = 'passed'
     if ($PdfFixture) {
         $fixturePath = (Resolve-Path -LiteralPath $PdfFixture).Path
+        $fixtureSha256 = (Get-FileHash -LiteralPath $fixturePath -Algorithm SHA256).Hash
         $originalPath = Join-Path $OutputRoot 'original.pdf'
         Copy-Item -LiteralPath $fixturePath -Destination $originalPath
         $pdfJob = Invoke-ProbeApi ('/projects/' + $project.id + '/papers/import/pdf') 'POST' @{path = $originalPath; mode = 'managed'}
@@ -271,6 +273,67 @@ try {
         $review = Invoke-ProbeApi '/knowledge/reviews' 'POST' @{node_id = $claim.id; expected_revision = $claim.revision; expected_graph_revision = $knowledge.graph_revision; action = 'reject'; reason = 'Offline fixture acceptance, not scientific validation'} -Key 'review-offline'
         Assert-Probe ($review.review_status -eq 'rejected') 'Knowledge review failed.'
         $report.checks['offline_extraction_evidence_review'] = 'passed'
+        # Explicit test provider only: exercise the current reading pipeline in the
+        # installed package independently from the legacy compatibility workflow.
+        $reading = Invoke-ProbeApi '/knowledge/extract' 'POST' @{
+            document_version_id = $revisionId
+            pipeline = 'paper-reading-v1'
+            provider = 'mock'
+            allow_network = $false
+        } -Key 'reading-offline'
+        $deadline = [DateTime]::UtcNow.AddSeconds(40)
+        do {
+            $reading = Invoke-ProbeApi ('/jobs/' + $reading.id)
+            if ($reading.status -notin @('queued', 'running')) { break }
+            Start-Sleep -Milliseconds 100
+        } while ([DateTime]::UtcNow -lt $deadline)
+        Assert-Probe ($reading.status -eq 'succeeded' -and $reading.result.pipeline -eq 'paper-reading-v1') ('Reading build failed: ' + $reading.error)
+        Assert-Probe ($reading.result.completed_batches -eq $reading.result.total_batches -and $reading.result.total_batches -gt 0) 'Reading batches were not fully committed.'
+        Assert-Probe ($reading.result.ranking_status -eq 'complete') 'Reading ranking was not completed.'
+        Assert-Probe ($reading.result.ranking_protocol -eq 'reading-ranking-keyed-1' -and
+            $reading.result.ranking_completed_claims -eq $reading.result.ranking_total_claims -and
+            $reading.result.ranking_total_claims -gt 0) 'Current keyed ranking protocol was not fully validated.'
+        $selectionRoute = '/papers/' + $paperId + '/graph-selection'
+        $readingSelection = Invoke-ProbeApi $selectionRoute
+        Assert-Probe ($readingSelection.contract_version -eq 'reading-selection-1.0' -and
+            $readingSelection.candidate_scope -eq 'reading-candidates-only-v1' -and
+            $readingSelection.document_version_id -eq $revisionId -and
+            @($readingSelection.units).Count -gt 0) 'Current reading selection missing or mixed with legacy knowledge.'
+        $graphRoute = '/projects/' + $project.id + '/graph/projection'
+        $readingQuery = @{view = 'paper_backbone'; paper_id = $paperId; include_test_data = $true; limit = 120}
+        $readingGraph = Invoke-ProbeApi $graphRoute 'POST' $readingQuery -Key 'reading-graph'
+        $hiddenTestGraph = Invoke-ProbeApi $graphRoute 'POST' @{view = 'paper_backbone'; paper_id = $paperId} -Key 'reading-hidden-test-graph'
+        Assert-Probe (@($hiddenTestGraph.nodes | Where-Object { $_.kind -ne 'Paper' }).Count -eq 0) 'Offline test knowledge leaked into the normal graph.'
+        Assert-Probe ($readingGraph.contract_version -eq 'reading-projection-2.0' -and -not $readingGraph.has_more) 'Reading projection is incomplete.'
+        $coreIds = @($readingGraph.nodes | Where-Object { $_.kind -eq 'Claim' -and $_.graph_role -eq 'core' } | Select-Object -ExpandProperty id)
+        $methodIds = @($readingGraph.nodes | Where-Object { $_.kind -eq 'Method' -and $_.graph_role -eq 'supporting' } | Select-Object -ExpandProperty id)
+        Assert-Probe ($coreIds.Count -gt 0 -and $methodIds.Count -gt 0) 'Reading graph has no core or method support.'
+        foreach ($edge in $readingGraph.edges) {
+            $sourceNode = @($readingGraph.nodes | Where-Object { $_.id -eq $edge.source })
+            $targetNode = @($readingGraph.nodes | Where-Object { $_.id -eq $edge.target })
+            Assert-Probe ($sourceNode.Count -eq 1 -and $targetNode.Count -eq 1) 'Reading graph edge endpoint missing.'
+            if ($sourceNode[0].kind -eq 'Paper') {
+                Assert-Probe ($edge.relation -eq 'HAS_CORE_CLAIM' -and $targetNode[0].kind -eq 'Claim') 'Support was incorrectly connected directly to the paper.'
+            }
+            if ($edge.relation -eq 'UNIT_MEMBER') {
+                Assert-Probe ($coreIds -contains $edge.source -and $targetNode[0].kind -ne 'Claim') 'Reading support path is not attached to a core claim.'
+                $matchingPaths = @($readingSelection.units | Where-Object { $_.root_claim_id -eq $edge.source } |
+                    ForEach-Object { $_.memberships } | Where-Object { $_.member_id -eq $edge.target -and @($_.association_ids).Count -gt 0 })
+                Assert-Probe ($matchingPaths.Count -gt 0) 'Reading support has no persisted association path.'
+            }
+        }
+        Assert-Probe (@($readingGraph.edges | Where-Object { $_.relation -eq 'UNIT_MEMBER' -and $methodIds -contains $_.target }).Count -gt 0) 'Reading method support edge missing.'
+        $readingDetail = Invoke-ProbeApi ('/knowledge/nodes/' + $coreIds[0])
+        Assert-Probe ($readingDetail.node.document_version_id -eq $revisionId -and @($readingDetail.evidence).Count -gt 0) 'Reading claim source identity or evidence missing.'
+        $readingPreview = Invoke-ProbeApi ('/evidence/' + $readingDetail.evidence[0].id + '/preview')
+        Assert-Probe ($readingPreview.data_url.StartsWith('data:image/png;base64,')) 'Reading evidence preview missing.'
+        $supportDetail = Invoke-ProbeApi ('/knowledge/nodes/' + $methodIds[0])
+        Assert-Probe ($supportDetail.node.document_version_id -eq $revisionId -and @($supportDetail.evidence).Count -gt 0) 'Reading support source identity or evidence missing.'
+        $supportPreview = Invoke-ProbeApi ('/evidence/' + $supportDetail.evidence[0].id + '/preview')
+        Assert-Probe ($supportPreview.data_url.StartsWith('data:image/png;base64,')) 'Reading support evidence preview missing.'
+        $report.checks['offline_reading_pipeline_and_supports'] = 'passed'
+        $report.checks['offline_keyed_ranking_complete'] = 'passed'
+        $report.checks['offline_reading_test_visibility_and_evidence'] = 'passed'
     }
     Stop-ProbeEngine
     $orphanId = [guid]::NewGuid().ToString()
@@ -295,10 +358,18 @@ try {
         $report.checks['source_restart_persistence'] = 'passed'
         Assert-Probe (Test-Path -LiteralPath $movedPath) 'Source file was removed during recovery.'
         Assert-Probe (@(Get-ChildItem -LiteralPath (Join-Path $dataPath 'attachments') -Filter '*.pdf').Count -eq 1) 'Managed file was removed during recovery.'
+        Assert-Probe ((Get-FileHash -LiteralPath $movedPath -Algorithm SHA256).Hash -eq $fixtureSha256) 'Original PDF bytes changed.'
+        $managedFile = @(Get-ChildItem -LiteralPath (Join-Path $dataPath 'attachments') -Filter '*.pdf')[0]
+        Assert-Probe ((Get-FileHash -LiteralPath $managedFile.FullName -Algorithm SHA256).Hash -eq $fixtureSha256) 'Managed PDF bytes changed.'
         $report.checks['source_and_managed_files_preserved'] = 'passed'
         $persisted = Invoke-ProbeApi ('/knowledge/nodes/' + $claim.id)
         Assert-Probe ($persisted.node.review_status -eq 'rejected' -and @($persisted.reviews).Count -eq 1 -and $persisted.model_run.raw_output) 'Knowledge history did not survive restart.'
         $report.checks['knowledge_review_restart'] = 'passed'
+        $restoredSelection = Invoke-ProbeApi $selectionRoute
+        Assert-Probe (($restoredSelection | ConvertTo-Json -Depth 30 -Compress) -eq ($readingSelection | ConvertTo-Json -Depth 30 -Compress)) 'Reading selection or membership paths changed after restart.'
+        $restoredGraph = Invoke-ProbeApi $graphRoute 'POST' $readingQuery -Key 'reading-graph-restart'
+        Assert-Probe (($restoredGraph | ConvertTo-Json -Depth 30 -Compress) -eq ($readingGraph | ConvertTo-Json -Depth 30 -Compress)) 'Reading graph or source state changed after restart.'
+        $report.checks['offline_reading_selection_graph_restart'] = 'passed'
     }
     Stop-ProbeEngine
     $report.checks['engine_eof_exit'] = 'passed'

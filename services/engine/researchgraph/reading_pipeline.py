@@ -1,14 +1,12 @@
-"""Bounded paper integration and selection, recoverable without PDF re-extraction."""
+"""Complete paper integration and selection, recoverable without PDF re-extraction."""
 
-import json
 from typing import Any
 
 from pydantic import BaseModel
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from researchgraph.extraction import PROMPT_DIR, call_model, mark_run, reusable_model_run, stage
-from researchgraph.extraction_repair import validation_message
+from researchgraph.extraction import PROMPT_DIR, call_model, reusable_model_run, stage
 from researchgraph.graph_models import SourceAssertion
 from researchgraph.knowledge_models import EvidenceSpan, KnowledgeDependency, ModelRun, NodeEvidence
 from researchgraph.knowledge_store import KnowledgeStore, digest, text_hash
@@ -16,11 +14,7 @@ from researchgraph.models import Job, now
 from researchgraph.providers import Provider
 from researchgraph.reading_contracts import CoreSelectionProposal, PaperIntegrationProposal
 from researchgraph.reading_models import ReadingMember, ReadingUnit
-from researchgraph.reading_validation import (
-    isolate_integration_proposals,
-    validate_integration,
-    validate_selection,
-)
+from researchgraph.reading_validation import isolate_integration_proposals
 
 
 async def model_stage(
@@ -31,9 +25,22 @@ async def model_stage(
     schema: type[BaseModel],
     data: dict[str, Any],
 ) -> tuple[str, dict[str, Any]]:
+    from researchgraph.reading_stage_validation import (
+        StageValidationError,
+        record_validation_failure,
+        validate_stage,
+    )
+
     manifest = {"pipeline": "paper-reading-v1", "schema_hash": digest(schema.model_json_schema())}
+
+    def terminal(raw: str) -> Any:
+        with Session(engine) as session:
+            return validate_stage(
+                session, "P12" if schema is PaperIntegrationProposal else "P13", raw, data
+            )
+
     cached = reusable_model_run(
-        engine, job_id, provider, prompt, data, manifest, include_invalid=True
+        engine, job_id, provider, prompt, data, manifest, include_invalid=True, validator=terminal
     )
     run_id, raw = cached or await call_model(
         engine,
@@ -47,23 +54,38 @@ async def model_stage(
         adaptive_timeout=True,
     )
     try:
-        value, audit = (
-            validate_integration(raw)
-            if schema is PaperIntegrationProposal
-            else validate_selection(raw)
-        )
+        # The shared terminal validator includes the historical decoder and its
+        # allowed normalization, identically for live and cached responses.
+        result = terminal(raw)
+        value, audit = result.value, result.normalization
         if audit:
             with Session(engine) as session, session.begin():
                 run = session.get(ModelRun, run_id)
                 assert run
                 run.parameters = {**run.parameters, "integration_normalization": audit}
-    except ValueError as error:
-        mark_run(engine, run_id, "validation_failed", validation_message(error))
-        raise ValueError(validation_message(error)) from None
+    except StageValidationError as error:
+        record_validation_failure(engine, run_id, error, data, raw)
+        raise
     return run_id, value
 
 
 async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> None:
+    from researchgraph.reading_finish_wire import POLICY
+
+    with Session(engine) as session:
+        target = session.get(Job, job_id)
+        payload = (target.payload or {}) if target else {}
+        plan = payload.get("reading_finish_plan")
+        semantic = (
+            plan.get("flow_policy") == POLICY
+            if plan
+            else payload.get("reading_flow_policy") == POLICY
+        )
+    if semantic:
+        from researchgraph.reading_finish_semantic import finish_semantic_reading
+
+        await finish_semantic_reading(engine, job_id, provider)
+        return
     stage(engine, job_id, "integrating")
     with Session(engine, expire_on_commit=False) as session, session.begin():
         job = session.get(Job, job_id)
@@ -75,6 +97,10 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
         _, paper = reading.source(version_id)
         current = reading.current(paper.id)
         plan = job.payload.get("reading_finish_plan")
+        context_policy = plan.get("context_policy") if plan else "complete-context-v1"
+        if context_policy not in {None, "complete-context-v1"}:
+            raise ValueError("整合上下文策略未知，已保存计划保持不变")
+        frozen = job.payload.get("reading_windows")
         prompts = (
             plan.get("prompts", ["P12_reading_integration", "P13_reading_selection"])
             if plan
@@ -94,6 +120,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 "model": provider.model,
                 "parameters": getattr(provider, "parameters", {}),
                 "endpoint": getattr(provider, "base_url", "offline"),
+                **({"context_policy": context_policy} if context_policy else {}),
             }
         )
         if plan and plan.get("signature") != signature:
@@ -106,6 +133,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 "snapshot": snapshot,
                 "signature": signature,
                 "expected_revision": current.revision if current else 0,
+                "context_policy": context_policy,
             }
             job.payload = {**job.payload, "reading_finish_plan": plan}
         expected = plan["expected_revision"]
@@ -146,26 +174,15 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             )
             for nid in nodes
         }
-    roots = [n.id for n in nodes.values() if n.kind == "claim"]
-    # Bound each semantic window; retain all candidates and disclose coverage limitations.
-    windows: list[dict[str, Any]] = []
-    gaps: list[str] = extraction_gaps
-    for start in range(0, len(roots), 8):
-        group = roots[start : start + 8]
-        selected = set(group)
-        for _ in range(4):
-            selected.update(e["target_id"] for e in edges if e["source_id"] in selected)
-        shared_evidence = {eid for nid in selected for eid in by_node[nid]}
-        selected.update(nid for nid in nodes if shared_evidence.intersection(by_node[nid]))
-        # Include cross-batch candidates when the full paper fits the bounded context.
-        extras = [nid for nid in nodes if nid not in selected]
-        # Reserve roots before optional support. UUID sort order must not evict
-        # the very claims whose integration this window is required to return.
-        selected_order = group + sorted(selected - set(group)) + extras
-        entries: list[dict[str, Any]] = []
-        size = 0
-        for nid in selected_order:
-            entry = {
+    # Read frozen inputs before planning anything. In particular, a retry must
+    # reuse old integration checkpoints even when their complete units are large.
+    if frozen is not None:
+        windows, gaps = frozen["windows"], list(frozen["gaps"])
+    else:
+        roots = [n.id for n in nodes.values() if n.kind == "claim"]
+        gaps = extraction_gaps
+        entries = [
+            {
                 "id": nid,
                 "kind": nodes[nid].kind,
                 "content": nodes[nid].payload,
@@ -173,58 +190,52 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 "authorship": nodes[nid].authorship,
                 "evidence_ids": by_node[nid],
             }
-            length = len(json.dumps(entry, ensure_ascii=False))
-            if size + length > 26000 or len(entries) >= 60:
-                if nid in selected:
-                    gaps.append("整合上下文超出单窗口预算；部分支撑保留为可检索候选")
-                continue
-            entries.append(entry)
-            size += length
+            for nid in roots + sorted(set(nodes) - set(roots))
+        ]
         ids = {e["id"] for e in entries}
-        if not set(group) <= ids:
-            raise ValueError("核心候选单条内容超过整合预算；保留已抽取内容，未发布新图")
         eids = {eid for nid in ids for eid in by_node[nid]}
-        if sum(len(evidence[eid]) for eid in eids) > 24000:
-            gaps.append("整合证据超过窗口预算，仅提供完整根证据及已验证关联")
-            eids = {eid for nid in group for eid in by_node[nid]}
-        if sum(len(evidence[eid]) for eid in eids) > 24000:
-            raise ValueError("结论原文超出整合预算，已保留候选；未截断证据或发布新图")
-        windows.append(
-            {
-                "document_version_id": version_id,
-                "input_revision": int(snapshot[:12], 16),
-                "paper_type": "unknown",
-                "root_claim_ids": group,
-                "integration_rules": {
-                    "required_roots": (
-                        "Return exactly one unit per root_claim_ids entry, even without support."
-                    ),
-                    "members": (
-                        "Exclude the root itself. Only cite supplied candidate IDs; "
-                        "do not emit another root as this window's root."
-                    ),
-                    "empty_support": (
-                        "Use empty member_ids if support cannot be established; "
-                        "do not invent a member or edge."
-                    ),
-                },
-                "candidates": entries,
-                "existing_associations": [
-                    e for e in edges if e["source_id"] in ids and e["target_id"] in ids
-                ],
-                "allowed_evidence": [{"id": eid, "text": evidence[eid]} for eid in sorted(eids)],
-                "coverage_gaps": list(dict.fromkeys(gaps)),
-            }
+        # No application character/token/count budget: send the complete paper
+        # candidate snapshot and all its referenced evidence once. Actual endpoint
+        # failures retain this input and all earlier work for an explicit retry.
+        windows = (
+            [
+                {
+                    "document_version_id": version_id,
+                    "input_revision": int(snapshot[:12], 16),
+                    "paper_type": "unknown",
+                    "root_claim_ids": roots,
+                    "integration_rules": {
+                        "required_roots": (
+                            "Return exactly one unit per root_claim_ids entry, "
+                            "even without support."
+                        ),
+                        "members": (
+                            "Exclude the root itself. Only cite supplied candidate IDs; "
+                            "do not emit another root as this window's root."
+                        ),
+                        "empty_support": (
+                            "Use empty member_ids if support cannot be established; "
+                            "do not invent a member or edge."
+                        ),
+                    },
+                    "candidates": entries,
+                    "existing_associations": [
+                        e for e in edges if e["source_id"] in ids and e["target_id"] in ids
+                    ],
+                    "allowed_evidence": [
+                        {"id": eid, "text": evidence[eid]} for eid in sorted(eids)
+                    ],
+                    "coverage_gaps": list(dict.fromkeys(gaps)),
+                }
+            ]
+            if roots
+            else []
         )
-    if len(windows) > 20:
-        raise ValueError("论文候选超过 20 个整合窗口；候选已保留，未自动产生更多模型费用")
-    with Session(engine) as session, session.begin():
-        current_job = session.get(Job, job_id)
-        assert current_job and current_job.payload
-        frozen = current_job.payload.get("reading_windows")
-        if frozen is not None:
-            windows, gaps = frozen["windows"], frozen["gaps"]
-        else:
+        with Session(engine) as session, session.begin():
+            current_job = session.get(Job, job_id)
+            if not current_job or current_job.status != "running":
+                raise ValueError("任务已取消，未保存整合输入")
+            assert current_job.payload
             current_job.payload = {
                 **current_job.payload,
                 "reading_windows": {"windows": windows, "gaps": list(gaps)},
@@ -308,10 +319,15 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             }
         gaps.extend(result["warnings"])
     recommendations = []
-    for index in range(0, len(unit_ids), 8):
+    # Legacy plans keep the exact P13 grouping/input hashes so completed selection
+    # checkpoints remain reusable. New plans select across all complete units.
+    selection_size = (len(unit_ids) or 1) if context_policy else 8
+    for index in range(0, len(unit_ids), selection_size):
         stage(engine, job_id, "selecting")
         with Session(engine) as session:
-            units = [session.get(ReadingUnit, uid) for uid in unit_ids[index : index + 8]]
+            units = [
+                session.get(ReadingUnit, uid) for uid in unit_ids[index : index + selection_size]
+            ]
             unit_data = []
             for unit in units:
                 assert unit
@@ -335,8 +351,6 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
             "density": density,
             "coverage_gaps": list(dict.fromkeys(gaps)),
         }
-        if len(json.dumps(data, ensure_ascii=False)) > 48000:
-            raise ValueError("选择上下文超过预算，保留整合检查点；未截断必要支撑")
         stage_key = "reading:selection:" + digest([snapshot, signature, data])
         with Session(engine) as session:
             value = KnowledgeStore(session).reading().checkpoint(stage_key, digest(data))
@@ -369,7 +383,7 @@ async def finish_reading(engine: Engine, job_id: str, provider: Provider) -> Non
                 )
                 run = session.get(ModelRun, run_id)
                 assert run
-                run.status = "succeeded"
+                run.status, run.error, run.finished_at = "succeeded", None, now()
         recommendations.extend(value["recommendations"])
         gaps.extend(value["coverage_gaps"])
     stage(engine, job_id, "publishing")

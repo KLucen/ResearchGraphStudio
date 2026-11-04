@@ -2,6 +2,7 @@
 
 import base64
 import json
+from itertools import zip_longest
 from typing import cast
 
 from sqlalchemy import select
@@ -20,7 +21,25 @@ from researchgraph.knowledge_visibility import production_knowledge
 from researchgraph.models import Paper
 from researchgraph.reading_scope import current_selection
 from researchgraph.reading_status import build_status
+from researchgraph.reading_support import reachable_supports, support_paths
 from researchgraph.reasoning_models import RelationAssertion
+
+
+def balanced_order(nodes: list[ProjectionNode]) -> list[ProjectionNode]:
+    """Round-robin papers and roots/supports so one large paper cannot fill the page."""
+    groups: dict[str, list[ProjectionNode]] = {}
+    for node in sorted(nodes, key=lambda n: (n.paper_id, n.id)):
+        groups.setdefault(node.paper_id, []).append(node)
+    queues = []
+    for group in groups.values():
+        papers = [n for n in group if n.graph_role == "paper"]
+        roots = [n for n in group if n.graph_role in {"core", "provisional"}]
+        supports = [n for n in group if n.graph_role not in {"paper", "core", "provisional"}]
+        queues.append(
+            papers
+            + [node for pair in zip_longest(roots, supports) for node in pair if node is not None]
+        )
+    return [node for row in zip_longest(*queues) for node in row if node is not None]
 
 
 def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProjection:
@@ -78,18 +97,26 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
             )
             continue
         assert current
+        provisional = current.data.get("selection_mode") == "provisional"
         selections[paper.id] = current.revision
         gaps.extend(current.data["coverage_gaps"])
         nodes = {n.id: n for n in reading.nodes(current.document_version_id)}
         roles = {e["candidate_id"]: e["graph_role"] for e in current.data["entries"]}
+        paths = support_paths(
+            reading,
+            current.document_version_id,
+            {nid: node for nid, node in nodes.items() if nid in production},
+        )
         for unit in current.data["units"]:
             root = unit["root_claim_id"]
             if root not in nodes or root not in production or not reading.source_valid(nodes[root]):
                 gaps.append("部分核心来源已失效或属于隐藏测试数据，未在当前主图展示")
                 continue
             ids = [root]
-            if unit["id"] in body.expanded_unit_ids:
-                ids += [m["member_id"] for m in unit["memberships"]]
+            if unit["id"] not in body.collapsed_unit_ids or unit["id"] in body.expanded_unit_ids:
+                # Old published selections can omit a valid support member. Complete
+                # the display from explicit paths without rewriting their snapshot.
+                ids += sorted(set(reachable_supports(root, nodes, paths)) - {root})
             for nid in ids:
                 if (
                     nid not in nodes
@@ -117,13 +144,23 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
                         review_status="not_applicable",
                         knowledge_origin=node.origin,
                         badges=list(unit.get("caveats", [])),
-                        graph_role=roles[nid],
+                        graph_role="provisional"
+                        if nid == root and provisional
+                        else roles.get(nid, "supporting")
+                        if nid == root
+                        else "supporting",
                         unit_ids=[],
                     )
                 all_nodes[nid].unit_ids.append(unit["id"])
                 if nid != root:
                     edge(f"member:{unit['id']}:{nid}", root, nid, "UNIT_MEMBER", "结论支撑")
-            edge(f"core:{root}", paper.id, root, "HAS_CORE_CLAIM", "核心结论")
+            edge(
+                f"core:{root}",
+                paper.id,
+                root,
+                "HAS_CANDIDATE_CLAIM" if provisional else "HAS_CORE_CLAIM",
+                "结论候选（排序未完成）" if provisional else "核心结论",
+            )
     if body.include_ai_candidates:
         for relation in session.scalars(
             select(RelationAssertion).where(RelationAssertion.project_id == project_id)
@@ -159,10 +196,13 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
                 e.source for e in all_edges.values() if e.target in reached
             }
         primary = [n for n in primary if n.id in reached]
-    primary.sort(key=lambda n: (n.paper_id, n.graph_role != "paper", n.id))
+    primary = balanced_order(primary)
+    revision = KnowledgeStore(session).graph_revision(project_id)
     signature = digest(
         [
+            "paper-round-robin-1",
             project_id,
+            revision,
             body.model_dump(exclude={"cursor"}),
             selections,
             [(n.id, n.unit_ids) for n in primary],
@@ -201,7 +241,7 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
     return GraphProjection(
         contract_version="reading-projection-2.0",
         project_id=project_id,
-        graph_revision=KnowledgeStore(session).graph_revision(project_id),
+        graph_revision=revision,
         selections=selections,
         paper_builds=builds,
         nodes=page + [all_nodes[nid] for nid in sorted(context)],

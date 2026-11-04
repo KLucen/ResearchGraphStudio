@@ -1,0 +1,27 @@
+.graph-legend h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #52615a;
+}
+.graph-legend ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.graph-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #52615a;
+}
+.graph-legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+}

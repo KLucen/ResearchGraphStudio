@@ -1,18 +1,20 @@
 # 09 — 实施注记（设计 v3.3）
 
-> 实现状态（2026-11-02）：R1–R4 已按本设计接入，R5 部分验收；运行差异及自动隔离规则以 [ADR 0009](adr/0009-reading-pipeline-implementation.md) 和[实际验收](reading-implementation-verification-20261102.md)为准。参考 Schema 仍不等同于运行 API；Query/Wiki 保持后续范围。
-
 ## 工程原则
 
 按职责重构，以设计合理性和可测试性决定范围。保留有效解析、证据、来源、任务、凭据和 Store，不复制一个新系统；不以“最小侵入”阻止必要的抽取/整合/选择拆分。不要为改目录名搬动全工程。
 
 建议职责：Source/Evidence → CandidateExtractor → PaperIntegrator → CoreSelector → GraphProjection；全部知识变更经 KnowledgeStore。共享工作流、模型记录、依赖和状态，不允许 UI/模型直接 SQL。
 
-## 先改什么
+## 当前实现顺序
 
-第一步 R1 建立持久候选元数据、结论单元与多对多成员、选择快照/偏好和阶段检查点，审计旧结构映射并在隔离旧库测试。先定义新旧 DTO 适配，再在 R2 接入 Prompt；直接改运行 P02 会破坏旧任务签名和消费接口。
+R1–R4 已接入，不重复实现。结构解析→支撑展示→限定 Schema 适配的前轮成果保留：PyMuPDF 产出 pdf-structure-1，0011 将解析产物保存在 document_parses，既有原文块和证据不改。本轮 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 继续 R5：新 P02_compact_v4 / reading-semantic-1 按跨页章节输入，所有章节相同抽取规则，不采用 6000 字符/48 证据目标。容量或故障需要拆分时保持段落/表格组完整，旧冻结计划不重排。
+
+reading_transport 处理严格语义外壳和程序身份绑定，reading_prompt_contract 生成 Schema 对应 Prompt 结构规则；structured_output 冻结 Provider 输出策略及可证明的请求 Schema 转换；reading_finish_wire/reading_finish_semantic 拆分语义提案、程序 form_units、贡献建议与失败预览；reading_stage_validation 统一新响应及缓存的只读终验。Store 仍是唯一知识写入口，领域仍1.0/head0011，无本轮迁移。
 
 旧图谱 REPORTS 全连接只保留在旧视图兼容；新版投影基于 GraphSelection/KnowledgeUnit，不靠前端猜“哪个节点挂谁”。来源关系可检索，但不作为每个节点的默认可见边。
+
+默认投影显示核心的有据方法、实验、条件、结果及其他非 Claim 支撑，可显式收起。旧快照漏列但存在合法有向关联的支撑可只读补全；不修改旧选择、不依共用证据猜边。Claim.kind_note_unused 只在精确 null 情形无损移除并审计，其他额外字段仍严格拒绝。相关版本和取舍见 [ADR0014](adr/0014-structured-pdf-and-support-graph.md)。
 
 ## 自动化边界
 
@@ -22,9 +24,15 @@
 
 已有合法模型输出复用；整合/选择按候选和版本缓存；仅必要证据片段外发。模型超时有界停止，未收到用量标未知。暂时无法整合的候选保留并可检索；不无限分裂批次或把不完整结果包装成全文成功。
 
+received/succeeded/validation_failed 缓存同样完成 JSON/DTO、版本/根、白名单、证据和快照终验。固定坏响应记分类诊断后不可无条件重复复用；仅 response_invalid=true 更新 validation_failed/error/finished_at，可信来源或快照变化为 false 时保留历史 status/error/finished_at，只记本次复用诊断并停止，不通过再次收费解决。Provider strict 仅精确登记能力启用，兼容 JSON 为 requested，未知约束/能力冲突不自动降级重发。实际 strict 尚待真实调用验收。
+
+新语义发布保存完整 contribution_order 及 1 起始 contribution_rank；旧路径未传时保持原指纹与顺序。任务统计从持久化 ModelRun.attempts/供应商 usage 汇总，失败阶段不漏计；缺请求明细单列未知，缓存不造调用，费用不推算为零。
+
 ## 数据与发布
 
-源段落/表格材料/定位/ModelRun 不属于临时回收范围。完整保留来源不是承诺当前已精确解析所有表格。选择快照以 expected revision 发布，源或用户偏好变化时拒绝过期提交；上一有效图保留。布局独立，详情按需加载，不把全部原文塞入图谱 API。
+源段落/表格材料/定位/ModelRun 不属于临时回收范围。结构解析只是恢复可确认布局，无 OCR，也不保证所有复杂表格/公式/双栏均正确；失败保留原材料并报告限制。选择快照以 expected revision 发布，源或用户偏好变化时拒绝过期提交；上一有效图保留。布局独立，详情按需加载，不把全部原文塞入图谱 API。
+
+首次语义整合/排序失败时，没有旧图才允许保守 provisional 视图，明确 pending/partial 及相关性 unresolved；仅有效来源、明确作者归属、非背景/unknown/speculative、无 issues 且非重复代表的结论和合法支撑可展示。来源/快照冲突不发布预览，已有图不覆盖。任务仍保留失败与未完成阶段，不能把预览成功当核心贡献排序或全文生成通过。
 
 ## 验收与交付
 

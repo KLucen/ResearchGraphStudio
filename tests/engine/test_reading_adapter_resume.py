@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import pytest
 import test_knowledge
-from researchgraph import model_settings, reading_wire, unified_extraction
+from researchgraph import ingest, model_settings, reading_wire, unified_extraction
 from researchgraph.knowledge_models import EvidenceSpan, KnowledgeNode, ModelRun
 from researchgraph.knowledge_store import text_hash
 from researchgraph.model_adapters import TENCENT_DEEPSEEK
@@ -87,6 +87,12 @@ def test_explicit_adapter_resume_keeps_plan_and_never_recalls_committed_batch(
         return provider
 
     monkeypatch.setattr(model_settings, "from_snapshot", configured)
+
+    async def no_source(*args):
+        # This fixture tests retry policy with an offline provider, not PDF parsing.
+        return None
+
+    monkeypatch.setattr(ingest, "ensure_structured_source", no_source)
     monkeypatch.setattr(
         unified_extraction,
         "plan_sections",

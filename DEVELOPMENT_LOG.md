@@ -1040,3 +1040,172 @@ scripts/check-phase0.ps1首次集成回归暴露旧测试API升级和历史适�
 **限制与下一步**：真实论文恢复结果仍为partial，全文支撑/表格质量和用户安装反馈待完成；CI离线验收不能替代这些项目。四份外部原文登记路径不可用。继续R5，不进入P4/P5。
 
 **00:12补记**：CI两个artifact及delivery.json已保存`.local/releases/schema-recovery-ci-41474458777/`。安装器38462458字节，SHA256 `6e07f886c438e5103a1677dcc9672f13d84a636e38d19c389a58affbd06e5c53`，与远端20项安装报告一致。官方直连下载过慢，现有本机代理小范围测试成功后用于该次下载，未修改全局网络/Git配置；API凭据不随跨域重定向发送。最终文档143 Markdown/501本地链接/88资产通过，四份外部原文不可用。未操作用户安装或正式库。
+
+## 2026-11-03 11:10 · DEV-0038 · 结构 PDF、章节窗口与结论支撑
+
+**目标**：按用户顺序先改解析，不使用 MarkItDown；再默认展示核心结论的方法/实验/条件；最后修复第二篇的 kind_note_unused 校验失败。仍在 R5，不进入 P4/P5。
+
+**改动**：新增 pdf_structure/document_structure/structure_models、Alembic0011、section_planner；ingest 使用独立可取消进程解析，KnowledgeStore 精确核对 hash/原块文本/bbox 后发布结构旁表。跨页章节树及可识别表格行列/表头/单元格保留；References、重复页眉页脚不送抽取。纠正合块标题遗漏、内联大字/普通编号误判与小字号参考文献污染正文基准。新 P02_reading_extract_compact_v3 对所有章节同规则，章节连同子节组织，取消6000字符/48证据目标，仅按实际模型容量拆分；表格跨节不拆、排除材料不通过表格元数据旁路进入输入。冻结旧计划、成功操作及原证据不改。
+
+reading_support/selection/projection 与 GraphWorkspace 默认显示有合法来源路径的非 Claim 支撑，增加 collapsed_unit_ids，保留共享节点、分页闭合与布局；不以共享证据猜边。reading_validation 只适配 Claim.kind_note_unused=null 并审计，其他未知字段/非null仍拒绝，原始 JSON 保留。同步宿主/脚本0011握手、运行契约、ADR0014、docs00–09、README/AGENTS和进度。详见 [本轮报告](docs/structured-reading-verification-20261103.md)。
+
+**实际验证**：正式库只读备份后在隔离副本迁移、解析及回放。44旧表迁移/重解析原行保持；27页/766块→35章节/29检测表格，9页/159块→14章节/2表格，References分别排除30/6块。1M/384K离线规划11/6窗口，最大18270/18895字符，不记为模型成绩。真实失败响应的额外值确为null；零新调用重验并保存4候选/0关联，重复apply幂等，262旧知识/47旧ModelRun及原响应全部原列不变。现有真实投影38节点54边（含4方法/1实验/2条件），全部收起10节点；正式库、原PDF和Zotero未改。
+
+scripts/check-phase0.ps1首轮274pass/3fail/2skip，发现旧P01空根上下文及旧48/7测试误用新索引；修复后全检查277pass，最终解析/表格边界补强后 python -m pytest -q **283 passed/2 skipped**。2项符号链接测试受OS权限限制。47 React、3真实React Flow、9 Rust单测及1打包宿主集成通过；Ruff/格式/mypy72文件/pip/契约/前端构建通过。参考契约78/12/5通过。Windows构建、冻结引擎smoke和PowerShell5.1 EnginePath五项通过；首次PS脚本被执行策略拒绝，仅给该次进程使用Bypass后通过，未更改全局策略。
+
+**交付与限制**：新安装器`.local/releases/structured-reading-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe`，38613199字节，SHA256 `d7419a151355bdbf409b7e3b4c1e01cf1a5a875e33ef52b04d68959aeb914cf2`。已保存本地delivery/冻结/PS/宿主报告；未替用户安装，未执行新版完整安装卸载或干净机测试。章节/表格仍为启发式，无OCR/通用复杂公式表格保证。新Prompt两篇全文真实API生成、全文长章节响应与用户原生反馈待验收，本轮新API调用0。四份外部原文路径不可用。本轮未Commit/Push；最终内容扫描和文档一致性收尾另补记。
+
+**11:10 收尾补记（Asia/Shanghai）**：502 个源码候选文件经路径核对与 Gitleaks 内容扫描通过；146 Markdown/493 本地链接/88清单资产及 LF 哈希通过，只有四份已登记外部原文不可用。git diff --check通过，安装器复制后哈希与delivery一致。私人资料、运行库、响应和安装产物均留在忽略的.local，不进入源码。本轮未暂存、提交或推送；下一步等待用户安装后反馈并在R5验证新Prompt全文真实生成，不进入下一Phase。
+
+## DEV-0039 — 2026-11-03 12:56（Asia/Shanghai）：移除整合/选择上下文预算并续用检查点
+
+**目标与根因**：用户报告“选择上下文超过预算，保留整合检查点；未截断必要支撑”，要求不要设置上下文预算。实际是 reading_pipeline.py 在 P13 模型调用前硬拒超过48000字符；P12另有26000/24000字符、60候选及20窗口限制。完整支撑会放大单元输入，增加模型输出额度不能解除本地门槛。
+
+**改动**：reading_pipeline.py移除上述预算，新finish plan记录complete-context-v1，P12全候选/完整引用证据一窗，P13全部单元一次；旧reading_windows优先读，旧签名与P13八单元分组保持，成功检查点不重调。来源/Schema/路径/版本/取消与真实端点能力、有界超时仍生效。新增test_reading_complete_context.py并更新旧大支撑测试，覆盖69候选、68有效支撑、超24K证据/48K选择、161根、旧P13第二组失败续接和真实错误类别模拟。同步README、AGENTS、docs02/05/06/导航/清单及ADR0015；实际报告见[完整上下文验收](docs/complete-context-verification-20261103.md)。
+
+**实际验证**：只读备份正式库，副本找到2预算失败任务，P02为15/15和34/34；P12的4/4与10/10检查点全可复用，P13最大116934字符。无网络Probe保留历史签名，零P02/P12调用直接到87342/52592字符的P13调用边界后主动停止；旧知识/来源表/原ModelRun及冻结计划保持，正式库/PDF/Zotero/凭据未改。真实模型调用0，不记为真实P13选择通过。
+
+最终完整Python **287 passed/2 skipped**（OS符号链接权限限制）；首轮286/1fail/2skip为新增测试回调访问离开Session的ORM对象，保存原始ID后9项定向及最终全量通过。47 React、9 Rust单测+1真实打包宿主集成通过；Ruff/格式/mypy72源文件/pip、前端types/lint/Prettier、PyInstaller/Tauri/NSIS、冻结引擎smoke、PowerShell5.1 EnginePath五项通过。实际命令与警告见报告，前端单chunk>500KiB提示仍保留。
+
+**交付与下一步**：`.local/releases/complete-context-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe`，38609403字节，SHA256 `d579365a3129fcea4456a15f78071c5454076a5ca74e1640d8a85c7d9761667d`。用户安装后直接继续原失败任务，复用抽取/整合并调用真实P13；未替用户安装或完成干净机/真实选择验收。四份外部原文路径不可用；仍在R5，不进入P4/P5。未暂存/提交/推送，末次安全与文档检查另补记。
+
+**12:57 收尾补记（Asia/Shanghai）**：505个源码候选文件经路径检查及Gitleaks扫描通过；148 Markdown/508本地链接/88清单资产核验通过（四份已登记外部原文不可用），git diff --check通过。安装器复制后长度/哈希与delivery.json一致，冻结smoke、PowerShell、宿主、最终Python和匿名检查点报告已配对保存在本机release目录。暂存区为空，无Commit/Push；最终真实P13和安装体验待用户反馈。
+
+## DEV-0040 — 2026-11-03 13:55（Asia/Shanghai）：P13 JSON 严格解析与原响应恢复
+
+**目标与根因**：用户报告 Expecting ',' delimiter: line 1 column 4359 (char 4358)。正式库只读备份定位到P13第5组：P02已34/34、P12已10/10、前4组P13成功；原4359字符响应的末字段coverage_gaps字符串数组漏一个 `]`，最终根 `}` 已存在。历史无timeout/output_limit错误，但未持久化finish_reason，不反推为stop或输出上限不足。
+
+**改动文件与决定**：新增reading_json.py，只有该唯一语法形态可插一个 `]`；P13正常及恢复后解析均拒绝重复键/NaN/Infinity。reading_validation.py使用严格加载器，完整Schema/版本/来源校验不省略；reading_pipeline.py成功保存检查点时清空旧error、设置finished_at。extraction_repair.py提供不回显正文的中文诊断，providers.py为新调用保存真实结束原因。新增test_reading_selection_json.py的30项边界/恢复回归。新增ADR0016、实际报告；同步README/AGENTS、Schema/Prompt/安全/计划/导航与续接模板。原Prompt/领域/head0011及完整上下文策略不变。
+
+**实际验证**：隔离副本精确复用P12的10/10及前4个P13检查点，第5组原响应零调用重验，8建议/10缺口保持；原ModelRun变succeeded且error清空、raw/usage/transport不改，仅新增该组selecting检查点。在第6组无网络Probe边界停止，真实API调用0，不代表后续真实选择通过。其他数据表、旧检查点、其他任务/运行、目标冻结计划/windows/result保持；正式库/PDF/Zotero/凭据未改。
+
+scripts/check-phase0.ps1首轮311 Python/2跳过、47 React及静态/依赖/契约/前端构建通过；独立审计发现普通P13解析重复键可覆盖后收紧并加6项，最终pytest全量**317 passed/2 skipped**，Ruff/格式/mypy73源文件再次通过。9 Rust单测、另行1项打包宿主连接/退出/重启、冻结引擎smoke及PowerShell5.1 EnginePath五项通过。首次用PS5.1调用无BOM UTF-8构建脚本在解析阶段失败，使用项目pwsh构建成功；未更改系统策略。Starlette/httpx弃用与前端大chunk提示保留。
+
+**交付与限制**：`.local/releases/selection-json-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe`，38613488字节，SHA256 `be5a49d39aa8707781e1f0346c7cb92970f4f660209ce949ea1abcf8fe675420`。未替用户安装/卸载、未执行干净机或新包完整安装验收，未使用Computer Use。用户安装后在原任务继续未完成批次，后续真实请求费用按供应商计量；无需重抽。四份补充原文路径不可用限制保留，仍在R5、不进入P4/P5。未暂存、Commit或Push；安全/文档最终检查另补记。
+
+**13:59收尾补记（Asia/Shanghai）**：最终严格解析代码在13:57取得的新鲜正式库只读备份隔离重放再次通过，真实API调用0；报告包含strict_json_parser_recheck。509个源码候选文件经路径规则与Gitleaks内容扫描通过，150 Markdown/522本地链接/88既有清单资产核验通过，四份登记外部原文不可用如实保留。git diff --check通过、暂存区为空，安装器复制后长度/哈希与delivery一致。最终回归/构建/冻结/PS5.1/宿主/匿名恢复报告已配对保存至本机release目录；私人库、响应和安装产物不进入源码。未Commit/Push。
+
+## DEV-0041 — 2026-11-03 16:10（Asia/Shanghai）：语义协议、严格输出路径与统一阶段恢复
+
+**目标**：实施用户提出的四项改造，减少模型重复生成程序已知信息，明确严格/兼容输出能力，将确定性支撑组图交回程序，统一新响应及历史缓存的成功资格。继承已有结构解析、完整上下文和P13限定恢复改动，不重建工程、不进入P4/P5。
+
+**修改文件与架构**：新增 reading_transport.py、reading_prompt_contract.py、reading_finish_wire.py、reading_finish_semantic.py、reading_stage_validation.py、structured_output.py，以及独立的P02_compact_v4/P12_associations_v1/P13_ranking_v1模板。新任务冻结reading-semantic-1/semantic-reading-1，程序绑定文献版本、批次和短编号，Prompt生成块自动核对真实Schema。providers/chat_stream/model_settings冻结输出策略、转换审计及拒绝分类；只对已登记官方精确端点/模型启用native strict，兼容json_object不伪称严格，不付费探测或自动降级。
+
+reading_store/selection由程序沿所有合法支撑路径形成单元，P12只补关联/重复，P13只给贡献建议；新contribution_order/一基名次经密度/显示偏好重发保持，旧默认指纹不改。首次失败可发布通过来源门槛的provisional/pending/partial候选预览，已有图保留，可信来源冲突禁止预览。extraction/unified_extraction/reading_pipeline共用终验；坏响应分类排除，可信context变化保留历史status/error/finished_at，仅记录复用诊断并停止，不因继续再次付费。KnowledgeStore仍为唯一知识写入口，head0011/领域1.0不变，旧计划/Prompt/签名/检查点不切换。
+
+前端GraphWorkspace/JobHistory/ModelSettings和运行契约增加临时图谱标识、整合/排序进度、失败原因/下一动作及真实调用统计，历史无attempts次数单列未知；整合/失败阶段Token纳入统计。新协议/Provider/Prompt漂移/阶段终验/语义端到端/真实投影和React回归已补充。ADR0017、README、AGENTS、docs00–09/API/模板与本轮验收报告同步；参考契约与运行协议保持区分。
+
+**实际命令与结果**：Conda researchgraph-studio绝对解释器运行，pwsh scripts/check-phase0.ps1最终全量457 Python passed/2 skipped、59 React通过；Ruff、143文件格式、mypy79源文件、pip、契约、TS/ESLint/Prettier和前端生产构建通过。pnpm --dir apps/desktop test:browser为3项真实React Flow通过；cargo test为9单测通过，打包宿主另用RGS_TEST_ENGINE_PATH执行1项连接/退出/重启通过。pwsh scripts/build-windows.ps1构建PyInstaller/Tauri/NSIS成功；scripts/smoke-engine.py冻结引擎通过；PowerShell5.1 verify-windows-install.ps1 -EnginePath五项通过，子进程PATH仅System32。全量前新增测试import排序已修，既有httpx弃用和前端大chunk提示保留。完整命令及边界见docs/semantic-reliability-verification-20261103.md。
+
+**隔离核验与数据保持**：只读备份三个新副本：旧任务P12的10/10及前4P13检查点保持，第5原响应按ADR0016完整重验后保存检查点/清错，第6组64195字符请求边界主动停止，P02/P12不重跑；原raw/usage/传输/来源/知识/其他运行及冻结计划保持。新语义副本分别在186候选/651证据首次失败保守展示51根、140候选/69证据已有图保留原21根，均明确pending/partial。真实调用0，正式库写入0，PDF/Zotero/凭据不改；合成provider另证实响应后锚点变化拒绝入库、保留received/raw/attempts，继续不新增调用。不能把注入超时或NoNetwork边界当模型抽取成功。
+
+**安装与未验收项**：.local/releases/semantic-reliability-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe，38652410字节，SHA256 f949240aa7394753e2680d5f4f81ef7aedf15267182467e9412a0cbb07da6393。安装器与delivery/最终日志/匿名报告配对，仅本机保存。未替用户安装/卸载、未用Computer Use、未做干净机认证；真实strict API、新模板两篇全文及科学质量/原生体验待用户验收。四份外部原文路径不可用，不能重新核验。本轮未暂存、Commit或Push，末次安全/文档检查另补记。下一步仅R5真实全文、失败继续与安装反馈，不进入P4/P5。
+
+**16:14 收尾补记（Asia/Shanghai）**：525个源码候选文件通过路径规则与Gitleaks内容扫描；155 Markdown/549本地链接/88既有资产LF哈希核验通过，四份登记外部原文不可用单列。git diff --check通过、暂存区为空；安装器长度/哈希与构建源及delivery一致，最终安全和文档检查与回归/构建/匿名报告配对保存到本机release目录。无真实请求、正式库写入或Git上传。仅剩新模板真实全文、严格输出和原生安装反馈，未进入下一Phase。
+
+## DEV-0042 — 2026-11-03 16:53（Asia/Shanghai）：图谱颜色、多论文、全屏与工作区整理
+
+**目标与反馈**：用户已真实安装跑通3篇，记为用户反馈，不冒充独立全文科学质量/strict测试。本轮仅继续R5：修复白节点、全项目仍只见一篇、增加图例/全屏，移除重复任务区并按搜索→图谱→候选选项整理界面。
+
+**改动文件与原因**：ForceGraph原只配置5类背景，其余6类露出默认白底；新增graphAppearance.tsx/.css统一11类/未知回退与中文标签、横向GraphLegend。GraphPanel.tsx/.css提供全屏/Esc/焦点约束/滚动恢复且保留画布DOM。GraphWorkspace.tsx/style.css整理搜索筛选及末尾全部论文选项，读取论文全部分页，optionsPaper独立filter；GraphExplorer.tsx移除JobHistory，Papers的任务记录和推理历史保持。ForceGraph范围变更/显式fit在新结果后更新相机，轮询/resize不打断，固定位置不改。reading_projection.py改paper-round-robin-1，单篇交替结论/支撑并轮换论文，避免首篇占满60主节点；cursor绑定图版本，失效可回第一页，has_more不冒充partial。没有数据库迁移或知识写入。相应React/后端210节点/真实浏览器测试、README/AGENTS、docs04/06/07/API/导航/进度与实际验收报告同步。
+
+**实际验证**：Conda绝对解释器运行check-phase0，460 Python passed/2 skipped（OS符号链接权限），Ruff/144文件格式/mypy79源文件/pip/契约通过；首轮前端lint检出新增memo依赖不匹配，修复后pnpm format:check/check/test/build:web全部通过，76 React。真实Edge/React Flow最终8passed，含11色/未知、悬停拖动、固定、共享支撑、范围fit、3篇两页文献/筛选恢复、页末独立、全屏DOM/坐标/尺寸与Esc。首次竖排图例使全屏高度变小，已改横排并重验。9 Rust单测+1打包宿主、冻结smoke及PowerShell5.1隔离EnginePath五项通过。build-windows成功后为包含最终memo修正再打NSIS；直接tauri一次因当前shell无cargo在编译前退出，按既有脚本补进程PATH后成功，不改系统。保留既有httpx弃用/大chunk提示。
+
+**交付与限制**：最终安装器`.local/releases/graph-workspace-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe`，38659968字节，SHA256 `d75462a2df3d19ff76ca1a2d2212fd34808a7e1243d42533b3cbfc3ed08f534f`；最终NSIS退出0后复制/核对，delivery/全部日志/合成截图配对。没有真实API调用、正式库或私人原文访问，不替用户安装/卸载，不用Computer Use；用户新包原生反馈、科学质量/strict及干净机仍有待验收项。四份登记外部原文仍不可用。保留全部原未提交成果，暂存区为空，未Commit/Push；下一步仅用户原项目三篇/颜色/全屏反馈，不进入P4/P5。最终敏感与文档收尾另补记。
+
+**16:54 收尾补记（Asia/Shanghai）**：537个源码候选文件经路径规则与Gitleaks内容扫描通过；156 Markdown/554本地链接/88资产LF哈希核验通过，只有四份既已登记外部原文不可用。git diff --check通过，暂存区为空；最终安装器长度/哈希与构建源和delivery一致。安全、文档报告与最终回归/浏览器/包/宿主/冻结/PS日志及合成截图配对保存，私人资料/运行库/安装产物均在忽略的.local。未Commit/Push，不要求用户重抽三篇论文。
+
+## DEV-0043 — 2026-11-03 17:16（Asia/Shanghai）：P4 Query / P5 Lint-Wiki实施与验收规划
+
+**目标与范围**：按用户“先制定”要求，仅规划P4/P5具体任务、实现方法、顺序及验收，实际工程保持P3/R5，不自动启动后续开发。
+
+**修改文件与内容**：docs/06_development_migration_plan.md新增Q01–Q08与L01–L04/W01–W05，共17项；逐项列实现/交付/验收，补齐运行契约缺口、拟定API、真实/离线/原生分层验收和阶段退出条件。Query覆盖完整候选/原文，默认只读、保存显式经Store；Lint先确定性规则/依赖，再P09语义建议；Wiki按P10有据段落、受管渲染/授权导出、持久发布账本、P11局部差异推进。授权撤销穿透综合/缓存/草稿，零字节及其他私人文件同样受冲突保护，无人工审核。README、docs/README、docs/07_api_and_events及progress同步入口和“仅计划未实现”状态，不改运行契约。
+
+**只读审计发现**：现有FTS仅knowledge_nodes.text，原文/表格/中文/笔记无完整索引；现有候选召回仅Comparator。ModelRun强制单文献，跨篇问答/整理须加项目级scope与来源manifest；KnowledgeStore.event会推进GraphRevision，执行审计不能直接沿用。依赖表尚非逐段反向追踪，参考RetrievalHit不含note/wiki、ReadingSynthesisDraft单selection_revision不足多篇、LintIssue缺规则/诊断生命周期、批注comment无法直接套note依赖，均列入前置契约任务。
+
+**验证与限制**：本轮规划以只读代码/Schema/Prompt审阅及文档一致性核验为依据；未执行P4/P5实现、真实模型、正式库迁移/写入或安装构建。并行辅助复核另重跑既有160项Python、76React、8浏览器回归，无代码改动；这些不是P4/P5新功能验收，不据此标后续Phase已通过。所有旧工作区成果保留，无暂存、Commit或Push。四份外部原文路径不可用，未虚报复核。最终文档编号/链接/资产哈希与敏感内容结果收尾补记。下一步须按后续明确开发任务推进Q01，不在本轮实施。
+
+**17:17 收尾（Asia/Shanghai）**：Conda解释器执行`.local/p4-p5-plan-20261103/check_docs.py --refresh`、17项任务编号/顺序/状态一致性检查及`scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe`通过。156 Markdown/561本地链接/88资产LF哈希一致，四份登记外部原文不可用；537源码候选路径/内容扫描通过。独立审阅收紧合法跨篇引用、零字节文件保护和授权撤销穿透衍生对象的验收措辞。未改运行实现、未新调用模型或构建安装器，暂存区为空；规划不是后续Phase实测完成。
+
+## DEV-0044 — 2026-11-03 17:38（Asia/Shanghai）：Query读取Wiki状态与问答沉淀/Obsidian职责
+
+**目标与设计修正**：回应用户关于Wiki是否为图谱、Query该读什么/保存到哪里以及Obsidian内容如何Lint的疑问。上一版Q03把Wiki消费推迟到P5以后，现改P4先有最小文档registry/只读快照/段落manifest/状态，P5复用并完成生成/渲染/安全发布；没有Wiki不阻塞原文问答。
+
+**修改文件**：新增docs/adr/0018-query-wiki-and-obsidian-lifecycle.md，更新AGENTS、docs00/01/02/03/05/06/07/08、docs/README、progress及本日志。Wiki是有据阅读文档，图谱是结构化论文知识视图，Obsidian是可选受管文件与独立私人资料；同一Store无平行科学库。保存Query新增有归属/根依赖的阅读综合，不改原论文Claim，文档更新/导出另行明确。内容有效性与磁盘同步/草稿状态分开；文件缺失不否定内部有效内容，外部编辑不继承旧证据，Query需明确所读版本。Lint分知识/依赖/受管文件/私人只读材料，文件hash与语义过期分开，不能把私人笔记缺元数据判为科学错误。补循环自证/重复支持/撤权穿透及外部手改验收。
+
+**验证与范围**：只读复核既有规范与独立审阅；17项任务编号保留，各阶段任务和退出条件同步。本轮不改运行代码、参考/运行Schema或Prompt、不迁移用户库、不调用模型、不构建安装器或操作Obsidian；保留全部原工作区成果，无Commit/Push。文档脚本及最终实际结果收尾另记，四份原文路径不可用。当前软件仍为P3/R5，新增边界不宣称P4/P5已有功能。
+
+**17:39收尾（Asia/Shanghai）**：Conda解释器执行文档refresh、17项任务及P4 Wiki消费一致性、源码路径/内容Gitleaks核验通过；157 Markdown/573本地链接/88资产LF哈希、538源码候选文件通过，四份外部原文不可用如实保留。独立审阅补明Q07内部登记已验段落与P5主题生成/增量重写/渲染/发布分工。git diff --check、暂存区检查完成后收尾；没有应用功能变更，因此不重跑应用测试，不将本轮文档检查算作Query/Wiki实测。
+
+
+## DEV-0045 — 2026-11-03 21:32（Asia/Shanghai）：图谱驱动的阅读生命周期与开发计划重写
+
+**目标与范围**：按用户确认的论文→知识图谱→Query→显式保存综合→Wiki→授权MD/Obsidian、Lint横向诊断流程，重写计划并同步项目介绍。只调整文档，不开始P4/P5实现，保留全部原未提交工程成果。
+
+**修改文件与内容**：README.md新增全流程Mermaid及职责/沉淀位置；docs/README.md与01_product_design同步；06_development_migration_plan按当前资产、R5收尾、完整生命周期和17项P4/P5任务重排，增加图谱路径扩展/条件补全对照、衍生图层回溯、按结论单元组织Wiki及Lint结构/依赖验收。docs00/02/03/04/05/07/08、ADR0018、AGENTS及协作/续接模板统一组织层与画布、科学边/导航/衍生引用、默认只读和保存/文档/文件的独立边界。P4最小文档状态/只读adapter前置，P5复用registry。
+
+**只读核对与风险**：现有ReadingUnit/Member、SourceAssertion、support_paths/form_units、证据与条件校验可复用；旧Comparator的3跳/100节点/48K限制不直接继承，新Query不从画布60/120节点分页取全集。knowledge_fts仅索引knowledge_nodes.text；ModelRun强制单文献，Store.event及Obsidian新增快照会推进GraphRevision，计划要求先解决项目多源scope和执行/科学修订耦合。来源身份可验证不代表科学结论真实，无人工审核队列，私人材料默认只读且授权用途分离。
+
+**验证与下一步**：本轮仅做文档/一致性、资产哈希、源码保持及敏感检查，实际命令/结果收尾补记；不运行应用测试、读用户库/私人论文、调用模型或构建安装器，不把历史成绩当本轮验收。四份外部原文路径不可用，不能复核。实际阶段仍P3/R5；先完成新包原生反馈、全文质量/失败继续等剩余验收，后续明确开发P4时从Q01开始。无暂存、Commit或Push。
+
+
+**21:44收尾（Asia/Shanghai）**：Conda环境绝对解释器执行`.local/lifecycle-plan-20261103/check_docs.py --refresh`与`check_plan.py`，17项唯一有序任务/非空实现验收列、流程图围栏与介绍锚点、284个非文档文件逐字节保持、暂存区及git diff --check通过；157 Markdown/591本地链接/88资产LF哈希通过。首次源文件保持检查因Windows反斜杠误把docs计入源码范围而报变化，规范化路径后通过，没有实际源码变化。`scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe`对538源码候选内容/路径扫描通过。独立复核后补明无结论单元的合法原文/候选仍可Query/Wiki，Zotero评论使用独立note/annotation快照来源，外部MD明确登记不继承系统证据或写权。图形仅作Mermaid源文本/基本结构检查，未执行渲染器或应用回归；四份外部原文不可用。无API调用、迁移、打包、暂存、Commit或Push。
+
+
+## DEV-0046 — 2026-11-03 23:42（Asia/Shanghai）：R5路径与证据感知选择、真实质量失败及本轮交付
+
+**目标/范围**：完成R5剩余验收，不进入P4/P5；保留全部原未提交工程成果。用户本轮确认上一安装包五项原生全部通过，之后明确选择“先交付本轮结果，稍后更换模型验收”。因此停止进一步付费调用，不将未通过的科学质量写成R5完成。
+
+**修改文件**：reading_support/reading_store.form_units/reading_selection/reading_finish_semantic/reading_finish_wire/reading_stage_validation，新增reading_evidence_quality和P13_reading_ranking_v2，及相应engine测试；e2e graph/workspace/合成布局服务；verify-windows-install、smoke-engine、CI真实Edge步骤；AGENTS/README/docs导航、03/05/06/08/协作续接模板、ADR0019/0020、progress及实际R5报告。程序冻结关系manifest，完整路径复验并保留response_invalid=false历史状态；新P13核对全部引用原文/疑点/排版风险，旧无ranking_prompt计划继续v1。核心拒绝全碎片依据，支撑疑点汇总limited，needs_context/insufficient_support标insufficient；安全Schema诊断有界且不回显私密输入。无DB迁移/head变化或人工审核。
+
+**实际命令与结果**：最终pwsh scripts/check-phase0.ps1退出0，547 Python passed/2 skipped、76 React，Ruff/格式/mypy/依赖/契约/前端静态与生产构建通过；pnpm --dir apps/desktop test:browser --reporter=line本轮10真实Edge/ReactFlow通过（前端此后未改）。build-windows证据最终版退出0；Rust fmt/clippy/9单测与独立packaged host1通过，最终冻结smoke和PowerShell5.1 EnginePath+自造two-pages.pdf 16项通过。保留已有httpx弃用/大chunk提示，符号链接权限两项跳过，不冒充干净机安装。
+
+**真实验收与发现**：只读正式库备份写隔离副本，P02两篇6/6、15/15完成；原6批通过新签名/原提交操作引用保留，none配置只处理9个未完成叶，原max任务/计划/raw不改，不宣称产品已有任意配置切换按钮。87/256本轮候选的186/426证据链接版本/坐标/quote/hash检查0错误；但第二篇32条不受原文语义支持、2条上标展平错数。补P13v2原文与排版上下文后，两篇各2次仍因冲突/重复编号或额外字段失败，未发布新选择、旧图保留；无删字段、合并冲突建议或改数值伪造成功。第一篇旧v1 15核心/50支撑、80合法成员链仅有限正例，另有同义重复和疑点支撑。新layouthelper命中真实上标块，风险识别不等于修正科学含义。
+
+**调用与数据**：主验收32次，已返回prompt1063689/completion265842/total1329531（reasoning158591）；并行误调度2次P12精确停止，一次180秒超时、一次等待中止，用量/费用未知。共34已知发出，金额未提供；本轮已停止后续收费。415条原知识/95条原raw逐行保持，4源hash相同，SQLite integrity/foreign_keys通过，正式库写入0。私人标题/原文/原始响应/质量逐条清单仅忽略.local，不进源码。
+
+**交付/未完成**：.local/releases/r5-final-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe，38674011字节，SHA256 dc5a1ab1c8961947dc51a5a4acf31fc812a6f4c22f244a82ce62579b4d84d6bc，与最终源匹配；新包原生待反馈。真实strict/干净机/四份不可用外部原文未验收，R5仍待换模型后P13终验、已知语义错误过滤/同义代表/必要条件与支撑质量复核。未经新授权未Commit/Push、远端CI未执行。最后安全/文档/暂存区核验收尾另记。
+
+
+**2026-11-03 23:45（Asia/Shanghai）收尾：161 Markdown/613本地链接/88资产LF哈希通过，四份登记外部原文仍不可用；544源码候选内容/路径及Gitleaks通过，git diff --check通过、暂存区为空。最终安装器副本与构建源长度/hash一致，离线日志与匿名结果封存；未Commit/Push，真实P13未过且用户选择稍后换模型，不进入下一Phase。**
+
+
+## DEV-0047 — 2026-11-04 10:31（Asia/Shanghai）：程序绑定贡献评估槽位与有界恢复
+
+**目标与责任**：按用户“应该修复软件连续返回冲突编号或额外字段，而不是换模型”的纠正，修复P13协议、恢复与兼容续接。仍在P3/R5，不进入P4/P5，保留全部原未提交成果；本轮没有新增真实模型调用或正式库写入。
+
+**根因与修改文件**：只读复盘上轮4份响应，旧数组要求模型重复抄编号，精确覆盖/唯一性仅后置Python检查；有相反建议、遗漏、重复及未知根字段。新增reading_ranking_wire、P13_reading_ranking_v3、reading_ranking、reading_finish_upgrade及对应测试；修改reading_finish_semantic/extraction/providers/reading_mock/models/app与JobHistory。运行Schema固定assessments完整required短编号，建议/理由复用领域约束，priority严格0–100整数，程序稳定排序；Schema与Prompt同源。外壳合法才独立保留合法槽位，均为私有检查点；修复只输出未完成槽位，保留全文/所有单元/疑点/排版及已完成建议。全部完整后终验与Store再验，不删未知字段、不合并冲突或伪造结果。
+
+**费用与历史兼容**：发送前持久账本，每构建最多2请求含超时/投递不明，底层max_attempts=1；继续重解原raw和哈希/配置/manifest/来源，不重发已消耗槽位，耗尽后零追加调用。修改误导“批次将缩小”的总超时提示，前端分别显示抽取和贡献评估进度/修复/停止原因。旧v1/v2计划、签名、raw、历史ModelRun参数保持；原selecting失败可独立v3后继，逐级核验显式P12 adoption链并经Store采用，新增诊断写后继。两篇隔离真实旧任务mode=ro核验均available、integration_input精确一致、session无改动，第一篇祖先真实run、第二篇本任务run，未输出私人原文。无迁移、head0011/领域/入口不变。
+
+**文档与验证**：新增ADR0021及ranking-protocol-verification-20261104，更新README、AGENTS、docs导航/02/03/05/06/08/协作模板/续接/progress和历史报告后续说明。最终pwsh scripts/check-phase0.ps1：623 Python passed/2 skipped、80 React；Ruff/格式/mypy83源文件/依赖/契约/前端静态与生产构建通过。最终恢复/升级47项另复验，wire/恢复/预览48项针对检查通过；10真实Edge/ReactFlow通过。Rust fmt/clippy与9单测、1冻结宿主独立通过，build-windows的PyInstaller/Tauri/NSIS退出0；最终冻结smoke明确键控协议/全槽位及重启，PS5.1 EnginePath+自造two-pages.pdf 17项通过。首轮607过/1失败为旧投影fixture未识别新title，扩展显式自造fixture后修复；首次PS调用漏写pdf子目录，改参数/新隔离目录后通过。保留失败日志及已有httpx弃用/大chunk提示、两项本机符号链接权限跳过，不冒充干净机或真实模型成功。
+
+**交付与未完成**：新包.local/releases/r5-protocol-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe，38,708,292字节，SHA256 a10e7b14dbb9d8f283d3e973ce79fab92980cc974ae89cc6f1e158405f53b37c；冻结引擎1879c766f393f6716ad83e7b9ca4aa594a5a69caa886b45ba13071b3d0c101d5。旧包/来源/知识/历史记录保留；退出软件安装后可保持当前模型，继续原失败任务，不需要删知识/重抽P02。没有替用户安装/卸载或Computer Use；本包原生/真实P13/32条语义无支持与2条上标误读过滤、同义代表/必要条件/支撑质量仍待复验，strict/干净机/四份不可用外部原文分别保留限制。553源码候选Gitleaks/路径检查已通过，文档/最终安全/交付核验另补记；暂存区为空，未Commit/Push/远端CI。下一步仅用当前模型验证新版续接和科学质量，不把换模型当软件修复前提。
+
+**10:33（Asia/Shanghai）收尾**：最终553源码候选内容/路径与Gitleaks、164 Markdown/632本地链接/88资产LF哈希通过，四份外部原文仍不可用；git diff --check通过、暂存区为空。最终安装器副本与构建源、delivery元数据hash一致，核心改动文件时间早于引擎构建，自动化/浏览器/打包/冻结/PS5.1日志与匿名结果配对封存。没有追加真实请求、Commit/Push或远端CI；保留所有原未提交成果及历史安装包。
+
+## DEV-0048 — 2026-11-04 11:11（Asia/Shanghai）：历史抽取错误与续接结果反馈
+
+**目标与实因**：处理用户再次报告的`items.1.Claim.kind_note_unused (extra_forbidden)`及点击继续无响应。仅SQLite mode=ro核验状态/协议/计数及字段类型，不输出私人标题/原文/raw；这是旧P02v2任务第3次失败31/34、字段为Claim上的null，其P02v3独立后继已11月3日成功34/34并发布。后端再次操作正确返回同一成功后继，界面丢弃返回Job只刷新历史，原失败行自然不变，造成无反馈。现有精确null兼容已生效，不放宽Schema、不重抽成功内容。正式库写入0、真实模型调用0。
+
+**修改文件与行为**：JobHistory.tsx/.test.tsx、api.ts显示提交中/实际后继状态/查看续接结果，同步列表与单任务缓存；分页外后继单独可见并每1.5秒GET实际状态，终态停定时，刷新失败保留结果。成功+pending排序不冒充完成；原错误/raw保留。独立复核发现queued→failed文案误称未处理，改中性错误提示；在途GET可能覆盖cancelled，现写操作结果前await取消该精确查询，并回归旧queued缓存覆盖成功。test_reading_upgrade补旧null响应零抽取复用及多新幂等键重试同一成功后继/历史不变。同步API/07、AGENTS、docs导航/续接模板/progress及history-retry-verification-20261104。无后端运行代码或架构/Schema/Prompt变更，无新ADR/迁移，head0011/领域1.0不变。
+
+**实际命令与验证**：Conda researchgraph-studio绝对解释器专项17项通过。pwsh scripts/check-phase0.ps1退出0，625 Python passed/2 skipped、初轮88 React；Ruff/154文件格式/mypy83源文件/依赖/契约/前端静态与构建通过。最终两项前端修正后pnpm format:check/check/test/build:web全部重跑通过，90 React（任务历史32项、新增10项）。pwsh scripts/build-windows.ps1的PyInstaller/Tauri/NSIS退出0；最终冻结smoke及PowerShell5.1 EnginePath+tests/fixtures/pdf/two-pages.pdf独立数据17项通过，子进程PATH仅System32。无图谱/宿主改动，本轮不重复浏览器/Rust回归，上一轮结果不冒充本轮。保留既有httpx弃用/大chunk提示和本机文件链接权限两项跳过。
+
+**交付与限制**：.local/releases/history-retry-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe，38,710,564字节，SHA256 d5320ac80159fca0ead50da3298c5f7e52352f226cc733126a62aba2bbbad34c；引擎1879c766f393f6716ad83e7b9ca4aa594a5a69caa886b45ba13071b3d0c101d5与上轮相同。退出软件安装后从原任务查看成功续接，不需删知识/重新抽取；不替用户安装/卸载，不使用Computer Use。保留全部原未提交成果、私人PDF/Zotero/Obsidian/用户知识与历史安装包。实际仍P3/R5，本包原生反馈、真实P13/科学质量/strict/干净机待验收，四份外部原文路径不可用如实保留。无Commit/Push/远端CI；最后敏感/文档/交付校验另补记。
+
+**11:13（Asia/Shanghai）收尾**：554源码候选路径/内容与Gitleaks、165 Markdown/637本地链接/88清单资产LF哈希通过，四份登记外部原文仍不可用；git diff --check通过，暂存区为空。最终安装器副本与构建源长度/hash一致，前端运行文件冻结早于构建；交付清单及本轮专项/全量/最终前端/构建/冻结/PS5.1/安全/文档日志配对保存。本轮未新增真实请求或正式库写入、未Commit/Push，不因旧历史错误要求用户重抽。
+
+## DEV-0049 — 2026-11-04 12:49（Asia/Shanghai）：R5三项实际补验收
+
+**目标与授权**：按用户“进行R5实际剩下三项的检验”，验证当前模型P13v3、安全续接、已知科学缺陷和最新安装包。本轮明确任务授权有界真实调用，不沿用此前“暂停付费”的历史轮次状态；完成即停止。保留全部既有未提交成果，不进入P4/P5，无Commit/Push。
+
+**数据/执行**：正式库SQLite mode=ro备份，基线head0011/4论文/429节点/97模型记录完整性和FK通过，实验写入0。另复制前轮real-fulltext，复用6/6、15/15抽取以及经过终验的真实P12谱系；reading_finish_upgrade创建新v3后继，新后继尚未冻结/请求前显式绑定当前全局max配置并记录旧/新快照hash，原任务/计划/签名/raw不改。根代理独占发送，guarded runner禁P02/P12/探测，发送前fsync journal/两槽账本，每篇最多2、总4。实际上两篇各1次P13v3，38/105槽位一次通过、7/20单元发布，143.735/124.891秒；真实finish_reason=stop、SSE、180秒总时限内完成，无格式修复/超时/隐藏重试/自动降级。P02/P12新请求0，成功后再--resume新请求0。总2请求、prompt230245/completion46454/total276699，其中reasoning36867，金额未提供；不追加调用。
+
+**科学/数据复验**：32语义无支持+2上标误读均retrieval_only，不进核心/支撑；5同义组各1核心代表。7/20核心、30/98唯一支撑，36/232成员路径（5/138多跳）及候选/可见锚点错误0；343新P02候选全部保留并在选择快照，6主要贡献有代表、15参照组全可检索。条件2/17个，第二篇known15/unknown2，unknown数值/单位为空；可见Limitation2/7，全部成员issues进caveats，有限证据核心2/1均有提示。没有真实conflicting/not_applicable样本；22/45条coverage_gaps继续使图partial，排序complete不等于全文100%。独立只读代理再验P12祖先/输入及新旧快照、实际run/attempt/账本/raw哈希，旧16任务/127模型整行raw+parameters/758节点/来源/块/证据/解析全列逐行保持，原数据库文件hash和完整性/FK通过。4附件PDF哈希匹配；不同于S1–S4外部补充原文，后者仍不可用。
+
+**安装/回归**：最新history-retry包只解包，不执行安装器；SHA256 d5320ac80159fca0ead50da3298c5f7e52352f226cc733126a62aba2bbbad34c与delivery一致，7源码/289资源/引擎一致。桌面target与payload只有Tauri NSS/UNK标记3字节差异，双原始hash保留，不改二进制。实际PowerShell5.1 EnginePath17项、生产Host打包测试1项（两次握手启动停止）、合成0008/0009/0010→0011及两次启动通过，34/37/44旧表逐行不变且每库仅1份准确升级前备份。用户明确反馈新包原项目与证据可读、原失败继续显示成功后继、退出重开知识/任务三项全部通过，记用户反馈而非CUA实测。Conda解释器pytest五个ranking/recovery/upgrade/evidence/unused-note文件101通过；pnpm vitest JobHistory32通过，保留Starlette/httpx提示。无运行代码改动，不重复全量回归/打包，不冒充前轮625项等本轮重跑；未Computer Use/替用户安装卸载/写正式库。
+
+**修改文件与结论**：新增docs/r5-acceptance-verification-20261104.md，更新README、AGENTS、docs/README、06计划、progress、协作与下一轮模板及日志；规范清单/hash收尾刷新。私有脚本/备份/逐条报告只在忽略.local/r5-acceptance-20261104，不进源码。三项在本轮明确范围内通过，无新增阻塞缺陷；兼容提示路径实测不等于strict，干净机/复杂版面/全局准确率及S1–S4限制保留。P4/P5仍未开始，后续明确开发指令从Q01开始，不自动再收费。最后文档/敏感/diff/暂存区检查另补记。
+
+**12:53收尾（Asia/Shanghai）**：文档检查166 Markdown/642本地链接/88项规范资产LF哈希通过，S1–S4四份外部补充原文仍不可用；555源码候选内容/路径及Gitleaks通过，git diff --check通过（已有CRLF规范化提示保留）、暂存区为空。.local实验数据库/模型快照/安装产物忽略边界核验通过。匿名科学报告、安装报告、模型请求账本和真实用量与最终新报告配对留存；本轮实际仅2请求，成功后继续零请求，无正式库实验写入，无Commit/Push/远端CI。本轮到此停止，不进入P4/P5。

@@ -83,5 +83,45 @@ test("role selection preserves the other role and connection test uses the selec
     reasoning: "m",
   });
   await user.click(screen.getByRole("button", { name: "测试连接 Model" }));
-  await screen.findByText("真实模型连接成功；JSON 校验通过");
+  await screen.findByText(
+    "真实模型连接成功；固定测试 JSON 校验通过。连接成功不代表论文结构化抽取通过。",
+  );
+});
+
+test("compatibility JSON is an explicit request and never advertised as strict support", async () => {
+  const user = userEvent.setup();
+  vi.mocked(request).mockResolvedValue({
+    profiles: [],
+    roles: { extraction: null, reasoning: null },
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ModelSettings connected />
+    </QueryClientProvider>,
+  );
+  expect(
+    screen.getByText(/已登记支持严格 Schema 的端点与模型使用原生结构化输出/),
+  ).toBeVisible();
+  const jsonMode = screen.getByRole("checkbox", {
+    name: "兼容路径请求 JSON Object 模式（服务需支持）",
+  });
+  expect(jsonMode).toBeChecked();
+  await user.click(jsonMode);
+  await user.type(screen.getByLabelText("配置名称"), "Local");
+  await user.type(
+    screen.getByLabelText("Base URL"),
+    "http://127.0.0.1:1234/v1",
+  );
+  await user.type(screen.getByLabelText("Model ID"), "fixture-model");
+  await user.click(screen.getByRole("button", { name: "保存模型配置" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/settings/models",
+      expect.objectContaining({
+        parameters: expect.objectContaining({ json_mode: false }),
+      }),
+    ),
+  );
+  expect(localStorage.length).toBe(0);
 });
