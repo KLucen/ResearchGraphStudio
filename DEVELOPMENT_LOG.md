@@ -1325,3 +1325,15 @@ Host首次用裸cargo因PATH缺失没有执行，改绝对.cargo/bin/cargo.exe�
 **用户授权与顺序**：用户明确要求提交并推送GitHub，再尝试解决未达标内容。保留DEV0056的真实科学失败/部分支持、性能3.016秒、新包原生待反馈等事实；先扫描交付当前快照，再在P4优化，不进入P5。正式库不实验写入，不重新抽取或自动追加已结束的模型验收。
 
 **开始状态**：HEAD80552d3，既有P4未提交改动全部保留；SSH443官方通道fetch成功，origin地址及全局配置不变；候选源码618文件实际内容/路径/Gitleaks通过。性能与科学质量审查先在.local隔离执行，不改交付快照；提交/CI与后续实际修改/测试结果在本条后续追加。
+
+**11:08 实际结果（Asia/Shanghai）**：先经历史/内容/路径/104暂存文件Gitleaks与diff检查，将P4成果提交为8d67ed1并普通推送main；对应GitHub Actions 41954098280的windows与installed-app全部成功，含真实Edge/冻结引擎/Rust/NSIS/实际安装VerifyDesktop。未上传私人验收库/raw/PDF/凭据或安装产物。
+
+**改进代码**：query_graph仅取NodeEvidence必要两列；query_retrieval与unified_store减少本调用遍历、固定UUIDv5前缀及JSON编码器重复构造，不跨调用缓存、不减来源/权限/DTO/锚点/边验证。新增query_scientific_grounding.py、P07_query_grounded_v3.md及表示兼容/科学支撑测试，接入context/API/answers/answer_wire。新prepare冻结scientific_guidance，程序沿真实node/evidence/chunk及已检测表格组补合法根引用、绑定后再验归属，scientific_binding审计在GET/保存重建；不猜表列/公式。旧v1/v2 Prompt/hash/raw/答案不改，wire DTO不变、head0014无迁移。README、Schema/Prompt/API/安全/开发计划/导航/续接、ADR0028、进度与实际报告同步。
+
+**最终回归与性能**：Conda researchgraph-studio执行check-phase0完整退出0：934 Python passed/2 Windows符号链接权限跳过（402.45秒）、124 React，Ruff/198格式/mypy104源文件/依赖/契约/前端类型/lint/build通过。99科学相关与7表示测试交叠不累加；178运行源在全量前后及最终基准后一致。8场景完整响应、30001索引hash/字节、47来源表保持，FTS缺项恢复/恶意派生行清理/下次变源重验与Unicode身份兼容通过。保留候选P95=4.249及诊断2.240失败，不删慢样本或改GC/负载；所有构建/真实/冻结检查结束后一次串行原规格万候选/两万块基准cold1.457742秒、warm P50=1.229685/P95=1.583589秒（12样本nearest-rank，P95=max）。本机≤2秒目标达到，旧3.016278不改写，不宣称通用SLA；峰RSS275161088B、总库45969408B、FTS逻辑UTF8 3687347B，物理页未知。
+
+**真实定向补验**：从前轮只读备份建新副本，使用该基线冻结的全局Reasoning及OS凭据，仅内存处理密钥；正式库实验写入0，无论文重抽。执行前持久冻结2请求预算，两次P07v3成功/19段、0超时或Schema失败/自动重试。prompt304290、completion12881、total317171 Token（reasoning9243为细分），金额未知，预算结束不追加。独立审读q03为10支持，q07为6支持/3部分，共16/3/0；残余术语等同、组内扩大组间、跨页引用不足如实保留，程序补42个已有合法引用不算科学正确性证明。原十题64/7/1和v2补验5/1不冲销，raw正文不改。普通Query期间45来源表/GraphRevision/旧任务raw答案保持；两份显式保存、同/新键幂等及两次完整引擎重启通过，后续0模型调用。旧副本重新验证44来源表和旧十题/数值补验逐字保持、已知错数的新保存拒绝。
+
+**打包与限制**：build-windows完成PyInstaller/Tauri/NSIS，冻结smoke（本地合成协议）、Host1、PS5.1/System32-only PATH隔离17项通过；正常worker并发两启每轮7读200（0.078/0.078秒）、竞争写503 DATABASE_BUSY、47来源表及Query计数保持/0模型请求。并发脚本初次被旧BASE拒绝报告路径且未启动实验，迁入本轮独立BASE后通过，未放宽边界。新包.local/releases/p4-grounding-followup-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe，38839020字节，SHA256 23079790f3c7717e26cf9a9561b4b3308e039bd438554c7b60a6d2dc2b4d4e7d，引擎5534b788f4a5afda87c00bb3a1cfb35321486e46bf92d41a5a37c40bf32cd079。624源码候选内容/路径/Gitleaks已通过，最终暂存/文档/封存与优化提交CI随后追加。新包原生待用户反馈；科学3部分、真实strict、跨模型/平台、干净机、复杂版面无OCR与4外部登记原文不可用保留；不进入P5。
+
+**11:10 封存（Asia/Shanghai）**：178运行源与最终回归及新包一致，283资源与引擎副本逐字匹配，无私人运行资料；安装器及匿名delivery封存成功。624源码候选内容/路径/Gitleaks、24提交历史Gitleaks、183 Markdown/824本地链接/88规范资产LF hash及diff通过；4份外部原文不可用继续单列，不声称核验完成。

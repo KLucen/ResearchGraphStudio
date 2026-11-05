@@ -100,6 +100,8 @@ prepare.status为prepared/insufficient；prepared表示上下文已准备，不�
 
 2026-11-05 新 prepare 在 context 冻结 numeric_layout，并使用独立 P07 v2；旧无字段 context/v1 仍保持 hash 与请求槽。`QUERY_NUMERIC_LAYOUT_UNRESOLVED` 表示正文使用明确版式风险数字，保留 raw、不自动继续；版式来源变化按上下文变化拒绝。专用limitations仅作带跨度/哈希审计的危险token占位，不改正文/raw；完整已收响应可用时，显式恢复冻结原runID/rawSHA/plan及现有预算，provider/新槽前重验，不可复用零网络失败。只读 presentation 可显示 layout_warnings，不回写历史答案。没有新增 HTTP 操作、迁移或模型 DTO 字段，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
 
+后续新prepare增加版本化scientific_guidance并选择P07v3；旧无字段清单保持原计划。`QUERY_SCIENTIFIC_GUIDANCE_INVALID`表示真实角色/引用组与来源清单不一致，属于上下文问题，不能通过额外收费重发解决。答案绑定只补清单已有原文根及检测表格组，scientific_binding审计随GET/保存/恢复终验；不新增HTTP操作、审核流程或模型输出字段。见[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)。
+
 本地prepare和Store内部文档登记不等于回答生成或保存。P07需显式generate入统一Job，Q07经save入口再验后新增衍生对象；指定内部文档目标/基线与P5文件publish是不同动作。已实现的回答、历史、保存和衍生图接口见下节及[运行API](api.md)，后续任务与验收见[开发计划](06_development_migration_plan.md)。
 
 ## P4 回答、历史与保存接口（2026-11-04 / head0014）

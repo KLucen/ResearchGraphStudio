@@ -141,6 +141,8 @@ QueryRequest含project_id/question、paper_ids/document_version_ids、source_kin
 
 2026-11-05 新准备额外冻结 `numeric_layout`（`query-numeric-layout-1`）：按实际来源/Chunk/证据映射保留字号位移风险、压平数字和未知/部分覆盖。它属于版本化输入而非模型输出或科学知识改写；有字段时重建并终验，无字段的历史清单仍逐字保持旧 hash。新 P07 v2 与旧 v1 的 Prompt/计划分别选择，Schema `query-grounded-semantic-1` 和 head0014 不变，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
 
+后续新准备冻结 `scientific_guidance/query-scientific-grounding-1`：实际来源角色、原文根链接及已检测表格组；未检出结构为未知，不猜列或公式。存在此字段使用独立P07v3，旧仅numeric_layout仍v2、两者均无仍v1，输出DTO及head0014不变。绑定只补已存在合法根/表格引用，`scientific_binding`审计原/绑定引用与raw/guidance/结果哈希，GET/保存重算；不改原文/raw或把引用完整性说成语义证明，见[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)。
+
 QueryRetrieval / QueryPreparation 顶层可带 `presentation={hits,references}`。每个显示项包含title/original/summary_zh/summary_origin/paper_id/page_index/section_path；summary_origin仅在复用已有抽取译文时为extracted_translation。它是终验后的本地显示投影，不进入snapshot/manifest/input_hash，不改变历史检索或模型输入。中文缺失不是证据缺失，不由程序编造译文。
 
 GroundedQueryPassage、QueryAnswer、QuerySaveCommand用于Q05/Q07运行入口：段落引用唯一、个人归属与knowledge_status一致、不足必须说明；保存命令绑定source_query_id、answer_version_id、selected_passage_refs、expected_input_hash及显式文档基线。传输/身份/锚点终验不等于语义支持评价，真实回答质量和协议测试分别记录。

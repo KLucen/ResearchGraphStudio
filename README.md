@@ -2,7 +2,7 @@
 
 辅助阅读、理解和整理科研论文的本地桌面产品：以知识图谱组织论文结论及其支撑证据，逐步连接阅读、问答与知识整理。
 
-2026-11-05：用户反馈当前安装版数据/功能正常；本轮执行 P4 全面回归与两篇论文的真实问答验收，发现并补充数值版式保护及检索性能优化。新 Query 使用 P07 v2 和冻结的版式风险，旧 v1 数据/记录保持；新保存也检查已知错数。实际成绩、原失败样本、修复补验和新安装包状态见 [P4 最终验收](docs/p4-final-acceptance-20261105.md)、[ADR0027](docs/adr/0027-query-layout-aware-numerical-grounding.md)。本轮不进入 P5，也不自动提交或推送。
+2026-11-05：P4 已验收成果已按用户新授权提交推送为 `8d67ed1`，对应 Windows 构建及安装 CI 全部通过。后续改进全量 934 Python/124 React 通过，本机检索 P95 从 3.016 秒降至 1.584 秒；独立 P07 v3、冻结科学指导与可审计原文引用补齐完成，两次真实补验 19 段为 16 支持/3 部分，科学语义限制继续保留。旧 v1/v2、历史 raw 和答案保持，新包原生反馈另计。实际改进与优化提交 CI 见 [P4 改进验收](docs/p4-followup-verification-20261105.md)、[ADR0028](docs/adr/0028-query-scientific-guidance-and-citation-closure.md)；前次质量失败及数值保护见 [P4 最终验收](docs/p4-final-acceptance-20261105.md)、[ADR0027](docs/adr/0027-query-layout-aware-numerical-grounding.md)。本轮不进入 P5，私人资料和安装产物不上传。
 
 2026-11-04 最新修复：问答历史读取的数据库锁竞争已通过只读快照、后台任务认领及标准错误响应处理；失败可手动重读而不重发模型。新安装包/回归与原生反馈分别见[锁修复报告](docs/query-history-lock-verification-20261104.md)和[ADR0026](docs/adr/0026-query-read-snapshots-and-worker-locks.md)。数据库head仍0014，P5未启动。
 

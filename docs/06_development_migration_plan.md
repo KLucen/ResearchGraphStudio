@@ -2,7 +2,7 @@
 
 2026-11-04 当前：P4-Q01～Q07 已接入，Q08 正在修复安装后的来源显示、整组问答/导航与已保存内容批注/移除，Alembic head **0014**。决策见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮实际验收见[反馈报告](p4-query-feedback-verification-20261104.md)；前次交付见[P4实际报告](p4-query-verification-20261104.md)。P5 Lint/Wiki 未启动。
 
-更新：2026-11-04（Asia/Shanghai）。R5补验收成果已提交推送为 `80552d3`，对应远端CI成功；随后Query新增量没有再次Commit/Push。用户已安装前次P4包并反馈问题，本轮继续Q08修复与交付，不要求用户重抽论文或为显示摘要重新付费。下文保留完整验收门槛；历史成绩与本轮修复结果分别记录，未完成指标不作为成绩。
+更新：2026-11-05（Asia/Shanghai）。P4验收快照已按用户新授权提交推送为`8d67ed1`，本轮继续处理P95未达标及科学部分支持，见[P4改进验收](p4-followup-verification-20261105.md)和[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)。新增本调用表示优化及独立P07v3/冻结科学指导/可审计引用补齐，旧数据/Prompt/质量分母保留，不重抽论文、不进入P5。原验收及R5历史成绩不替代本轮最终共享源/真实补验/CI。
 
 ## 当前真实阶段与推荐路线
 

@@ -23,6 +23,7 @@ def build_context(
     *,
     model_snapshot: dict[str, Any] | None = None,
     include_layout: bool = False,
+    include_scientific_guidance: bool = False,
 ) -> dict[str, Any]:
     from researchgraph.query_documents import read_notes, read_passages, validate_dependencies
 
@@ -313,6 +314,10 @@ def build_context(
         from researchgraph.query_numeric_layout import freeze_layout
 
         manifest["numeric_layout"] = freeze_layout(session, refs)
+    if include_scientific_guidance:
+        from researchgraph.query_scientific_grounding import freeze_guidance
+
+        manifest["scientific_guidance"] = freeze_guidance(session, manifest)
     # Local context has no arbitrary character budget. If a known model capacity
     # is insufficient, stop with the complete context retained for inspection.
     estimated = math.ceil(len(str(manifest).encode("utf-8")) / 3)
@@ -355,6 +360,7 @@ def validate_context(
         retrieval,
         model_snapshot=model_snapshot,
         include_layout="numeric_layout" in manifest,
+        include_scientific_guidance="scientific_guidance" in manifest,
     )
     if current["input_hash"] != manifest["input_hash"]:
         raise KnowledgeError(

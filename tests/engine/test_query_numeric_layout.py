@@ -7,7 +7,7 @@ import pytest
 import test_knowledge
 from researchgraph.knowledge_store import KnowledgeError, text_hash
 from researchgraph.models import Chunk, Job
-from researchgraph.query_answer_wire import LAYOUT_PROMPT, PROMPT, bind_answer
+from researchgraph.query_answer_wire import PROMPT, SCIENTIFIC_PROMPT, bind_answer
 from researchgraph.query_context import build_context, validate_context
 from researchgraph.query_models import QueryModelRun, QueryRun
 from researchgraph.query_numeric_layout import (
@@ -100,7 +100,7 @@ def test_new_answer_refuses_flattened_value_keeps_raw_and_never_resends(seeded, 
     assert result.answer is None and not result.can_continue and provider.calls == 1
     with Session(engine) as session:
         recorded = session.scalar(select(QueryModelRun))
-        assert recorded.prompt_name == LAYOUT_PROMPT and text in recorded.raw_output
+        assert recorded.prompt_name == SCIENTIFIC_PROMPT and text in recorded.raw_output
         assert recorded.parameters["raw_complete"] and recorded.parameters["raw_sha256"]
     assert view(engine, qid).request_count == 1
     with pytest.raises(KnowledgeError, match="来源或配置冲突"):
@@ -120,7 +120,7 @@ def test_unambiguous_answer_remains_legal_and_records_layout_prompt(seeded):
     run(engine, enqueue(engine, qid), provider)
     assert view(engine, qid).status == "succeeded"
     with Session(engine) as session:
-        assert session.scalar(select(QueryModelRun)).prompt_name == LAYOUT_PROMPT
+        assert session.scalar(select(QueryModelRun)).prompt_name == SCIENTIFIC_PROMPT
 
 
 def test_unknown_layout_is_frozen_as_unknown_not_clean(seeded):

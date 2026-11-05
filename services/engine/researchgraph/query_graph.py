@@ -83,8 +83,10 @@ def eligible_nodes(session: Session, project_id: str, paper_ids: list[str]) -> l
             )
         )
     linked: dict[str, set[str]] = defaultdict(set)
-    for link in session.scalars(
-        select(NodeEvidence).where(NodeEvidence.node_id.in_([n.id for n in rows]))
+    for link in session.execute(
+        select(NodeEvidence.node_id, NodeEvidence.evidence_id).where(
+            NodeEvidence.node_id.in_([n.id for n in rows])
+        )
     ):
         linked[link.node_id].add(link.evidence_id)
     spans = {

@@ -17,15 +17,16 @@ from researchgraph.unified_contracts import KnowledgeExtractionBatch
 
 
 def evidence_ids(value: Any) -> set[str]:
-    if isinstance(value, list):
-        return set().union(*(evidence_ids(v) for v in value)) if value else set()
-    if isinstance(value, dict):
-        result = set(value.get("evidence_ids", []))
-        for k, v in value.items():
-            if k != "evidence_ids":
-                result.update(evidence_ids(v))
-        return result
-    return set()
+    result: set[str] = set()
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, dict):
+            result.update(item.get("evidence_ids", []))
+            pending.extend(v for k, v in item.items() if k != "evidence_ids")
+        elif isinstance(item, list):
+            pending.extend(item)
+    return result
 
 
 def apply_unified(

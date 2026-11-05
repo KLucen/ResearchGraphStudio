@@ -29,11 +29,13 @@ from researchgraph.query_answer_wire import (
     LAYOUT_PROMPT,
     POLICY,
     PROMPT,
+    SCIENTIFIC_PROMPT,
     assert_prompt_contract,
     bind_answer,
     display_normalization,
     model_input,
     output_schema,
+    scientific_binding,
 )
 from researchgraph.query_context import validate_context
 from researchgraph.query_contracts import QueryAnswer
@@ -43,6 +45,7 @@ from researchgraph.storage import read_session
 MAX_REQUESTS = 2
 PROMPT_PATH = Path(__file__).parent / "prompts" / (PROMPT + ".md")
 LAYOUT_PROMPT_PATH = Path(__file__).parent / "prompts" / (LAYOUT_PROMPT + ".md")
+SCIENTIFIC_PROMPT_PATH = Path(__file__).parent / "prompts" / (SCIENTIFIC_PROMPT + ".md")
 _CONTEXT_ERRORS = {
     "QUERY_CONTEXT_CHANGED",
     "QUERY_PERMISSION_CHANGED",
@@ -51,6 +54,7 @@ _CONTEXT_ERRORS = {
     "QUERY_SOURCE_EXCLUDED",
     "QUERY_PARSE_INVALID",
     "QUERY_MANIFEST_INVALID",
+    "QUERY_SCIENTIFIC_GUIDANCE_INVALID",
     "QUERY_SCOPE_MISMATCH",
     "QUERY_SCOPE_INVALID",
     "QUERY_SEED_INVALID",
@@ -128,12 +132,16 @@ def _no_call_reason(query: QueryRun) -> list[str] | None:
 
 
 def _plan(query: QueryRun) -> Plan:
-    prompt_name = LAYOUT_PROMPT if "numeric_layout" in query.snapshot["context"] else PROMPT
-    prompt = (LAYOUT_PROMPT_PATH if prompt_name == LAYOUT_PROMPT else PROMPT_PATH).read_text(
-        encoding="utf-8"
-    )
-    assert_prompt_contract(prompt)
     context = query.snapshot["context"]
+    prompt_name, path = (
+        (SCIENTIFIC_PROMPT, SCIENTIFIC_PROMPT_PATH)
+        if "scientific_guidance" in context
+        else (LAYOUT_PROMPT, LAYOUT_PROMPT_PATH)
+        if "numeric_layout" in context
+        else (PROMPT, PROMPT_PATH)
+    )
+    prompt = path.read_text(encoding="utf-8")
+    assert_prompt_contract(prompt)
     schema = output_schema([ref["ref"] for ref in context["references"]])
     wire = model_input(context)
     manifest = {
@@ -268,6 +276,10 @@ def validate_answer(
         raw, query.snapshot["context"], expected
     ):
         raise KnowledgeError("QUERY_RESPONSE_CHANGED", "回答的程序展示替换审计与原始响应不一致")
+    if model and model.parameters.get("scientific_binding") != scientific_binding(
+        raw, query.snapshot["context"], expected
+    ):
+        raise KnowledgeError("QUERY_RESPONSE_CHANGED", "回答的来源补齐审计与原始响应不一致")
     if (
         answer.state != "validated"
         or answer.input_hash != query.input_hash
@@ -489,6 +501,9 @@ def _publish(session: Session, job: Job, query: QueryRun, raw_run: QueryModelRun
         )
         session.add(answer)
         if raw_run:
+            binding = scientific_binding(raw_run.raw_output, query.snapshot["context"], answer_data)
+            if binding:
+                raw_run.parameters = {**raw_run.parameters, "scientific_binding": binding}
             normalization = display_normalization(
                 raw_run.raw_output, query.snapshot["context"], answer_data
             )

@@ -14,6 +14,7 @@ from researchgraph.reading_transport import loads
 
 PROMPT = "P07_query_grounded_v1"
 LAYOUT_PROMPT = "P07_query_grounded_v2"
+SCIENTIFIC_PROMPT = "P07_query_grounded_v3"
 POLICY = "query-grounded-semantic-1"
 
 
@@ -173,6 +174,54 @@ def display_normalization(
     }
 
 
+def _scientific_binding(wire: AnswerWire, context: dict[str, Any]) -> AnswerWire:
+    if "scientific_guidance" not in context:
+        return wire
+    from researchgraph.query_scientific_grounding import (
+        BACKGROUND_NOTICE,
+        EXPANSION_NOTICE,
+        background_refs,
+        citation_closure,
+    )
+
+    wire = wire.model_copy(deep=True)
+    for passage in wire.passages:
+        refs = citation_closure(passage.source_refs, context)
+        if refs != passage.source_refs:
+            passage.limitations.append(EXPANSION_NOTICE)
+        passage.source_refs = refs
+        if background_refs(refs, context):
+            passage.limitations.append(BACKGROUND_NOTICE)
+    # Program-added roots cannot bypass authorship or personal-source gates.
+    validate_semantics(wire, context)
+    return wire
+
+
+def scientific_binding(
+    raw: str | None, context: dict[str, Any], bound: QueryAnswer
+) -> dict[str, Any] | None:
+    if raw is None or "scientific_guidance" not in context:
+        return None
+    from researchgraph.query_scientific_grounding import BINDING_POLICY, background_refs
+
+    wire = decode(raw)
+    return {
+        "rule": BINDING_POLICY,
+        "raw_sha256": text_hash(raw),
+        "guidance_sha256": digest(context["scientific_guidance"]),
+        "passages": [
+            {
+                "local_ref": passage.local_ref,
+                "original_source_refs": original.source_refs,
+                "bound_source_refs": passage.source_refs,
+                "background_source_refs": background_refs(passage.source_refs, context),
+            }
+            for original, passage in zip(wire.passages, bound.passages, strict=True)
+        ],
+        "bound_sha256": digest(bound.model_dump(mode="json")),
+    }
+
+
 def bind_answer(
     raw: str | None,
     context: dict[str, Any],
@@ -190,6 +239,7 @@ def bind_answer(
         )
     )
     validate_semantics(wire, context)
+    wire = _scientific_binding(wire, context)
     wire, _ = _normalize_cautions(wire, context)
     limitations = list(dict.fromkeys([*wire.limitations, *context.get("coverage_gaps", [])]))
     if wire.passages and any(

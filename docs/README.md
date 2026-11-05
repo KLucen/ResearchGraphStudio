@@ -1,5 +1,7 @@
 # 文档导航
 
+2026-11-05 后续优化以 [P4改进验收](p4-followup-verification-20261105.md) 和 [ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md) 为准：已按新授权推送验收快照8d67ed1；新P07v3/冻结科学指导/可审计引用根补齐与本调用表示优化单独验证。旧质量分母/Prompt/raw保持，未测或性能未达标不记通过，不进入P5。
+
 2026-11-05 最新：[P4 最终回归与真实验收](p4-final-acceptance-20261105.md)记录当前安装版用户正常反馈、十题真实结果及数值错误修复补验；[ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)说明新 P07 v2/冻结版式风险与旧 v1 兼容。性能优化保留完整验源，当前 head0014，不进入 P5。此前“新包原生待反馈”按各历史包理解；本轮新构建包的反馈另列。
 
 2026-11-04 最新：本地问答历史“无效响应”实际为SQLite锁竞争，修复见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复验收](query-history-lock-verification-20261104.md)。8个纯读取路径/模型等待检查使用受保护快照，写入仍保留IMMEDIATE；正常worker及冻结HTTP并发已测，新包用户原生待反馈。head0014不变、零新真实调用，不进入P5。

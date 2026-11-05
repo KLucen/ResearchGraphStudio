@@ -388,12 +388,12 @@ def test_prompt_contract_drift_is_detected_before_dispatch(prepared, monkeypatch
     _, engine, qid = prepared
     drifted = tmp_path / "P07.md"
     drifted.write_text(
-        answers.LAYOUT_PROMPT_PATH.read_text(encoding="utf-8").replace(
+        answers.SCIENTIFIC_PROMPT_PATH.read_text(encoding="utf-8").replace(
             "output_schema_sha256:", "incorrect_schema_hash:"
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(answers, "LAYOUT_PROMPT_PATH", drifted)
+    monkeypatch.setattr(answers, "SCIENTIFIC_PROMPT_PATH", drifted)
     with pytest.raises(ValueError, match="Schema"):
         enqueue(engine, qid)
     with Session(engine) as session:

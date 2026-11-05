@@ -4,17 +4,19 @@ The index is derived data. Every retrieval refreshes current source eligibility
 and document permissions before ranking; it cannot grant permission by caching.
 """
 
+import hashlib
 import json
 import re
 from collections.abc import Sequence
 from typing import Any
+from uuid import NAMESPACE_URL, UUID
 
 from sqlalchemy import bindparam, select, text
 from sqlalchemy.orm import Session
 
 from researchgraph.document_structure import current_structure
 from researchgraph.knowledge_models import EvidenceSpan, KnowledgeNode, Section
-from researchgraph.knowledge_store import KnowledgeError, digest, stable_id, text_hash
+from researchgraph.knowledge_store import KnowledgeError, digest, text_hash
 from researchgraph.models import AttachmentRevision, Chunk, Paper, Project
 from researchgraph.query_graph import _expand_graph, eligible_nodes
 
@@ -51,13 +53,17 @@ def scope_versions(
 
 def strings(value: Any) -> list[str]:
     """Index original and auxiliary translation without losing either language."""
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list):
-        return [s for item in value for s in strings(item)]
-    if isinstance(value, dict):
-        return [s for item in value.values() for s in strings(item)]
-    return []
+    result: list[str] = []
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            result.append(item)
+        elif isinstance(item, list):
+            pending.extend(reversed(item))
+        elif isinstance(item, dict):
+            pending.extend(reversed(item.values()))
+    return result
 
 
 def chunk_metadata(session: Session, version_id: str) -> dict[str, dict[str, Any]]:
@@ -169,11 +175,17 @@ def collect_entries(
 
     versions = scope_versions(session, project_id, [])
     entries: list[dict[str, Any]] = []
+    # The UUIDv5 namespace and project prefix are invariant in this one call.
+    # Copy only the SHA-1 state, never source eligibility or generated entries.
+    id_prefix = hashlib.sha1(NAMESPACE_URL.bytes, usedforsecurity=False)
+    id_prefix.update(f"researchgraph/{INDEX_POLICY}/{project_id}:".encode())
 
     def add(kind: str, oid: str, content: str, aliases: str, data: dict[str, Any]) -> None:
+        identifier = id_prefix.copy()
+        identifier.update(f"{kind}:{oid}".encode())
         entries.append(
             {
-                "id": stable_id(INDEX_POLICY, f"{project_id}:{kind}:{oid}"),
+                "id": str(UUID(bytes=identifier.digest()[:16], version=5)),
                 "project_id": project_id,
                 "source_kind": kind,
                 "object_id": oid,
@@ -287,9 +299,10 @@ def _synchronize_index(
     }
     wanted = {entry["id"] for entry in entries}
     pending = []
+    encode_data = json.JSONEncoder(ensure_ascii=False, sort_keys=True).encode
     for entry in entries:
         previous = old.get(entry["id"])
-        data = json.dumps(entry["data"], ensure_ascii=False, sort_keys=True)
+        data = encode_data(entry["data"])
         if (
             previous
             and all(previous[k] == entry[k] for k in ("text", "aliases"))

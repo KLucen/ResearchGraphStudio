@@ -175,7 +175,12 @@ def register_query_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 if exc.code != "MODEL_NOT_CONFIGURED":
                     raise
             context = build_context(
-                session, request, found, model_snapshot=model, include_layout=True
+                session,
+                request,
+                found,
+                model_snapshot=model,
+                include_layout=True,
+                include_scientific_guidance=True,
             )
             validate_context(session, context, found, model_snapshot=model)
             snapshot = {

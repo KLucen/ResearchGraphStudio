@@ -1,5 +1,7 @@
 # 08 — 验证、安全与质量评价（设计 v3.3）
 
+2026-11-05 后续改进以[P4改进验收](p4-followup-verification-20261105.md)和[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)为准：新P07v3冻结真实角色/根链接/已检测表格组，引用补齐及背景提示带审计，GET/保存重算，旧v1/v2兼容。不把根闭包完整、Schema或Prompt约束当作科学语义证明；未检表格与缺失公式留未知。性能完整样本、原科学分母及最多两次新定向调用分别记录，不能以候选中位数替代P95。
+
 2026-11-05 本轮真实/回归以 [P4 最终验收](p4-final-acceptance-20261105.md) 为准，包含原十题64段支持/7部分/1数值错误、额外一次真实补验及其误拦修复；不将原失败删除或记成科学全通过。新 P07 v2 冻结真实版式风险、正文危险数字拒绝；专用限制说明的风险数字只做带审计占位显示，raw不改、完整响应终验后仅显式零调用恢复。旧v1新保存也有当前所选段落版式门槛，历史读取不重写，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。head0014，正式库实验写入0；新包原生反馈与用户对旧正常包的反馈分开，P5未启动。
 
 2026-11-04 当前：P4-Q01～Q07已接入，Q08继续处理安装反馈；浏览/分组增量见[ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)，本轮数据库锁与历史重读边界见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复报告](query-history-lock-verification-20261104.md)。Alembic head保持 **0014**，无新增真实模型请求，P5 Lint/Wiki未启动。此前反馈修复见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)及[反馈报告](p4-query-feedback-verification-20261104.md)；回归、隔离包检查及用户原生确认分别记录，不互相替代。
