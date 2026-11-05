@@ -1,6 +1,8 @@
 # 07 — 目标 API 与事件（设计 v3.3，与实现差异）
 
-已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好和 paper_backbone 已接入；下文目标字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。
+2026-11-04 当前：P4-Q01～Q07 已接入，Q08 安装反馈修复增加来源显示投影及保存内容批注/移除，Alembic head **0014**。边界见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮状态见[反馈报告](p4-query-feedback-verification-20261104.md)，前次结果保留在[P4实际报告](p4-query-verification-20261104.md)。P5 Lint/Wiki 未启动。
+
+已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好、paper_backbone和P4-Q01～Q07已接入，数据库head0014；目标事件字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。Query生成/保存运行接口见本页对应章节，P5发布接口仍为目标。
 
 ## 自动构建
 
@@ -10,7 +12,7 @@ GET `/api/v1/jobs/{id}` 扩展阶段 indexing/extracting/integrating/selecting/p
 
 `retry`返回实际操作目标Job，旧任务独立续接可能返回已有后继，不能假定还是原id或queued。界面保留历史错误，但明确后继当前状态并可定位；已完成后继不重复排队/收费，失败后继需展示自己的原因，不能显示成无反馈。
 
-本轮新任务由内部 reading_flow_policy=semantic-reading-1 选择新语义模板；不要求客户端或模型提供正式阶段 ID。模型快照冻结 output_policy，兼容接口 requested 能力不能显示为已实测 strict。调用/凭据管理接口沿用，真实 API Key 不进入快照正文或错误信息；运行 wire 与内部 DTO 区别见 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)。
+新阅读任务由内部 reading_flow_policy=semantic-reading-1 选择新语义模板；不要求客户端或模型提供正式阶段 ID。模型快照冻结 output_policy，兼容接口 requested 能力不能显示为已实测 strict。调用/凭据管理接口沿用，真实 API Key 不进入快照正文或错误信息；运行 wire 与内部 DTO 区别见 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)。
 
 阶段结果可携带 ranking_status=pending/complete/not_applicable、stage_failure 的 stage/category/code/next_action、previous_graph_retained 及 preview_selection_revision。首次失败预览明确 selection_mode=provisional、build_state=partial，任务仍保留失败和继续入口；这些不是人工审核状态。GraphProjection.paper_builds 新增 ranking_status/selection_mode，契约兼容默认 unknown/ranked；已有有效历史选择缺字段时按 complete/ranked 解释。它表示当前视图，不能用保留旧图的完成状态解释新任务成功。
 
@@ -55,7 +57,7 @@ GET `/api/v1/revisions/{id}/structure` 保留 sections/evidence 兼容字段，�
 | knowledge.source_invalidated | 来源版本和受影响对象，保留旧记录 |
 | graph.layout_changed | 仅 UI 状态，不触发知识/Wiki 语义失效 |
 
-候选/阶段检查点与事件同事务，选择快照与活跃指针同事务。事件方案待实现；轮询必须能够完整重建状态，断线不能丢进度。
+候选/阶段检查点与事件同事务，选择快照与活跃指针同事务。上表为目标通知命名，不宣称已有完整outbox/SSE；当前以持久事件和轮询重建状态。Q01已分离KnowledgeStore.audit_event：query.prepared、NOTES_AUTHORIZED/NOTES_REVOKED/NOTES_SNAPSHOTTED和NOTE_USE_CHANGED等执行/文件操作记录before_revision=after_revision，不新建或递增GraphRevision。科学写入仍走原变更入口。
 
 ## 失败与权限
 
@@ -63,10 +65,59 @@ SOURCE_CHANGED、EVIDENCE_REF_INVALID、INTEGRATION_CONTEXT_STALE、UNRESOLVED_M
 
 模型记录终验失败使用 protocol/schema/context/evidence 分类与稳定 code，保留 raw_output 和 stage_validation 审计。模型回错根/版本等 response_invalid=true 才更新 status=validation_failed、error、finished_at；可信来源/候选/快照变化 response_invalid=false 时保留这三个历史字段，仅写本次复用诊断，停止并要求新构建，不能把它当网络重试。普通继续复用成功 P02/P12/P13 检查点和完整重验通过的旧响应，绝不无条件复用 received 的错误外壳。
 
-所有接口回环鉴权、项目/文献隔离；新增桥接路径需明确方法和正文上限。不可通过任意路径读取 PDF。Query/Wiki 后续仅接收白名单引用；文件导出授权独立，不属于科学审核。
+所有接口回环鉴权、项目/文献隔离；新增桥接路径需明确方法和正文上限。不可通过任意路径读取PDF。当前Query只接受范围内的合法引用；后续Wiki生成同样须经过来源终验，文件导出授权独立，不属于科学审核。
 
-P4 Query / P5 Lint-Wiki 的拟定操作、执行审计与科学版本边界、来源/授权及发布冲突验收集中在[开发计划](06_development_migration_plan.md)。这些路由尚未实现或写入运行OpenAPI；跨论文ModelRun作用域、诊断元数据及受管文件发布账本需先完成各阶段契约任务，不能直接复用会递增GraphRevision的知识事件入口记普通日志。
+## 当前Query准备API（P4-Q01～Q04）
 
-按[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md)，拟定query sources响应还须说明内部文档/段落版本、根证据、内容有效性、授权与文件同步状态。save默认新增阅读衍生对象；明确的Wiki目标/文档更新与publish文件操作分别绑定预期版本/哈希。P4先建最小registry/只读适配，P5扩展生成发布。Lint分别检查受管Markdown及授权私人资料，不能将外部编辑自动作为已验证论文知识或把文件同步冲突误当全部科学内容失效。本轮不新增实际接口。
+以下是 Q01～Q04 引入、当前继续兼容的回环 API 与受限 Tauri 桥接。实现见[query_api.py](../services/engine/researchgraph/query_api.py)，基础决策及历史结果见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](p4-query-foundation-verification-20261104.md)。当前 Q06 问答页面已接入，下节说明回答与保存扩展。
 
-图谱驱动Query的拟定检索/sources结果还须包含种子命中、扩展理由、KnowledgeUnit及合法关联路径、节点/关系修订、补充条件和根证据；来源于当前画布之外的内容可回查，不受其分页游标限制。save返回衍生对象/版本与来源引用，供独立衍生图层显示，不能直接返回“已更新论文核心”。Lint返回受影响单元/段落及规则诊断，不执行模型生成的修复动作。Query执行、Lint与文件状态审计和科学变更修订分开，普通查询不使现有graph cursor失效。上述均为计划要求，运行OpenAPI尚未新增这些路由。
+| 方法与路径 | 实际行为 |
+| --- | --- |
+| POST `/api/v1/projects/{project_id}/query/search` | 严格QueryRequest，本地检索及完整合法图扩展，返回status/hits/graph/terms/independent_sources/ranking_policy；不调用模型 |
+| POST `/api/v1/projects/{project_id}/query/search/page` | 独立浏览请求包装QueryRequest，完整合法命中按展示论文过滤并每页10条；返回总数/总页/结果指纹及只读来源显示，不改变模型prepare范围 |
+| POST `/api/v1/projects/{project_id}/query/index/rebuild` | 重建/同步可重建索引；默认不读取个人笔记，不改科学对象 |
+| POST `/api/v1/projects/{project_id}/query/prepare` | 带Idempotency-Key，冻结QueryRun与多来源检索/证据上下文、可用Reasoning快照；返回query_id/status/input_hash/snapshot/error |
+| GET `/api/v1/projects/{project_id}/query/runs/{query_id}` | 当前权限/来源完整重验后读取已准备记录；不直接信任历史缓存 |
+| POST `/api/v1/projects/{project_id}/query/runs/{query_id}/validate` | 重新组装/终验，返回valid/input_hash/reference_count/status；不生成回答 |
+| GET `/api/v1/projects/{project_id}/query/documents?include_personal=false` | 最小文档只读适配：已保存段落、内部版本、根依赖、内容有效性与文件同步状态；无文档时为空 |
+| PUT `/api/v1/integrations/obsidian/{root_id}/query-permissions` | 带Idempotency-Key，allow_local/allow_model；模型外发默认false，仍需root处于授权状态 |
+
+QueryRequest项目必须与路径一致；论文/版本限定必须属于项目且是当前可用范围，跨项目或旧版本请求拒绝。source_kinds支持paper/knowledge/chunk/wiki/synthesis/note，knowledge_kinds用于候选类型过滤；过滤在最终排名前执行。include_personal默认false，purpose=local/model分别校验用途；purpose=model在此仅准备可外发范围，实际发送仍须显式generate及发送前终验。limit为1–100，不能理解为支撑闭包节点上限。
+
+search以FTS5/BM25、精确短语/术语、已有双语/别名融合；graph返回种子、完整合法支撑路径、经终验的科学关系及条件比较，独立来源按根论文版本/个人快照去重。References/页眉页脚不作科学回答证据，画布分页/折叠/隐藏不限制候选检索。
+
+search/prepare/GET准备记录可返回顶层presentation，分别以entry_id和ref索引可读来源：title、original、summary_zh、summary_origin、paper_id、page_index、section_path。它在来源终验后生成，不进入冻结snapshot或input_hash，也不外发；原文取真实quote，中文要点仅复用已有extracted_translation，缺失时为null，不新增模型调用。
+
+分页浏览的独立正文包含 `{request: QueryRequest, page: 1, page_size: 10, display_paper_ids: [], expected_result_hash?: string}`，`page` 从 1 开始，`page_size` 固定 10。`request.paper_ids` 是原问题的检索范围，`display_paper_ids` 只筛选该问题已命中的展示内容；请求项目及两种论文范围都需校验。全部命中不受旧QueryRequest.limit的展示截取影响，但模型prepare和旧冻结记录继续遵循原契约。每次翻页重新检查当前来源/用途，结果身份变化返回 `QUERY_RESULTS_CHANGED`，客户端需从第一页刷新，不能拼接失效页。
+
+分页响应提供 `status/hits/presentation/total/page/page_size/total_pages/result_hash/graph_node_count/independent_sources` 及可选 `scope_coverage`。命中presentation增加 `graph_presence={state,representation,node_ids,graph_roles,graph_revision}`，其中state为 `in_graph/retrieval_only/not_applicable`，representation为 `node/evidence/null`。`in_graph+evidence` 表示原文被已有图谱节点引用，不是独立知识节点。旧响应缺字段时不推断“未入图”；核验错误也不伪装为否定状态。
+
+图谱存在性是顶层来源presentation的当前只读信息，判断完整默认阅读投影，不能读取单页画布节点或Query临时扩展来推断。历史/保存列表新增只读论文根归属元数据供板块筛选，不写回旧snapshot、manifest或回答hash。完整边界见 [ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)。
+
+prepare.status为prepared/insufficient；prepared表示上下文已准备，不是LLM回答成功。snapshot包含request/retrieval/context/model/prompt/source_scope，prompt明确generation_enabled=false；context使用query-context-1，含S短编号→真实来源映射、章节/完整表格组、节点修订和内容/文件/授权状态。容量仅依据已知模型能力估算，不截掉必要支撑，不执行能力探测。
+
+相同幂等请求、GET历史及validate均重新检查上下文。假manifest为QUERY_MANIFEST_INVALID，来源/知识/权限/文档变化为QUERY_CONTEXT_CHANGED，跨范围/假种子等另返回明确QUERY_*诊断；错误不触发收费重试，原执行记录保留。旧单篇ModelRun保持，query_model_runs/query_answer_versions已由Q05用于项目级生成审计和不可变回答版本。
+
+2026-11-05 新 prepare 在 context 冻结 numeric_layout，并使用独立 P07 v2；旧无字段 context/v1 仍保持 hash 与请求槽。`QUERY_NUMERIC_LAYOUT_UNRESOLVED` 表示正文使用明确版式风险数字，保留 raw、不自动继续；版式来源变化按上下文变化拒绝。专用limitations仅作带跨度/哈希审计的危险token占位，不改正文/raw；完整已收响应可用时，显式恢复冻结原runID/rawSHA/plan及现有预算，provider/新槽前重验，不可复用零网络失败。只读 presentation 可显示 layout_warnings，不回写历史答案。没有新增 HTTP 操作、迁移或模型 DTO 字段，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
+
+本地prepare和Store内部文档登记不等于回答生成或保存。P07需显式generate入统一Job，Q07经save入口再验后新增衍生对象；指定内部文档目标/基线与P5文件publish是不同动作。已实现的回答、历史、保存和衍生图接口见下节及[运行API](api.md)，后续任务与验收见[开发计划](06_development_migration_plan.md)。
+
+## P4 回答、历史与保存接口（2026-11-04 / head0014）
+
+所有路径均位于 `/api/v1/projects/{project_id}/query`，跨项目拒绝，沿用本地Bearer认证和Tauri方法/UUID/参数白名单。
+
+| 方法与路径 | 实际行为 |
+| --- | --- |
+| `GET /runs?limit=&cursor=` | 按created_at/id稳定分页；默认20、最大50，状态读取实际Job |
+| `POST /runs/{id}/generate` | Idempotency-Key必填；body=`{allow_network:true,continue_requested:false}`；202返回实际Job，显式继续才开第二槽 |
+| `GET /runs/{id}/answer` | QueryAnswerView：执行状态、答案、模型用量/耗时/错误、可继续及请求计数；读取重验当前来源/用途 |
+| `POST /runs/{id}/save` | QuerySaveCommand经KnowledgeStore.save_query显式保存；选段/hash/来源/权限终验；不改作者Claim |
+| `GET /saved?include_personal=false` | 返回 `{items:[...]}`，只展示本用途仍获授权内容，过期段落标状态 |
+| `GET /saved/{id}?include_personal=false` | 保存综合、原回答/文档版本/逐段依赖与状态 |
+| `PUT /saved/{id}/annotation?include_personal=false` | Idempotency-Key必填；`{annotation,expected_revision}`更新独立个人批注，不改答案或科学revision |
+| `POST /saved/{id}/remove?include_personal=false` | Idempotency-Key必填；`{expected_revision}`移出保存库/检索/衍生层，保留原始历史与证据 |
+| `GET /derived-graph?include_personal=false` | 独立衍生节点及DERIVED_FROM引用，非科学关系 |
+
+统一 `/api/v1/jobs/{id}/cancel` 和 `/retry` 支持query_answer；后者幂等返回真实后继状态，不将旧queued缓存冒充成功。每Query最多2个持久发送槽位，收到raw未发布可零调用恢复；失败不自动重试，达到上限零调用。GET不暴露raw；无证据/容量不足零调用并明确insufficient。普通检索/生成只有执行审计，明确save才新增科学revision/event。暂不提供Wiki生成、MD导出、Lint执行路由。
+
+保存对象增加annotation、metadata_revision及removed_at；无旧偏好行时分别为空字符串、0、null。批注上限12000字符，metadata_revision用于expected_revision并发检查，不能拿GraphRevision替代。annotation仅本地个人元数据，不进入read_passages/检索/模型上下文；include_personal只控制来源私人材料用途，false不单独隐藏批注。移除直接读取返回QUERY_SAVED_REMOVED，已移除指纹再次保存明确拒绝；保存段落的后续副本及依赖谱系重验，不能从其它文档重新暴露。批注与移除只记审计事件，不删除Query/raw/答案/不可变文档或论文根，不推进科学图revision。

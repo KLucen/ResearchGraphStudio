@@ -12,25 +12,146 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from uuid import uuid4
 
 import pymupdf
 
 
-def run(executable: Path) -> dict[str, object]:
+class QueryProtocolStub:
+    """Parent-owned loopback SSE protocol fixture, never a real model service.
+
+    The distributed engine uses its ordinary ConfiguredProvider HTTP path. No
+    provider injection, production Mock switch, credential, or external API is used.
+    """
+
+    model = "synthetic-p07-protocol-only"
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.errors: list[str] = []
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, _format, *_args):
+                pass
+
+            def send(self, payload: bytes, content_type: str, status: int = 200):
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def do_GET(self):
+                if self.path != "/v1/models":
+                    self.send(b"{}", "application/json", 404)
+                    return
+                self.send(json.dumps({"data": [{"id": owner.model}]}).encode(), "application/json")
+
+            def do_POST(self):
+                try:
+                    assert self.path == "/v1/chat/completions", "Unexpected model route"
+                    assert not self.headers.get("Authorization"), "Fixture must use no credentials"
+                    length = int(self.headers["Content-Length"])
+                    assert 0 < length < 2_000_000, "Unexpected model request size"
+                    body = json.loads(self.rfile.read(length))
+                    owner.calls += 1
+                    assert body["model"] == owner.model and body["stream"] is True
+                    assert body["response_format"] == {"type": "json_object"}
+                    data = json.loads(body["messages"][1]["content"])
+                    inputs = data["untrusted_source_data"]
+                    context = inputs["evidence_context"]
+                    assert len(inputs["input_context_hash"]) == 64
+                    assert "source_refs" in json.dumps(data["output_schema"])
+                    reference = next(
+                        ref
+                        for ref in context["references"]
+                        if ref["type"] == "chunk" and "shared memory" in ref["quote"].lower()
+                    )
+                    content = json.dumps(
+                        {
+                            "passages": [
+                                {
+                                    "text": "合成原文报告共享记忆方法改善任务准确率。",
+                                    "attribution": "model_synthesis",
+                                    "source_refs": [reference["ref"]],
+                                    "limitations": ["合成协议验收，不是科学质量验证"],
+                                }
+                            ],
+                            "limitations": ["仅引用这次请求提供的合成原文"],
+                        },
+                        ensure_ascii=False,
+                    )
+                    middle = len(content) // 2
+                    events = [
+                        {"choices": [{"index": 0, "delta": {"content": part}}]}
+                        for part in (content[:middle], content[middle:])
+                    ]
+                    events.append({"choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]})
+                    events.append(
+                        {
+                            "choices": [],
+                            "usage": {
+                                "prompt_tokens": 121,
+                                "completion_tokens": 37,
+                                "total_tokens": 158,
+                            },
+                        }
+                    )
+                    stream = (
+                        "".join(
+                            "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+                            for event in events
+                        )
+                        + "data: [DONE]\n\n"
+                    )
+                    self.send(stream.encode("utf-8"), "text/event-stream; charset=utf-8")
+                except Exception as error:
+                    owner.errors.append(type(error).__name__ + ": " + str(error))
+                    self.send(
+                        b'{"error":"synthetic protocol assertion failed"}', "application/json", 500
+                    )
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.base_url = f"http://127.0.0.1:{self.server.server_port}/v1"
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_args):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+
+
+def run(executable: Path | None, *, source_python: Path | None = None) -> dict[str, object]:
+    if (executable is None) == (source_python is None):
+        raise ValueError("Choose exactly one packaged executable or source Python")
     minimal_env = {
         k: os.environ[k] for k in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP") if k in os.environ
     }
     minimal_env["PATH"] = str(Path(os.environ["SYSTEMROOT"]) / "System32")
     token = secrets.token_urlsafe(48)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    with tempfile.TemporaryDirectory(prefix="ResearchGraph 中文路径 ") as directory:
+    if source_python:
+        # Source mode is explicitly distinct from frozen-runtime acceptance.
+        minimal_env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "services/engine")
+    with (
+        QueryProtocolStub() as endpoint,
+        tempfile.TemporaryDirectory(prefix="ResearchGraph 中文路径 ") as directory,
+    ):
         data = Path(directory) / "project data"
 
         def start():
+            command = (
+                [str(source_python), "-m", "researchgraph"] if source_python else [str(executable)]
+            )
             process = subprocess.Popen(
-                [str(executable), "--data-dir", str(data)],
+                [*command, "--data-dir", str(data)],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -413,6 +534,142 @@ def run(executable: Path) -> dict[str, object]:
             )
             reading_paper = next(n["paper_id"] for n in backbone["nodes"] if n["kind"] == "Claim")
             reading_selection = request(port, f"/papers/{reading_paper}/graph-selection")
+            # Q01-Q04 are local foundations: raw source retrieval and versioned
+            # context work even when all model-derived fixture nodes are excluded.
+            query_body = {"project_id": project["id"], "question": "shared memory"}
+            query_route = f"/projects/{project['id']}/query"
+            query_before = request(port, graph_route + "/projection", "POST", {})
+            prepared = request(
+                port, query_route + "/prepare", "POST", query_body, key="query-foundation-smoke"
+            )
+            assert prepared["status"] == "prepared", prepared
+            assert prepared["snapshot"]["context"]["references"]
+            assert prepared["snapshot"]["model"] is None  # Mock is not a production role.
+            assert not prepared["snapshot"]["prompt"]["generation_enabled"]
+            assert (
+                request(
+                    port, query_route + "/prepare", "POST", query_body, key="query-foundation-smoke"
+                )
+                == prepared
+            )
+            assert request(
+                port, query_route + "/runs/" + prepared["query_id"] + "/validate", "POST"
+            )["valid"]
+            assert request(port, graph_route + "/projection", "POST", {}) == query_before
+            # Q05/Q07: parent-owned synthetic HTTP/SSE endpoint exercises the
+            # actual configured-provider transport and bundled P07 prompt. This
+            # is offline protocol acceptance, never real-model quality evidence.
+            query_profile = request(
+                port,
+                model_route + "/models",
+                "POST",
+                {
+                    "name": "Synthetic loopback protocol acceptance",
+                    "provider": "local",
+                    "base_url": endpoint.base_url,
+                    "model": endpoint.model,
+                    "parameters": {"timeout_seconds": 15, "json_mode": True},
+                },
+                key="query-local-profile",
+            )
+            assert not query_profile["has_api_key"]
+            roles["reasoning"] = query_profile["id"]
+            assert (
+                request(port, model_route + "/model-roles", "POST", roles, key="query-local-role")[
+                    "roles"
+                ]
+                == roles
+            )
+            generation_body = {**query_body, "purpose": "model", "include_personal": False}
+            query_prepared = request(
+                port,
+                query_route + "/prepare",
+                "POST",
+                generation_body,
+                key="query-p07-prepare",
+            )
+            assert query_prepared["status"] == "prepared", query_prepared
+            assert query_prepared["snapshot"]["model"]["provider"] == "local"
+            assert query_prepared["presentation"]["references"]
+            assert all(
+                view["title"] and view["original"]
+                for view in query_prepared["presentation"]["references"].values()
+                if view["paper_id"]
+            )
+            assert endpoint.calls == 0
+            query_run_route = query_route + "/runs/" + query_prepared["query_id"]
+            generated = completed(
+                port,
+                request(
+                    port,
+                    query_run_route + "/generate",
+                    "POST",
+                    {"allow_network": True, "continue_requested": False},
+                    key="query-p07-generate",
+                ),
+            )
+            answer_view = request(port, query_run_route + "/answer")
+            assert answer_view["status"] == "succeeded", answer_view
+            answer = answer_view["answer"]
+            assert answer["status"] == "validated" and answer["passages"]
+            assert answer["passages"][0]["attribution"] == "model_synthesis"
+            assert answer_view["request_count"] == endpoint.calls == 1, endpoint.errors
+            assert answer_view["model_runs"][0]["usage"]["total_tokens"] == 158
+            assert answer_view["model_runs"][0]["finish_reason"] == "stop"
+            assert request(port, graph_route + "/projection", "POST", {}) == query_before
+            replayed = request(
+                port,
+                query_run_route + "/generate",
+                "POST",
+                {"allow_network": True, "continue_requested": True},
+                key="query-p07-completed-replay",
+            )
+            assert replayed["id"] == generated["id"] and endpoint.calls == 1
+            save_body = {
+                "source_query_id": query_prepared["query_id"],
+                "answer_version_id": answer["answer_version_id"],
+                "selected_passage_refs": [answer["passages"][0]["local_ref"]],
+                "expected_input_hash": answer["input_hash"],
+                "kind": "synthesis",
+                "target_document_id": None,
+                "base_version_id": None,
+            }
+            query_saved = request(
+                port, query_run_route + "/save", "POST", save_body, key="query-p07-save"
+            )
+            assert query_saved["content_state"] == "valid"
+            assert query_saved["passages"][0]["dependencies"]
+            assert (
+                request(port, query_run_route + "/save", "POST", save_body, key="query-p07-save")
+                == query_saved
+            )
+            assert len(request(port, query_route + "/saved")["items"]) == 1
+            derived = request(port, query_route + "/derived-graph")
+            assert any(node.get("saved_id") == query_saved["saved_id"] for node in derived["nodes"])
+            assert derived["edges"] and all(
+                edge["relation"] == "DERIVED_FROM"
+                and edge["epistemic_status"] == "derived_reference"
+                for edge in derived["edges"]
+            )
+            after_save = request(port, graph_route + "/projection", "POST", {})
+            assert after_save["nodes"] == query_before["nodes"]
+            assert after_save["edges"] == query_before["edges"]
+            saved_route = query_route + "/saved/" + query_saved["saved_id"]
+            annotation_body = {
+                "annotation": "个人阅读批注：核对方法条件；不是论文作者结论。",
+                "expected_revision": query_saved["metadata_revision"],
+            }
+            query_saved = request(
+                port,
+                saved_route + "/annotation",
+                "PUT",
+                annotation_body,
+                key="query-saved-annotation",
+            )
+            assert query_saved["annotation"] == annotation_body["annotation"]
+            assert query_saved["metadata_revision"] == 1
+            assert request(port, graph_route + "/projection", "POST", {}) == after_save
+            assert endpoint.calls == 1 and not endpoint.errors
             orphan = data / "import-work" / str(uuid4())
             orphan.mkdir()
             (orphan / "workspace.json").write_text(
@@ -441,8 +698,32 @@ def run(executable: Path) -> dict[str, object]:
             } == managed_files
             assert moved.read_bytes() == fixture.read_bytes()
             assert request(port, "/projects")["items"] == [project]
+            assert request(port, query_route + "/runs/" + prepared["query_id"]) == prepared
             settings = request(port, model_route + "/models")
-            assert settings["roles"] == roles and settings["profiles"] == [profile]
+            assert settings["roles"] == roles
+            assert {row["id"] for row in settings["profiles"]} == {
+                profile["id"],
+                query_profile["id"],
+            }
+            assert request(port, query_run_route + "/answer") == answer_view
+            assert request(port, query_route + "/saved")["items"] == [query_saved]
+            assert request(port, query_route + "/saved/" + query_saved["saved_id"]) == query_saved
+            assert request(port, query_route + "/derived-graph") == derived
+            assert (
+                request(
+                    port,
+                    query_run_route + "/generate",
+                    "POST",
+                    {"allow_network": True, "continue_requested": True},
+                    key="query-p07-restart-replay",
+                )["id"]
+                == generated["id"]
+            )
+            assert (
+                request(port, query_run_route + "/save", "POST", save_body, key="query-p07-save")
+                == query_saved
+            )
+            assert endpoint.calls == 1 and not endpoint.errors
             assert request(port, f"/revisions/{revision_id}/chunks")["items"] == chunks
             assert request(port, f"/papers/{paper_id}")["sources"][0] == relocated
             assert request(port, graph_route + "/layout") == layout
@@ -461,6 +742,33 @@ def run(executable: Path) -> dict[str, object]:
                 assert persisted_proposal["proposal"]["review_status"] == "accepted"
                 assert len(persisted_proposal["reviews"]) == 1
                 assert persisted_proposal["proposal"]["stale"] == (workflow == "relations")
+            removed = request(
+                port,
+                saved_route + "/remove",
+                "POST",
+                {"expected_revision": query_saved["metadata_revision"]},
+                key="query-saved-remove",
+            )
+            assert removed["removed_at"] and removed["metadata_revision"] == 2
+            assert request(port, query_route + "/saved")["items"] == []
+            assert request(port, query_route + "/derived-graph") == {"nodes": [], "edges": []}
+            assert request(port, graph_route + "/projection", "POST", {}) == after_save
+            assert request(port, query_run_route + "/answer") == answer_view
+        finally:
+            process.stdin.close()
+            try:
+                assert process.wait(timeout=10) == 0
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait()
+        process, port = start()
+        try:
+            assert request(port, query_route + "/saved")["items"] == []
+            assert request(port, query_route + "/derived-graph") == {"nodes": [], "edges": []}
+            assert request(port, query_run_route + "/answer") == answer_view
+            assert request(port, graph_route + "/projection", "POST", {}) == after_save
+            assert endpoint.calls == 1 and not endpoint.errors
         finally:
             process.stdin.close()
             try:
@@ -470,7 +778,13 @@ def run(executable: Path) -> dict[str, object]:
                     process.kill()
                     process.wait()
     return {
-        "packaged_engine": "passed",
+        "packaged_engine": "not_tested_source_mode" if source_python else "passed",
+        "source_engine": "passed" if source_python else "not_used",
+        "query_p07_configured_sse_protocol_stub_save_restart": "passed",
+        "query_readable_sources_annotation_remove_restart": "passed",
+        "query_protocol_stub_calls": endpoint.calls,
+        "query_real_model_quality": "not_tested_offline_protocol_stub_only",
+        "query_local_context_replay_idempotency_restart_no_science_write": "passed",
         "reading_pipeline_backbone_selection_restart": "passed",
         "keyed_ranking_protocol_complete": "passed",
         "unified_projection_translation_layout_restart": "passed",
@@ -495,6 +809,17 @@ def run(executable: Path) -> dict[str, object]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--executable", type=Path, required=True)
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--executable", type=Path)
+    target.add_argument("--source-python", type=Path)
     args = parser.parse_args()
-    print(json.dumps(run(args.executable.resolve()), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            run(
+                args.executable.resolve() if args.executable else None,
+                source_python=args.source_python.resolve() if args.source_python else None,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )

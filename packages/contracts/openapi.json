@@ -770,6 +770,68 @@
         }
       }
     },
+    "/api/v1/integrations/obsidian/{root_id}/query-permissions": {
+      "put": {
+        "summary": "Note Permissions",
+        "operationId": "note_permissions_api_v1_integrations_obsidian__root_id__query_permissions_put",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteGrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Note Permissions Api V1 Integrations Obsidian  Root Id  Query Permissions Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/models": {
       "get": {
         "summary": "Settings",
@@ -2243,6 +2305,917 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/search": {
+      "post": {
+        "summary": "Search Local",
+        "operationId": "search_local_api_v1_projects__project_id__query_search_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryRetrievalView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/search/page": {
+      "post": {
+        "summary": "Search Page",
+        "operationId": "search_page_api_v1_projects__project_id__query_search_page_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryBrowseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryBrowseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/index/rebuild": {
+      "post": {
+        "summary": "Reindex",
+        "operationId": "reindex_api_v1_projects__project_id__query_index_rebuild_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reindex Api V1 Projects  Project Id  Query Index Rebuild Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/prepare": {
+      "post": {
+        "summary": "Prepare",
+        "operationId": "prepare_api_v1_projects__project_id__query_prepare_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryPreparationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs/{query_id}": {
+      "get": {
+        "summary": "Get Run",
+        "operationId": "get_run_api_v1_projects__project_id__query_runs__query_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryPreparationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs/{query_id}/validate": {
+      "post": {
+        "summary": "Validate Run",
+        "operationId": "validate_run_api_v1_projects__project_id__query_runs__query_id__validate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryValidationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/documents": {
+      "get": {
+        "summary": "Documents",
+        "operationId": "documents_api_v1_projects__project_id__query_documents_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryDocumentList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs": {
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_v1_projects__project_id__query_runs_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryHistoryList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs/{query_id}/generate": {
+      "post": {
+        "summary": "Generate",
+        "operationId": "generate_api_v1_projects__project_id__query_runs__query_id__generate_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs/{query_id}/answer": {
+      "get": {
+        "summary": "Answer",
+        "operationId": "answer_api_v1_projects__project_id__query_runs__query_id__answer_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryAnswerView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/runs/{query_id}/save": {
+      "post": {
+        "summary": "Save Answer",
+        "operationId": "save_answer_api_v1_projects__project_id__query_runs__query_id__save_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Query Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuerySaveCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Save Answer Api V1 Projects  Project Id  Query Runs  Query Id  Save Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/saved": {
+      "get": {
+        "summary": "Saved",
+        "operationId": "saved_api_v1_projects__project_id__query_saved_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Saved Api V1 Projects  Project Id  Query Saved Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/saved/{saved_id}": {
+      "get": {
+        "summary": "Saved Detail",
+        "operationId": "saved_detail_api_v1_projects__project_id__query_saved__saved_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "saved_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Saved Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Saved Detail Api V1 Projects  Project Id  Query Saved  Saved Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/saved/{saved_id}/annotation": {
+      "put": {
+        "summary": "Annotate Saved",
+        "operationId": "annotate_saved_api_v1_projects__project_id__query_saved__saved_id__annotation_put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "saved_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Saved Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReadingAnnotation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Annotate Saved Api V1 Projects  Project Id  Query Saved  Saved Id  Annotation Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/saved/{saved_id}/remove": {
+      "post": {
+        "summary": "Remove Saved",
+        "operationId": "remove_saved_api_v1_projects__project_id__query_saved__saved_id__remove_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "saved_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Saved Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReadingRemoval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Remove Saved Api V1 Projects  Project Id  Query Saved  Saved Id  Remove Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/query/derived-graph": {
+      "get": {
+        "summary": "Derived",
+        "operationId": "derived_api_v1_projects__project_id__query_derived_graph_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "include_personal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Personal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Derived Api V1 Projects  Project Id  Query Derived Graph Get"
                 }
               }
             }
@@ -4065,6 +5038,55 @@
         ],
         "title": "GraphView"
       },
+      "GroundedQueryPassage": {
+        "properties": {
+          "local_ref": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Local Ref"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text"
+          },
+          "attribution": {
+            "type": "string",
+            "enum": [
+              "paper_author",
+              "citation_report",
+              "user_view",
+              "model_synthesis"
+            ],
+            "title": "Attribution"
+          },
+          "source_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Source Refs"
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Caveats"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "local_ref",
+          "text",
+          "attribution",
+          "source_refs"
+        ],
+        "title": "GroundedQueryPassage",
+        "description": "Future P07 semantic output references only the current prepared manifest."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4929,6 +5951,23 @@
           "updated_at"
         ],
         "title": "NodeView"
+      },
+      "NoteGrantRequest": {
+        "properties": {
+          "allow_local": {
+            "type": "boolean",
+            "title": "Allow Local",
+            "default": true
+          },
+          "allow_model": {
+            "type": "boolean",
+            "title": "Allow Model",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NoteGrantRequest"
       },
       "OutputPolicy": {
         "properties": {
@@ -5929,6 +6968,799 @@
         ],
         "title": "ProposalView"
       },
+      "QueryAnswer": {
+        "properties": {
+          "answer_version_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Answer Version Id"
+          },
+          "query_run_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query Run Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "input_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Input Hash"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "validated",
+              "incomplete",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "knowledge_status": {
+            "type": "string",
+            "enum": [
+              "source_grounded",
+              "mixed_sources",
+              "insufficient"
+            ],
+            "title": "Knowledge Status"
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/GroundedQueryPassage"
+            },
+            "type": "array",
+            "title": "Passages"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "answer_version_id",
+          "query_run_id",
+          "revision",
+          "input_hash",
+          "status",
+          "knowledge_status"
+        ],
+        "title": "QueryAnswer",
+        "description": "Program-bound answer identity; defining this DTO does not generate an answer."
+      },
+      "QueryAnswerView": {
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "title": "Query Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "interrupted",
+              "cancelled",
+              "insufficient"
+            ],
+            "title": "Status"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryAnswer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_runs": {
+            "items": {
+              "$ref": "#/components/schemas/QueryModelExecutionView"
+            },
+            "type": "array",
+            "title": "Model Runs"
+          },
+          "can_continue": {
+            "type": "boolean",
+            "title": "Can Continue",
+            "default": false
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "request_count": {
+            "type": "integer",
+            "title": "Request Count",
+            "default": 0
+          },
+          "request_limit": {
+            "type": "integer",
+            "title": "Request Limit",
+            "default": 2
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query_id",
+          "status"
+        ],
+        "title": "QueryAnswerView"
+      },
+      "QueryBrowseRequest": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/QueryRequest"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page",
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "const": 10,
+            "title": "Page Size",
+            "default": 10
+          },
+          "display_paper_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Display Paper Ids"
+          },
+          "expected_result_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Result Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "title": "QueryBrowseRequest"
+      },
+      "QueryBrowseView": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "matched",
+              "no_evidence"
+            ],
+            "title": "Status"
+          },
+          "hits": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Hits"
+          },
+          "presentation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Presentation"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "const": 10,
+            "title": "Page Size",
+            "default": 10
+          },
+          "total_pages": {
+            "type": "integer",
+            "title": "Total Pages"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "graph_node_count": {
+            "type": "integer",
+            "title": "Graph Node Count"
+          },
+          "independent_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Independent Sources"
+          },
+          "scope_coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Coverage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "hits",
+          "presentation",
+          "total",
+          "page",
+          "total_pages",
+          "result_hash",
+          "graph_node_count"
+        ],
+        "title": "QueryBrowseView"
+      },
+      "QueryDocumentList": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "QueryDocumentList"
+      },
+      "QueryGenerateRequest": {
+        "properties": {
+          "allow_network": {
+            "type": "boolean",
+            "const": true,
+            "title": "Allow Network"
+          },
+          "continue_requested": {
+            "type": "boolean",
+            "title": "Continue Requested",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "allow_network"
+        ],
+        "title": "QueryGenerateRequest"
+      },
+      "QueryHistoryItem": {
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "title": "Query Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "paper_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paper Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query_id",
+          "question",
+          "created_at",
+          "status"
+        ],
+        "title": "QueryHistoryItem"
+      },
+      "QueryHistoryList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/QueryHistoryItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "QueryHistoryList"
+      },
+      "QueryModelExecutionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "title": "Sequence"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "usage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Usage"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "cost_known": {
+            "type": "boolean",
+            "title": "Cost Known",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "sequence",
+          "status"
+        ],
+        "title": "QueryModelExecutionView"
+      },
+      "QueryPreparationView": {
+        "properties": {
+          "query_id": {
+            "type": "string",
+            "title": "Query Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "insufficient",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "snapshot": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Snapshot"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "presentation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Presentation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query_id",
+          "status",
+          "input_hash",
+          "snapshot"
+        ],
+        "title": "QueryPreparationView"
+      },
+      "QueryRequest": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Project Id"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 12000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "paper_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paper Ids"
+          },
+          "document_version_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Version Ids"
+          },
+          "source_kinds": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "paper",
+                "knowledge",
+                "chunk",
+                "wiki",
+                "synthesis",
+                "note"
+              ]
+            },
+            "type": "array",
+            "title": "Source Kinds"
+          },
+          "knowledge_kinds": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "claim",
+                "method",
+                "finding",
+                "condition",
+                "experiment",
+                "metric",
+                "concept",
+                "research_question",
+                "argument",
+                "limitation"
+              ]
+            },
+            "type": "array",
+            "title": "Knowledge Kinds"
+          },
+          "include_personal": {
+            "type": "boolean",
+            "title": "Include Personal",
+            "default": false
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "local",
+              "model"
+            ],
+            "title": "Purpose",
+            "default": "local"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 20
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id",
+          "question"
+        ],
+        "title": "QueryRequest"
+      },
+      "QueryRetrievalView": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "matched",
+              "no_evidence"
+            ],
+            "title": "Status"
+          },
+          "hits": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Hits"
+          },
+          "graph": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Graph"
+          },
+          "terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Terms"
+          },
+          "independent_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Independent Sources"
+          },
+          "ranking_policy": {
+            "type": "string",
+            "title": "Ranking Policy",
+            "default": "lexical-graph-1"
+          },
+          "scope_coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Coverage"
+          },
+          "presentation": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Presentation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "hits",
+          "graph",
+          "terms"
+        ],
+        "title": "QueryRetrievalView"
+      },
+      "QuerySaveCommand": {
+        "properties": {
+          "source_query_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Query Id"
+          },
+          "answer_version_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Answer Version Id"
+          },
+          "selected_passage_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Selected Passage Refs"
+          },
+          "expected_input_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Input Hash"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "synthesis",
+              "insight"
+            ],
+            "title": "Kind",
+            "default": "synthesis"
+          },
+          "target_document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Document Id"
+          },
+          "base_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_query_id",
+          "answer_version_id",
+          "selected_passage_refs",
+          "expected_input_hash"
+        ],
+        "title": "QuerySaveCommand",
+        "description": "Explicit selected-passage save; the original question and evidence remain linked."
+      },
+      "QueryValidationView": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "reference_count": {
+            "type": "integer",
+            "title": "Reference Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "valid",
+          "input_hash",
+          "reference_count",
+          "status"
+        ],
+        "title": "QueryValidationView"
+      },
       "ReadingPreferenceRequest": {
         "properties": {
           "candidate_id": {
@@ -6247,6 +8079,42 @@
           "path"
         ],
         "title": "RootRequest"
+      },
+      "SavedReadingAnnotation": {
+        "properties": {
+          "annotation": {
+            "type": "string",
+            "maxLength": 12000,
+            "title": "Annotation"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "annotation",
+          "expected_revision"
+        ],
+        "title": "SavedReadingAnnotation"
+      },
+      "SavedReadingRemoval": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision"
+        ],
+        "title": "SavedReadingRemoval"
       },
       "SectionView": {
         "properties": {

@@ -356,7 +356,7 @@ class ObsidianReader:
                 )
                 added += 1
         if added:
-            store.event(
+            store.audit_event(
                 root.project_id,
                 "NOTES_SNAPSHOTTED",
                 {"root_id": root_id, "added": added},

@@ -6,25 +6,52 @@ from uuid import uuid4
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
 
-SCHEMA_HEAD = "0011"
+SCHEMA_HEAD = "0014"
 
 
 def make_engine(data_dir: Path) -> Engine:
     data_dir.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{(data_dir / 'researchgraph.sqlite3').as_posix()}")
+    engine = create_engine(
+        f"sqlite:///{(data_dir / 'researchgraph.sqlite3').as_posix()}", hide_parameters=True
+    )
 
     @event.listens_for(engine, "connect")
     def connect(dbapi_connection: Any, _record: Any) -> None:
         dbapi_connection.isolation_level = None
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
         dbapi_connection.execute("PRAGMA busy_timeout=5000")
+        # Readers need a committed snapshot while indexing/Store holds a writer.
+        # FULL synchronous durability remains at SQLite's default; no schema changes.
+        mode = dbapi_connection.execute("PRAGMA journal_mode=WAL").fetchone()[0]
+        if mode != "wal":
+            raise RuntimeError("本地数据库无法启用并发读取模式")
 
     @event.listens_for(engine, "begin")
     def begin(connection: Any) -> None:
-        connection.exec_driver_sql("BEGIN IMMEDIATE")
+        readonly = connection.get_execution_options().get("sqlite_readonly", False)
+        connection.exec_driver_sql("PRAGMA query_only=ON" if readonly else "PRAGMA query_only=OFF")
+        connection.exec_driver_sql("BEGIN" if readonly else "BEGIN IMMEDIATE")
+
+    @event.listens_for(engine, "checkin")
+    def reset_readonly(dbapi_connection: Any, _record: Any) -> None:
+        if dbapi_connection is not None:
+            dbapi_connection.execute("PRAGMA query_only=OFF")
 
     return engine
+
+
+def read_session(engine: Engine) -> Session:
+    """A guarded snapshot for audited read paths; writers keep IMMEDIATE isolation."""
+    return Session(engine.execution_options(sqlite_readonly=True), autoflush=False)
+
+
+def database_busy(exc: OperationalError) -> bool:
+    """Recognize SQLite lock codes without inspecting possibly private driver text."""
+    code = getattr(exc.orig, "sqlite_errorcode", None)
+    return isinstance(code, int) and code & 0xFF in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}
 
 
 def migrate(engine: Engine, data_dir: Path, script_location: Path | None = None) -> None:

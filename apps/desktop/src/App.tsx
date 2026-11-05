@@ -28,6 +28,7 @@ import { Papers } from "./Papers";
 import { SourceIntegrations } from "./SourceIntegrations";
 import { ModelSettings } from "./ModelSettings";
 import { GraphWorkspace } from "./GraphWorkspace";
+import { QueryPanel } from "./QueryPanel";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -48,9 +49,10 @@ export default function App() {
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [search, setSearch] = useState("");
-  const [projectView, setProjectView] = useState<"papers" | "graph" | "notes">(
-    "papers",
-  );
+  const [graphFocus, setGraphFocus] = useState("");
+  const [projectView, setProjectView] = useState<
+    "papers" | "graph" | "query" | "notes"
+  >("papers");
   const client = useQueryClient();
   const host = useQuery({
     queryKey: ["host"],
@@ -153,7 +155,7 @@ export default function App() {
           <span className="nav-label">设置与诊断</span>
         </button>
         <div className="version">
-          PHASE 3 <span>0.0.1</span>
+          PHASE 4 <span>0.0.1</span>
         </div>
       </aside>
       <main>
@@ -225,6 +227,16 @@ export default function App() {
                 </button>
                 <button
                   className={
+                    projectView === "query"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("query")}
+                >
+                  问答与阅读知识
+                </button>
+                <button
+                  className={
                     projectView === "notes"
                       ? "button primary"
                       : "button secondary"
@@ -239,6 +251,18 @@ export default function App() {
                   key={selected.id}
                   projectId={selected.id}
                   connected={connected}
+                  initialFocus={graphFocus}
+                />
+              ) : projectView === "query" ? (
+                <QueryPanel
+                  key={selected.id}
+                  projectId={selected.id}
+                  connected={connected}
+                  onGraphNode={(id) => {
+                    setGraphFocus(id);
+                    setProjectView("graph");
+                  }}
+                  onSettings={() => setPage("settings")}
                 />
               ) : projectView === "notes" ? (
                 <SourceIntegrations
@@ -304,7 +328,11 @@ export default function App() {
                     <button
                       className="project-card"
                       key={p.id}
-                      onClick={() => setSelected(p)}
+                      onClick={() => {
+                        setGraphFocus("");
+                        setProjectView("papers");
+                        setSelected(p);
+                      }}
                     >
                       <div className="card-top">
                         <FolderOpen size={22} />
@@ -362,6 +390,8 @@ export default function App() {
           onClose={() => setCreating(false)}
           onCreated={(p) => {
             setCreating(false);
+            setGraphFocus("");
+            setProjectView("papers");
             setSelected(p);
             void client.invalidateQueries({ queryKey: ["projects"] });
           }}

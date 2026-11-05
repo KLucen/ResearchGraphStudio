@@ -1,6 +1,12 @@
 # 05 — 阅读辅助 Prompt 与调用协议（设计 v3.3）
 
+2026-11-04 当前：P4-Q01～Q07 已接入，Q08 正在修复安装后的来源显示、整组问答/导航和保存内容批注/移除反馈，Alembic head **0014**。决策见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮状态见[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)及[P4实际报告](p4-query-verification-20261104.md)保留前次结果。P5 Lint/Wiki 未启动，修复包原生确认另记。
+
 当前参考模板统一版本 `reading-1.0`，各文件声明 output_contract。当前运行传输按 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 使用新语义协议；参考内部对象不直接等于模型 wire Schema。旧运行模板、哈希与任务计划保持，不覆盖历史。对照见 [迁移计划](06_development_migration_plan.md)。
+
+P4在 `query-context-1` 基础上接入独立 P07 / query-grounded-semantic-1 运行协议；新准备使用 P07_query_grounded_v2，冻结 `numeric_layout`，历史无此字段仍按 P07_query_grounded_v1 的原 Prompt/签名恢复。参考P07/P08模板保留设计用途，不能直接替代运行契约。P08保存采用已终验段落的确定性复制，不触发额外模型调用。连接成功、本地prepare、离线协议和真实回答质量分别验收。
+
+安装反馈修复中的来源中文要点只复用已有抽取译文，或把已验证当前答案另标为AI综合；不新增翻译Prompt、模型请求或修改冻结P07输入。个人批注独立于模型答案，不自动进入Query上下文；移除状态须在读取及模型发送前的依赖终验中生效。详见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。
 
 ## 模板职责
 
@@ -12,8 +18,8 @@
 | P04 | TranslationRepair | 缺失中文按需补译，不更改原语义 |
 | P05 | ComparabilityReport | 已选择主张的条件对比 |
 | P06 | RelationInference | 候选科学关系；NO_DECISION 留历史 |
-| P07 | QueryAnswer | 后续阅读问答，默认只读 |
-| P08 | QueryDistillation | 后续用户明确保存回答 |
+| P07 | QueryAnswer | 已接入有据阅读问答，默认只读；运行传输为query-grounded-semantic-1 |
+| P08 | QueryDistillation | 已接入显式选段确定性保存；生成式再提炼尚未接入 |
 | P09 | LintIssueBatch | 后续自动诊断建议 |
 | P10 | ReadingSynthesisDraft | 后续阅读整理/Wiki 草稿 |
 | P11 | WikiDeltaProposal | 后续依赖变化的局部文件变更提案 |
@@ -22,9 +28,9 @@
 
 P01/P03/P04/P12/P13 不机械地对每段调用。先复用结构、缓存和确定性处理；P12/P13 在需要整合/语义选择时使用，输出仍按各契约验证。不为每个实体分别调用模型。无人工审核 Prompt 或审核关卡。
 
-后续P07–P11按[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md)绑定文档版本/段落manifest、内容有效性、文件同步及根来源；P07可读取有效Wiki但不能把Wiki转述当新增独立证据。P08生成阅读衍生对象，不改写作者Claim；P09不把外部文件手改直接判科学错误；P10/P11只给文档语义/编辑提案，不自行写Markdown。正式Schema/Prompt在各阶段实现时版本化，本轮不改参考模板或历史运行模板。
+P07–P11沿用[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md)的文档版本/段落manifest、内容有效性、文件同步及根来源边界。当前P07可读取有效Wiki，但不能把Wiki转述当新增独立证据；P08确定性保存阅读衍生对象，不改写作者Claim。后续P09不把外部文件手改直接判科学错误，P10/P11只给文档语义/编辑提案，不自行写Markdown。正式运行Schema/Prompt独立版本化，本轮不覆盖参考模板或历史运行模板。
 
-图谱在后续任务中承担实质组织作用：P07输入由程序从种子命中沿合法支撑/科学关系补齐条件和证据，保留路径及不确定性，不仅提供节点标签；P08保存的引用关系不冒充新科学关系。P09在确定性支撑/来源/依赖检查后提供语义建议；P10按相关结论单元组织主题、分歧、共同点和适用条件，并补未选候选，不能逐节点改写成MD；P11只处理依赖变化影响的段落。文档、综合和原论文同根证据不重复计数，用户资料归属与授权沿依赖保留。现有P03–P06及历史编号不覆盖，新运行协议在对应任务实施时独立冻结。
+图谱承担实质组织作用：P07输入由程序从种子命中沿合法支撑/科学关系补齐条件和证据，保留路径及不确定性，不仅提供节点标签；P08保存的引用关系不冒充新科学关系。后续P09在确定性支撑/来源/依赖检查后提供语义建议；P10按相关结论单元组织主题、分歧、共同点和适用条件，并补未选候选，不能逐节点改写成MD；P11只处理依赖变化影响的段落。文档、综合和原论文同根证据不重复计数，用户资料归属与授权沿依赖保留。现有P03–P06及历史编号不覆盖，P09～P11运行协议待P5独立冻结。
 
 ## 公共输入安全与来源规则
 
@@ -42,7 +48,7 @@ R5 当前新任务使用独立 [P02_reading_extract_compact_v4](../services/engi
 
 输入为 ExtractionRequest，无必填研究方向或领域关键词。可选 vocabulary 只能来自本次文献或已验证上下文。输出为显式类型 union；Claim/Method/Finding/Condition/Experiment/Metric/Concept/ResearchQuestion/Argument/Limitation 都有独立严格字段，Paper 后端管理。links 只连本批 local_ref，跨批关系留给 P12。没有 claim_detail.findings_placeholder 等自由扩展键。
 
-抽取重要贡献及理解所必需的支撑、限制，不逐句建节点。保留原文全集，因此未抽取文本仍可由后续原文检索获得。max_items_hint 是请求规模提示，不是论文必须产出多少知识的指标。
+抽取重要贡献及理解所必需的支撑、限制，不逐句建节点。保留原文全集，因此未抽取文本仍可由当前Query原文检索获得。max_items_hint 是请求规模提示，不是论文必须产出多少知识的指标。
 
 对每个关键结论，同时抽出实际存在且有证据的 Method、Experiment、Condition 等必要支撑及合法有向关联；共享支撑可供多个 Claim 引用。不能为凑分支强造实验/条件，也不能将任意共用证据当作科学关系。`kind_note_unused`、占位键和模型评语不是 item 字段；非语义说明只放 warnings。
 
@@ -81,3 +87,11 @@ Schema 验证后仍需文献/引用白名单、角色类型、单元连通性、
 新整合输入包含全部当前有效候选；旧窗口按冻结快照复用，不重新按 ID 抢占或删减上下文。生成阶段的候选/证据仍视为不可信数据。限定的说明映射和建议隔离必须保留原响应、规则、位置及原因；不能把宽松 JSON 解析等同于科学验证。失败阶段的合法响应及已提交检查点可复用。
 
 只读诊断已确认一次 Claim 额外生成 `kind_note_unused: null`；限定无损适配只移除这个类型/字段/值组合并审计。非 null、其他 kind 或任意其他扩展仍拒绝，随后完整验证字段和来源。已收到响应的本地重验通过不等于最终新 Prompt 真实生成通过，实际调用与全文质量另记。
+
+## 已接入 P07 与确定性 P08
+
+新运行模板为 [P07_query_grounded_v2](../services/engine/researchgraph/prompts/P07_query_grounded_v2.md)，旧 [P07_query_grounded_v1](../services/engine/researchgraph/prompts/P07_query_grounded_v1.md) 保持；wire 均为 query-grounded-semantic-1。实际 Schema 从 AnswerWire 生成并与 Prompt 规则核对，引用enum来自冻结manifest；严格输出能力仍按官方精确登记能力选择，兼容 JSON requested 不宣称 strict，不为探测或降级自动收费。模型只产出回答语义、短引用、归属和限制，不能生成正式ID、证据坐标或保存动作。论文/笔记/Wiki内容均为不可信数据。
+
+v2 接收来源绑定的 `query-numeric-layout-1`：数值字号/位移风险只提示歧义，不允许模型猜改原数值；未知和部分覆盖不等于检查安全。程序拒绝正文中的明确风险压平数值，稳定返回 `QUERY_NUMERIC_LAYOUT_UNRESOLVED` 并保留 raw，不自动重发。专用限制说明中的危险数字由程序带审计地显示为占位提示，不猜测正确值、不改其他字符或 raw；完整响应经全部重验可用时仅显式零调用恢复，不能退回新增请求。Prompt 没有新增模型输出字段，旧清单/hash/回答不自动升级。见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)；实际真实失败样本、误拦与修复补验分列。
+
+P08 本轮实现明确选段后的确定性复制入Store，原问答/raw完整保留，不存在额外P08模型调用或生成式改写。后续若需要重新综合，须新增独立版本化Prompt/Schema、来源终验和可见调用账本，不能暗中收费。P09～P11及完整Wiki/Lint仍待P5。

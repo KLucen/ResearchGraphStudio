@@ -1,10 +1,12 @@
 # 03 — 阅读辅助知识图谱 Schema（设计 v3.3）
 
+2026-11-04 当前：P4-Q01～Q07 已接入，Q08 安装反馈修复加入只读来源显示与保存生命周期，Alembic head **0014**。新边界见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)和[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[P4实际报告](p4-query-verification-20261104.md)保留前次结果。P5 Lint/Wiki 未启动。
+
 R5当前传输见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：新finish计划冻结P13_reading_ranking_v3/reading-ranking-keyed-1，程序固定完整assessments槽位并稳定排序，有界修复不放宽领域约束。v1/v2原计划与响应保留。此前[ADR0020](adr/0020-evidence-aware-core-selection.md)的真实原文/疑点/数字排版上下文、碎片核心门槛及成员caveats继续生效；它们不是科学正确性保证，实际结果见[progress](progress.md)。
 
-参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**当前 Alembic head 0011，新任务使用 paper-reading-v1；领域契约不因解析旁表迁移变更。** 运行服务使用独立 reading_contracts.py，参考契约与运行 API 的差异见 07；旧 DTO/任务签名仍可读取历史。
+参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**当前 Alembic head 0014，阅读任务仍使用 paper-reading-v1；Query加性表不改变阅读领域/传输协议。** 阅读服务使用独立 reading_contracts.py；本轮Query运行契约为[query_contracts.py](../services/engine/researchgraph/query_contracts.py)，与参考契约的区别见下节及[API](07_api_and_events.md)。旧DTO/任务签名仍可读取历史。
 
-本轮 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 新增 reading-semantic-1 传输和 semantic-reading-1 阶段协议，不改上述内部领域或数据库。参考 PaperIntegrationProposal/CoreSelectionProposal 仍描述程序绑定后的对象，不能直接视为新模型输出 Schema。
+[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 引入 reading-semantic-1 传输和 semantic-reading-1 阶段协议，不改阅读领域。参考 PaperIntegrationProposal/CoreSelectionProposal 仍描述程序绑定后的对象，不能直接视为新模型输出 Schema。Q01～Q04新增结构按[ADR0022](adr/0022-query-foundation-and-versioned-context.md)，不改R5协议。
 
 ## 分层与身份
 
@@ -19,7 +21,7 @@ R5当前传输见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：�
 | CoreSelectionProposal | 关键性和覆盖建议 | 模型不决定发布 |
 | GraphSelection / SelectionPreference | 自动选择快照及可选显示偏好 | 选择服务经 Store |
 | GraphProjection | Paper→核心 Claim→支撑的视图 | 投影服务 |
-| GroundedPassage | Query/Wiki 的逐段出处与依赖 | 后续工作流验证后分配 |
+| GroundedPassage | Query/Wiki 的逐段出处与依赖 | 程序在回答绑定/保存时分配；Wiki整理留待P5 |
 
 Paper/DocumentVersion 映射现有 Paper/AttachmentRevision，不能再建平行来源库。知识单元是集合，不是新增一份 Claim；local_ref 只在原批/输入上下文内解释。
 
@@ -108,19 +110,48 @@ GraphProjection 的 HAS_CORE_CLAIM 仅连接 Paper→核心 Claim；默认同时
 
 RetrievalHit 不因图谱角色排除候选；来源/有效性门槛独立。QueryAnswer/GroundedPassage 为每段提供 attribution、带 revision/document_version 的论文依赖、证据及限制；个人观点另用 source_kind=note 与 snapshot_id，不能冒充论文证据；不能把图谱导航线作为科学证据。ReadingSynthesisDraft/WikiDeltaProposal 同样逐段引用，文件发布授权和冲突检查独立于知识自动处理。
 
-[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 规定的待实现对象还包括：保存的阅读综合、Wiki文档/段落不可变版本、根来源依赖manifest、授权快照及文件同步登记。保存综合不是修改作者Claim，Wiki不是GraphProjection，也不以任意Markdown代替结构化知识。P4-Q01/Q02先建最小文档读取/状态能力，P5再扩展生成与发布，不能把这些设计对象算作现有数据库表。
+[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 的最小文档registry、不可变段落版本、根依赖及文件登记已由Q01实现，Q07已加入明确保存阅读综合；完整Wiki生成发布仍待P5。保存综合不是修改作者Claim，Wiki不是GraphProjection，也不以任意Markdown代替结构化知识。
 
-运行契约须分别表达内容有效性、草稿/保存状态和文件同步（未导出/一致/修改/缺失/冲突）；文件缺失不等于内容证据失效，外部新文本不自动继承旧段落证据。Wiki/综合引用必须保留根论文证据及note/annotation个人来源，支持逐段可终止的依赖检查、归属与授权穿透；不能只有source_kind=wiki就丢失个人资料权限。检索同时命中不同表达层时按根来源去重，不增加独立支持数。此处只明确契约需求，本轮不改参考Schema或运行Schema。
+运行契约分别表达内容valid/stale/invalid/unverified、draft/saved版本状态和文件not_exported/in_sync/modified/missing/conflict/unavailable。文件缺失不等于内部内容证据失效，外部新文本不自动继承旧段落证据。当前依赖支持chunk/evidence/node/note/passage并逐层解析到根来源；note授权穿透文档转述，不能借wiki标签绕过权限。Annotation的独立Query引用尚未接入，不能把其历史导入能力记成当前检索来源。检索同时命中不同表达层时按根来源去重，不增加独立支持数。参考Schema继续保留，不用它替代新运行协议。
 
-图谱消费契约还需记录种子命中、知识单元/关系路径、补回的方法/实验/条件/结果/限制、各自修订与根证据。搜索结果中的 GraphSelection 角色是组织线索，不能充当科学真实性；GraphProjection分页和显示偏好不限制检索。保存的Synthesis/Insight须有独立类型/归属、source_query_id及多源依赖；衍生图层引用已有Claim，不复制或覆盖原主张，显示关闭也不影响保存综合的可检索性。科学关系、单元导航、衍生引用和文档依赖必须分型，不能把引用边转成支持结论的科学边。
+query-source-graph-1记录种子、完整合法关联/逐成员路径、补回的方法/实验/条件/结果/限制、各自修订与根证据。GraphSelection角色只提供组织线索，不能充当科学真实性；GraphProjection分页和显示偏好不限制检索。已保存Synthesis/Insight使用独立类型/归属、source_query_id及多源依赖；衍生图层不复制或覆盖原主张。科学关系、单元导航、衍生引用和文档依赖分别处理。
+
+### Query基础运行对象与实际表
+
+迁移0012新增下表，0013另加显式保存索引，0014加入独立保存偏好；均不重建旧ModelRun或改写科学数据。旧ModelRun仍要求单文献版本；项目级Query执行不伪挂第一篇论文。
+
+| 对象/表 | 当前职责 |
+| --- | --- |
+| QueryRun / query_runs | 项目、严格请求、冻结检索/上下文/模型配置、input_hash、准备状态及时间；跨来源执行记录 |
+| QueryModelRun / query_model_runs | 项目级模型调用审计，含query_run、manifest、Prompt/模型/参数/raw/错误及发送前请求槽位；用于P07执行和恢复 |
+| QueryAnswerVersion / query_answer_versions | 回答不可变版本，关联QueryRun和QueryModelRun；无证据的确定性不足回答可无模型调用 |
+| QueryDocument / query_documents | wiki/synthesis稳定文档身份及当前已保存版本指针 |
+| QueryDocumentVersion / query_document_versions | 不可变revision、draft/saved、hash；新草稿不替换现有已保存头 |
+| QueryPassage / query_passages | 有序local_ref、text/hash、attribution、dependencies和caveats；不是论文Claim |
+| QueryFileBinding / query_file_bindings | 授权root/相对路径、登记文档版本与文件hash、冲突状态；不授予发布权限 |
+| NoteUseGrant / note_use_grants | 复用AuthorizedRoot，区分local/model用途及授权revision；模型外发默认关闭 |
+| QueryOperation / query_operations | 准备/文档登记的幂等键、请求hash和结果定位 |
+| query_index_entries / query_fts | 可重建的本地检索派生数据；无科学知识写入口 |
+| QuerySavedKnowledge / query_saved_knowledge（0013） | 显式保存的Synthesis/Insight、来源答案/文档版本、逐段manifest与幂等指纹 |
+| QuerySavedPreference / query_saved_preferences（0014） | saved_id、个人annotation、独立revision、removed_at与updated_at；不改保存正文或原manifest |
+
+QueryDependency以type/id区分：chunk绑定完整块hash与start/end/quote；evidence复用原chunk hash及现有坐标；node绑定revision并重验当前合法候选和根证据；note绑定不可变快照hash及用途授权；passage绑定段落hash并递归核验。跨项目/循环、失效或Mock候选、假引用和未保存草稿拒绝；原始笔记字节及快照解码文本同时核对。
+
+QueryRequest含project_id/question、paper_ids/document_version_ids、source_kinds/knowledge_kinds、include_personal、purpose和limit。query-context-1以请求内S短编号映射到真实来源及上述根依赖，保存章节路径、完整表格组、图谱路径、内容/文件状态、模型快照hash和覆盖缺口；上下文重新组装与hash终验决定缓存能否读取。
+
+2026-11-05 新准备额外冻结 `numeric_layout`（`query-numeric-layout-1`）：按实际来源/Chunk/证据映射保留字号位移风险、压平数字和未知/部分覆盖。它属于版本化输入而非模型输出或科学知识改写；有字段时重建并终验，无字段的历史清单仍逐字保持旧 hash。新 P07 v2 与旧 v1 的 Prompt/计划分别选择，Schema `query-grounded-semantic-1` 和 head0014 不变，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
+
+QueryRetrieval / QueryPreparation 顶层可带 `presentation={hits,references}`。每个显示项包含title/original/summary_zh/summary_origin/paper_id/page_index/section_path；summary_origin仅在复用已有抽取译文时为extracted_translation。它是终验后的本地显示投影，不进入snapshot/manifest/input_hash，不改变历史检索或模型输入。中文缺失不是证据缺失，不由程序编造译文。
+
+GroundedQueryPassage、QueryAnswer、QuerySaveCommand用于Q05/Q07运行入口：段落引用唯一、个人归属与knowledge_status一致、不足必须说明；保存命令绑定source_query_id、answer_version_id、selected_passage_refs、expected_input_hash及显式文档基线。传输/身份/锚点终验不等于语义支持评价，真实回答质量和协议测试分别记录。
 
 ## 迁移边界
 
 参考 SQL 只描述建议新增关系，不可直接运行到用户库。正式迁移先备份、审计旧表、建立旧 ID 映射，再以 Alembic 加性迁移实现。旧嵌套条件/结果/实验与依赖已经存在时复用；原 ModelRun 和已完成任务签名保持。完整计划见 [06](06_development_migration_plan.md)。
 
-## 当前运行范围与严格校验（2026-11-03）
+## 阅读运行范围与严格校验（2026-11-03基线）
 
-领域 DTO 仍为 reading-extraction-1.0，数据库 head 0011；新 P02v4 传输 reading-semantic-1，旧 reading-compact-1 保持冻结。items/links 必须显式存在，字段缺失不能解释为成功抽取零候选；字段级 extra=forbid 及来源检查不取消。新语义阶段职责和 Provider 输出策略见 ADR0017，旧模板及冻结计划保留。
+该轮数据库为head0011；当前0014不改变以下阅读协议。领域DTO仍为reading-extraction-1.0，新P02v4传输reading-semantic-1，旧reading-compact-1保持冻结。items/links必须显式存在，字段缺失不能解释为成功抽取零候选；字段级extra=forbid及来源检查不取消。新语义阶段职责和Provider输出策略见ADR0017，旧模板及冻结计划保留。
 
 新版阅读与图谱只纳入具有reading-1.0/P02_reading来源、且候选payload通过当前DTO校验的知识；旧unified知识、旧选择快照仅作历史。选择写入candidate_scope=reading-candidates-only-v1；快照包含该范围标记。没有删除、覆盖或重新编号旧知识。相同领域Schema的已成功阅读候选可复用，不因传输字段简化而重抽。新响应与所有可复用状态共用 validate_stage 完整终验；protocol/schema/context/evidence 诊断与 input/raw 哈希保存在 stage_validation，原始响应不改。response_invalid=true 才更新 ModelRun.status=validation_failed、error、finished_at；可信来源/候选/快照变化为 false，保留这三个历史字段，只记录本次复用诊断并停止，不转为新模型请求。
 
@@ -137,3 +168,13 @@ P13v3的部分槽位及修复账本属于任务私有状态，不是GraphSelecti
 旧 P13 正常及恢复后均严格拒绝重复键（含转义后同名）和 NaN/Infinity；恢复另拒绝尾逗号、未闭合字符串、额外/嵌套结构及其他损坏。ADR0016 的“其他阶段不变”是历史范围，后续新语义路径按 ADR0017 同样严格解码，不放宽领域 Schema。恢复后完整 Schema、白名单、ID/来源与 Store 校验仍执行。审计存 `ModelRun.parameters.integration_normalization`：rule=`close-final-selection-gaps-array-v1`、path、inserted、offset（0 起始 Unicode 字符索引，以字符串记录）、raw_sha256、normalized_sha256；raw_output 原样保留，旧 Prompt/领域/数据库及上下文策略不改。
 
 P12属于组织建议：窗口外成员/关联/重复建议隔离，非法方向不写边，不同条件或归属不折叠。缺少整合结果的已验证根仅保留直接证据单元并标缺口，不虚构支撑；原始响应不修改。Store对实际写入的所有候选、证据、类型及闭合路径再次检查。见[ADR0013](adr/0013-current-schema-and-bounded-recovery.md)。
+
+## P4 回答与显式保存运行契约
+
+运行 AnswerWire/AnswerPassageWire 位于 query_answer_contracts.py，模型根仅 passages/limitations；每段只输出 text/attribution/source_refs/limitations。程序绑定 QueryAnswerVersion、A编号、输入hash、状态及原运行谱系；科学段落必须具备本次上下文中的论文根，个人观点必须具有授权note根，跨篇综合不得标为单篇作者主张。严格 JSON 拒绝重复键、NaN/Infinity、额外字段和未知引用，不猜补破损响应。
+
+QueryModelRun 记录实际模型、Prompt/hash、参数/冻结策略、发送账本、raw、实际usage/finish_reason/耗时、稳定错误及未知费用。query_answer Job 复用统一工作器/取消/继续，QueryRun仍保留原 prepared/insufficient准备状态，前端执行状态读 Job/QueryAnswerView。
+
+0013 加性新增 query_saved_knowledge，关联 source_query_id/answer_version_id、Synthesis或Insight、文档版本、选段ID和逐段多源manifest，不改旧0012/阅读表。QuerySaveCommand显式绑定预期input hash和所选段，指定文档更新需提供base_version_id。保存采用已验证段落复制（P08确定性路径），不为复制强制额外模型调用；个人来源权限沿根依赖穿透。历史回答/raw保留，未保存执行记录不自动进入知识检索。
+
+0014 加性新增 query_saved_preferences。批注及移除命令绑定expected_revision与幂等键，响应以metadata_revision区分科学revision；旧无偏好行按版本0/空批注/未移除解释。移除排除对象及其保存段落的后续副本、依赖谱系，不删除不可变文档或原Query/raw；后续不相关追加内容不受连带删除。批注可本地查看但不进入read_passages/检索/模型上下文/科学根；include_personal仍只控制来源私人资料用途。两类操作只记审计、不推进GraphRevision。完整规则见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。

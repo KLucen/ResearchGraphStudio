@@ -17,7 +17,12 @@ export type NodeDetail = components["schemas"]["NodeDetail"];
 export type Evidence = components["schemas"]["EvidenceView"];
 export type ModelRun = components["schemas"]["ModelRunView"];
 export type ReviewRequest = components["schemas"]["ReviewRequest"];
-export type NoteRoot = { id: string; path: string; active: boolean };
+export type NoteRoot = {
+  id: string;
+  path: string;
+  active: boolean;
+  query_permissions?: { allow_local: boolean; allow_model: boolean };
+};
 export type Annotation = {
   id: string;
   text: string;
@@ -116,6 +121,16 @@ export const api = {
       "POST",
       `/api/v1/integrations/obsidian/${id}/${action}`,
       null,
+      crypto.randomUUID(),
+    ),
+  notePermissions: (
+    id: string,
+    permissions: { allow_local: boolean; allow_model: boolean },
+  ) =>
+    request<{ root_id: string; allow_local: boolean; allow_model: boolean }>(
+      "PUT",
+      `/api/v1/integrations/obsidian/${id}/query-permissions`,
+      permissions,
       crypto.randomUUID(),
     ),
   notes: (id: string) =>

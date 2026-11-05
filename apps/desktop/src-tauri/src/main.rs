@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "0011";
+const ENGINE_SCHEMA_VERSION: &str = "0014";
 
 #[derive(Default)]
 struct Host {
@@ -175,6 +175,14 @@ fn health_compatible(health: &Value) -> bool {
 }
 
 fn allowed(method: &str, path: &str) -> bool {
+    // Requests are concatenated to the authenticated loopback origin. A missing
+    // slash could turn an attacker-controlled prefix into URL userinfo/another host.
+    if !path.starts_with('/') || path.starts_with("//") {
+        return false;
+    }
+    if allowed_query(method, path) {
+        return true;
+    }
     if allowed_reading(method, path) {
         return true;
     }
@@ -279,6 +287,93 @@ fn allowed(method: &str, path: &str) -> bool {
                 && matches!(parts[1], "cancel" | "retry" | "resume-adapted"));
     }
     false
+}
+
+fn allowed_query(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    let parts: Vec<_> = route.split('/').collect();
+    if !path.contains('?')
+        && parts.len() == 7
+        && parts[1..5] == ["api", "v1", "integrations", "obsidian"]
+        && uuid::Uuid::parse_str(parts[5]).is_ok()
+        && parts[6] == "query-permissions"
+    {
+        return method == "PUT";
+    }
+    if parts.len() < 7
+        || parts[1..4] != ["api", "v1", "projects"]
+        || uuid::Uuid::parse_str(parts[4]).is_err()
+        || parts[5] != "query"
+    {
+        return false;
+    }
+    if method == "GET" && parts.len() == 7 && parts[6] == "runs" {
+        let mut keys = std::collections::HashSet::new();
+        return !path.contains('?')
+            || (!query.is_empty()
+                && query.split('&').all(|part| {
+                    part.split_once('=').is_some_and(|(key, value)| {
+                        keys.insert(key)
+                            && match key {
+                                "limit" => {
+                                    !value.is_empty()
+                                        && value.bytes().all(|c| c.is_ascii_digit())
+                                        && value.parse::<u32>().is_ok_and(|n| (1..=50).contains(&n))
+                                }
+                                "cursor" => {
+                                    // The browser encodes base64url '=' padding. Decode
+                                    // only that byte, never arbitrary URL/path escapes.
+                                    let decoded = value.replace("%3D", "=").replace("%3d", "=");
+                                    !decoded.is_empty()
+                                        && decoded.len() <= 500
+                                        && decoded.bytes().all(|c| {
+                                            c.is_ascii_alphanumeric()
+                                                || matches!(c, b'-' | b'_' | b'=')
+                                        })
+                                }
+                                _ => false,
+                            }
+                    })
+                }));
+    }
+    if method == "GET"
+        && ((parts.len() == 7 && matches!(parts[6], "documents" | "saved" | "derived-graph"))
+            || (parts.len() == 8 && parts[6] == "saved" && uuid::Uuid::parse_str(parts[7]).is_ok()))
+    {
+        return !path.contains('?')
+            || matches!(query, "include_personal=true" | "include_personal=false");
+    }
+    if parts.len() == 9
+        && parts[6] == "saved"
+        && uuid::Uuid::parse_str(parts[7]).is_ok()
+        && matches!(
+            (method, parts[8]),
+            ("PUT", "annotation") | ("POST", "remove")
+        )
+    {
+        return !path.contains('?')
+            || matches!(query, "include_personal=true" | "include_personal=false");
+    }
+    if path.contains('?') {
+        return false;
+    }
+    (parts.len() == 7 && method == "POST" && matches!(parts[6], "search" | "prepare"))
+        || (parts.len() == 8 && method == "POST" && parts[6..8] == ["search", "page"])
+        || (parts.len() == 8 && method == "POST" && parts[6..8] == ["index", "rebuild"])
+        || (parts.len() == 8
+            && method == "GET"
+            && parts[6] == "runs"
+            && uuid::Uuid::parse_str(parts[7]).is_ok())
+        || (parts.len() == 9
+            && method == "GET"
+            && parts[6] == "runs"
+            && uuid::Uuid::parse_str(parts[7]).is_ok()
+            && parts[8] == "answer")
+        || (parts.len() == 9
+            && method == "POST"
+            && parts[6] == "runs"
+            && uuid::Uuid::parse_str(parts[7]).is_ok()
+            && matches!(parts[8], "validate" | "generate" | "save"))
 }
 
 fn allowed_reading(method: &str, path: &str) -> bool {
@@ -709,9 +804,50 @@ fn request_body_limit(method: &str, path: &str) -> usize {
     // Layout accepts at most 2000 finite positions; preserve the smaller cap elsewhere.
     if method == "POST" && path.ends_with("/graph/layout") && allowed(method, path) {
         512 * 1024
+    } else if method == "POST"
+        && (path.ends_with("/query/search")
+            || path.ends_with("/query/search/page")
+            || path.ends_with("/query/prepare"))
+        && allowed(method, path)
+    {
+        // Query accepts 12,000 Unicode characters, which may exceed 16KB in UTF-8.
+        64 * 1024
+    } else if method == "PUT"
+        && path
+            .split('?')
+            .next()
+            .is_some_and(|route| route.ends_with("/annotation"))
+        && allowed_query(method, path)
+    {
+        // Personal reading annotations use the same 12,000-character contract.
+        64 * 1024
     } else {
         16384
     }
+}
+
+fn decode_engine_response(status: reqwest::StatusCode, body: &[u8]) -> Result<Value, String> {
+    let value = serde_json::from_slice::<Value>(body);
+    if !status.is_success() {
+        // Only the structured engine error is user-facing. HTML, traceback or
+        // plain-text error bodies may contain source data or credentials.
+        return Err(value
+            .ok()
+            .and_then(|value| value["error"]["message"].as_str().map(str::to_owned))
+            .filter(|message| !message.trim().is_empty())
+            .unwrap_or_else(|| {
+                format!(
+                    "本地服务请求失败（HTTP {}），请稍后重试；若持续出现，请查看设置与诊断",
+                    status.as_u16()
+                )
+            }));
+    }
+    value.map_err(|_| {
+        format!(
+            "本地服务返回了无效响应（HTTP {}），请重试或查看设置与诊断",
+            status.as_u16()
+        )
+    })
 }
 
 #[tauri::command]
@@ -765,18 +901,12 @@ async fn engine_request(
         .send()
         .await
         .map_err(|_| "本地引擎连接中断，请重新连接后重试")?;
-    let success = response.status().is_success();
-    let value: Value = response
-        .json()
+    let status = response.status();
+    let bytes = response
+        .bytes()
         .await
-        .map_err(|_| "本地服务返回了无效响应")?;
-    if !success {
-        return Err(value["error"]["message"]
-            .as_str()
-            .unwrap_or("本地操作失败")
-            .into());
-    }
-    Ok(value)
+        .map_err(|_| "本地引擎响应读取中断，请稍后重试")?;
+    decode_engine_response(status, &bytes)
 }
 
 fn main() {
@@ -830,10 +960,87 @@ fn main() {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn engine_response_preserves_success_and_structured_error_message() {
+        let success = br#"{"items":[],"next_cursor":null}"#;
+        assert_eq!(
+            super::decode_engine_response(reqwest::StatusCode::OK, success).unwrap(),
+            super::json!({"items": [], "next_cursor": null})
+        );
+        let error = super::json!({
+            "error": {"code": "DATABASE_BUSY", "message": "本地数据库繁忙，请稍后重试", "retryable": true}
+        });
+        assert_eq!(
+            super::decode_engine_response(
+                reqwest::StatusCode::SERVICE_UNAVAILABLE,
+                error.to_string().as_bytes()
+            ),
+            Err("本地数据库繁忙，请稍后重试".into())
+        );
+    }
+
+    #[test]
+    fn engine_non_json_errors_report_status_without_revealing_response_body() {
+        for (status, body) in [
+            (
+                reqwest::StatusCode::SERVICE_UNAVAILABLE,
+                "<html>private-paper-token SELECT secret</html>",
+            ),
+            (
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                "Traceback private-paper-token SELECT secret",
+            ),
+        ] {
+            let error = super::decode_engine_response(status, body.as_bytes()).unwrap_err();
+            assert!(error.contains(&format!("HTTP {}", status.as_u16())));
+            assert!(error.contains("稍后重试"));
+            assert!(error.contains("设置与诊断"));
+            for private in [
+                "private-paper-token",
+                "SELECT",
+                "secret",
+                "Traceback",
+                "<html>",
+            ] {
+                assert!(!error.contains(private));
+            }
+        }
+    }
+
+    #[test]
+    fn engine_success_with_invalid_json_is_distinct_from_http_error() {
+        for body in [
+            b"not-json".as_slice(),
+            b"{\"items\":".as_slice(),
+            &[0xff, 0xfe],
+        ] {
+            let error = super::decode_engine_response(reqwest::StatusCode::OK, body).unwrap_err();
+            assert!(error.contains("无效响应（HTTP 200）"));
+            assert!(!error.contains("not-json"));
+        }
+    }
+
+    #[test]
+    fn engine_error_without_valid_message_uses_safe_http_fallback() {
+        for body in [
+            super::json!({"detail": "private traceback"}),
+            super::json!({"error": {"message": "  "}}),
+            super::json!({"error": {"message": 123}}),
+        ] {
+            let error = super::decode_engine_response(
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                body.to_string().as_bytes(),
+            )
+            .unwrap_err();
+            assert!(error.contains("HTTP 500"));
+            assert!(!error.contains("private traceback"));
+        }
+    }
+
+    #[test]
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0011",
+            "schema_version": "0014",
             "database": "ready",
             "fts5": true
         })));
@@ -845,14 +1052,14 @@ mod tests {
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "0011",
+            "schema_version": "0014",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"0011"}),
-            super::json!({"protocol_version":1,"schema_version":"0011","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"0011","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"0014"}),
+            super::json!({"protocol_version":1,"schema_version":"0014","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"0014","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }
@@ -898,6 +1105,248 @@ mod tests {
         let resolved = data_dir.canonicalize().unwrap();
         assert!(resolved.starts_with(std::env::temp_dir().canonicalize().unwrap()));
         std::fs::remove_dir_all(resolved).unwrap();
+    }
+
+    #[test]
+    fn query_routes_are_scoped_by_method_and_identity() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let prefix = format!("/api/v1/projects/{id}/query");
+        for suffix in ["search", "search/page", "prepare", "index/rebuild"] {
+            let path = format!("{prefix}/{suffix}");
+            assert!(allowed("POST", &path));
+            for method in ["GET", "PUT", "DELETE"] {
+                assert!(!allowed(method, &path));
+            }
+        }
+        let run = format!("{prefix}/runs/{id}");
+        assert!(allowed("GET", &run));
+        assert!(!allowed("POST", &run));
+        assert!(allowed("POST", &format!("{run}/validate")));
+        assert!(!allowed("GET", &format!("{run}/validate")));
+        for suffix in [
+            "documents",
+            "documents?include_personal=true",
+            "documents?include_personal=false",
+        ] {
+            assert!(allowed("GET", &format!("{prefix}/{suffix}")));
+            assert!(!allowed("POST", &format!("{prefix}/{suffix}")));
+        }
+        let grant = format!("/api/v1/integrations/obsidian/{id}/query-permissions");
+        assert!(allowed("PUT", &grant));
+        for method in ["GET", "POST", "DELETE"] {
+            assert!(!allowed(method, &grant));
+        }
+        assert!(!allowed("PUT", &format!("{grant}?allow_model=true")));
+        assert!(!allowed(
+            "PUT",
+            "/api/v1/integrations/obsidian/../query-permissions"
+        ));
+        for path in [
+            format!("@evil.test/api/v1/projects/{id}/query/search"),
+            format!("evil.test/api/v1/projects/{id}/query/prepare"),
+            format!("//evil.test/api/v1/projects/{id}/query/search"),
+            "/api/v1/projects/../query/search".to_string(),
+            "/api/v1/projects/private/query/prepare".to_string(),
+            format!("{prefix}/../search"),
+            format!("{prefix}/runs/../validate"),
+            format!("{prefix}/runs/%2e%2e/validate"),
+            format!("{prefix}/runs/{id}/validate/extra"),
+            format!("{prefix}/search?path=private"),
+            format!("{prefix}/prepare?"),
+            format!("{prefix}/documents?include_personal=true&include_personal=false"),
+            format!("{prefix}/documents?include_personal=1"),
+            format!("{prefix}/documents?path=C:/private"),
+            format!("{prefix}/documents?"),
+        ] {
+            for method in ["GET", "POST", "PUT"] {
+                assert!(!allowed(method, &path), "accepted {method} {path}");
+            }
+        }
+    }
+
+    #[test]
+    fn query_answer_and_saved_routes_use_exact_methods_and_scoped_ids() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let prefix = format!("/api/v1/projects/{id}/query");
+        for (method, suffix) in [
+            ("GET", "runs".to_string()),
+            ("GET", format!("runs/{id}/answer")),
+            ("POST", format!("runs/{id}/generate")),
+            ("POST", format!("runs/{id}/save")),
+            ("GET", "saved".to_string()),
+            ("GET", format!("saved/{id}")),
+            ("PUT", format!("saved/{id}/annotation")),
+            ("POST", format!("saved/{id}/remove")),
+            ("GET", "derived-graph".to_string()),
+        ] {
+            let path = format!("{prefix}/{suffix}");
+            assert!(allowed(method, &path), "rejected {method} {path}");
+            for other in ["GET", "POST", "PUT", "PATCH", "DELETE"] {
+                if other != method {
+                    assert!(!allowed(other, &path), "accepted {other} {path}");
+                }
+            }
+            assert!(!allowed(method, &format!("{path}/extra")));
+            assert!(!allowed(method, &format!("{path}?path=private")));
+        }
+        for suffix in [
+            "runs/private/answer".to_string(),
+            "runs/../generate".to_string(),
+            "runs/%2e%2e/save".to_string(),
+            "saved/private".to_string(),
+            "saved/../document".to_string(),
+            format!("runs/{id}/answer?"),
+            format!("runs/{id}/generate?allow_network=true"),
+            format!("runs/{id}/save?target_document_id={id}"),
+            format!("runs/{id}/raw"),
+            "documents/write".to_string(),
+        ] {
+            let path = format!("{prefix}/{suffix}");
+            for method in ["GET", "POST", "PUT", "DELETE"] {
+                assert!(!allowed(method, &path), "accepted {method} {path}");
+            }
+        }
+    }
+
+    #[test]
+    fn query_history_cursor_accepts_browser_padding_but_rejects_encoding_bypasses() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let route = format!("/api/v1/projects/{id}/query/runs");
+        // Frozen fixture cursor from a [created_at, UUID] JSON tuple, as emitted
+        // by Python urlsafe_b64encode and encoded by queryApi.history.
+        let cursor =
+            "WyIyMDI2LTExLTA0VDAwOjAwOjAwWiIsIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSJd";
+        for query in [
+            "limit=1".to_string(),
+            "limit=50".to_string(),
+            format!("limit=20&cursor={cursor}"),
+            "cursor=YWJjZA==&limit=20".to_string(),
+            "cursor=YWJjZA%3D%3D&limit=20".to_string(),
+            "cursor=YWJjZA%3d%3d".to_string(),
+            format!("cursor={}", "a".repeat(500)),
+        ] {
+            assert!(
+                allowed("GET", &format!("{route}?{query}")),
+                "rejected {query}"
+            );
+        }
+        for query in [
+            "".to_string(),
+            "cursor=".to_string(),
+            "limit=0".to_string(),
+            "limit=51".to_string(),
+            "limit=+1".to_string(),
+            "limit=1&limit=2".to_string(),
+            "cursor=abc&cursor=def".to_string(),
+            "cursor=abc&path=private".to_string(),
+            "cursor=%2fprivate".to_string(),
+            "cursor=%253D".to_string(),
+            "cursor=abc%26limit%3D50".to_string(),
+            "cursor=abc#private".to_string(),
+            "cursor=../private".to_string(),
+            "cursor=abc&".to_string(),
+            format!("cursor={}", "a".repeat(501)),
+        ] {
+            assert!(
+                !allowed("GET", &format!("{route}?{query}")),
+                "accepted {query}"
+            );
+        }
+    }
+
+    #[test]
+    fn query_private_scope_is_boolean_and_cannot_enable_writes() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let prefix = format!("/api/v1/projects/{id}/query");
+        for suffix in [
+            "documents".to_string(),
+            "saved".to_string(),
+            format!("saved/{id}"),
+            "derived-graph".to_string(),
+        ] {
+            let route = format!("{prefix}/{suffix}");
+            for value in ["true", "false"] {
+                let path = format!("{route}?include_personal={value}");
+                assert!(allowed("GET", &path));
+                for method in ["POST", "PUT", "DELETE"] {
+                    assert!(!allowed(method, &path));
+                }
+            }
+            for query in [
+                "",
+                "include_personal=1",
+                "include_personal=True",
+                "include_personal=true&include_personal=false",
+                "include_personal=true&path=private",
+                "include_personal=%74rue",
+                "include_personal=false#true",
+            ] {
+                assert!(
+                    !allowed("GET", &format!("{route}?{query}")),
+                    "accepted {route}?{query}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn saved_metadata_routes_keep_method_identity_and_purpose_scope_exact() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let prefix = format!("/api/v1/projects/{id}/query/saved/{id}");
+        for (method, suffix) in [("PUT", "annotation"), ("POST", "remove")] {
+            let route = format!("{prefix}/{suffix}");
+            for value in ["true", "false"] {
+                assert!(allowed(
+                    method,
+                    &format!("{route}?include_personal={value}")
+                ));
+            }
+            for value in ["1", "True", "%74rue", "true&path=private", ""] {
+                assert!(!allowed(
+                    method,
+                    &format!("{route}?include_personal={value}")
+                ));
+            }
+            assert!(!allowed(method, &format!("{route}?")));
+            assert!(!allowed(method, &route.replace(id, "private")));
+        }
+        let annotation = format!("{prefix}/annotation?include_personal=true");
+        assert_eq!(super::request_body_limit("PUT", &annotation), 64 * 1024);
+        assert!(
+            serde_json::json!({"annotation": "研".repeat(12000), "expected_revision": 0})
+                .to_string()
+                .len()
+                < super::request_body_limit("PUT", &annotation)
+        );
+        assert_eq!(super::request_body_limit("POST", &annotation), 16384);
+        assert_eq!(
+            super::request_body_limit("PUT", &format!("{annotation}&path=private")),
+            16384
+        );
+    }
+
+    #[test]
+    fn query_body_cap_supports_unicode_questions_only_on_valid_routes() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        for suffix in ["search", "search/page", "prepare"] {
+            let path = format!("/api/v1/projects/{id}/query/{suffix}");
+            assert_eq!(super::request_body_limit("POST", &path), 64 * 1024);
+            assert!(
+                serde_json::json!({"question": "研".repeat(12000)})
+                    .to_string()
+                    .len()
+                    < super::request_body_limit("POST", &path)
+            );
+            assert_eq!(super::request_body_limit("GET", &path), 16384);
+            assert_eq!(
+                super::request_body_limit("POST", &format!("{path}?path=private")),
+                16384
+            );
+        }
+        assert_eq!(
+            super::request_body_limit("POST", "/api/v1/projects/../query/search"),
+            16384
+        );
     }
 
     #[test]
@@ -1165,5 +1614,13 @@ mod tests {
             assert!(!allowed("GET", path));
         }
         assert!(!allowed("DELETE", "/api/v1/projects"));
+        assert!(!allowed(
+            "GET",
+            &format!("@evil.test/api/v1/projects/{id}/papers")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("@evil.test/api/v1/knowledge/nodes/{id}")
+        ));
     }
 }

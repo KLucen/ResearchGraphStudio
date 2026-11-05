@@ -78,11 +78,21 @@ def support_context(
 
 
 def support_paths(
-    store: ReadingMutations, version_id: str, nodes: dict[str, KnowledgeNode]
+    store: ReadingMutations,
+    version_id: str,
+    nodes: dict[str, KnowledgeNode],
+    *,
+    prevalidated: bool = False,
 ) -> list[tuple[str, str, str]]:
     """Never infer membership from shared evidence or proximity in the paper."""
     _, paper = store.source(version_id)
-    valid = {nid for nid, node in nodes.items() if valid_support_node(store, version_id, node)}
+    # Query's eligible_nodes has already checked every endpoint, link, source and
+    # payload in bulk in this transaction. Other callers retain full validation.
+    valid = (
+        set(nodes)
+        if prevalidated
+        else {nid for nid, node in nodes.items() if valid_support_node(store, version_id, node)}
+    )
     paths = []
     for edge in store.session.scalars(
         select(SourceAssertion)

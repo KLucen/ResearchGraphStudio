@@ -1,40 +1,37 @@
 # 文档导航
 
-2026-11-04 R5三项实际补验收见[新报告](r5-acceptance-verification-20261104.md)：当前模型两篇P13v3各一次通过、零重复P02/P12、再继续零调用；32+2已知错误均保留候选但不进入默认图谱，5组同义结论各一核心代表。新包隔离检查与用户三项反馈通过；部分覆盖/有限证据、strict/干净机及外部补充原文限制分别保留，不进入P4/P5。
+2026-11-05 最新：[P4 最终回归与真实验收](p4-final-acceptance-20261105.md)记录当前安装版用户正常反馈、十题真实结果及数值错误修复补验；[ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)说明新 P07 v2/冻结版式风险与旧 v1 兼容。性能优化保留完整验源，当前 head0014，不进入 P5。此前“新包原生待反馈”按各历史包理解；本轮新构建包的反馈另列。
 
-2026-11-04 历史任务续接反馈修复见[实际核验](history-retry-verification-20261104.md)：旧 `Claim.kind_note_unused=null` 失败记录已有34/34成功后继，保留原错误作为历史；续接返回已完成任务时界面直接展示并定位，不重复抽取。分页外处理中的后继独立刷新，核心排序未完成不标成完整完成。
+2026-11-04 最新：本地问答历史“无效响应”实际为SQLite锁竞争，修复见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复验收](query-history-lock-verification-20261104.md)。8个纯读取路径/模型等待检查使用受保护快照，写入仍保留IMMEDIATE；正常worker及冻结HTTP并发已测，新包用户原生待反馈。head0014不变、零新真实调用，不进入P5。
 
-2026-11-04 R5 协议修复见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：新 P13v3 使用程序固定槽位与严格 Schema，局部失败有一次定向格式修复，持久账本限制每构建最多两个请求槽位；旧排序失败可独立续接并重验复用 P12。协议实现轮未调用模型，随后本轮按用户要求补做2次真实请求，结果与交付见[progress](progress.md)。
+2026-11-04 当前：P4-Q01～Q07 已接入，Q08 继续处理安装反馈与阅读交互。本轮增加各板块独立论文筛选、全部合法命中分页（每页 10 条）、来源的默认图谱标记、按论文分组回答及两层引用折叠，Alembic head 保持 **0014**。设计见 [ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)，实际验证与限制见[本轮报告](p4-query-browsing-verification-20261104.md)。此前可读来源、整组问答、批注/移除见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)及[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)和[P4实际报告](p4-query-verification-20261104.md)保留前次交付记录。P5 Lint/Wiki 未启动，新包原生确认不以旧包反馈代替。
 
-完整产品流程见[项目介绍中的流程图](../README.md#从论文到阅读知识)及[产品设计](01_product_design.md)：论文 → 原文/证据/候选 → 自动构建论文知识图谱 → 图谱驱动的 Query → 明确保存为衍生综合 → 整理 Wiki → 授权导出 Markdown；Lint 横向检查证据、支撑结构、依赖和文件状态。
+更新：2026-11-04（Asia/Shanghai）。[ADR0022](adr/0022-query-foundation-and-versioned-context.md)及[基础验收](p4-query-foundation-verification-20261104.md)保留 Q01～Q04/head0012 的历史范围；当前在此基础上完成 Q05～Q07，领域 `reading-extraction-1.0`、入口 `paper-reading-v1` 及历史抽取协议保持。Q08 的实际结果与未测项统一见本轮报告，不能用历史成绩代替。
 
-知识图谱提供结论单元、支撑路径、跨论文关联与条件比较结构，支撑 Query 的扩展检索、Wiki 的内容组织和 Lint 的结构检查。画布是交互入口，完整有效知识仍可检索，未选候选不会因未显示而丢失。
-
-P4 Query 与 P5 Lint/Wiki 的详细待开发任务、实现方法、依赖顺序和验收门槛集中在[开发计划](06_development_migration_plan.md)。P4分Q01–Q08，P5分L01–L04/W01–W05；实际仍在P3/R5，本轮只重写计划与介绍，没有把参考契约记成已实现，也未开始后续Phase。
-
-Query读取Wiki状态、问答沉淀形式及Obsidian检查边界见[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md)：Wiki是以图谱与已保存综合为组织依据的阅读文档，Markdown是其可导出表达；保存回答新增有据衍生知识，可在独立衍生图层查看，整理Wiki/导出Markdown分别明确。P4先建最小文档读取/状态，P5扩展生成发布。内容有效性和文件同步分开；授权受管Markdown与独立私人只读笔记区分，不把整个Obsidian Vault都当作Wiki。
-
-最新 R5 协议修复与交付见[本轮验收](ranking-protocol-verification-20261104.md)，上轮真实质量失败见[历史记录](r5-final-verification-20261103.md)，支撑路径规则见[ADR0019](adr/0019-support-path-revalidation.md)。用户已反馈上一安装包三篇同显、悬停拖动、颜色图例、全屏Esc、重启知识布局五项全部通过；新包、真实科学质量与strict分别记录。界面改动历史见[图谱工作区验收](graph-workspace-verification-20261103.md)，仍不进入 P4/P5。
-
-本轮实现设计见 [ADR0017：语义协议、程序组图与阶段恢复](adr/0017-semantic-protocol-and-stage-recovery.md)。新 P02v4 只输出语义，身份由程序绑定；P12 仅关系/重复提案，程序沿全部已验证路径组单元，P13 仅贡献建议。Provider 输出策略冻结，首次失败视图明确 provisional/pending/partial，新/缓存共用完整终验。旧协议与成功检查点保留，head0011/领域1.0不变；本轮实测由 progress 另记，真实 strict API 尚未验证。
-
-最新改造、实际测试与安装包见[语义协议与阶段恢复验收](semantic-reliability-verification-20261103.md)；前轮见[P13 JSON 响应恢复验收](selection-json-verification-20261103.md)、[完整整合/选择上下文验收](complete-context-verification-20261103.md)和[结构解析、默认支撑与响应恢复验收](structured-reading-verification-20261103.md)。
-
-当前增量：[结构文档与支撑图谱 ADR0014](adr/0014-structured-pdf-and-support-graph.md)。跨页章节、行及表格结构作为版本化解析旁表保存，References 不参与抽取；新任务移除 6000 字符/48 证据目标，默认展示结论的方法、实验、条件、结果和指标。实际测试、真实调用及安装状态以 [progress](progress.md) 为准。前轮交付记录见[新版范围与抽取恢复验收](schema-scope-verification-20261102.md)。
-
-[完整整合/选择上下文 ADR0015](adr/0015-complete-reading-context.md) 继续移除 P12/P13 的固定软件预算：新 P12 全部候选/完整引用证据一窗，P13 全部单元一次；旧冻结窗口及检查点复用，真实模型容量和有界超时不取消。
-
-历史 [P13 严格解析及单字符语法恢复 ADR0016](adr/0016-selection-json-syntax-recovery.md) 在旧 P13 正常/恢复后均拒绝重复键与 NaN/Infinity，仅处理已确认的末尾 coverage_gaps 完整非空字符串数组漏 `]`。其“其他阶段不变”为当轮范围；新语义三阶段均严格解码，无通用语法恢复。raw与审计保留，完整重验才复用，不推断语义完整；实际历史结果见该报告，本轮结果见 progress。
-
-当前设计为 **v3.3 阅读辅助知识图谱**：辅助阅读、理解和整理科研论文，覆盖不同论文类型，不预设具体研究方向。目标是选择论文直接自动生成知识图谱，流程不包含人工审核。决策见 [ADR 0008](adr/0008-reading-knowledge-graph.md)。
+本轮先将 R5 成果推送至 `main` 的 `80552d3`，[对应 CI](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41778202007) 的构建和独立安装验收均通过。随后新增的 Query 基础改动尚未再次 Commit/Push，不能将 R5 的远端成绩算作 Query 增量验收。最终命令、测试结果和限制以 [progress](progress.md)、[开发日志](../DEVELOPMENT_LOG.md)及实际报告为准。
 
 ## 当前目标与实际工程
 
-当前已接入：来源/完整证据 → 候选抽取 → 论文级整合 → 自动关键性选择 → Paper→核心结论→支撑知识的分层图谱；R5本轮三项补验收在明确范围内通过，限制见新报告。
+产品辅助阅读、理解和整理不同类型的科研论文，不预设研究方向。当前设计为 **v3.3 阅读辅助知识图谱**，决策见 [ADR0008](adr/0008-reading-knowledge-graph.md)。新流程没有人工审核、待审队列或接受/驳回步骤。
 
-后续待实现：Query依据问题检索并沿完整图结构补齐条件/方法/证据，同时读取有效Wiki、保存综合和授权个人资料；明确保存后经同一Store新增衍生知识。Wiki用图谱结构组织文档，逐段追踪根证据；Lint检查知识与文档/文件的不同状态。详见[实施顺序](06_development_migration_plan.md)。
+已接入的论文流程为：来源与结构解析 → 保留原文/证据 → 候选抽取 → 论文级整合 → 自动核心选择 → Paper→核心 Claim→有据支撑的图谱。图谱组织结论、方法、实验、条件、结果和限制；画布只是交互视图，分页、折叠、隐藏与未入默认图都不限制完整合法知识检索。
 
-**R0规范已落地到R1–R4；R5三项补验收已完成，不扩大为全模型/全论文科学质量认证。** 当前 Alembic head0011、领域reading-extraction-1.0、入口paper-reading-v1；新模板为P02_reading_extract_compact_v4/P12_reading_associations_v1/P13_reading_ranking_v3，旧v1/v2冻结计划保持原协议。新选择带原文、疑点与数字排版风险，见[ADR0020](adr/0020-evidence-aware-core-selection.md)，键控评估及恢复见ADR0021。此前v2失败记录保持，本轮v3成功另记，不追加模型调用；P4 Query/P5 Lint/Wiki未开始。
+Query 本轮已接入：
+
+- **Q01**：项目级运行契约和执行记录、加性迁移、最小不可变文档/段落登记、根依赖及内容/文件双维状态。普通 Query、笔记授权和扫描审计不推进科学图修订。
+- **Q02**：可重建 FTS5/精确检索索引，覆盖合法候选的原语言/已有中文/别名、题名、原文/表格、有效文档及用途允许的笔记；默认不读取私人笔记。
+- **Q03**：从文本或 Wiki 根命中沿完整合法图路径补齐支撑，保留共享成员、条件四态、不同归属及重验后的科学关系；导航线和 `NO_DECISION` 不充当科学依据。
+- **Q04**：`query-context-1` 冻结版本、hash、证据/只读 Chunk 区间、章节/表格、路径、用途授权与短编号映射；缓存读取和重放实时终验，不为查询创建论文知识。
+
+上述基础供 **Q05** 的 P07 有据回答使用，发送前、收到原响应后及缓存恢复时均终验，最多两个持久请求槽位，失败不自动重发。**Q06** 将问题、来源、答案和保存组织成组，来源显示原文及已有中文要点，历史导航有可见加载/失败状态；本轮各板块独立按论文筛选并每页展示 10 条，本地预览可遍历全部合法词面命中，图谱标记基于完整默认阅读投影，回答按真实引用归组且引用默认两层折叠。**Q07** 通过 KnowledgeStore 保存所选段落及根依赖，并提供独立衍生图层、个人批注和移除；跨页或筛选不会丢失已勾选段落。批注不改模型答案，移除穿透后续检索与依赖，历史/raw/证据保留。保存采用确定性复制，不追加 P08 模型调用；本轮展示增量没有新增真实模型请求，也不改变冻结回答上下文。**Q08** 本轮回归和新包状态见[分页与分组验证报告](p4-query-browsing-verification-20261104.md)，前次反馈保留在反馈报告，具体门槛见[开发计划](06_development_migration_plan.md)。
+
+## 完整生命周期与文档边界
+
+目标流程见[项目介绍流程图](../README.md#从论文到阅读知识)和[产品设计](01_product_design.md)：论文 → 原文/证据/候选 → 自动知识图谱 → 图谱驱动 Query → 明确保存衍生综合 → 整理 Wiki → 授权导出 Markdown；Lint 横向检查来源、支撑、依赖和文件状态。显式保存综合已接入，Wiki 生成/发布及 Lint 仍属 P5 后续任务，流程图不是整条生命周期的完成证明。
+
+[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 明确 Wiki 是有版本和逐段依赖的阅读文档，不是图谱本身，也不是整个 Obsidian Vault。Q01～Q04 先提供文档只读适配与状态消费，P5 再扩展生成和发布。内部有效版本可在文件缺失或外改时继续使用，但必须标出文件状态；外部新文本不会继承旧 manifest。个人资料用途授权沿根依赖穿透，不能借 Wiki 或综合绕过撤权。
+
+默认 Query 只读。明确“保存为阅读知识”才经同一 Knowledge Store 新增 Synthesis/Insight 等衍生对象，不重写作者 Claim；指定内部文档目标需核对基线版本。P5 的主题整理、Wiki 生成和 Markdown 导出尚未启动。参考契约不能直接代替运行 API。
 
 ## 当前设计入口
 
@@ -42,28 +39,32 @@ Query读取Wiki状态、问答沉淀形式及Obsidian检查边界见[ADR0018](ad
 | --- | --- |
 | 决策与产品流程 | [00 范围](00_decisions_and_scope.md) · [01 产品](01_product_design.md) |
 | 统一引擎与数据 | [02 架构](02_architecture_and_workflows.md) · [03 Schema](03_schema_design.md) |
-| 分层阅读交互 | [04 图谱](04_graph_interaction_spec.md) |
-| 模型任务与自动整合 | [05 Prompt](05_prompt_engineering.md) · [13 个模板](prompts/) |
-| 开发顺序 | [06 当前 R5 与后续 P4/P5 计划](06_development_migration_plan.md) |
-| API/验证/工程 | [07 目标接口](07_api_and_events.md) · [08 验证](08_validation_and_security.md) · [09 注记](09_reference_implementation_notes.md) |
-| 可执行参考 | [Pydantic](schemas/contracts.py) · [JSON Schema](schemas/generated/) · [SQL 草案](schemas/sqlite_reference.sql) · [合成示例](examples/README.md) · [测试](tests/test_contracts.py) |
-| 变更与兼容 | [变化摘要](CHANGELOG_FROM_V3.md) · [代码映射](migration/v3_to_reading_assessment.md) · [本轮规范验证](reading-design-verification-20261102.md) |
+| 图谱交互 | [04 图谱](04_graph_interaction_spec.md) |
+| 模型任务 | [05 Prompt](05_prompt_engineering.md) · [参考模板](prompts/) · [运行模板](../services/engine/researchgraph/prompts/) |
+| 开发顺序 | [06 P4/P5 任务与验收](06_development_migration_plan.md) |
+| API/验证/工程 | [07 接口](07_api_and_events.md) · [运行 API](api.md) · [08 验证](08_validation_and_security.md) · [09 注记](09_reference_implementation_notes.md) |
+| Query | [基础 ADR0022](adr/0022-query-foundation-and-versioned-context.md) · [回答/保存 ADR0023](adr/0023-grounded-query-and-explicit-saving.md) · [反馈修复 ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md) · [浏览与分组 ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md) · [前次实际报告](p4-query-verification-20261104.md) · [反馈验收](p4-query-feedback-verification-20261104.md) · [本轮浏览验收](p4-query-browsing-verification-20261104.md) |
+| 可执行参考 | [Pydantic](schemas/contracts.py) · [JSON Schema](schemas/generated/) · [SQL 草案](schemas/sqlite_reference.sql) · [示例](examples/README.md) · [测试](tests/test_contracts.py) |
+| 变更与兼容 | [变化摘要](CHANGELOG_FROM_V3.md) · [代码映射](migration/v3_to_reading_assessment.md) · [规范验证](reading-design-verification-20261102.md) |
 
-## 已实现工程与历史验收
+## R5 与既有功能的历史验收
 
-- [输出能力与Schema精简](compact-output-verification-20261102.md)：移除32K/64K二次限额，统一继续入口；紧凑格式无损展开，真实响应保存12候选/10有效关联，全文待验收。见[ADR0012](adr/0012-compact-extraction-and-model-output-ceiling.md)。
-- [腾讯云超时与空图谱恢复](tencent-recovery-verification-20261102.md)：单个真实失败子批约9.5秒通过；明确流式/思考策略、续接成功批次和部分图谱，全文待验收。见 [ADR 0011](adr/0011-tencent-streaming-and-reading-recovery.md)。
-- [阅读响应恢复](reading-response-verification-20261102.md)：精确重复去重与失败结果复用，真实响应副本 20 候选/24 关联通过，零新调用；全文和安装反馈待验收。规则见 [ADR 0010](adr/0010-reading-response-deduplication.md)。
-- [根 README](../README.md)、[运行 API](api.md)、[模型设置](model-configuration.md)、[开发日志](../DEVELOPMENT_LOG.md)、[安全检查](security-checks.md)。
-- [抽取可靠性](extraction-reliability-verification-20261102.md)：当轮真实 Schema 任务副本 4/4 成功；另一响应超时任务当时 6/17。当前状态见上方新报告，历史结果不改写。
-- [图谱与抽取稳定性](stability-verification-20261102.md)、[图谱/输出预算优化](refinement-verification-20261102.md)、[v3 M0–M6 验收](v3-verification.md)。
-- [P3](phase3-verification.md)、[P1/P2](phase1-verification.md)、[P0](phase0-verification.md)、[环境](environment-check.md)。这些是原执行记录，不能作为新设计验收。
+R1～R4 已接入，R5 三项补验收在记录范围内通过。[R5 实际报告](r5-acceptance-verification-20261104.md)记录当时当前模型两篇 P13v3 各一次成功、零重复 P02/P12、成功后再继续零调用；32 条语义无支持与 2 条上标误读保留为候选但不入默认图，5 组同义结论各有一个核心代表。新包隔离检查和用户三项反馈通过。部分覆盖/有限证据提示继续保留，不扩大为全模型、全论文科学质量认证，也不替代后续真实 Query 验收。
+
+- [历史续接反馈修复](history-retry-verification-20261104.md)：旧 `Claim.kind_note_unused=null` 失败已有成功后继，界面显示实际续接结果，不要求重复抽取。
+- [键控贡献评估 ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)与[协议验收](ranking-protocol-verification-20261104.md)：程序固定完整槽位、严格 Schema、一次定向修复与最多两个持久请求槽位；旧协议和 raw 保留。[旧 R5 失败记录](r5-final-verification-20261103.md)不改写为成功。
+- [支撑完整性 ADR0019](adr/0019-support-path-revalidation.md)、[证据感知选择 ADR0020](adr/0020-evidence-aware-core-selection.md)、[图谱工作区验收](graph-workspace-verification-20261103.md)。
+- [语义协议 ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)与[验收](semantic-reliability-verification-20261103.md)：P02 只输出语义、程序组单元、统一终验及冻结输出策略，历史 head0011 不代表当前 head。
+- [结构解析 ADR0014](adr/0014-structured-pdf-and-support-graph.md)与[验收](structured-reading-verification-20261103.md)：跨页章节和表格旁表，References 不抽取，默认显示合法支撑。
+- [完整上下文 ADR0015](adr/0015-complete-reading-context.md)与[验收](complete-context-verification-20261103.md)、[旧 P13 精确 JSON 恢复 ADR0016](adr/0016-selection-json-syntax-recovery.md)与[验收](selection-json-verification-20261103.md)。
+- [紧凑输出](compact-output-verification-20261102.md)、[流式与超时恢复](tencent-recovery-verification-20261102.md)、[阅读响应恢复](reading-response-verification-20261102.md)、[当前 Schema 范围](schema-scope-verification-20261102.md)。这些是对应轮次成绩，当前结果查 progress。
+- [抽取可靠性](extraction-reliability-verification-20261102.md)、[稳定性](stability-verification-20261102.md)、[图谱/输出优化](refinement-verification-20261102.md)、[v3 M0～M6](v3-verification.md)、[P3](phase3-verification.md)、[P1/P2](phase1-verification.md)、[P0](phase0-verification.md)、[环境](environment-check.md)。
 
 ## 版本与归档
 
-[原 v3 资产](archive/v3/README.md)、[v2 规范](archive/v2/README.md)、[历史索引](archive/README.md)保留旧规则；原 v3 编号映射见 [整理记录](migration/v3-documentation-map.md)。当前设计在 docs 原目录维护，不新建版本包文件夹作为主入口。
+[原 v3 资产](archive/v3/README.md)、[v2 规范](archive/v2/README.md)和[历史索引](archive/README.md)保留追溯；编号映射见[整理记录](migration/v3-documentation-map.md)。主设计继续在 docs 原目录维护，不新建版本包目录。
 
-参考 contracts.py 不是运行 API。新旧 Prompt 通过版本适配接入，不直接覆盖 [运行模板](../services/engine/researchgraph/prompts/)。设计、DTO、Prompt、应用 0.0.1 和数据库迁移号分别管理。
+设计、DTO、Prompt、应用 0.0.1 与 Alembic 迁移号分别管理。原文、Chunk/EvidenceSpan、历史任务签名及 raw 不因迁移或 Query 开发重写。参考测试分进程执行，不能代替应用回归、真实模型或安装验收：
 
 ```powershell
 conda run -n researchgraph-studio python docs/schemas/contracts.py
@@ -72,14 +73,10 @@ conda run -n researchgraph-studio python -m pytest docs/archive/v3/tests -q
 conda run -n researchgraph-studio python -m pytest docs/archive/v2/tests -q
 ```
 
-三个测试目录分进程执行，避免 contracts 模块同名冲突。参考测试不替代应用回归、真实模型或安装验收。
-
 ## 数据所有权与安全
 
-Zotero 权威管理文献/PDF/批注，ResearchGraph 只读访问；SQLite 保存持久证据、候选、模型历史与图谱组织；Obsidian 私人笔记只读，导出只写用户授权目录。图谱选择不删除证据，也不意味着长期复制 Zotero PDF。
+Zotero 权威管理文献/PDF/批注，ResearchGraph 只读访问；SQLite 保存来源证据、候选、模型历史、图谱组织及文档/查询记录。Obsidian 私人笔记只读，Query 本地读取与模型外发用途分开，外发默认关闭。当前尚无 Wiki 文件发布能力。
 
-密钥只存 OS 凭据管理器；私人资料/运行库/模型输出/日志/安装器不进仓库。用户未授权不得 Push。四份外部补充原文登记路径仍不可用，保留[来源登记](design/source-register.md)及 QA 历史，不冒充核验通过。
+密钥只存 OS 凭据管理器；私人材料、运行库、模型 raw、日志与安装器不进源码。Commit/Push 前检查实际内容和暂存区，未经新授权不 Push。真实 strict、复杂版面/无 OCR、跨平台/干净机与 S1～S4 四份不可用补充原文仍属限制，保留[来源登记](design/source-register.md)历史，不冒充核验通过。
 
-## 清单与下一步模板
-
-[MANIFEST](MANIFEST.md) 与 [SHA256SUMS](SHA256SUMS.txt)覆盖当前设计及参考资产，排除归档/运行报告；[AGENTS 模板](AGENTS.template.md)、[下一轮模板](CODEX_NEXT_TURN.md)仅在用户要求开发时使用。
+[根 README](../README.md)、[模型设置](model-configuration.md)、[安全检查](security-checks.md)、[开发日志](../DEVELOPMENT_LOG.md)提供工程操作；[MANIFEST](MANIFEST.md)与[SHA256SUMS](SHA256SUMS.txt)维护规范资产清单。[协作附录](AGENTS.template.md)、[下一轮续接](CODEX_NEXT_TURN.md)用于接续已有工程，不能代替用户开发或上传授权。

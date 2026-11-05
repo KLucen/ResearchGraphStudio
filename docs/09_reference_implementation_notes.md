@@ -1,5 +1,7 @@
 # 09 — 实施注记（设计 v3.3）
 
+2026-11-04 当前：P4-Q01～Q07 已接入，Q08 正在修复安装后的来源显示、整组问答/导航和保存内容批注/移除反馈，Alembic head **0014**。决策见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮状态见[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)及[P4实际报告](p4-query-verification-20261104.md)保留前次结果。P5 Lint/Wiki 未启动，修复包原生确认另记。
+
 ## 工程原则
 
 按职责重构，以设计合理性和可测试性决定范围。保留有效解析、证据、来源、任务、凭据和 Store，不复制一个新系统；不以“最小侵入”阻止必要的抽取/整合/选择拆分。不要为改目录名搬动全工程。
@@ -8,13 +10,37 @@
 
 ## 当前实现顺序
 
-R1–R4 已接入，不重复实现。结构解析→支撑展示→限定 Schema 适配的前轮成果保留：PyMuPDF 产出 pdf-structure-1，0011 将解析产物保存在 document_parses，既有原文块和证据不改。本轮 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 继续 R5：新 P02_compact_v4 / reading-semantic-1 按跨页章节输入，所有章节相同抽取规则，不采用 6000 字符/48 证据目标。容量或故障需要拆分时保持段落/表格组完整，旧冻结计划不重排。
+R1–R4已接入，R5补验收在报告范围内通过；当前P4-Q01～Q07已接入并执行Q08收尾，不重抽已有论文或进入P5。结构解析→支撑展示→限定Schema适配成果保留：PyMuPDF产出pdf-structure-1，0011将解析产物保存在document_parses，既有原文块和证据不改。[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)及[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)的P02v4/reading-semantic-1、程序组单元/P13v3保持；完整章节、无固定字符目标、完整段落/表格组与旧冻结计划规则不变。
 
-reading_transport 处理严格语义外壳和程序身份绑定，reading_prompt_contract 生成 Schema 对应 Prompt 结构规则；structured_output 冻结 Provider 输出策略及可证明的请求 Schema 转换；reading_finish_wire/reading_finish_semantic 拆分语义提案、程序 form_units、贡献建议与失败预览；reading_stage_validation 统一新响应及缓存的只读终验。Store 仍是唯一知识写入口，领域仍1.0/head0011，无本轮迁移。
+reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_contract生成Schema对应Prompt规则；structured_output冻结Provider输出策略；reading_finish_wire/reading_finish_semantic拆分语义提案、程序form_units、贡献建议与失败预览；reading_stage_validation统一新响应及缓存终验。Store仍是唯一知识写入口，阅读领域仍1.0。0012增加Query/文档基础与派生索引，0013增加显式保存索引，当前0014再加独立保存偏好；旧阅读模型记录/任务签名和保存manifest不改。
 
 旧图谱 REPORTS 全连接只保留在旧视图兼容；新版投影基于 GraphSelection/KnowledgeUnit，不靠前端猜“哪个节点挂谁”。来源关系可检索，但不作为每个节点的默认可见边。
 
 默认投影显示核心的有据方法、实验、条件、结果及其他非 Claim 支撑，可显式收起。旧快照漏列但存在合法有向关联的支撑可只读补全；不修改旧选择、不依共用证据猜边。Claim.kind_note_unused 只在精确 null 情形无损移除并审计，其他额外字段仍严格拒绝。相关版本和取舍见 [ADR0014](adr/0014-structured-pdf-and-support-graph.md)。
+
+## 当前Query模块与可复用边界
+
+[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](p4-query-foundation-verification-20261104.md)说明Q01～Q04历史范围；当前回答/保存扩展见ADR0023及本轮P4报告。运行实现与docs/schemas参考契约分别维护，不能把参考SQL直接执行到用户库。
+
+| 运行模块 | 职责 |
+| --- | --- |
+| query_contracts / query_models | 严格项目请求、分型依赖、项目级执行/回答版本审计和文档/授权结构，供已接入的准备/回答/保存入口使用 |
+| query_documents | Store.query()内部登记适配；不可变文档/段落、逐段根依赖及可终止循环检查；授权用途穿透、内容/文件状态分离、安全文件hash读取 |
+| query_retrieval | 当前来源资格、可重建派生索引、FTS5/BM25与确定性中英/术语融合；类型/范围/权限过滤先于排名；无模型改写或向量服务 |
+| query_graph | 全部合法候选入口、完整支撑路径/共享成员根回查、种子相邻科学关系终验、条件四态比较；不读取GraphProjection分页、不造来源或单元 |
+| query_context | query-context-1引用短编号、真实Chunk/EvidenceSpan/章节/必要表格组、根来源与修订manifest；组装后与读取缓存时重验，已知容量不足保留完整组并标不足 |
+| query_api | search/index rebuild/prepare、运行历史/validate、generate/answer、documents、save/saved和derived-graph；prepare不读密钥/调用模型，generate入统一Job；受限桥接沿原鉴权边界接入 |
+| query_answer_contracts / query_answer_wire / query_answers | P07同源Schema/Prompt、请求内引用与归属终验；发送前持久账本、raw恢复、取消和最多一次显式继续 |
+| query_save / query_saved_models | Store.save_query、0013保存表、选段确定性复制、逐段根依赖与显式文档基线、幂等和独立DERIVED_FROM引用层 |
+| query_presentation | 来源/用途终验后的本地只读显示；准确原文、题名/定位与已有中文要点，不进入snapshot/hash或模型请求 |
+| query_saved_lifecycle / 0014保存偏好 | 个人批注、元数据并发与移除状态；排除保存段落副本及传递依赖，不改原Query/raw/文档或科学revision |
+| QueryPanel / queryApi / QueryDerivedGraph | 项目问答、证据回查、历史及显式保存；绿色来源与紫色综合分层，非知识根不误跳KnowledgeNode详情 |
+
+0012新增Query审计和文档表、query_index_entries/query_fts；旧ModelRun单篇非空约束和原raw保持，跨篇执行用query_runs/query_model_runs，不伪挂首篇。索引重建与普通prepare可写派生/执行记录，不改变知识/科学关系/选择/布局。KnowledgeStore.audit_event与原科学event分开；Obsidian授权/用途/扫描不再推进GraphRevision。
+
+registry可读取已登记的saved文档；新draft不替换已保存头。文件in_sync只证明字节匹配登记基线，不代表Markdown语义渲染认证。外改正文不导入旧版本；完整diff、Wiki组织/增量生成、发布与故障恢复留在P5。内部文档登记与用户选段save入口分开，后者必须重验回答版本、根依赖和当前权限。
+
+Q05～Q07的调用/恢复、页面和保存已接入；Q08实际验收分别记录离线HTTP/SSE协议、合成检索/性能、真实论文模型回答和用户原生反馈，不互相替代。本轮没有外部搜索或Wiki发布，也没有新增向量数据库、队列服务或多Agent框架。
 
 ## 自动化边界
 
@@ -36,4 +62,4 @@ received/succeeded/validation_failed 缓存同样完成 JSON/DTO、版本/根、
 
 ## 验收与交付
 
-Conda researchgraph-studio；单元/契约/数据库迁移/真实渲染与真实模型分别记录。优先自动化，按用户偏好提供操作步骤和安装包，由用户反馈原生体验；不频繁 Computer Use。未经执行的安装/调用不记通过；无需为本轮文档设计调用私人模型或改用户库。
+Conda researchgraph-studio；单元/契约/加性迁移/打包引擎/真实渲染与真实模型分别记录。优先自动化，按用户偏好提供操作步骤，由用户反馈原生体验；不频繁Computer Use。未经执行的安装/调用不记通过；迁移与故障只用隔离数据，正式库不作实验，不自动追加真实模型调用。最终命令、调用用量和未知费用统一写本轮验收报告，干净机/跨平台及新包用户反馈未测项单列。前置文档registry和内部选段保存不等于P5 Wiki发布。

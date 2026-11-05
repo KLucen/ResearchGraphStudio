@@ -112,6 +112,42 @@ class KnowledgeStore:
 
         return ReadingMutations(self)
 
+    def query(self) -> Any:
+        from researchgraph.query_documents import QueryMutations
+
+        return QueryMutations(self)
+
+    def save_query(self, command: Any, key: str, *, project_id: str) -> dict[str, Any]:
+        from researchgraph.query_save import save_query
+
+        return save_query(self, command, key, project_id=project_id)
+
+    def annotate_saved_query(
+        self,
+        project_id: str,
+        saved_id: str,
+        command: Any,
+        key: str,
+        *,
+        include_personal: bool = False,
+    ) -> dict[str, Any]:
+        from researchgraph.query_save import annotate_saved
+
+        return annotate_saved(self, project_id, saved_id, command, key, include_personal)
+
+    def remove_saved_query(
+        self,
+        project_id: str,
+        saved_id: str,
+        command: Any,
+        key: str,
+        *,
+        include_personal: bool = False,
+    ) -> dict[str, Any]:
+        from researchgraph.query_save import remove_saved
+
+        return remove_saved(self, project_id, saved_id, command, key, include_personal)
+
     def apply_document_structure(
         self, version_id: str, source_hash: str, structure: dict[str, Any]
     ) -> Any:
@@ -205,6 +241,33 @@ class KnowledgeStore:
             )
         )
         return graph.revision
+
+    def audit_event(
+        self,
+        project_id: str,
+        event_type: str,
+        payload: dict[str, Any],
+        actor: str = "system",
+        model_run_id: str | None = None,
+        trigger: str = "query",
+    ) -> int:
+        """Record execution/file activity without advancing scientific graph revisions."""
+        revision = self.graph_revision(project_id)
+        self.session.add(
+            Event(
+                event_id=str(uuid4()),
+                project_id=project_id,
+                event_type=event_type,
+                payload=payload,
+                created_at=now(),
+                actor=actor,
+                model_run_id=model_run_id,
+                before_revision=revision,
+                after_revision=revision,
+                trigger=trigger,
+            )
+        )
+        return revision
 
     def ensure_document(self, version_id: str) -> None:
         version = self.session.get(AttachmentRevision, version_id)

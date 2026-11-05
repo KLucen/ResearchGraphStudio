@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from filelock import FileLock
 from pydantic import ValidationError
 from sqlalchemy import Engine, and_, func, literal_column, or_, select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -40,6 +41,8 @@ from researchgraph.models import (
     Project,
     now,
 )
+from researchgraph.query_api import register_query_api
+from researchgraph.query_models import QueryModelRun
 from researchgraph.reasoning import run_reasoning
 from researchgraph.reasoning_api import register_reasoning_api
 from researchgraph.schemas import (
@@ -62,7 +65,14 @@ from researchgraph.schemas import (
     SourceView,
 )
 from researchgraph.settings_api import register_settings_api
-from researchgraph.storage import SCHEMA_HEAD, diagnostics, make_engine, migrate
+from researchgraph.storage import (
+    SCHEMA_HEAD,
+    database_busy,
+    diagnostics,
+    make_engine,
+    migrate,
+    read_session,
+)
 from researchgraph.workspaces import recover_workspaces
 from researchgraph.zotero_batch import register_zotero_batch_api
 
@@ -115,24 +125,63 @@ def remember(session: Session, key: str, body: dict[str, Any], response: dict[st
     )
 
 
+def claim_queued_job(engine: Engine) -> tuple[str, str] | None:
+    with read_session(engine) as session:
+        candidate = session.scalar(
+            select(Job.id).where(Job.status == "queued").order_by(Job.created_at, Job.id).limit(1)
+        )
+    if candidate is None:
+        return None
+    with Session(engine) as session, session.begin():
+        # A cancel or another claimant can win after the read-only poll.
+        job = session.get(Job, candidate)
+        if job is None or job.status != "queued":
+            return None
+        job.status, job.updated_at = "running", now()
+        job.stage = "diagnostics" if job.kind == "diagnostics" else "starting"
+        job.attempt += 1
+        return job.id, job.kind
+
+
+def finish_diagnostic(
+    engine: Engine, job_id: str, result: dict[str, str | bool] | None, error: str | None
+) -> None:
+    with Session(engine) as session, session.begin():
+        current = session.get(Job, job_id)
+        if current and current.status == "running":
+            current.status = "failed" if error else "succeeded"
+            if result is not None:
+                current.result = result
+            current.error, current.updated_at = error, now()
+
+
 async def worker(engine: Engine, data_dir: Path) -> None:
     while True:
-        job_id: str | None = None
-        kind = "diagnostics"
-        with Session(engine) as session, session.begin():
-            job = session.scalar(select(Job).where(Job.status == "queued").order_by(Job.created_at))
-            if job:
-                job_id = job.id
-                kind = job.kind
-                job.status, job.updated_at = "running", now()
-                job.stage = "diagnostics" if kind == "diagnostics" else "starting"
-                job.attempt += 1
-        if job_id is None:
+        claim_task = asyncio.create_task(asyncio.to_thread(claim_queued_job, engine))
+        try:
+            claimed = await asyncio.shield(claim_task)
+        except asyncio.CancelledError:
+            # Finish a pending claim before shutdown marks running work interrupted.
+            with suppress(OperationalError):
+                await claim_task
+            raise
+        except OperationalError as exc:
+            if not database_busy(exc):
+                raise
+            # No job has been claimed or model request sent. Leave queued work intact.
+            claimed = None
+        if claimed is None:
             await asyncio.sleep(0.15)
             continue
+        job_id, kind = claimed
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "query_answer":
+                from researchgraph.query_answers import execute as execute_query
+
+                await execute_query(engine, job_id)
+                continue
             if kind == "translation_repair":
                 from researchgraph.translation import run_translation
 
@@ -156,13 +205,7 @@ async def worker(engine: Engine, data_dir: Path) -> None:
                 if kind != "diagnostics" and isinstance(exc, (ValueError, RuntimeError))
                 else f"任务失败：{type(exc).__name__}，请检查文件或数据库权限"
             )
-        with Session(engine) as session, session.begin():
-            current = session.get(Job, job_id)
-            if current and current.status == "running":
-                current.status = "failed" if error else "succeeded"
-                if result is not None:
-                    current.result = result
-                current.error, current.updated_at = error, now()
+        await asyncio.to_thread(finish_diagnostic, engine, job_id, result, error)
 
 
 def create_app(
@@ -204,6 +247,13 @@ def create_app(
                         .where(Job.status == "running")
                         .values(
                             status="interrupted", error="上次运行中断，可手动重试", updated_at=now()
+                        )
+                    )
+                    session.execute(
+                        update(QueryModelRun)
+                        .where(QueryModelRun.status == "running")
+                        .values(
+                            status="interrupted", error="引擎重启，模型运行中断", finished_at=now()
                         )
                     )
                 if start_worker:
@@ -269,6 +319,17 @@ def create_app(
     async def validation_error(request: Request, _exc: RequestValidationError) -> JSONResponse:
         return error_response(request, 422, "INVALID_INPUT", "输入格式错误，请检查字段与请求标识")
 
+    @app.exception_handler(OperationalError)
+    async def database_error(request: Request, exc: OperationalError) -> JSONResponse:
+        # Never put driver messages, SQL, bindings or source content into a response.
+        if database_busy(exc):
+            return error_response(
+                request, 503, "DATABASE_BUSY", "本地数据库正在处理其他任务，请稍后刷新重试"
+            )
+        return error_response(
+            request, 500, "DATABASE_ERROR", "本地数据库操作失败，请查看设置与诊断"
+        )
+
     def engine() -> Engine:
         return cast(Engine, app.state.engine)
 
@@ -289,6 +350,7 @@ def create_app(
     register_zotero_batch_api(app, engine)
     register_reasoning_api(app, engine)
     register_graph_api(app, engine)
+    register_query_api(app, engine)
     from researchgraph.reading_api import register_reading_api
 
     register_reading_api(app, engine)
@@ -441,10 +503,31 @@ def create_app(
         with Session(engine()) as session, session.begin():
             previous = remembered(session, key, payload)
             if previous:
+                if action == "retry":
+                    original = session.get(Job, job_id)
+                    if original and original.kind == "query_answer":
+                        actual = session.get(Job, previous["id"])
+                        if actual is None or actual.project_id != original.project_id:
+                            raise failure(404, "JOB_NOT_FOUND", "续接任务不存在")
+                        return JobView.model_validate(actual)
                 return JobView.model_validate(previous)
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            if action == "retry" and job.kind == "query_answer":
+                from researchgraph.query_answers import enqueue as enqueue_query
+
+                response = JobView.model_validate(
+                    enqueue_query(
+                        session,
+                        str((job.payload or {}).get("query_id", "")),
+                        str(job.project_id),
+                        idempotency_key,
+                        continue_requested=True,
+                    )
+                )
+                remember(session, key, payload, response.model_dump())
+                return response
             from researchgraph.reading_finish_upgrade import available as finish_upgrade_available
             from researchgraph.reading_finish_upgrade import upgrade_job as upgrade_finish_job
             from researchgraph.reading_upgrade import upgrade_available, upgrade_job

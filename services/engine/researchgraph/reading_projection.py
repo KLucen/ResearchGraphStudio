@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from researchgraph.graph_contracts import (
     GraphProjection,
+    PaperBuildStatus,
     ProjectionEdge,
     ProjectionNode,
     ProjectionQuery,
@@ -42,7 +43,16 @@ def balanced_order(nodes: list[ProjectionNode]) -> list[ProjectionNode]:
     return [node for row in zip_longest(*queues) for node in row if node is not None]
 
 
-def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProjection:
+def collect_backbone(
+    service: GraphProjectionService, body: ProjectionQuery
+) -> tuple[
+    dict[str, ProjectionNode],
+    dict[str, ProjectionEdge],
+    dict[str, int],
+    list[str],
+    list[PaperBuildStatus],
+]:
+    """Build the authoritative backbone once, before display filters or pagination."""
     session, project_id = service.session, service.project_id
     reading = KnowledgeStore(session).reading()
     papers = list(
@@ -183,6 +193,12 @@ def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProj
                 is_dashed=True,
                 detail_ref=f"/api/v1/knowledge/relations/{relation.id}",
             )
+    return all_nodes, all_edges, selections, gaps, builds
+
+
+def project(service: GraphProjectionService, body: ProjectionQuery) -> GraphProjection:
+    session, project_id = service.session, service.project_id
+    all_nodes, all_edges, selections, gaps, builds = collect_backbone(service, body)
     primary = [
         n
         for n in all_nodes.values()

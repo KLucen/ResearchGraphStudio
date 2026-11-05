@@ -1,5 +1,58 @@
 # 实施进度
 
+2026-11-05 最新：用户已明确授权提交推送当前P4成果，并尝试修复未达标项。先按内容/路径/历史/暂存扫描交付现有已验收快照，再在P4内处理检索P95与科学部分支持问题；不进入P5。下列“无Commit/Push授权”为此前验收轮次状态，新提交SHA/CI和优化实测将另记，不将计划记为完成。
+
+2026-11-05（Asia/Shanghai）**P4-Q08 已完成本轮全量回归、两篇真实论文问答及修复补验；新包原生反馈待确认，不进入P5。** 用户确认旧`318f`锁修复安装版数据功能正常；本轮新性能/数值保护包另计。通过只读SQLite backup建立验收副本，正式库实验写入0，head0014无迁移/重抽论文。见[P4最终验收](p4-final-acceptance-20261105.md)与[ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
+
+本轮最终check-phase0退出0：914 Python passed/2符号链接权限跳过（443.17秒）、124 React，Ruff/194格式/mypy103源文件/依赖/契约/前端静态及生产构建通过；289 Query包含其中，15 Edge及19 Rust/fmt/clippy、打包Host1通过。176运行源指纹无漂移。最终PyInstaller/Tauri/NSIS、冻结smoke和PS5.1隔离17项通过；正常worker两启每轮7读200，0.109/0.078秒，竞争写503 DATABASE_BUSY、47来源表保持、0模型请求。
+
+真实十题：9有据回答/1不足零调用、72段/396次引用，原质量64支持/7部分/1上标误读数值错误如实保留。新增冻结numeric_layout与P07v2、正文风险数值守卫及旧v1新保存门槛；唯一额外真实补验六段5支持/1部分，限制说明列举危险数字曾被误拦，改专用limitations确定性占位并留跨度/哈希审计，原正文/raw不改。同raw显式零调用恢复成功，原失败Job/审计保留，幂等保存/重启可读。总10次真实请求/1,623,354 Token，费用未知，验收结束不追加。普通Query不改科学数据；副本实际分页/保存/批注/移除/重启与44来源表、原任务/raw保持已验证。
+
+最终包`.local/releases/p4-final-acceptance-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,832,356字节，SHA256 `19929c6990fb1ae0fa166450431a586025664d219a40b942c3d240755c38a6b8`。最终主源码万候选/两万块基准cold3.129851秒、warm P50=2.608713/P95=3.016278秒，未达到≤2秒目标，不能用隔离候选1.922秒替代，P4性能门槛仍有保留。测试合成幂等常量安全收尾后19专项通过；618源码候选内容/路径/Gitleaks、180 Markdown/806链接/88资产LF hash通过，4外部原文不可用单列，交付配对见报告。本轮未替用户安装、Commit或Push；部分科学措辞、复杂版面/表格、真实strict、跨模型/平台、干净机继续保留，不宣称全部P4门槛或科学质量通过。
+
+2026-11-04 22:11（Asia/Shanghai）**P4-Q08 问答历史“无效响应”锁修复已完成回归/打包，用户新包原生反馈待确认**。实际宿主日志只读脱敏定位history/documents/saved在BEGIN IMMEDIATE报database is locked。WAL+受query_only保护只读快照供8个Query读路径与模型等待状态检查，原写路径仍IMMEDIATE；worker空轮询先只读、有任务再短事务重验认领，数据库等待移出事件循环。锁超时标准503 JSON、Rust保留非JSON HTTP状态，历史失败提供只重读、不生成的按钮。决策见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)，成绩/限制见[锁修复报告](query-history-lock-verification-20261104.md)。
+
+最终check-phase0退出0：895 Python/2 skipped（460.69秒）、123 React，Ruff/191文件格式/mypy102源文件/依赖/契约/前端静态与生产构建通过；5 Query Edge、19 Rust/fmt/clippy及新打包Host1通过。新PyInstaller/Tauri/NSIS通过；正常worker冻结进程两启，在独立写锁及另一个写请求等锁时，7个读接口200，0.063/0.062秒；写争用明确503 DATABASE_BUSY JSON、47来源表保持、Query1/Model0/Answer0不变、模型请求0。冻结smoke含本地SSE1 POST及PS5.1隔离5项通过，均为合成协议，不宣称真实科学质量。
+
+新包`.local/releases/query-history-lock-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe`，38823098字节，SHA256 `318f14db52341b6c865f48d0a8cdf9cc08916510c162bc780434cf1790d8f73a`，174源码/281资源指纹一致，无私人运行资料。613源码候选内容/路径/Gitleaks、177 Markdown/788本地链接/88规范资产LF hash、diff/空暂存区通过，四份登记外部原文仍不可用。head0014无迁移，未读写正式数据库作实验，仅读宿主日志异常类型/栈；真实调用0，未Computer Use/替用户安装/Commit/Push，不进入P5。下文保留历史浏览包与其失败反馈，不将旧成绩算作本轮通过。
+
+2026-11-04 20:38（Asia/Shanghai）**P4-Q08 问答浏览增量已完成自动化与打包验收，用户原生反馈待确认**。来源预览、回答、保存列表/详情和历史独立选择一/多篇论文；所有列表及引用固定10条分页、总数/页码，跨页勾选不丢。新search/page浏览本问题全部合法词面命中；图谱标记取完整默认投影，区分已有节点、支撑原文及仅检索。回答按冻结根来源归单篇/跨篇/未归属，跨篇只显一次；引用两层默认折叠，外层不联动内层，另有全展开/收起。已修复答案先到时的临时错归属。见[ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)及[本轮验收](p4-query-browsing-verification-20261104.md)。
+
+完整流水线888 Python passed/2 skipped（394.70s）、122 React、Ruff/190文件格式/mypy102源文件、依赖/契约/前端静态与生产构建通过；首轮15 Edge后最终问答5项复测通过（交叠不累加），15 Rust及新打包Host1、fmt/clippy通过。新PyInstaller/Tauri/NSIS退出0；冻结合成问答→保存/批注/移除与两次重启通过（本地协议stub1 POST），独立browse29条10/10/9、筛选28/1、图谱标记/hash变化与两启通过，47张非Query表保持、模型请求0；PS5.1/System32-only PATH本轮5项通过。head0014不变，无新迁移/Prompt变化，不把浏览全量等同新增语义综述检索。
+
+新包`.local/releases/p4-query-browsing-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe`，38805905字节，SHA256 `8ae2e658dcff4f45ad47a6139332315355cdfb831a14c2b77886ce0e75a6b5d8`；174源码/281资源指纹一致，无私人PDF/DB/密钥/日志。610源码候选内容/路径/Gitleaks、175 Markdown/768本地链接/88规范资产LF哈希、diff/空暂存区通过；4份外部登记原文仍不可用。真实调用0、正式库实验读写0、未Computer Use/替用户安装，旧清理维护不再重复。未Commit/Push、不进入P5；下文是历史轮次状态。
+
+2026-11-04 19:17（Asia/Shanghai）用户明确要求直接删除旧问答记录以重新提问：已清理安装版中的1条旧Query/答案/专属模型记录、2条关联保存内容及其段落、检索索引、任务和幂等结果；不保留本次被删内容副本，不发起模型调用。先在内存副本演练，再事务执行；44张来源/论文图谱等表逐行哈希保持，4篇论文和429个知识节点不变，数据库完整性/外键通过。此为用户授权的数据清理，不是新增开发或科学质量验收；下文18:11及更早的“旧问答/raw保留”描述对应历史修复轮次，正常产品移除仍为软移除。请用户重新打开问答页、重新输入问题验证；未改源码/安装包、未Commit/Push、不进入P5。
+
+更新：2026-11-04（Asia/Shanghai）。**P4-Q08 当前处理安装后的用户反馈，数据库 head 0014，不进入 P5。** 用户已安装前次 P4 包并报告来源摘要/裸 ID、原问答跳转、问答分组和保存后无批注/移除问题；本轮新增本地只读来源 presentation、整组问答与可见原问答导航，以及独立保存偏好表。来源显示不改冻结上下文/hash、不新增翻译调用；个人批注不改模型答案，移除穿透检索/衍生层和保存谱系，原问答/raw/文档/论文证据保留。决策见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，实际执行及修复包状态见[反馈报告](p4-query-feedback-verification-20261104.md)。
+
+本轮最终879 Python passed/2 skipped、114 React、14 Edge、15 Rust+打包Host1通过；Ruff/186文件格式/mypy100源文件、依赖/生成契约/生产构建通过。最终冻结HTTP/SSE协议stub的问答→保存→批注→重启→移除→重启通过（仅1次本地stub POST），PS5.1/System32-only PATH隔离17项通过；冻结0013→0014两次启动保留62张旧表列/行、旧manifest/raw及准确升级前备份。旧0013保存谱系只读恢复及损坏隔离已补；正式库实验写入0，真实请求0，不重抽论文。
+
+最终修复包`.local/releases/p4-query-feedback-final-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe`，38793801字节，SHA256 `163a6cb9a1f68040d0482a11a0c989c85be781516d348175955b1c14bd575f9f`；171源指纹与281份资源（不含生成pycache）一致。603源码候选内容/路径/Gitleaks、173 Markdown/742本地链接/88资产LF哈希及空暂存区通过；四份登记外部原文仍不可用。未取得修复包用户原生反馈，不宣称已通过；没有使用Computer Use或替用户安装/卸载。前轮10次真实调用成绩保留历史，未Commit/Push、不进入P5。下面15:04/15:08及更早条目为对应历史交付状态，其中“原生确认待反馈”已由本轮问题反馈更新。
+
+更新：2026-11-04 15:04（Asia/Shanghai）。**P4-Q05～Q07已实现，Q08本机验证和安装包已交付，原生确认待反馈，不进入P5。** 项目问答接入P07有据回答、逐段引用/归属/限制、发送前持久账本（每Query最多2槽、显式继续）、取消/失败恢复与历史；Store明确保存Synthesis/Insight及独立衍生图层。0013加性迁移只增保存表，旧论文/知识/raw保持，普通Query零科学改写，保存才新revision。见[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)、[实际报告](p4-query-verification-20261104.md)。
+
+本轮完整流水线先通过838 Python/2 skipped、108 React；最后多篇覆盖/性能补丁后全Query专项237通过，最终源码全量862 passed/2 skipped（332.31s）再通过；交叠专项不累加。13 Edge、14 Rust+1打包Host、clippy/fmt、静态/生成契约/依赖/前端生产构建、最终PyInstaller/Tauri/NSIS、冻结HTTP/SSE协议stub问答→保存→重启（1次stub请求）及PS5.1隔离17项通过。自动化合成资料、真实模型、用户原生分开，新增源码/测试未削减旧回归。
+
+真实两篇/10题：9有据回答、1无证据零调用，实际10次/737701 Token（包含第4题坏JSON后的唯一第二槽，原失败/raw保留），供应商金额未知，调用已停止。原4篇来源/1921Chunk/1930Span/758知识/129旧ModelRun及18旧Job等逐行保持；显式保存2份综合后重启读取通过，正式库实验写入0。62段独立来源审读58支持/4部分支持、0完全无据/归属错；条件、架构限定与表头遗漏如实保留，不宣称全局科学正确。第9题原召回缺一篇，程序已补公平保位与missing零外发；相同真实题仅本地prepare已覆盖两篇，未付费重答，不改旧答案。
+
+1万候选/2万块混合基准：冷1.985s、warm P50=1.736s/P95=1.986s（12样本nearest-rank=max），本机≤2s目标达到；峰值RSS279097344B，总库45961216B、FTS逻辑UTF8 3687347B。SQLite不支持dbstat，物理FTS页大小未知；合成共享来源分布不代表真实复杂表格/多论文全负载。旧冷192s瓶颈已定位并优化，来源和边证据终验保留。
+
+新包`.local/releases/p4-query-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe`，38786476字节，SHA256 `861ef988c12ef5bfba8f70fa0d0e5b68348903cefa987698cc932273b6bbe97e`；165份打包源指纹一致，资源无私人PDF/DB/.env/日志。已请求用户新包问答/引用/保存/重启反馈，尚未反馈不算原生通过；干净机/真实strict/复杂版面无OCR、S1–S4四份外部补充原文不可用继续保留。安全/文档与交付配对结果见末次收尾。本轮未Commit/Push；HEAD/origin记录仍80552d3，R5远端CI不算本轮Query CI。
+
+15:08收尾：最终862 Python/2 skipped、237 Query专项、108 React/13 Edge/14 Rust+Host1、PS5.1隔离17及冻结smoke通过；596源码候选实际内容/路径/Gitleaks、171 Markdown/704本地链接/88资产LF哈希、diff与空暂存区通过。四份外部原文不可用保留，用户新包原生反馈待确认；安装副本/165打包源指纹一致，真实请求保持10。未Commit/Push，P5未开始。
+
+
+更新：2026-11-04（Asia/Shanghai）。**先推送 R5，随后完成 P4-Q01～Q04 后端基础。** `main` 已推送 `80552d3`，[该提交远端 CI](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41778202007) 的 Windows 回归、真实 Edge 图谱、冻结引擎/Rust/NSIS 及独立安装验收全部通过。下面的 Query 改动尚未再次 Commit/Push，R5 的远端成绩不冒充本轮 Query CI。
+
+新增项目级 Query 契约/执行与文档版本、逐段依赖及内容/文件双状态；FTS5/精确术语与中文双字片段检索完整合法候选/原文/表格/有效文档及用途授权笔记；沿完整合法结论支撑与种子相邻科学关系补条件和根证据；query-context-1 冻结短引用、版本/hash/章节/表格/权限并重放。默认不读或外发私人笔记，撤权穿透文档/幂等缓存，原文没有 span 时只读引用 Chunk，不造科学知识。Query 索引/准备与笔记扫描使用独立审计，不推进 GraphRevision。Alembic **0012 加性迁移**、旧行与升级前备份在隔离库验证，正式库不作实验；领域/阅读协议不变。实现见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)、[实际报告](p4-query-foundation-verification-20261104.md)。
+
+完整检查 **734 Python passed/2 skipped、90 React passed**，Ruff/格式/mypy 91 源文件、依赖/生成契约/前端静态与生产构建通过。最终补齐宿主 Query/用途授权受限路由、本地路径拼接边界及模型容量冻结后，六个 Query 文件 **113 项**、Rust fmt/clippy 与 **11 项单测+1打包宿主**通过；交叠专项不累加成全量。已修复持久解析及表格引用/范围负例，保留完整必要支撑；容量不足标不足，不删表头或条件。最终 PyInstaller/Tauri/NSIS、冻结 smoke（含Query幂等/重验/重启/零科学写入）及 PS5.1 独立数据 **17项通过**。新包`.local/releases/p4-query-foundation-20261104/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,717,661字节，SHA256 `55fb899ea2c603cb4488a7b98c0cea4c6fe97bc0826f785df71adeea4ca406c2`；未替用户安装或运行正式库，新包原生/干净机不记通过。
+
+当前只提供 search/index/prepare/read/validate 后端基础，没有问答 UI、P07/P08 调用、用户保存回答或 Wiki 发布。**本轮真实模型请求 0**；下一步 Q05 有据回答，Q06 页面、Q07 显式保存、Q08 24题/性能/真实链路仍待开发，不进入 P5。未重复运行无前端变更的浏览器回归，保留真实 strict/干净机/OCR复杂版面与 S1–S4 四份外部补充原文不可用限制；此前“P4未开始/head0011”是下列对应历史轮次状态。
+
+13:58 收尾：571 源码候选路径/内容/Gitleaks、168 Markdown/662 本地链接/88 规范资产 LF 哈希、diff 与空暂存区通过；4份外部原文不可用如实保留。新包/冻结引擎与源码指纹、日志和delivery配对，本轮未再次Commit/Push。
+
 更新：2026-11-04（Asia/Shanghai）。**R5实际剩余三项补验收已完成，范围内通过，未开始P4/P5。** 本轮获用户明确授权，用当前全局兼容模型/max配置在独立副本续接：两篇P13v3分别38/105槽位，各1次成功、发布7/20单元；P02/P12新增0、再次继续新增0，无编号冲突/额外字段/超时。原失败/raw/签名保留，旧16任务/127模型整行/758节点及来源证据解析逐行保持，正式库实验写入0。总计2真实请求/276,699总Token，供应商金额未提供；真实调用到此结束。
 
 32条无支持候选与2条上标误读均为retrieval_only、核心/支撑0条；旧5同义组各1核心代表。36/232成员路径（5/138多跳）及可见/候选锚点错误0，343新P02候选全保留；6主要贡献均有图谱代表，15参照组仍可检索，选择性图谱不要求全部入图。有限证据核心2/1均有caveats；条件known/unknown如实保留，无真实conflicting/not_applicable样本。22/45条coverage_gaps使两图仍partial，排序complete不冒充全文无缺口；不外推全局科学准确率。

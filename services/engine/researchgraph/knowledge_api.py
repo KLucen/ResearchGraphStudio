@@ -41,6 +41,8 @@ from researchgraph.knowledge_models import (
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, validate_evidence
 from researchgraph.models import AttachmentRevision, Chunk, Job, Paper, PaperSource, Project, now
 from researchgraph.providers import ConfiguredProvider, provider_for
+from researchgraph.query_contracts import NoteGrantRequest
+from researchgraph.query_models import NoteUseGrant
 from researchgraph.schemas import JobView
 
 Key = Annotated[str, Header(alias="Idempotency-Key", min_length=8, max_length=120)]
@@ -411,7 +413,7 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 session.add(root)
             root.active = True
             response = {"id": root.id, "path": root.path, "active": True}
-            KnowledgeStore(session).event(
+            KnowledgeStore(session).audit_event(
                 body.project_id, "NOTES_AUTHORIZED", {"root_id": root.id}, actor="user"
             )
             remember(session, "root:" + idempotency_key, body.model_dump(), response)
@@ -421,10 +423,19 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     def roots(project_id: str) -> list[dict[str, Any]]:
         with Session(engine()) as session:
             return [
-                {"id": r.id, "path": r.path, "active": r.active}
+                {
+                    "id": r.id,
+                    "path": r.path,
+                    "active": r.active,
+                    "query_permissions": {
+                        "allow_local": bool(r.active and (g.allow_local if g else True)),
+                        "allow_model": bool(r.active and g and g.allow_model),
+                    },
+                }
                 for r in session.scalars(
                     select(AuthorizedRoot).where(AuthorizedRoot.project_id == project_id)
                 )
+                for g in [session.get(NoteUseGrant, r.id)]
             ]
 
     @app.post("/api/v1/integrations/obsidian/{root_id}/{action}")
@@ -439,7 +450,11 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                 raise KnowledgeError("ROOT_NOT_AUTHORIZED", "笔记目录未授权")
             if action == "revoke":
                 root.active = False
-                KnowledgeStore(session).event(
+                grant = session.get(NoteUseGrant, root_id)
+                if grant is not None and grant.allow_model:
+                    grant.allow_model = False
+                    grant.revision += 1
+                KnowledgeStore(session).audit_event(
                     root.project_id, "NOTES_REVOKED", {"root_id": root_id}, actor="user"
                 )
                 result: dict[str, Any] = {"active": False}
@@ -468,3 +483,23 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
                     select(NoteSnapshot).where(NoteSnapshot.root_id == root_id)
                 )
             ]
+
+    @app.put("/api/v1/integrations/obsidian/{root_id}/query-permissions")
+    def note_permissions(
+        root_id: str, body: NoteGrantRequest, idempotency_key: Key
+    ) -> dict[str, Any]:
+        with Session(engine()) as session, session.begin():
+            root = session.get(AuthorizedRoot, root_id)
+            if root is None or not root.active:
+                raise KnowledgeError("ROOT_NOT_AUTHORIZED", "笔记目录未授权或已撤销")
+            request = {"root_id": root_id, **body.model_dump()}
+            previous = remembered(session, "note-grant:" + idempotency_key, request)
+            if previous:
+                return previous
+            response: dict[str, Any] = (
+                KnowledgeStore(session)
+                .query()
+                .set_note_grant(root.project_id, root_id, body.allow_local, body.allow_model)
+            )
+            remember(session, "note-grant:" + idempotency_key, request, response)
+            return response

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, type NoteRoot } from "./api";
 
 export function SourceIntegrations({
   projectId,
@@ -97,6 +97,27 @@ function Sources({
               >
                 撤销授权
               </button>
+              <NotePermissions
+                key={`${root.id}:${JSON.stringify(root.query_permissions)}`}
+                root={root}
+                connected={connected}
+                onSaved={() => {
+                  void client.invalidateQueries({
+                    queryKey: ["note-roots", projectId],
+                  });
+                  for (const scope of [
+                    "query-run",
+                    "query-answer",
+                    "query-documents",
+                    "query-saved",
+                    "query-saved-detail",
+                    "query-derived",
+                  ])
+                    void client.invalidateQueries({
+                      queryKey: [scope, projectId],
+                    });
+                }}
+              />
             </>
           )}
         </article>
@@ -124,5 +145,70 @@ function Sources({
           </details>
         ))}
     </div>
+  );
+}
+
+function NotePermissions({
+  root,
+  connected,
+  onSaved,
+}: {
+  root: NoteRoot;
+  connected: boolean;
+  onSaved: () => void;
+}) {
+  const [local, setLocal] = useState(
+    root.query_permissions?.allow_local ?? false,
+  );
+  const [model, setModel] = useState(
+    root.query_permissions?.allow_model ?? false,
+  );
+  const save = useMutation({
+    mutationFn: () =>
+      api.notePermissions(root.id, { allow_local: local, allow_model: model }),
+    onSuccess: onSaved,
+  });
+  return (
+    <fieldset
+      className="note-query-permissions"
+      disabled={!connected || save.isPending || !root.query_permissions}
+    >
+      <legend>问答用途</legend>
+      <label>
+        <input
+          type="checkbox"
+          checked={local}
+          onChange={(event) => setLocal(event.target.checked)}
+        />
+        允许本地问答检索
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={model}
+          onChange={(event) => setModel(event.target.checked)}
+        />
+        允许将必要笔记片段发送给问答模型
+      </label>
+      <p className="quiet-note">
+        模型外发默认关闭。问答中还需单独勾选个人资料及本次模型传输；撤销目录后不会自动恢复外发授权。
+      </p>
+      <button
+        type="button"
+        className="button secondary"
+        onClick={() => save.mutate()}
+      >
+        保存用途授权
+      </button>
+      {!root.query_permissions && (
+        <p className="quiet-note">正在等待引擎提供当前用途授权，暂不修改。</p>
+      )}
+      {save.error && (
+        <p role="alert">
+          {save.error instanceof Error ? save.error.message : "授权保存失败"}
+        </p>
+      )}
+      {save.isSuccess && <p role="status">问答用途授权已保存。</p>}
+    </fieldset>
   );
 }

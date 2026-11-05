@@ -5,6 +5,21 @@ import { beforeEach, expect, test, vi } from "vitest";
 import App from "./App";
 import { api } from "./api";
 
+vi.mock("./QueryPanel", () => ({
+  QueryPanel: ({ onGraphNode }: { onGraphNode: (id: string) => void }) => (
+    <section aria-label="问答导航测试">
+      <button onClick={() => onGraphNode("synthetic-claim")}>
+        回查来源图谱
+      </button>
+    </section>
+  ),
+}));
+vi.mock("./GraphWorkspace", () => ({
+  GraphWorkspace: ({ initialFocus }: { initialFocus?: string }) => (
+    <section aria-label="图谱导航测试">来源节点：{initialFocus}</section>
+  ),
+}));
+
 vi.mock("./api", () => ({
   request: vi.fn().mockResolvedValue({ profiles: [], roles: {} }),
   api: {
@@ -133,4 +148,29 @@ test("collapsed navigation survives navigation and a new application mount", asy
     "title",
     "研究项目",
   );
+});
+
+test("project Query tab opens independently and evidence focus switches to the original graph", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.projects).mockResolvedValue({
+    items: [
+      {
+        id: "p",
+        name: "合成项目",
+        description: "",
+        created_at: "2026-11-04T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  mount();
+  await user.click(
+    await screen.findByRole("button", { name: /合成项目 本地项目/ }),
+  );
+  await user.click(screen.getByRole("button", { name: "问答与阅读知识" }));
+  expect(screen.getByRole("region", { name: "问答导航测试" })).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "回查来源图谱" }));
+  expect(
+    screen.getByRole("region", { name: "图谱导航测试" }),
+  ).toHaveTextContent("来源节点：synthetic-claim");
 });

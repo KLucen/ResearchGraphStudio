@@ -2,7 +2,13 @@
 
 辅助阅读、理解和整理科研论文的本地桌面产品：以知识图谱组织论文结论及其支撑证据，逐步连接阅读、问答与知识整理。
 
-2026-11-04 R5三项补验收完成：当前模型两篇P13v3各一次通过，零重复P02/P12，再继续零调用；32条无支持候选与2条上标误读均未进入默认图谱，5组同义结论各保留一个核心代表。新包隔离启动/迁移及用户原项目、历史续接、重启三项反馈通过。见[本轮实际验收](docs/r5-acceptance-verification-20261104.md)与[进度](docs/progress.md)。部分覆盖/有限证据提示保留，不宣称全文科学准确率100%；P4/P5未开始。
+2026-11-05：用户反馈当前安装版数据/功能正常；本轮执行 P4 全面回归与两篇论文的真实问答验收，发现并补充数值版式保护及检索性能优化。新 Query 使用 P07 v2 和冻结的版式风险，旧 v1 数据/记录保持；新保存也检查已知错数。实际成绩、原失败样本、修复补验和新安装包状态见 [P4 最终验收](docs/p4-final-acceptance-20261105.md)、[ADR0027](docs/adr/0027-query-layout-aware-numerical-grounding.md)。本轮不进入 P5，也不自动提交或推送。
+
+2026-11-04 最新修复：问答历史读取的数据库锁竞争已通过只读快照、后台任务认领及标准错误响应处理；失败可手动重读而不重发模型。新安装包/回归与原生反馈分别见[锁修复报告](docs/query-history-lock-verification-20261104.md)和[ADR0026](docs/adr/0026-query-read-snapshots-and-worker-locks.md)。数据库head仍0014，P5未启动。
+
+2026-11-04：P4 Query 已接入项目级检索、有据回答、引用回溯、显式保存与独立衍生图层。用户安装反馈后，本轮修复可读来源、整组问答、原问答导航及保存内容的个人批注/移除，数据库 head **0014**；修复包验收状态见[反馈报告](docs/p4-query-feedback-verification-20261104.md)和[ADR0024](docs/adr/0024-query-reading-cards-and-saved-lifecycle.md)，此前结果保留在[P4报告](docs/p4-query-verification-20261104.md)。P5 Lint/Wiki 发布未启动；R5 的 `80552d3` 已推送且 CI 通过，当前 Query 改动未再次提交或推送。
+
+R5 两篇 P13v3 各一次通过，零重复 P02/P12，再继续零调用；32 条无支持候选与 2 条上标误读未进入默认图谱，5 组同义结论各一个核心代表。新包隔离启动/迁移及用户原项目、历史续接、重启三项反馈通过，见[R5 验收](docs/r5-acceptance-verification-20261104.md)。部分覆盖/有限证据提示保留，不宣称全文科学准确率 100%。
 
 P13协议使用程序固定的结论槽位、同源Schema/Prompt和一次有界定向格式修复，旧失败任务独立续接并重验复用P12；软件负责协议可靠性，不以更换模型为前提，见[ADR0021](docs/adr/0021-keyed-ranking-and-bounded-correction.md)。
 
@@ -14,7 +20,7 @@ P13协议使用程序固定的结论槽位、同源Schema/Prompt和一次有界�
 
 知识图谱承担结论组织、支撑路径与关联扩展；交互画布用于探索这套结构。后续 Query 沿图谱寻找问题相关的结论、方法、实验、条件和证据，Wiki 依据这些结构组织阅读文档，Lint 检查证据、支撑路径及衍生内容的依赖。
 
-下图描述完整目标流程；**当前已实现论文解析、候选抽取、自动组图和图谱阅读，完整 Query、Lint、Wiki 仍待开发**。各阶段实际边界见[开发计划](docs/06_development_migration_plan.md)与[进度](docs/progress.md)。
+下图描述完整目标流程；**当前已实现论文解析、候选抽取、自动组图、图谱阅读，以及 Query 检索、回答与显式保存；完整 Lint/Wiki 仍待开发**。各阶段实际边界见[开发计划](docs/06_development_migration_plan.md)与[进度](docs/progress.md)。
 
 ```mermaid
 flowchart TD
@@ -52,7 +58,7 @@ flowchart TD
 | --- | --- |
 | 知识图谱 | 组织论文结论、支撑路径和有据关联；保留作者主张归属，不把模型关系当作已证实事实 |
 | Query | 兼读图谱结构、全部合法候选与原文、有效 Wiki、已保存综合和显式授权个人资料；默认只读 |
-| 保存回答 | 经 Store 新增 Synthesis/Insight 等衍生对象，保留原回答、来源版本与证据；默认进入已保存综合，可在独立衍生图层查看，不改写论文 Claim 或核心选择 |
+| 保存回答 | 经 Store 新增 Synthesis/Insight 等衍生对象，保留原回答、来源版本与证据；可加个人批注或移出已保存库，移除后不再参与检索/衍生层，不改写论文 Claim 或核心选择 |
 | Wiki | 将图谱与已保存综合组织成有版本、逐段引用和依赖的阅读文档；Markdown 是可导出的表达形式 |
 | Lint | 检查来源、图结构、综合/Wiki 依赖及受管文件同步；给出诊断，不静默修改论文知识或私人笔记 |
 | Obsidian | 容纳授权导出的受管 Markdown，也保留独立私人笔记；私人笔记默认只读，不因位于 Vault 就自动纳入受管 Wiki |
@@ -61,11 +67,13 @@ flowchart TD
 
 ## 当前开发状态
 
-**R1–R4 已接入，仍在 R5 质量与安装验收。** 当前数据库 head 0011，入口 paper-reading-v1；新 PDF 输入保留跨页章节树、行坐标及可恢复的表格结构，References 保留但不抽取。新任务按章节组织，不再使用 6000 字符/48 证据目标；所有章节遵循同一抽取规则。默认图谱显示核心结论及其方法、实验、条件、结果和指标支撑。详见[ADR0014](docs/adr/0014-structured-pdf-and-support-graph.md)、[实际进度](docs/progress.md)和[迁移计划](docs/06_development_migration_plan.md)。全文真实模型质量与用户安装体验分别记录，未进入 P4 Query/P5 Wiki。
+**R1–R5 验收范围已交付，P4-Q01～Q07 已接入；当前处理 Q08 安装后用户反馈，修复包原生确认另记。** 当前数据库 head 0014，入口 paper-reading-v1 与领域 reading-extraction-1.0 保持。新 PDF 输入保留跨页章节树、行坐标及可恢复的表格结构，References 保留但不抽取。新任务按章节组织，不再使用 6000 字符/48 证据目标；所有章节遵循同一抽取规则。默认图谱显示核心结论及其方法、实验、条件、结果和指标支撑。Query 从完整来源与候选检索，补齐合法支撑、条件、表头和根证据，不受画布分页/隐藏限制；普通查询只写派生索引与执行记录，不推进科学图修订。来源展示原文和已有中文要点，一次问答整组阅读；保存后可批注或移除，原问答和证据保留。未进入 P5，详见[实际进度](docs/progress.md)和[迁移计划](docs/06_development_migration_plan.md)。
 
 整合/选择使用 [ADR0015](docs/adr/0015-complete-reading-context.md) 的完整上下文策略：新 P12 一次读取本篇全部有效候选及其完整引用证据，新 P13 一次读取全部结论单元，不再受软件固定字符数/候选数/窗口数预算阻止。真实模型上下文能力、严格 Schema/来源验证和有界超时仍生效；已成功阶段与旧冻结窗口继续复用。
 
-本轮按 [ADR0017](docs/adr/0017-semantic-protocol-and-stage-recovery.md) 拆分语义与程序职责：新 P02v4 只输出候选/关联/说明，身份由程序绑定；新 P12 只提出关联与重复建议，程序沿全部已验证路径组单元；P13 只给贡献建议。新/缓存响应共用完整终验，来源快照变化停止。首次失败临时视图明确“贡献排序未完成”，已有图保留。Provider 输出策略显式冻结，兼容 JSON 仅为 requested，不自动降级收费；真实 strict API 和本轮全文质量尚待验收，实际结果及安装见[本轮验收](docs/semantic-reliability-verification-20261103.md)。
+本轮问答阅读增量按 [ADR0025](docs/adr/0025-query-browsing-and-paper-grouped-answers.md) 增加各板块独立论文筛选、全部本地命中的每页10条浏览和默认图谱存在标记；回答依真实引用按论文组织，跨篇综合单列，引用采用默认收起的整体/逐条两层折叠。显示筛选、翻页和展开不改问题范围或冻结回答，不触发模型调用；实际验证及交付状态见 [progress](docs/progress.md)。
+
+阅读流程按 [ADR0017](docs/adr/0017-semantic-protocol-and-stage-recovery.md) 拆分语义与程序职责：新 P02v4 只输出候选/关联/说明，身份由程序绑定；新 P12 只提出关联与重复建议，程序沿全部已验证路径组单元；P13 只给贡献建议。新/缓存响应共用完整终验，来源快照变化停止。首次失败临时视图明确“贡献排序未完成”，已有图保留。Provider 输出策略显式冻结，兼容 JSON 仅为 requested，不自动降级收费；真实 strict API 尚未验收，历史改造见[语义协议验收](docs/semantic-reliability-verification-20261103.md)，后续真实质量结果见上方 R5 报告。
 
 旧 P13 末尾 coverage_gaps 字符串数组漏一个 `]` 的响应，可按 [ADR0016](docs/adr/0016-selection-json-syntax-recovery.md) 在完整 token 边界做限定恢复，保留原响应及精确审计。旧 P13 正常/恢复后均拒绝重复键与 NaN/Infinity；“其他阶段不变”是该历史增量范围，新语义三阶段都严格解码且不作通用恢复。这不补写模型内容或保证语义完整，旧合法响应完整重验才复用，成功阶段不重调。
 

@@ -51,9 +51,11 @@ async function listGraphPapers(projectId: string) {
 export function GraphWorkspace({
   projectId,
   connected,
+  initialFocus = "",
 }: {
   projectId: string;
   connected: boolean;
+  initialFocus?: string;
 }) {
   const [compare, setCompare] = useState(false);
   const [sourceId, setSourceId] = useState("");
@@ -83,6 +85,7 @@ export function GraphWorkspace({
             setSourceId(id);
             setCompare(true);
           }}
+          initialFocus={initialFocus}
         />
       )}
     </section>
@@ -93,10 +96,12 @@ function ProjectionExplorer({
   projectId,
   connected,
   onCompare,
+  initialFocus = "",
 }: {
   projectId: string;
   connected: boolean;
   onCompare: (id: string) => void;
+  initialFocus?: string;
 }) {
   const client = useQueryClient();
   const base = `/api/v1/projects/${projectId}/graph`;
@@ -107,11 +112,11 @@ function ProjectionExplorer({
   const [kind, setKind] = useState<Kind | "">("");
   const [paper, setPaper] = useState("");
   const [optionsPaper, setOptionsPaper] = useState("");
-  const [focus, setFocus] = useState("");
+  const [focus, setFocus] = useState(initialFocus);
   const [depth, setDepth] = useState(1);
   const [ai, setAi] = useState(true);
   const [cursors, setCursors] = useState([""]);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialFocus);
   const [edge, setEdge] = useState<Graph["edges"][number] | null>(null);
   const [language, setLanguage] = useState("zh");
   const [reset, setReset] = useState(0);
