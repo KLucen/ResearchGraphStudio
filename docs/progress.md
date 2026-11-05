@@ -1,6 +1,10 @@
 # 实施进度
 
+2026-11-05 11:33（Asia/Shanghai）交付完成：源码`75061d2`已普通推送main，[独立构建与安装CI](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41959965368)的windows、installed-app及实际安装VerifyDesktop全部成功，未复用8d67ed1成绩。最后仅补验收文档，178运行源与封存包不变；本机P95=1.583589秒已达标，新真实19段16支持/3部分仍保留，预算结束不追加请求。新包用户原生反馈、真实strict/跨模型/干净机/复杂版面及4外部原文限制不改；停P4，不进入P5。详细结果见[P4改进验收](p4-followup-verification-20261105.md)。
+
 2026-11-05 11:08（Asia/Shanghai）最新：已按用户授权普通推送P4验收快照`8d67ed1`，[对应CI](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41954098280)的windows与installed-app全部成功。后续性能与科学支撑改进已完成回归、真实补验及新包构建；本增量的提交/CI与旧快照分开记录，不进入P5。见[P4改进验收](p4-followup-verification-20261105.md)及[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)。下文保留各历史轮次的授权、失败与包状态。
+
+后续优化源码已普通推送`75061d2`，28实际暂存文件经内容/路径/Gitleaks和diff检查通过；178运行源与Git blob按LF逐字匹配，独立CI run41959965368另记，未用旧快照成绩替代。
 
 最终共享源码全量934 Python passed/2符号链接权限跳过（402.45秒）、124 React；Ruff/198格式/mypy104源文件/依赖/契约/前端类型/lint/build通过，178运行源无漂移。只减少本调用ORM/遍历/固定UUID前缀/编码器准备，完整验源、索引ID/字节与响应不变。最终串行原规格万候选/两万块基准cold1.457742秒、warm P50=1.229685/P95=1.583589秒，12样本全部保留，本机≤2秒目标达到；旧3.016278秒及候选失败不改写，不宣称通用SLA。
 

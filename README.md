@@ -4,6 +4,8 @@
 
 2026-11-05：P4 已验收成果已按用户新授权提交推送为 `8d67ed1`，对应 Windows 构建及安装 CI 全部通过。后续改进全量 934 Python/124 React 通过，本机检索 P95 从 3.016 秒降至 1.584 秒；独立 P07 v3、冻结科学指导与可审计原文引用补齐完成，两次真实补验 19 段为 16 支持/3 部分，科学语义限制继续保留。旧 v1/v2、历史 raw 和答案保持，新包原生反馈另计。实际改进与优化提交 CI 见 [P4 改进验收](docs/p4-followup-verification-20261105.md)、[ADR0028](docs/adr/0028-query-scientific-guidance-and-citation-closure.md)；前次质量失败及数值保护见 [P4 最终验收](docs/p4-final-acceptance-20261105.md)、[ADR0027](docs/adr/0027-query-layout-aware-numerical-grounding.md)。本轮不进入 P5，私人资料和安装产物不上传。
 
+后续优化源码已普通推送为`75061d2`，独立远端构建与实际安装CI全部通过，与新安装器178运行源匹配；最终结果在改进验收报告中单独记录，新包用户原生反馈另计。
+
 2026-11-04 最新修复：问答历史读取的数据库锁竞争已通过只读快照、后台任务认领及标准错误响应处理；失败可手动重读而不重发模型。新安装包/回归与原生反馈分别见[锁修复报告](docs/query-history-lock-verification-20261104.md)和[ADR0026](docs/adr/0026-query-read-snapshots-and-worker-locks.md)。数据库head仍0014，P5未启动。
 
 2026-11-04：P4 Query 已接入项目级检索、有据回答、引用回溯、显式保存与独立衍生图层。用户安装反馈后，本轮修复可读来源、整组问答、原问答导航及保存内容的个人批注/移除，数据库 head **0014**；修复包验收状态见[反馈报告](docs/p4-query-feedback-verification-20261104.md)和[ADR0024](docs/adr/0024-query-reading-cards-and-saved-lifecycle.md)，此前结果保留在[P4报告](docs/p4-query-verification-20261104.md)。P5 Lint/Wiki 发布未启动；R5 的 `80552d3` 已推送且 CI 通过，当前 Query 改动未再次提交或推送。

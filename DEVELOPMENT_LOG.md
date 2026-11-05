@@ -1337,3 +1337,9 @@ Host首次用裸cargo因PATH缺失没有执行，改绝对.cargo/bin/cargo.exe�
 **打包与限制**：build-windows完成PyInstaller/Tauri/NSIS，冻结smoke（本地合成协议）、Host1、PS5.1/System32-only PATH隔离17项通过；正常worker并发两启每轮7读200（0.078/0.078秒）、竞争写503 DATABASE_BUSY、47来源表及Query计数保持/0模型请求。并发脚本初次被旧BASE拒绝报告路径且未启动实验，迁入本轮独立BASE后通过，未放宽边界。新包.local/releases/p4-grounding-followup-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe，38839020字节，SHA256 23079790f3c7717e26cf9a9561b4b3308e039bd438554c7b60a6d2dc2b4d4e7d，引擎5534b788f4a5afda87c00bb3a1cfb35321486e46bf92d41a5a37c40bf32cd079。624源码候选内容/路径/Gitleaks已通过，最终暂存/文档/封存与优化提交CI随后追加。新包原生待用户反馈；科学3部分、真实strict、跨模型/平台、干净机、复杂版面无OCR与4外部登记原文不可用保留；不进入P5。
 
 **11:10 封存（Asia/Shanghai）**：178运行源与最终回归及新包一致，283资源与引擎副本逐字匹配，无私人运行资料；安装器及匿名delivery封存成功。624源码候选内容/路径/Gitleaks、24提交历史Gitleaks、183 Markdown/824本地链接/88规范资产LF hash及diff通过；4份外部原文不可用继续单列，不声称核验完成。
+
+**11:11 优化交付（Asia/Shanghai）**：28个实际暂存文件的内容/路径/Gitleaks与diff通过后，提交75061d2e3804a37c9b6209d716fa207f86173bb4并普通推送main；未强推、未改origin或全局Git/网络配置。178运行源与该提交blob按LF规范化逐字匹配，安装器不变。独立CI run41959965368已启动，最终构建和安装结论继续核实，不用8d67ed1成绩替代。
+
+**11:33 远端收尾（Asia/Shanghai）**：优化源码75061d2的独立GitHub Actions run41959965368全部success，windows及installed-app均成功、失败步骤0；环境/契约/后端/前端/真实Edge/冻结引擎/Rust/Host/NSIS/产物上传通过，独立runner实际安装并以Windows PowerShell运行VerifyDesktop成功（03:31:17～03:31:57 UTC）。远端项数未提取，不假称等于本机成绩，CI不替代科学语义验收。本轮两份CI各自有精确SHA和匿名receipt；新run/jobs/summary及2产物元信息保存在.local/p4-followup-20261105/ci/followup，未下载或替用户安装远端产物。最后仅提交验收文档和规范hash，不改178运行源或封存安装器；最终内容/暂存/Gitleaks/文档检查后普通推送，包原生与科学3部分等保留，不进入P5。
+
+**11:36 最终检查（Asia/Shanghai）**：624源码候选内容/路径/Gitleaks、25提交历史Gitleaks、10个实际文档暂存文件内容/路径/Gitleaks与暂存diff通过；183 Markdown/825本地链接/88资产LF hash通过，4外部原文不可用仍单列。最终文档提交与运行源码75061d2明确分开，源码、资源、安装器及匿名CI receipt保存在本机delivery配对；私人资料和安装器不上传，真实调用保持本增量2次、验收已结束。

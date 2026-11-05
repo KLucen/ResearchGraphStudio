@@ -8,6 +8,8 @@
 
 后续优化修改query_graph/query_retrieval/unified_store，只减少NodeEvidence ORM、递归临时集合/列表、固定UUIDv5前缀及JSON编码器重复构造；不跨调用缓存、不裁剪候选或支撑，DTO/版本/哈希/权限/边/锚点终验保持。
 
+优化已提交并普通推送为`75061d2e3804a37c9b6209d716fa207f86173bb4`，28个实际暂存文件经内容/路径/Gitleaks和diff检查通过。178运行源与该提交的Git blob按仓库LF规范化逐字一致；[本增量独立CI](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41959965368)已全部成功，不继承8d67ed1成绩。后续仅补验收文档，不重建或更改已封存运行源码/安装器。
+
 新增query_scientific_grounding.py、P07_query_grounded_v3.md，context/API/answers/answer_wire接入独立冻结scientific_guidance、真实来源角色/根链接/已检测表格组及scientific_binding审计。旧v1/v2的Prompt、hash、raw和恢复不自动升级；wire DTO不新增字段，head0014无迁移/依赖新增。程序仅补合法node→evidence→chunk及真实检测表格组，不猜公式/表列，绑定后重验归属，GET/保存重算；背景介绍允许但不冒充新贡献。引用完整性不是语义证明。
 
 ## 自动化和性能实测
@@ -34,7 +36,15 @@
 
 `build-windows.ps1`完成PyInstaller/Tauri/NSIS。最终冻结smoke、原生Host显式1项、PowerShell5.1/System32-only PATH隔离17项通过。正常worker冻结并发两启，每轮7读200（0.078/0.078秒），写竞争标准503 DATABASE_BUSY，47来源表/Query计数保持，模型请求0。首次复用旧验收脚本时新报告路径被旧BASE边界拒绝，未启动实验；复制脚本到本轮独立BASE后通过，未放宽安全边界。
 
-新安装器`.local/releases/p4-grounding-followup-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,839,020字节，SHA256 `23079790f3c7717e26cf9a9561b4b3308e039bd438554c7b60a6d2dc2b4d4e7d`；引擎SHA256 `5534b788f4a5afda87c00bb3a1cfb35321486e46bf92d41a5a37c40bf32cd079`。178运行源与最终回归前后及安装器一致，283资源与引擎副本逐字匹配，未含私人PDF/DB/密钥/日志；安装器与匿名delivery已封存，旧包保留。624源码候选内容/路径/Gitleaks、24提交历史Gitleaks、183 Markdown/824本地链接/88资产LF hash及diff通过，4外部原文仍不可用单列；暂存内容及优化提交的CI继续收尾，新包用户原生反馈另计。
+新安装器`.local/releases/p4-grounding-followup-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,839,020字节，SHA256 `23079790f3c7717e26cf9a9561b4b3308e039bd438554c7b60a6d2dc2b4d4e7d`；引擎SHA256 `5534b788f4a5afda87c00bb3a1cfb35321486e46bf92d41a5a37c40bf32cd079`。178运行源与最终回归前后及安装器一致，283资源与引擎副本逐字匹配，未含私人PDF/DB/密钥/日志；安装器与匿名delivery已封存，旧包保留。624源码候选内容/路径/Gitleaks、24提交历史Gitleaks、183 Markdown/824本地链接/88资产LF hash及diff为源码提交前实际成绩，4外部原文仍不可用单列。28实际暂存文件另经检查通过；最终文档补记再检查，不将旧计数写成新增检查。新包用户原生反馈另计。
+
+## 远端最终结果
+
+2026-11-05 11:33（Asia/Shanghai）确认独立run41959965368的windows及installed-app全部success，失败步骤0。新提交的环境复现、契约/后端/前端/构建、真实Edge、冻结引擎、Rust/Host、NSIS与产物上传通过；独立runner实际安装并以Windows PowerShell运行VerifyDesktop成功（03:31:17～03:31:57 UTC）。远端测试项数未提取，不声称等于本机934/124，也不用离线CI证明科学质量。
+
+匿名run/jobs/summary及2份产物元信息保存于`.local/p4-followup-20261105/ci/followup/`，未下载或替用户安装远端产物。CI构建自己的安装器；本机封存包由上述本机冻结/Host/PowerShell验证及源码指纹配对，不将不同二进制哈希混写。最后仅提交验收文档，运行源码仍为75061d2。
+
+最终文档收尾：624源码候选内容/路径/Gitleaks、25提交历史Gitleaks、10个实际文档暂存文件内容/路径/Gitleaks及暂存diff通过；183 Markdown/825本地链接无破损、88规范资产按LF核验一致，4外部原文不可用单列。文档提交不改变已通过CI的运行源码，完整交付指纹保存在本机delivery，不上传安装器或私人验收资料。
 
 ## 保留问题
 
