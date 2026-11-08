@@ -31,4 +31,4 @@
 
 风险：选择可能遗漏贡献，整合可能错配条件，论文类型识别可能不准，共享节点布局复杂，模型调用成本可能增加。对策为覆盖缺口、可解释选择、完整候选检索、严格版本/来源/路径验证、自动失败保留及跨论文类型真实评价。本次参考测试不能替代应用或模型验收。
 
-阶段与交付见 [迁移计划](../06_development_migration_plan.md)及[本轮规范验证](../reading-design-verification-20261102.md)。不进入 P4/P5。
+阶段与交付见 [迁移计划](../06_development_migration_plan.md)及[本轮规范验证](../archive/reports/reading-design-verification-20261102.md)。不进入 P4/P5。

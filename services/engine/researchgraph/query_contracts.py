@@ -53,7 +53,7 @@ class QueryRequest(StrictModel):
 
 
 class QueryDependency(StrictModel):
-    type: Literal["chunk", "evidence", "node", "note", "passage"]
+    type: Literal["chunk", "evidence", "node", "note", "annotation", "external", "passage"]
     id: str = Field(min_length=1)
     sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     # An absent new guard must not change historical document request hashes.

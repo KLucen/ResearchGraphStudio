@@ -1,6 +1,6 @@
 # ADR0024：可读问答来源、整组阅读与已保存内容生命周期
 
-日期：2026-11-04（Asia/Shanghai）。状态：P4 用户反馈修复增量；实际检查与交付状态见[反馈验收报告](../p4-query-feedback-verification-20261104.md)。继承[ADR0022](0022-query-foundation-and-versioned-context.md)和[ADR0023](0023-grounded-query-and-explicit-saving.md)，不进入 P5。
+日期：2026-11-04（Asia/Shanghai）。状态：P4 用户反馈修复增量；实际检查与交付状态见[反馈验收报告](../archive/reports/p4-query-feedback-verification-20261104.md)。继承[ADR0022](0022-query-foundation-and-versioned-context.md)和[ADR0023](0023-grounded-query-and-explicit-saving.md)，不进入 P5。
 
 ## 问题
 

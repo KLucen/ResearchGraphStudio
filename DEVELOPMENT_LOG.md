@@ -37,7 +37,7 @@
 - [项目入口](README.md)
 - [需求依据](docs/design/requirements-baseline.md)
 - [开发流程（后续 v2 历史入口）](docs/archive/v2/02_development_plan.md)
-- [环境报告](docs/environment-check.md)与[机器快照](docs/environment/2026-10-27.json)
+- [环境报告](docs/archive/reports/environment-check.md)与[机器快照](docs/environment/2026-10-27.json)
 - [候选技术决策](docs/decisions/0001-local-desktop-baseline.md)
 - [实验计划](experiments/README.md)
 - [环境复查脚本](scripts/check-environment.ps1)
@@ -181,7 +181,7 @@
 - 安装目录中的打包引擎再次通过独立 smoke。实际桌面完成诊断、单实例、引擎异常退出后报错/重连；强制终止宿主后子引擎在 15 秒等待窗口内退出，正常关闭后也无残留服务。
 - 静默卸载退出 0，程序文件移除而用户数据库保留；修复 UI 后重新构建安装器，重装退出 0，项目仍可读回。应用与自造项目保留供用户查看。
 - 故障测试发现缓存的健康值在断连后仍显示“FTS5 可用”，修正为等待检查，侧栏明确“引擎未连接”。相关 TypeScript/ESLint、格式、3 项 React 测试与 release 构建再次通过；引擎重试上限补充断言后 11 项 Python 测试通过。
-- 最终检查：21 份 Markdown、98 个本地链接及五份用户原文 SHA-256 通过，安装器哈希与记录一致。PowerShell 脚本语法检查通过。汇总见 [Phase 0 验证记录](docs/phase0-verification.md)和[环境增量 JSON](docs/environment/2026-10-28-phase0.json)。
+- 最终检查：21 份 Markdown、98 个本地链接及五份用户原文 SHA-256 通过，安装器哈希与记录一致。PowerShell 脚本语法检查通过。汇总见 [Phase 0 验证记录](docs/archive/reports/phase0-verification.md)和[环境增量 JSON](docs/environment/2026-10-28-phase0.json)。
 - RG-001–RG-004 本机实现/验证完成；RG-005 安装器与 CI 已写，独立 Windows G0、缺 WebView2 安装及远端 CI 尚未验证。未提交或推送代码，安装包未签名。下一项是独立 Windows G0；Phase 1 再做 PDF 来源与证据链。
 
 ## 2026-10-28 20:19 · DEV-0006 · Phase 0 验收脚本与 main 自动推送
@@ -392,7 +392,7 @@
 
 - 发现 `apps/desktop/src-tauri/src/main.rs` 把任务历史 `cursor` 按 UUID 检查；服务端 `next_cursor` 是 Base64URL JSON 快照令牌，导致桌面第二页请求会被宿主白名单拒绝。
 - 将白名单改为接受 1–512 位 ASCII Base64URL 字符，保留查询参数去重、限制字符和服务端解码校验；增加 Rust 路由回归断言。
-- 更新 [RG-006 原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)与 [Phase 1 记录](docs/phase1-verification.md)，撤回无法由旧桌面桥接实现的“加载后 13 项”结论。
+- 更新 [RG-006 原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)与 [Phase 1 记录](docs/archive/reports/phase1-verification.md)，撤回无法由旧桌面桥接实现的“加载后 13 项”结论。
 
 #### 验证
 
@@ -440,7 +440,7 @@
 
 ### 实际改动
 
-- 新增 [CI 验收摘要](docs/environment/2026-10-31-phase1-jobs-ci.json)，更新 [原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)、[Phase 1 记录](docs/phase1-verification.md)、ADR 0006、API/计划入口相关状态和 README。CI 通过、原生分页未复测、M1/干净环境未完成分别记录。
+- 新增 [CI 验收摘要](docs/environment/2026-10-31-phase1-jobs-ci.json)，更新 [原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)、[Phase 1 记录](docs/archive/reports/phase1-verification.md)、ADR 0006、API/计划入口相关状态和 README。CI 通过、原生分页未复测、M1/干净环境未完成分别记录。
 - 保留 GitHub artifact 内的原始安装报告副本 [安装验收报告](docs/environment/2026-10-31-phase1-jobs-installed.json)，SHA-256 `D2F3F06B031B2C6B7C3D65E968E50DBBD2CB5FFF0D762732D82C46291BFD6842`。验收包 `.local/phase1-jobs-acceptance-kit-41206071801.zip` 含安装器、自造 PDF、PowerShell 脚本、报告、说明和校验清单；压缩包 SHA-256 `5D0D497C533DB85FE1CE7EE05A79CF0619DB6A2796CA2BC12B5C3E52BE7E25EA`，安装器 37,622,305 字节、SHA-256 `B8F1E66D2665B4C920F827E860637C9D8C5206288120070195233E19500B22F7`。二进制及验收包位于忽略目录，不进入源码提交。
 - S1–S4 登记的桌面原文路径均未找到，不能复核当前内容或哈希；未修改原文及来源登记。
 
@@ -565,7 +565,7 @@
 
 ### 实际改动
 
-- 新增 [Phase 3 本机验收记录](docs/phase3-verification.md)，记载全局设置迁移、Zotero Test collection、三篇真实论文抽取、来源完整性、P03–P05、Mock 关系审核、侧栏及图谱重启验证和限制。
+- 新增 [Phase 3 本机验收记录](docs/archive/reports/phase3-verification.md)，记载全局设置迁移、Zotero Test collection、三篇真实论文抽取、来源完整性、P03–P05、Mock 关系审核、侧栏及图谱重启验证和限制。
 - 同步 README、开发计划、ADR v2-0002 与 [实施进度](docs/progress.md)：明确 P3 最小功能已实现，但真实 Claim 关系候选→审核→图谱边尚未验收通过。Mock 只作为软件路径验证。
 - 保留两份旧计划的既有删除；历史指向改用固定 Git permalink。S1–S4 原文登记路径不可用，无法复核本轮原文或哈希；QA 原件和既有登记值保持不变。
 
@@ -708,7 +708,7 @@
 - `unified_contracts.py`、`unified_extraction.py`、`unified_store.py`、`unified_mock.py` 与运行 P02 实现 unified-v3.1 单批多类型抽取，严格证据/局部引用检查后经 KnowledgeStore 写入。`translation.py` 与运行 P04 只补译显示字段，保留 accepted 科学内容、原始英文与模型输出。
 - `extraction.py`、`app.py`、`ingest.py`、`knowledge_api.py`、`knowledge_store.py`、`providers.py`、`zotero_batch.py` 等接入新流程；按章节 6000 字符预算、批次幂等/恢复、有界退避、调用时长/Token 记录。Zotero 解析后在同事务排队确定性抽取子任务，默认引用原文；旧 API 默认 legacy-v2 保持兼容。
 - `GraphWorkspace.tsx`、`graphLayout.ts`、`App.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`JobHistory.tsx`、`GraphExplorer.tsx` 等接入图谱主视图、双语/英文回退、证据详情、拖动固定、独立布局自动保存、可选旧抽取对照与旧 Comparator。P3 候选关系保留虚线、审核与模型依据；NO_DECISION 不建科学边。
-- `main.rs` 增加受限图谱/布局/补译 API 和 Zotero URI 白名单，通过 ShellExecuteW 打开 Zotero，不经过 Shell 命令。契约导出到 `packages/contracts/`；同步 AGENTS、README、API、进度、迁移计划、[实际验收报告](docs/v3-verification.md)与 52 项设计资产清单。
+- `main.rs` 增加受限图谱/布局/补译 API 和 Zotero URI 白名单，通过 ShellExecuteW 打开 Zotero，不经过 Shell 命令。契约导出到 `packages/contracts/`；同步 AGENTS、README、API、进度、迁移计划、[实际验收报告](docs/archive/reports/v3-verification.md)与 52 项设计资产清单。
 - 原生发现并修复论文无限分页与图谱论文筛选的缓存键冲突白屏；统一图谱位置状态并调整快速拖动起始阈值，原地点击不保存/固定；收窄详情关联遍历并折叠实验详情。新增 `test_graph_v3.py`、`test_v3_compatibility.py`、`GraphWorkspace.test.tsx`，扩展冻结引擎 smoke。
 
 ### 验证
@@ -744,7 +744,7 @@
 - `src-tauri/src/main.rs`：原生发现跨页布局超过 16 KiB，只有已授权 graph/layout POST 放宽至 512 KiB；服务端仍最多 2000 个有限坐标，其他请求预算不变。新增 Rust 边界测试。
 - `knowledge_visibility.py`、`graph_projection.py`、`graph_contracts.py`、知识/推理 API：正常视图隐藏未经人工修改的 Mock 节点，人工接受/修订及历史详情保留；分页最多附加 24 个真实父论文上下文节点和 REPORTS 来源边，主游标不变。
 - `ModelSettings.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`GraphExplorer.tsx`、`JobHistory.tsx`、`App.tsx`：真实全局模型入口、移除旧基线/Mock/手工 Token、去旧卡片画布、压缩项目头、长批次详情折叠与明确继续入口。同步生成 API 契约；离线测试与冻结 smoke 显式使用测试 Provider。
-- 新 [ADR 0005](docs/adr/0005-model-capabilities-resume-force-graph.md)与[优化验收](docs/refinement-verification-20261102.md)；更新 AGENTS、README、progress、模型/API 说明、v3 架构/交互/迁移/实现注记、导航与映射，52 项设计资产 hash/清单同步。Schema 仍为 0009，无新增迁移。
+- 新 [ADR 0005](docs/adr/0005-model-capabilities-resume-force-graph.md)与[优化验收](docs/archive/reports/refinement-verification-20261102.md)；更新 AGENTS、README、progress、模型/API 说明、v3 架构/交互/迁移/实现注记、导航与映射，52 项设计资产 hash/清单同步。Schema 仍为 0009，无新增迁移。
 
 ### 验证
 
@@ -775,7 +775,7 @@
 - `ForceGraph.tsx`、`forceSimulation.ts`、`graphLayout.ts`、`style.css`：受控点节点稳定 width/height/measured，防止 React Flow 清空尺寸造成隐藏；坐标有限性检查、RAF 清理和边标签指针处理。新增 `e2e/graph.*`、Playwright 配置/开发依赖/脚本，真实渲染验证悬停、持续/快速拖动、邻居联动、固定/缩放/容器改变；原单元测试保留。
 - `unified_contracts.py`、`extraction.py`、`unified_extraction.py`、新增 `extraction_repair.py` / `P02_local_link_repair.md`：精确 Schema 错误，仅对缺失局部引用执行一次受限端点修复。旧 P02 与 JSON Schema 不变、原始结果保留、修复运行关联来源；修复越界/拒绝/失败不入图，同任务不无限调用。其他非法响应仍可重新抽取未完成批次。新增 `test_extraction_repair.py` 覆盖七批恢复、禁止虚构/改写、原结果及旧节点保留、无额外调用。
 - `WorkbenchSection.tsx`、`Papers.tsx`、`SourceIntegrations.tsx`、`App.tsx`、`KnowledgeReading.tsx` 与测试：三块折叠及项目内记忆，PDF/Zotero 平行入口，Obsidian 移至独立笔记来源，模型运行显示原始响应/修复来源。API 与数据库保持兼容，Schema head 0009，无迁移。
-- 更新 AGENTS 的用户验收偏好、README/桌面说明、progress、运行 API、v3 交互/Prompt/计划、[ADR 0006](docs/adr/0006-graph-stability-and-local-reference-repair.md)和[实际验收](docs/stability-verification-20261102.md)，同步设计资产清单。
+- 更新 AGENTS 的用户验收偏好、README/桌面说明、progress、运行 API、v3 交互/Prompt/计划、[ADR 0006](docs/adr/0006-graph-stability-and-local-reference-repair.md)和[实际验收](docs/archive/reports/stability-verification-20261102.md)，同步设计资产清单。
 
 ### 验证
 
@@ -802,7 +802,7 @@
 - `unified_extraction.py`、新运行模板 `P02_unified_section_extract_v3_2.md`：新任务持久化 Prompt 名称，旧任务保留旧签名与计划；新计划 8000 字符/64 证据目标、4–16 候选提示，表格缺列头不得猜测。按原文字数二分超时根批一次，子批再失败即停；旧已三次超时的同证据根批恢复时直接拆分。成功批次与成功子批不重发。
 - `providers.py` / `extraction.py`：记录连接/请求发送/响应头/响应体阶段与耗时，不打印密钥或原文；明确响应超时转交有界拆分，连接/429/5xx 等保留有限重试；未增加 90 秒/180 秒时限。
 - `KnowledgeReading.tsx`、`JobHistory.tsx`：展示空占位规范化和“超时后缩小”。新 `test_extraction_reliability.py` 14 项覆盖精确兼容、旧结果零调用续跑、拆分停止/恢复/幂等、超时阶段脱敏。
-- 更新 AGENTS、README、docs 导航、API/模型说明、v3 架构/Prompt/计划、progress、[ADR 0007](docs/adr/0007-extraction-null-markers-and-timeout-adaptation.md)与[验收记录](docs/extraction-reliability-verification-20261102.md)。Alembic 仍 0009、DTO 仍 unified-v3.1，无数据库迁移；既有改动全部保留。
+- 更新 AGENTS、README、docs 导航、API/模型说明、v3 架构/Prompt/计划、progress、[ADR 0007](docs/adr/0007-extraction-null-markers-and-timeout-adaptation.md)与[验收记录](docs/archive/reports/extraction-reliability-verification-20261102.md)。Alembic 仍 0009、DTO 仍 unified-v3.1，无数据库迁移；既有改动全部保留。
 
 ### 验证
 
@@ -831,7 +831,7 @@
 - 重写 docs/00–09，确立 indexing/extracting/integrating/selecting/publishing 自动工作流，Paper→核心 Claim→支撑、多对多单元、选择/知识/布局分版本；未选候选可检索，未来 Query/Wiki 逐段来源依赖。没有人工审核/待审/接受驳回步骤；历史状态保留，新流程只用自动有效性与显示角色。
 - docs/schemas/contracts.py 及 29 份 JSON Schema、sqlite_reference.sql：显式候选 union、SourceTable、CandidateRecord、KnowledgeUnit、GraphSelection、显示偏好、上下文守卫和未来问答/页面引用。引用类型、source hash/offset、条件状态、单元路径、完整选择快照与默认图谱拓扑可执行校验；正式运行仍 0009/unified-v3.1/P02 3.2。
 - docs/prompts 13 份重写（reading-1.0），新增 P12 论文整合、P13 核心选择。25 个虚构示例、index/README 与 78 项参考测试；不使用用户论文或模型数据。原 v3 52 项资产归档到 docs/archive/v3，保留旧契约测试和来源；不把旧报告反写为新验收。
-- 新 [ADR 0008](docs/adr/0008-reading-knowledge-graph.md)、[兼容映射](docs/migration/v3_to_reading_assessment.md)、[验证记录](docs/reading-design-verification-20261102.md)与变化摘要；更新根 AGENTS/README、导航、API 目标边界、progress、下一轮模板、清单哈希。
+- 新 [ADR 0008](docs/adr/0008-reading-knowledge-graph.md)、[兼容映射](docs/migration/v3_to_reading_assessment.md)、[验证记录](docs/archive/reports/reading-design-verification-20261102.md)与变化摘要；更新根 AGENTS/README、导航、API 目标边界、progress、下一轮模板、清单哈希。
 
 ### 验证
 
@@ -865,7 +865,7 @@
 
 - Conda researchgraph-studio；`scripts/check-phase0.ps1`最终通过：175 Python passed / 2 symlink skipped，Ruff/format/mypy、依赖、契约、前端格式/类型/lint/build。之后新增共享投影用例，针对性4通过；React最终39通过。浏览器真实React Flow3通过，Rust7通过和clippy -D warnings通过；参考docs/tests78通过。
 - 7批第2批超时离线故障注入：首批不再调用、续跑7/7，8次抽取请求含1失败；整合/选择失败不重抽。Mock仅自动化，不作为真实质量证明。
-- 真实API：两篇真实论文最初全文尝试分别0/9、0/34停在非法关联，另一次90秒timeout。修正后复用两份已收P02响应，局部21候选、2/3核心单元经真实P12/P13发布且标partial，实际投影Paper边2/3条。已知71,260 Tokens，timeout用量未知。不是全文或科学质量通过；详细范围见[验收](docs/reading-implementation-verification-20261102.md)。
+- 真实API：两篇真实论文最初全文尝试分别0/9、0/34停在非法关联，另一次90秒timeout。修正后复用两份已收P02响应，局部21候选、2/3核心单元经真实P12/P13发布且标partial，实际投影Paper边2/3条。已知71,260 Tokens，timeout用量未知。不是全文或科学质量通过；详细范围见[验收](docs/archive/reports/reading-implementation-verification-20261102.md)。
 - 最终PyInstaller/Tauri/NSIS通过；冻结引擎smoke包含paper-reading-v1完整离线闭环及重启，原功能兼容通过；PowerShell5.1仅System32 PATH测试通过。首次PowerShell受执行策略阻止，使用当前进程Bypass执行；又发现旧0009断言，更新0010后通过，未更改系统策略。
 - 安装包仅本机 `.local/releases/reading-graph-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,526,897字节，SHA256 `a7fd43ef7818a682a3ff490dd7706f58b6e3965a9aca59c60ca5171de0794660`。未安装替换当前软件，未使用Computer Use。
 - 17:58 收尾去除 Comparator 遗留审核筛选/文案，保留明确标识的历史状态；边详情区分导航/原文/模型推断。React39、TS/eslint/格式、重打包与冻结smoke、PowerShell5.1再次通过。测试启动曾遇 Vitest 不支持 runInBand、Conda 控制台编码错误，改为直接 Node 命令；文案断言不一致修正后完整前端通过，未将失败尝试记为通过。
@@ -943,7 +943,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 新 `model_adapters.py` / `chat_stream.py`，修改providers/model_settings/settings_api/extraction：准确端点/模型的官方能力兜底，1M/384K；新抽取非思考JSON预算32K、新推理思考预算64K，端点更低上限优先。SSE流、2MB正文/32MB传输边界、总时限≤300秒、活动计数、失败partial安全保留。
 - 新 `reading_resume.py`，修改app/models/schemas/unified_extraction及原生main.rs/api.ts/JobHistory：用户显式创建确定ID续接任务，原模型快照/签名/计划/成功批次不变，只有剩余调用使用新策略。原任务不改，新增调用用量独立记录；当前文献活动任务拒绝并发建图。
 - 新 `reading_status.py`、更新reading_api/reading_projection/graph_contracts与GraphWorkspace/ReadingControls：显示候选保存/发布差异、未完成批次和部分图入口；P12/P13保留覆盖缺口，不重抽PDF、无人工审核。
-- 新/扩展Python与React行为测试、Rust路由边界，更新OpenAPI/TypeScript、README、AGENTS、docs/progress/api/model-configuration/06与导航。新增[ADR0011](docs/adr/0011-tencent-streaming-and-reading-recovery.md)、[实际验收](docs/tencent-recovery-verification-20261102.md)。head0010，无迁移；上一轮精确去重实现完整保留。
+- 新/扩展Python与React行为测试、Rust路由边界，更新OpenAPI/TypeScript、README、AGENTS、docs/progress/api/model-configuration/06与导航。新增[ADR0011](docs/adr/0011-tencent-streaming-and-reading-recovery.md)、[实际验收](docs/archive/reports/tencent-recovery-verification-20261102.md)。head0010，无迁移；上一轮精确去重实现完整保留。
 
 ### 验证
 
@@ -970,7 +970,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - `model_adapters.py`删除额外32K/64K预算，保留端点能力/剩余上下文约束；`app.py`将适用续接合入普通retry，JobHistory/ModelSettings移除供应商操作与旧预算说明，旧接口兼容留存。
 - 新`reading_wire.py`、`prompts/P02_reading_extract_compact.md`，wire=reading-compact-1；共同language、相同summary省略、Schema限定SourceText原文字符串形式，确定性展开到原领域1.0。不会把任意数值、未知键或错误证据转换为合法内容，数值/条件/原语义保留。
 - `unified_extraction.py`按冻结计划选择新旧Prompt/Schema，`reading_validation.py`展开后严格字段/来源验证，保留raw_output和逐字段规则审计，重复检查基于原wire对象；`extraction.py`兼容新格式失败响应复用，Mock仅测试。旧领域/Prompt文件无diff，head0010无迁移。
-- 新15项wire场景，调整模型上限、普通续接、旧响应回归；同步AGENTS/README、Schema/Prompt/计划/API/模型说明/导航，新增[ADR0012](docs/adr/0012-compact-extraction-and-model-output-ceiling.md)和[验收](docs/compact-output-verification-20261102.md)。ADR0011的旧32K/64K预算和专属按钮标为后续替代，历史实测不改写。
+- 新15项wire场景，调整模型上限、普通续接、旧响应回归；同步AGENTS/README、Schema/Prompt/计划/API/模型说明/导航，新增[ADR0012](docs/adr/0012-compact-extraction-and-model-output-ceiling.md)和[验收](docs/archive/reports/compact-output-verification-20261102.md)。ADR0011的旧32K/64K预算和专属按钮标为后续替代，历史实测不改写。
 
 ### 验证
 
@@ -1047,7 +1047,7 @@ scripts/check-phase0.ps1首次集成回归暴露旧测试API升级和历史适�
 
 **改动**：新增 pdf_structure/document_structure/structure_models、Alembic0011、section_planner；ingest 使用独立可取消进程解析，KnowledgeStore 精确核对 hash/原块文本/bbox 后发布结构旁表。跨页章节树及可识别表格行列/表头/单元格保留；References、重复页眉页脚不送抽取。纠正合块标题遗漏、内联大字/普通编号误判与小字号参考文献污染正文基准。新 P02_reading_extract_compact_v3 对所有章节同规则，章节连同子节组织，取消6000字符/48证据目标，仅按实际模型容量拆分；表格跨节不拆、排除材料不通过表格元数据旁路进入输入。冻结旧计划、成功操作及原证据不改。
 
-reading_support/selection/projection 与 GraphWorkspace 默认显示有合法来源路径的非 Claim 支撑，增加 collapsed_unit_ids，保留共享节点、分页闭合与布局；不以共享证据猜边。reading_validation 只适配 Claim.kind_note_unused=null 并审计，其他未知字段/非null仍拒绝，原始 JSON 保留。同步宿主/脚本0011握手、运行契约、ADR0014、docs00–09、README/AGENTS和进度。详见 [本轮报告](docs/structured-reading-verification-20261103.md)。
+reading_support/selection/projection 与 GraphWorkspace 默认显示有合法来源路径的非 Claim 支撑，增加 collapsed_unit_ids，保留共享节点、分页闭合与布局；不以共享证据猜边。reading_validation 只适配 Claim.kind_note_unused=null 并审计，其他未知字段/非null仍拒绝，原始 JSON 保留。同步宿主/脚本0011握手、运行契约、ADR0014、docs00–09、README/AGENTS和进度。详见 [本轮报告](docs/archive/reports/structured-reading-verification-20261103.md)。
 
 **实际验证**：正式库只读备份后在隔离副本迁移、解析及回放。44旧表迁移/重解析原行保持；27页/766块→35章节/29检测表格，9页/159块→14章节/2表格，References分别排除30/6块。1M/384K离线规划11/6窗口，最大18270/18895字符，不记为模型成绩。真实失败响应的额外值确为null；零新调用重验并保存4候选/0关联，重复apply幂等，262旧知识/47旧ModelRun及原响应全部原列不变。现有真实投影38节点54边（含4方法/1实验/2条件），全部收起10节点；正式库、原PDF和Zotero未改。
 
@@ -1061,7 +1061,7 @@ scripts/check-phase0.ps1首轮274pass/3fail/2skip，发现旧P01空根上下文�
 
 **目标与根因**：用户报告“选择上下文超过预算，保留整合检查点；未截断必要支撑”，要求不要设置上下文预算。实际是 reading_pipeline.py 在 P13 模型调用前硬拒超过48000字符；P12另有26000/24000字符、60候选及20窗口限制。完整支撑会放大单元输入，增加模型输出额度不能解除本地门槛。
 
-**改动**：reading_pipeline.py移除上述预算，新finish plan记录complete-context-v1，P12全候选/完整引用证据一窗，P13全部单元一次；旧reading_windows优先读，旧签名与P13八单元分组保持，成功检查点不重调。来源/Schema/路径/版本/取消与真实端点能力、有界超时仍生效。新增test_reading_complete_context.py并更新旧大支撑测试，覆盖69候选、68有效支撑、超24K证据/48K选择、161根、旧P13第二组失败续接和真实错误类别模拟。同步README、AGENTS、docs02/05/06/导航/清单及ADR0015；实际报告见[完整上下文验收](docs/complete-context-verification-20261103.md)。
+**改动**：reading_pipeline.py移除上述预算，新finish plan记录complete-context-v1，P12全候选/完整引用证据一窗，P13全部单元一次；旧reading_windows优先读，旧签名与P13八单元分组保持，成功检查点不重调。来源/Schema/路径/版本/取消与真实端点能力、有界超时仍生效。新增test_reading_complete_context.py并更新旧大支撑测试，覆盖69候选、68有效支撑、超24K证据/48K选择、161根、旧P13第二组失败续接和真实错误类别模拟。同步README、AGENTS、docs02/05/06/导航/清单及ADR0015；实际报告见[完整上下文验收](docs/archive/reports/complete-context-verification-20261103.md)。
 
 **实际验证**：只读备份正式库，副本找到2预算失败任务，P02为15/15和34/34；P12的4/4与10/10检查点全可复用，P13最大116934字符。无网络Probe保留历史签名，零P02/P12调用直接到87342/52592字符的P13调用边界后主动停止；旧知识/来源表/原ModelRun及冻结计划保持，正式库/PDF/Zotero/凭据未改。真实模型调用0，不记为真实P13选择通过。
 
@@ -1343,3 +1343,113 @@ Host首次用裸cargo因PATH缺失没有执行，改绝对.cargo/bin/cargo.exe�
 **11:33 远端收尾（Asia/Shanghai）**：优化源码75061d2的独立GitHub Actions run41959965368全部success，windows及installed-app均成功、失败步骤0；环境/契约/后端/前端/真实Edge/冻结引擎/Rust/Host/NSIS/产物上传通过，独立runner实际安装并以Windows PowerShell运行VerifyDesktop成功（03:31:17～03:31:57 UTC）。远端项数未提取，不假称等于本机成绩，CI不替代科学语义验收。本轮两份CI各自有精确SHA和匿名receipt；新run/jobs/summary及2产物元信息保存在.local/p4-followup-20261105/ci/followup，未下载或替用户安装远端产物。最后仅提交验收文档和规范hash，不改178运行源或封存安装器；最终内容/暂存/Gitleaks/文档检查后普通推送，包原生与科学3部分等保留，不进入P5。
 
 **11:36 最终检查（Asia/Shanghai）**：624源码候选内容/路径/Gitleaks、25提交历史Gitleaks、10个实际文档暂存文件内容/路径/Gitleaks与暂存diff通过；183 Markdown/825本地链接/88资产LF hash通过，4外部原文不可用仍单列。最终文档提交与运行源码75061d2明确分开，源码、资源、安装器及匿名CI receipt保存在本机delivery配对；私人资料和安装器不上传，真实调用保持本增量2次、验收已结束。
+
+## DEV-0058 — 2026-11-05 13:36（Asia/Shanghai）：恢复中断的 P5 Lint / Wiki
+
+**目标与授权**：用户明确要求重新核对开发文档/已有内容并继续P5，覆盖旧轮“不进入P5”的阶段限制；无新的Commit/Push或付费预算。已读取上一中断会话与未提交源码，保留其全部工作；正式库实验写入0，真实模型调用0。
+
+**实现及修复**：保留0015～0017加性迁移，接入KnowledgeStore Lint/Wiki delegate、确定性报告/反向依赖、Wiki页面/稳定段落/草稿保存、独立目录授权和发布恢复账本；P09/P10/P11独立DTO/Prompt/请求槽/统一Job，首次成功/GET/保存重验。修正可信来源变化与坏响应分类、materialize首次返回不完整、双槽后合法raw恢复入口、Wiki损坏/缓存正文和引用信任、新文件绑定扫描、桌面路径/参数白名单、模型同意绑定范围。生产HTTP smoke又暴露并修正非法Job stage和P11把自己旧页作证据导致更新后历史失效，目标页现仅为基线上下文。
+
+**增量检查**：首次显式完整Lint初始化cursor，普通worker空轮询每秒最多维护1项目/25目标，事件差距与30秒权威对账兜底，旧/新依赖边并集找影响，不自动请求模型；已选个人范围和当前权限保留，未启用项目不写诊断。运行源已冻结，正在完整check-phase0。
+
+**已实际验证**：139 React/18 Edge、Rust20及fmt/clippy、P5工作流21、Lint28、Wiki46/1权限跳过、0014→0017迁移/双重完整重启2通过（重叠不累加）。生产源码HTTP/SSE本地stub P09/P10/P11各1、3槽，草稿/保存/首次导出/单段更新/重新导出/外改冲突/重启通过，真实模型0。全量与最终冻结包结果随后追加，不沿用P4成绩。
+
+**性能实况**：固定万候选/两万块最终Lint来源freeze0.907763秒，单块变化reconcile+4目标检查10.260801秒，反向影响查询0.340672秒，准确1段/1页，无变化1.365660秒/零新报告，峰RSS322482176B。中间源码完整扫描444.901秒另列，不冒充最终全量或≤2秒。完整catalog重验/反向索引重建仍是性能限制。
+
+**文档与未完成**：新增ADR0029及p5-verification-20261105，更新README、AGENTS、docs00～08/API/导航/续接/进度；历史P4分母/raw/协议保持。真实P09/10/11科学质量、独立Zotero Annotation.comment模型来源/授权、逐份note选择、外部MD显式新文档登记、原生目录选择器/新包用户反馈未完成，不能标P5退出。私人文件仅只读诊断，标准替换非任意外部编辑器原子CAS。未Commit/Push/收费/替用户安装。
+
+**13:52 基线与继续补齐（Asia/Shanghai）**：head0017最终check-phase0完整退出0：1044 Python passed/3权限跳过（442.15秒）、139 React，静态/依赖/契约/build通过。0017封存包07627380及其冻结P5/旧smoke、Host1、PS5.1隔离17项均实际通过，但核对W01/W02发现逐份个人选择、Annotation.comment独立用途链及外部MD登记仍属软件缺口，因此继续开发并将该包保留为中间基线，不以它冒充后续0019交付。新增0018外部来源与0019批注权限/最后显式导入索引；最终验证与重建随后记录。未新增真实请求、正式库实验或上传。
+
+**15:17 最终功能与回归（Asia/Shanghai）**：新增p5_personal/p5_sources/external_documents及API/模型/契约、0018/0019迁移；P5Sources/P5Workspace接逐份note/Annotation.comment/外部版本，授权与选择分开。query_documents/answer_wire/context及新query_local_access贯穿普通Query兼读和HTTP双用途保护；Wiki/external GET、旧diff、历史不同根与旧批注列表均重验local，撤权保留原行但隐藏正文。修复P09规则报告间接外发、P11失效根/旧基线选择漏洞；评论是用户观点，external_source不冒充用户或论文作者。模型raw/hash不重写，当前批注只保证最后显式导入。P5前端补中文归属/授权提示，Tauri schema为0019、白名单匹配真实路由。
+
+最终head0019完整check-phase0退出0：1124 Python passed/3符号链接权限跳过（460.77秒）、148 React；Ruff/242格式/mypy134源文件/依赖/契约/前端静态与build通过。两次失败全量保留：首次旧note-only fixture误设model_synthesis（1123/3/1），依据旧P07规则改user_view后19专项通过；第二次未知锚点断言整份MD不含100误中随机SHA（1123/3/1），只删宽泛断言、保留PDF页标签/链接门槛，37专项通过。未放宽产品验证。历史非法归属的新Store保存可能拒绝，旧行/raw/hash不改。
+
+最终19 Edge（33.7秒）、Rust20/fmt/clippy、打包Host1（3.34秒）、冻结P5与旧smoke、PS5.1/System32-only PATH隔离17项通过。首次Edge与打包并行时Vite监听被占用exe报EBUSY，串行重跑19通过；失败尝试未覆盖。213运行源/312资源配对一致，无私人运行数据资源；PyInstaller/Tauri/NSIS成功。最终包.local/releases/p5-lint-wiki-complete-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe，39,025,809字节，SHA256 8aef46ad987518532eaf2569cc4b1f6aa2373f6bed038f10336c417b6e1471e6；引擎a3a842d276d321a5981a00918d9997123638d6a1139f54d9945c14e5fc09ab67。包封存与构建副本一致，未替用户安装。最后性能、安全、文档配对另续。
+
+未完成真实P09/P10/P11科学逐段验收、新包用户原生/目录选择器/干净机/跨平台/strict；未继承已结束P4收费预算。本轮真实调用0、正式库实验写入0，未Computer Use/Commit/Push。复杂版面/公式/无OCR、文件并发非任意编辑器原子CAS及四份不可用外部原文限制保留；下一步先完成固定规模性能和文档安全封存，再交付操作步骤，不标P5退出全过。
+
+**15:25 性能与封存（Asia/Shanghai）**：所有测试/构建结束后串行最终Lint基准：10,000候选/20,000原文块/2Wiki/30,011目标，冻结1.036694秒、完整扫描430.284749秒，completed且error0/warning0/info1、规则异常0；初次依赖重建7.524021秒，单块变化显式对账7.663831秒，反向影响查询0.496275秒，准确1段/1页。峰RSS304955392B、总库48369664B，301批样本及8源指纹保持；不冒充P95、当前自动增量端到端或继承P4≤2秒目标，完整catalog复验/重建仍待性能优化。报告在.local/p5-lint-complete-20261105/report.json，隔离新库不触碰用户库。
+
+README/导航和docs00～09的当前状态、批注/外部来源及真实运行路由已统一（12文档、352本地目标、30组P5方法/路径独立复核）；带日期历史分母/授权保留。最终678源码候选实际内容/路径/Gitleaks、188Markdown/853本地链接目标/88资产LF hash、diff及空暂存区通过，4外部原文不可用仍单列。213运行源与312资源在最终基准后再次逐字配对，封存安装器hash与构建产物相同，匿名delivery/失败日志分别保留。未新增真实调用/正式库实验/Commit/Push；本轮软件、自动化与安装器交付完成，下一步由用户按P5报告步骤反馈原生结果，真实科学验收需新的明确预算，不自动收费。
+
+## DEV-0059 — 2026-11-05 16:00（Asia/Shanghai）：修复 P5 扫描状态停留
+
+**用户反馈与定位**：用户确认unknown提示出现后，上方仍显示“正在处理”，进度停住。规则CONDITION_UNKNOWN原为info，_emit只增提示计数，processed照常推进；没有因unknown阻塞完成。发现P5Workspace报告只读一次、未主动观察后续状态，旧GET/advance可能晚到回退显示；桌面25项一批而每调用复验全catalog，首个全项目扫描末批还建依赖索引，真实耗时与界面滞后都需区分。只读默认目录状态计数/异常类型未找到对应run，不据此宣称用户后台已完成；未读私人正文/raw/凭据、未修改正式数据。
+
+**改动**：P5Workspace.tsx增加准备范围/本页推进/待继续提示、2秒只读轮询及手动读取，终态停轮询，进度/终态/读取版本护栏与cancelQueries避免迟到响应回退，取消/卸载operation代次保护。p5Api.ts桌面每批25→100，仍为原允许上限，不改后端默认25和逐调用验源；P5Workspace.test.tsx/e2e/p5.spec.ts复现unknown可见+进度停住、旧GET/advance晚到、取消/完成、只读观察零推进和零模型。scripts/smoke-p5.py改实际HTTP100项，与桌面一致。unknown仍info、条件原值保留，不推断矛盾/补条件；完成计数区分错误/警告/信息。Python/Rust运行源、schema0019、Prompt/旧raw/hash/科学知识不改。
+
+**实际验证**：本轮31后端Lint/文档专项通过（10.33秒），155完整React/17文件通过（17.15秒，含P5专项27），Prettier/TS/ESLint、smoke脚本Ruff/format通过；最终19真实Edge通过（34.3秒）。首次Edge与Host并行时监听debug exe报EBUSY、未启动，保留失败日志，Host结束后串行重跑通过。新PyInstaller/Tauri/NSIS退出0，642.48KB chunk提示保留。冻结P5实际HTTP100项完成；P09/P10/P11仅本地合成SSE各1、3槽，草稿/保存/导出/局部更新/外改/重启/撤权通过，旧冻结smoke也通过。打包Host1（3.65秒）、PS5.1/System32-only PATH隔离17项通过，不算实际安装。213运行源/312资源配对，Python引擎hash仍a3a842d276d321a5981a00918d9997123638d6a1139f54d9945c14e5fc09ab67。
+
+**交付与限制**：新包.local/releases/p5-scan-status-20261105/ResearchGraph Studio_0.0.1_x64-setup.exe，39,048,185字节，SHA256 e432990a527c2de3e4fc17550af9bd2d258f2eb30c3c84011c58e38ca77b6304，旧包保留；新增反馈报告，更新ADR0029/progress/CODEX/AGENTS。旧1124全量与430.284749秒不冒充本轮重跑；8后端基准源一致、旧基准本就是100项，只减少请求轮次不宣称4倍实测加速，完整catalog/末批索引仍可能慢。真实模型0、正式库实验写入0、无Computer Use/替用户安装/Commit/Push，新包原生待用户反馈。操作为退出旧版安装→原报告重新读取→实际未完成则显式继续，不删知识或重抽。最后敏感内容/文档哈希收尾另记。
+
+**16:03 封存（Asia/Shanghai）**：679源码候选实际内容/路径/Gitleaks、189Markdown/858本地链接目标/88规范资产LF hash、diff和空暂存区通过；4外部原文仍不可用。213运行源/312资源及e432990a安装器副本配对无漂移，匿名validation/失败与最终日志分别保留于.local/p5-scan-feedback-20261105和本轮release；用户原生反馈、真实科学和性能限制不改，无收费/正式库实验/上传。
+
+## DEV-0060 — 2026-11-07（Asia/Shanghai）：整理当前文档与历史归档
+
+**目标与范围**：用户要求先整理 docs，更新过时说明、移除重复和不需要的文档。当前仍为 P5/head0019，保留已有未提交的运行源码、迁移、Prompt、测试及两份 P5 报告。本轮仅调整文档与文档清单，没有新的 Commit/Push、模型预算或正式库实验授权。
+
+**当前入口**：更新根 README/AGENTS、桌面 README、docs/README、progress、CODEX_NEXT_TURN、00–09、api 和 model-configuration；当前进度集中在 progress，设计章节指向当前状态，续接文件明确为开发指令。移除重复的 P4/head0014/P5未启动状态段；修正旧 P02 固定输入预算、模型用途与个人资料授权说明；区分设计参考与运行 DTO、确定性 Lint 与 P09建议、内部保存与文件发布。历史时间、失败分母、费用未知和未测项不写成当前限制或新成绩。
+
+**归档与删除**：30 份已结束轮次的报告（含环境报告）移至 docs/archive/reports，新增分类索引；整理前的完整 progress 保存在 progress-through-20261105.md。报告正文只修改链接目标，31 份历史正文逐一对照本轮备份，失败、科学分母、调用预算、授权和包指纹保持。删除 docs/AGENTS.template.md 重复协作模板、docs/CHANGELOG_FROM_V2.md 纯跳转页；归档规范中的同名原文保留。同步根协作规则、ADR、旧设计与交接引用，迁移映射标明历史语境；不保留第二套同内容跳转页。本轮前完整文档、路径映射及检查凭据仅存忽略目录 .local/docs-cleanup-20261107，不进入源码交付。
+
+**实际验证**：使用 Conda researchgraph-studio 的绝对解释器执行 .local/docs-cleanup-20261107/check_docs.py --refresh 后再只读复核。189 份 Markdown、804 个本地链接目标通过，仓库内断链 0；四份已登记外部原文仍不可用，单列为既有限制，未假称已核验。当前 86 项规范资产及归档 v3 的 52 项资产 LF 字节/大小/哈希一致；归档清单明确标注链接调整后的字节，不冒充原包指纹。366 个非文档文件对照整理前 SHA256 和路径集合，无修改/新增/删除；32 个原路径删除对应 30 个已核对归档及 2 个重复入口，没有意外删除。git diff --check 与空暂存区检查通过。首次本地校验脚本以 __file__ 定位时遭遇 Windows 路径编码错误，改用实际工作目录后通过；该失败未改写文档或触及运行数据。
+
+**结果与下一步**：文档整理完成，应用仍是已有 P5 实现；本轮未执行应用回归、性能重跑、模型调用、数据库实验、安装器重建、原生操作或 Commit/Push。真实 P09/P10/P11 科学质量、最新包用户原生反馈、Lint 完整 catalog 复验/重建性能、strict/跨模型/平台/干净机/无 OCR 等限制保留，不标 P5 全部退出通过。后续按当前 progress 和用户新指令继续。
+
+## DEV-0061 — 2026-11-07（Asia/Shanghai）：为 Lint 诊断增加修复/处理方案
+
+**用户反馈**：用户确认扫描可以继续，并指出当前问题卡片已经能显示 Lint 结果，但只有问题说明和依赖影响范围，没有下一步处理方案。截图中的 `SOURCE_UNCHECKED` 与 `CONDITION_UNKNOWN` 需要分别说明如何处理，不能把信息缺口当成科学矛盾。
+
+**实现**：Lint 后端为每条诊断增加只读 `repair_plan`，包含状态、摘要、处理步骤、动作标识和保护边界；通过 OpenAPI/TypeScript 契约同步。按 26 条规则区分来源、证据/支撑、依赖、私人笔记、独立外部阅读材料和受管文件，结合已消失/输入过期生命周期生成方案。`SOURCE_UNCHECKED` 方案为在文献页检查文件、记录可用性、重新运行受影响范围的 Lint。`CONDITION_UNKNOWN` 方案为回查正文/表格/图注，有明确证据时才准备受控重建或新版本，没有证据时继续保留 `unknown`；不提供直接编辑旧条件的入口，不据此推断矛盾或补造条件。
+
+桌面每个问题卡片新增“修复 / 处理方案”区域，展示步骤、是否需要用户确认、模型需求和保护边界。模型需求 false/true/null 分别显示“此步骤不调用模型”“需要模型（需单独授权）”“由后续受控流程决定”，缺省不冒充 false。方案展示不执行修复或调用模型，不修改原文、EvidenceSpan、知识节点、Wiki 正文、私人文件或历史 raw。旧报告读取时即可派生新方案；旧响应没有 `repair_plan` 时使用安全回退。
+
+**兼容边界**：方案只在 `issue_view` 派生，不新增数据库字段/迁移、不进入稳定问题指纹。`_lint_snapshot` 在冻结前排除 `repair_plan`，避免旧 P09 工作流被只读展示变化误判 `P5_BASE_CHANGED`。回归从旧问题形状准备任务，再更换当前方案文案，检查 API、幂等准备、GET、执行及重启；冻结 snapshot/input_hash/wire_hash、原 raw/rawSHA 与科学行保持，只有一次合成 provider 请求。生产 HTTP/SSE smoke 另核对问题 API 有方案、模型输入没有方案。
+
+**中间验证**：最初 `test_lint.py` 29 passed、前端 28 passed 属于初版；随后后端 Lint/工作流 86 passed，其余八个 P5 相关文件 141 passed/1 符号链接权限跳过。前端三态版完整 157 React/17 文件及 Edge P5 专项 4 项通过；Conda `researchgraph-studio` 的 mypy 134 源文件、Ruff、TypeScript/ESLint、契约导出及生成通过。首次最终 Prettier 检查发现两个前端文件格式不符，格式化后检查通过；不把首次失败记为成功。源码 HTTP/SSE 合成 P09/P10/P11 各一次、3 持久槽，方案输出和模型输入隔离、草稿/保存/发布/局部更新/外改/重启通过，真实模型 0。最终对象归属修正、回归及安装器结果继续追加，不沿用旧包成绩。
+
+**最终归属及入口修正**：只读审查发现 `NOTE_CHANGED` 不能套用受管发布，外部文档也会发出 FILE_MODIFIED/MISSING/UNAVAILABLE；最终按 object_type 分支，外部材料仅检查授权/原文件并显式登记新版本，旧快照保留。隔离真实文件改写、删除和原路径变目录三类扫描验证方案、版本/段落和 GraphRevision。受管文件名由程序生成，冲突方案指向现有“授权目录与 Markdown 导出”选择不同独立授权目录，不误导选择文件名或覆盖冲突文件。断链仅恢复目标或在原编辑器处理私人文本，不把生成新草稿列为无模型动作。前端缺字段回退也先处理 resolved/input_stale：已消失只查看历史，过期先新扫描。
+
+**21:44 最终验证与交付（Asia/Shanghai）**：冻结最终运行源后执行下列后端专项，234 passed / 1 skipped / 1 warning，80.09 秒：
+
+```powershell
+python -m pytest tests/engine/test_lint.py tests/engine/test_p5_workflows.py tests/engine/test_lint_documents.py tests/engine/test_p5_document_access.py tests/engine/test_p5_personal.py tests/engine/test_p5_migration.py tests/engine/test_external_documents.py tests/engine/test_wiki_documents.py tests/engine/test_wiki_publication.py tests/engine/test_query_local_access.py -q
+```
+
+Python 使用 `C:\Users\KLucen\anaconda3\envs\researchgraph-studio\python.exe`；唯一跳过为当前账户无 symlink 权限，junction 项通过，TestClient/httpx 弃用提示保留，未换依赖或放宽验证。`pnpm test` 最终 159 passed / 17 文件（含 P5Workspace 31，18.04 秒），`pnpm --dir apps/desktop exec playwright test e2e/p5.spec.ts` 4 passed（14.3 秒，真实 headless Edge 合成组件）；mypy 134 源文件、六个相关文件 Ruff/format、pnpm check/format:check 及 OpenAPI/TypeScript 生成通过。旧 1124 全量后端和 430.284749 秒规模基准本轮未跑，不能沿用为新成绩。
+
+`scripts/build-windows.ps1` 的 PyInstaller/Tauri/NSIS 全部退出 0；保留 646.94KB 前端 chunk 提示。最终引擎执行 `scripts/smoke-p5.py --executable <本轮冻结引擎>` 与 `scripts/smoke-engine.py --executable <同引擎>` 均通过；P5 为两篇合成 PDF、本地 HTTP/SSE P09/P10/P11 各一次、3 持久槽，核对方案 API、模型输入隔离、保存/发布/局部更新/外改/撤权/重启，真实请求 0。Windows PowerShell 5.1 执行 `scripts/verify-windows-install.ps1 -EnginePath <同引擎> -OutputRoot <本轮新隔离目录>`，System32-only PATH 的 5 项检查通过；本轮未传 PDF fixture，没有套用旧 17 项，也未运行 Host 或实际安装应用。
+
+213 运行源在回归/构建前后 LF 指纹一致，312 引擎资源与 Tauri 副本逐字匹配、无私人运行资料路径。安装器封存到 `.local/releases/p5-lint-repair-20261107/ResearchGraph Studio_0.0.1_x64-setup.exe`，39,057,863 字节，SHA256 `7c08d3b841edce5af7177b52d3acf5408731ba8b15ddaeef72b652bed62c494a`；引擎 SHA256 `ae038a2efc6ad45989638ad7608c4bb21e85d07e68150018671d7b265b56e2b7`，副本与构建产物相同。源、资源清单、最终原始日志及匿名 delivery 保存在 `.local/lint-repair-20261107`，旧报告/失败日志不覆盖。
+
+**用户操作及边界**：退出旧应用、安装本包，打开原 Lint 报告并“重新读取报告”即可看到方案，不需要重抽论文或为了显示方案重新扫描。实际处理来源/保存新版本后再重跑受影响范围；unknown 信息缺口允许继续保留。用户确认此前扫描可以继续只记录为该项原生反馈，新方案包、目录选择/发布/重启及真实科学质量仍待验收。schema0019 无新增迁移，真实模型调用 0、正式库实验写入 0、未 Computer Use/替用户安装/Commit/Push；后续模型任务需自身用途授权与清楚预算，不继承 P4/R5 请求许可。
+
+**21:53 文档与内容收尾（Asia/Shanghai）**：189 份 Markdown / 806 个本地链接目标、86 项当前规范资产与 52 项归档资产的 LF 大小/哈希通过，仓库内断链 0；四份已登记外部原文仍不可用，未计通过。679 个源码候选的实际内容/路径规则与 Gitleaks 通过，`git diff --check` 通过且暂存区为空。最后再核对 213 运行源与封存安装器指纹无漂移；这些检查没有读取正式库、私人正文或凭据，没有上传或提交。
+
+## DEV-0062 — 2026-11-07（Asia/Shanghai）：Lint 性能、阶段进度与固定规模基准
+
+**目标与授权**：用户要求优化依赖索引重建/反向影响查询、批量读取/数据库索引/阶段计时、准备/推进/末批依赖重建的进度，以及固定规模基准和峰值内存。保留所有已有未提交 P5 与文档整理内容；无新的 Commit/Push、收费或正式库实验授权。基准和迁移仅使用新建匿名合成库，真实模型调用 0、正式库实验写入 0。
+
+**实现**：lint_service 对 Chunk/KnowledgeNode 使用流式完整列投影，对来源记录/关联/成员批量读取，保持原 target 排序和嵌套 hash；advance 按当前批次预取节点及来源/关联/端点，原 validate_evidence 仍逐 link 调用，结束或异常清空引用。lint_dependencies 独立 helper 使用列读取和分块 Core executemany 重建派生边；递归 UNION 完整双向闭包以已到达对象为外层、按方向索引完整键探测，先当前权限过滤再计数/分页；隐藏中间节点不泄漏、不剪断公共后继，旧/新边并集对账保持。
+
+0020 加性迁移新增 LintRun.phase/timings 和 paper_sources(revision_id)、reading_members(node_id)、reading_units(root_claim_id,document_version_id) 三索引，同步 ORM、引擎/Tauri/安装验证握手及当前 head 断言。旧活动报告 scanning、旧终态 finished、历史 timings={}，不补造旧耗时，不改 targets/input_hash/operation/科学行/raw/图修订。P5Workspace 区分准备范围、对象扫描、依赖重建；末批对象满数先提交仍 active 的 rebuilding_dependencies，下一调用重验再建索引结束。桌面和自动继续 key 含 phase，迟到同进度响应不能回退阶段；GET 不写不推进。timings 单调时钟记录阶段与实际推进次数，不计用户等待/全部提交网络开销，不进入 P09/P10/P11 冻结科学输入/hash。unknown 保持 info，不补条件或推断矛盾。
+
+**等价与专项证据**：优化前163运行文件封存至.local/lint-performance-20261107/baseline-source。相同query_only只读快照的30,011有序targets逐项完全相同，digest精确等于原input_hash `68e3c45b75667ceb72ce98355643cf6ad7350dfd2fd8d859130cb9681f31a1f4`，DB前后sha不变。6类科学/文档/私人来源/损坏/撤权场景整边全部字段、cursor objects和72次查询响应等价。1200层循环/多路径、2000无关边、双向稳定分页、隐藏中间节点专项通过；首次普通INNER JOIN被SQLite重排为项目扫边的计划失败保留，改固定外层方向索引后实际EXPLAIN通过。
+
+批读取专项105复制候选逐link调用原validator、两批关联SQL每表每批≤3、strongref/映射清空和weakref释放；下一调用变原文/删link即input_stale且processed不进。真正0019→0020隔离迁移的全部旧列/备份、五种旧报告状态/操作、raw/修订保持，三索引计划、二次迁移和两次worker重启/旧key零模型通过。阶段7项覆盖重启、实际GET零SQL写入、阶段幂等、两阶段取消、重建前源变、异常回滚恢复和P09冻结兼容。中间80 Lint专项、179相关后端/1符号链接权限跳过、新迁移+批读取4项通过；范围交叠不累加，最终全量随后记录。完整前端164/17文件、P5 Edge5、Rust20/1 ignored、mypy136源文件及Ruff/248格式/前端check/format和契约通过。
+
+**23:19 固定规模实测（Asia/Shanghai）**：原字节harness sha `090dfe9f54ee72ab4bf46bb2f547a5087d842cb7f90726b7333cdf9acb33c964`，串行before/after各新合成库，10,000候选/20,000原文块/2Wiki/30,011目标/每批100，多数候选共用1合法span及19,999新增独立raw chunks分布保持。prepare1.961454→1.706389秒；完整advance856.662931→469.026664秒（-45.25%）、132367→12573 SQL；含prepare总wall858.624385→470.733053秒。显式rebuild13.185584→3.217814秒/40064→232 SQL，单块对账13.424384→3.344553秒；双向各12完整闭包样本，逆向P50/P95 0.861421/1.027968→0.026222/0.030090秒，正向0.886865/1.051412→0.026496/0.031464秒，每调用SQL仍28条，不将少载行优化说成少查询次数。峰RSS315301888→259489792B（300.695→247.469MiB，-17.70%），为OS进程生存期high-water含seed，不是Python分配峰值。
+
+两轮completed/error0/warning0/info1（SOURCE_UNCHECKED）/规则异常0、30016依赖边，单块准确影响1段1文档。after第301批满30011仍running/rebuilding，第302批重新验源重建后completed/finished。阶段累计441.972498秒与端到端470.733053秒区分，validate433.712787秒仍占主要成本；未通过缓存/裁剪减验源。before含小型开发负载/约3秒额外只读快照核对；每版本仅1次完整扫描，不宣称统计显著性或通用SLA，旧430.284749秒/P4两秒目标不冒充本轮成绩。前后163/165运行文件各自稳定，完整events/report/comparison/catalog/等价凭据在本轮.local，旧失败和包保留。
+
+**基准脚本交付**：tests/benchmarks/lint_dependencies.py及README提供复现方式，拒绝既有output和缺失source。测量后仅作Ruff格式/Callable与UTC别名/同步闭包变量绑定修正，规范化AST严格相等；交付版sha `da4686f670286e176b8e89004fe1fcefb45b4cea3ed2018ba0719d1769954c2f`，不冒充原harness字节、不因格式修正重跑大基准。原harness和两轮原始报告sha保持，harness-revision.json保留证据。
+
+**失败与剩余**：首轮契约导出因未设PYTHONPATH失败，补services/engine后重新导出/生成通过；首次mypy本地list缺注解、Ruff遗留unused import和基准风格已修正并复核。首次用Windows PowerShell5.1执行含中文的BOMless build-windows.ps1被解析器拒绝，保留build-windows-ps51-failed.log，改项目当前PowerShell7.6.9执行；该失败未生成新安装器、不冒充PS5.1验收成功。最终完整后端回归、包构建/冻结smoke/指纹、文档安全收尾继续追加。真实P09/P10/P11科学质量、新包原生/目录选择/发布重启、strict/跨模型/平台/干净机/复杂表格公式无OCR/4外部原文不可用仍未闭环；无Computer Use/替用户安装/Commit/Push。
+
+**23:43 最终回归与交付（Asia/Shanghai）**：冻结后完整 `python -m pytest -q` 为 **1185 passed / 3权限相关skipped / 1既有TestClient弃用warning，469.05秒**；不重复累加中间专项。完整React164/17文件、P5真实Edge5、Rust20及构建后显式打包Host1（3.08秒）通过。mypy136运行源、Ruff/249文件格式（含交付基准脚本）、pip check、TypeScript/ESLint/Prettier和OpenAPI/TS生成通过。Python均使用researchgraph-studio绝对解释器，未向base安装依赖。
+
+PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示。冻结P5和旧smoke成功；P09/P10/P11仅本地合成HTTP/SSE各1、3持久槽，非真实科学验收。首次P5 smoke遗留旧head0019断言导致失败，仅同步测试脚本期望到0020后完整重跑通过，保留smoke-p5-old-schema-failed.log，无运行源变更。Windows PowerShell5.1 `verify-windows-install.ps1 -EnginePath <新引擎> -PdfFixture tests/fixtures/pdf/two-pages.pdf -OutputRoot <本轮隔离目录>` 的System32-only PATH实际17项通过，含双页PDF/来源/阅读支撑/重启，不沿用前轮没传PDF的5项、不算实际安装或干净机。
+
+215运行源LF指纹在冻结/回归/构建前后稳定，基准自身165后端文件实测前后也保持；314资源含引擎与Tauri副本逐字配对，无私人数据资源路径。封存安装器 `.local/releases/p5-lint-performance-20261107/ResearchGraph Studio_0.0.1_x64-setup.exe`，39,054,979字节，SHA256 `afd062f6f700f9081db2f756d37e6b8fa38b5206f06c1f25d7d4488fd4d12198`；引擎 `e56076072856c567b83367fb309b5c33651050fd491472c1aaca57890f539bd7`，schema0020，旧包保留。新包原生升级/扫描和目录发布重启待用户反馈，不重抽已有论文，旧报告可只读重取，未完成可继续。
+
+新增ADR0030与性能报告，同步README、docs00～09、API、导航/续接、progress、AGENTS及开发日志。最终192 Markdown/832本地链接、86当前规范与52归档资产LF大小/hash通过，内部断链0；4份已登记外部原文仍不可用。689源码候选实际内容/私人路径/Gitleaks、git diff --check及空暂存区检查通过。所有最终凭据在.local/lint-performance-20261107，真实模型0/正式库实验0/未Computer Use/替用户安装/Commit/Push；科学质量与原生退出门槛保持未验，未标P5退出全过。

@@ -19,6 +19,27 @@ vi.mock("./GraphWorkspace", () => ({
     <section aria-label="图谱导航测试">来源节点：{initialFocus}</section>
   ),
 }));
+vi.mock("./P5Workspace", () => ({
+  P5Workspace: ({
+    mode,
+    onGraphNode,
+    onWikiPage,
+    initialPageId,
+  }: {
+    mode: string;
+    onGraphNode: (id: string) => void;
+    onWikiPage: (id: string) => void;
+    initialPageId: string;
+  }) => (
+    <section aria-label="P5导航测试">
+      <p>
+        {mode} 页面：{initialPageId}
+      </p>
+      <button onClick={() => onGraphNode("lint-node")}>诊断回查图谱</button>
+      <button onClick={() => onWikiPage("lint-wiki")}>诊断打开关联Wiki</button>
+    </section>
+  ),
+}));
 
 vi.mock("./api", () => ({
   request: vi.fn().mockResolvedValue({ profiles: [], roles: {} }),
@@ -173,4 +194,40 @@ test("project Query tab opens independently and evidence focus switches to the o
   expect(
     screen.getByRole("region", { name: "图谱导航测试" }),
   ).toHaveTextContent("来源节点：synthetic-claim");
+});
+
+test("Lint and Wiki tabs navigate to existing graph and page without losing sidebar collapse", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.projects).mockResolvedValue({
+    items: [
+      {
+        id: "p",
+        name: "合成P5项目",
+        description: "",
+        created_at: "2026-11-05T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  mount();
+  await user.click(
+    await screen.findByRole("button", { name: /合成P5项目 本地项目/ }),
+  );
+  await user.click(screen.getByRole("button", { name: "折叠侧边栏" }));
+  await user.click(screen.getByRole("button", { name: "Lint 诊断" }));
+  expect(screen.getByRole("region", { name: "P5导航测试" })).toHaveTextContent(
+    "lint 页面：",
+  );
+  await user.click(screen.getByRole("button", { name: "诊断打开关联Wiki" }));
+  expect(screen.getByRole("region", { name: "P5导航测试" })).toHaveTextContent(
+    "wiki 页面：lint-wiki",
+  );
+  await user.click(screen.getByRole("button", { name: "诊断回查图谱" }));
+  expect(
+    screen.getByRole("region", { name: "图谱导航测试" }),
+  ).toHaveTextContent("lint-node");
+  expect(screen.getByRole("button", { name: "展开侧边栏" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
 });

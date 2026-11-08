@@ -90,7 +90,11 @@ def read_authorized_file(root: AuthorizedRoot, relative_path: str) -> tuple[byte
 
 
 def read_notes(
-    session: Session, project_id: str, include_personal: bool = False, purpose: str = "local"
+    session: Session,
+    project_id: str,
+    include_personal: bool = False,
+    purpose: str = "local",
+    selected_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not include_personal:
         return []
@@ -107,6 +111,8 @@ def read_notes(
                 .order_by(NoteSnapshot.created_at.desc(), NoteSnapshot.id.desc())
             )
         )
+        if selected_ids is not None:
+            notes = [n for n in notes if n.id in selected_ids]
         by_path: dict[str, list[NoteSnapshot]] = {}
         for note in notes:
             by_path.setdefault(note.relative_path, []).append(note)
@@ -169,6 +175,7 @@ def validate_dependencies(
     visited: set[str] | None = None,
     _eligible: dict[str, set[str]] | None = None,
     _saved: dict[tuple[str, str], dict[str, Any]] | None = None,
+    _wiki: dict[str, dict[str, Any] | None] | None = None,
 ) -> dict[str, Any]:
     """Recompute current eligibility and transitive roots; never trust cached document status."""
     roots: list[dict[str, Any]] = []
@@ -177,6 +184,7 @@ def validate_dependencies(
     trail = set(visited or ())
     eligible = _eligible if _eligible is not None else {}
     saved_states = _saved
+    wiki_states = _wiki if _wiki is not None else {}
     if not dependencies:
         return {"content_state": "unverified", "roots": [], "issues": ["NO_DEPENDENCIES"]}
     for raw in dependencies:
@@ -266,6 +274,7 @@ def validate_dependencies(
                             nested_trail,
                             eligible,
                             saved_states,
+                            wiki_states,
                         )
                         states.add(child["content_state"])
                         roots.extend(child["roots"])
@@ -300,6 +309,29 @@ def validate_dependencies(
                     }
                 )
                 states.add("valid")
+            elif dep.type in {"annotation", "external"}:
+                if not include_personal:
+                    raise KnowledgeError(
+                        "QUERY_PERSONAL_NOT_AUTHORIZED", "个人资料未获本次用途授权"
+                    )
+                if dep.type == "annotation":
+                    from researchgraph.p5_personal import annotation_source
+
+                    source = annotation_source(session, project_id, dep.id, purpose=purpose)
+                    root = {k: v for k, v in source.items() if k != "text"}
+                else:
+                    from researchgraph.external_documents import validate_external_version
+
+                    source = validate_external_version(
+                        session, project_id, dep.id, include_personal=True, purpose=purpose
+                    )
+                    if not source.get("snapshot_valid"):
+                        raise KnowledgeError("QUERY_EXTERNAL_INVALID", "外部文档快照不可用")
+                    root = source["roots"][0]
+                if source["sha256"] != dep.sha256:
+                    raise KnowledgeError("QUERY_ANCHOR_INVALID", "个人资料快照哈希不匹配")
+                roots.append({**root, **dep.model_dump(exclude_none=True)})
+                states.add("valid")  # Personal snapshot identity, never scientific truth.
             else:
                 passage = session.get(QueryPassage, dep.id)
                 version = session.get(QueryDocumentVersion, passage.version_id) if passage else None
@@ -328,7 +360,18 @@ def validate_dependencies(
                     nested_trail,
                     eligible,
                     saved_states,
+                    wiki_states,
                 )
+                from researchgraph.wiki_store import wiki_passage_state, wiki_version_state
+
+                if version.id not in wiki_states:
+                    wiki_states[version.id] = wiki_version_state(session, version.id)
+                wiki_state = wiki_passage_state(session, passage.id)
+                if wiki_states[version.id]:
+                    wiki_state = wiki_states[version.id]
+                if wiki_state:
+                    states.add(wiki_state["content_state"])
+                    issues.extend(wiki_state["issues"])
                 roots.extend(child["roots"])
                 issues.extend(child["issues"])
                 states.add(child["content_state"])
@@ -351,6 +394,12 @@ def validate_dependencies(
 
 
 def file_state(session: Session, document: QueryDocument) -> str:
+    from researchgraph.wiki_models import WikiPage
+
+    if session.get(WikiPage, document.id):
+        from researchgraph.wiki_publish import file_status
+
+        return str(file_status(session, document.project_id, document.id)["state"])
     binding = session.get(QueryFileBinding, document.id)
     if not binding:
         return "not_exported"
@@ -372,11 +421,14 @@ def read_passages(
 ) -> list[dict[str, Any]]:
     result = []
     saved_states = saved_passage_states(session, project_id)
+    wiki_states: dict[str, dict[str, Any] | None] = {}
     for document in session.scalars(
         select(QueryDocument)
         .where(QueryDocument.project_id == project_id)
         .order_by(QueryDocument.id)
     ):
+        if document.kind == "external":
+            continue  # External text has an independent explicit-version read/selection API.
         version = (
             session.get(QueryDocumentVersion, document.current_version_id)
             if document.current_version_id
@@ -384,6 +436,10 @@ def read_passages(
         )
         if not version or version.state != "saved" or version.document_id != document.id:
             continue
+        from researchgraph.wiki_store import wiki_version_state
+
+        snapshot_state = wiki_version_state(session, version.id)
+        wiki_states[version.id] = snapshot_state
         state: str | None = None
         for passage in session.scalars(
             select(QueryPassage)
@@ -403,8 +459,9 @@ def read_passages(
                 purpose,
                 {f"passage:{passage.id}"},
                 _saved=saved_states,
+                _wiki=wiki_states,
             )
-            if any(issue == "QUERY_NOTE_NOT_AUTHORIZED" for issue in checked["issues"]):
+            if any("NOT_AUTHORIZED" in issue for issue in checked["issues"]):
                 continue  # Do not expose unauthorized text indirectly via a document.
             if text_hash(passage.text) != passage.sha256:
                 checked = {
@@ -417,6 +474,21 @@ def read_passages(
                     **checked,
                     "content_state": "invalid",
                     "issues": [*checked["issues"], lifecycle["lineage_issue"]],
+                }
+            from researchgraph.wiki_store import wiki_passage_state
+
+            wiki_state = wiki_passage_state(session, passage.id)
+            if snapshot_state:
+                wiki_state = snapshot_state
+            if wiki_state:
+                checked = {
+                    **checked,
+                    "content_state": (
+                        "invalid"
+                        if "invalid" in {checked["content_state"], wiki_state["content_state"]}
+                        else "stale"
+                    ),
+                    "issues": [*checked["issues"], *wiki_state["issues"]],
                 }
             if state is None:
                 state = file_state(session, document)
@@ -448,7 +520,11 @@ class QueryMutations:
         self.store, self.session = store, store.session
 
     def save_document(
-        self, request: DocumentSaveRequest | dict[str, Any], key: str
+        self,
+        request: DocumentSaveRequest | dict[str, Any],
+        key: str,
+        *,
+        preserve_version_id: str | None = None,
     ) -> dict[str, Any]:
         body = DocumentSaveRequest.model_validate(request)
         fingerprint = digest(body.model_dump())
@@ -468,21 +544,58 @@ class QueryMutations:
             raise KnowledgeError("DOCUMENT_VERSION_CONFLICT", "文档基线已变化")
         if not document and body.base_version_id is not None:
             raise KnowledgeError("DOCUMENT_VERSION_CONFLICT", "新文档不能指定旧版本")
+        preserved: dict[str, QueryPassage] = {}
+        if preserve_version_id is not None:
+            baseline = self.session.get(QueryDocumentVersion, preserve_version_id)
+            if (
+                body.state != "draft"
+                or not document
+                or not baseline
+                or baseline.document_id != document.id
+            ):
+                raise KnowledgeError("DOCUMENT_VERSION_CONFLICT", "仅同一文档的草稿可保留旧段落")
+            preserved = {
+                p.local_ref: p
+                for p in self.session.scalars(
+                    select(QueryPassage).where(QueryPassage.version_id == baseline.id)
+                )
+            }
         checked_passages = []
         for passage in body.passages:
             dependencies = [dep.model_dump(exclude_none=True) for dep in passage.dependencies]
             checked = validate_dependencies(
                 self.session, body.project_id, dependencies, True, "local"
             )
-            if checked["content_state"] != "valid":
+            old = preserved.get(passage.local_ref)
+            unchanged = bool(
+                old
+                and old.text == passage.text
+                and old.attribution == passage.attribution
+                and old.dependencies == dependencies
+                and old.caveats == passage.caveats
+                and old.sha256 == text_hash(passage.text)
+            )
+            if checked["content_state"] != "valid" and not unchanged:
                 raise KnowledgeError(
                     "DOCUMENT_DEPENDENCY_INVALID", ",".join(checked["issues"]) or "文档依据未验证"
                 )
-            personal = any(root["source_kind"] == "note" for root in checked["roots"])
+            personal = any(
+                root["source_kind"] in {"note", "annotation"}
+                or (root["source_kind"] == "external" and root.get("attribution") == "user_view")
+                for root in checked["roots"]
+            )
             paper = any(root["source_kind"] == "paper" for root in checked["roots"])
-            if (passage.attribution == "user_view" and not personal) or (
-                passage.attribution in {"paper_author", "citation_report"}
-                and (not paper or personal)
+            external_source = any(
+                root["source_kind"] == "external" and root.get("attribution") == "external_source"
+                for root in checked["roots"]
+            )
+            if not unchanged and (
+                (passage.attribution == "user_view" and not personal)
+                or (
+                    passage.attribution in {"paper_author", "citation_report"}
+                    and (not paper or personal or external_source)
+                )
+                or (passage.attribution == "model_synthesis" and personal)
             ):
                 raise KnowledgeError("DOCUMENT_ATTRIBUTION_INVALID", "段落归属与根来源不匹配")
             checked_passages.append((passage, dependencies))

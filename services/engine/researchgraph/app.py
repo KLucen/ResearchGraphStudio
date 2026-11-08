@@ -24,6 +24,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
+from researchgraph.external_document_api import register_external_document_api
 from researchgraph.extraction import run_extraction
 from researchgraph.graph_projection import register_graph_api
 from researchgraph.ingest import run_file_job
@@ -41,6 +42,8 @@ from researchgraph.models import (
     Project,
     now,
 )
+from researchgraph.p5_api import register_p5_api
+from researchgraph.p5_personal_api import register_p5_personal_api
 from researchgraph.query_api import register_query_api
 from researchgraph.query_models import QueryModelRun
 from researchgraph.reasoning import run_reasoning
@@ -156,6 +159,7 @@ def finish_diagnostic(
 
 
 async def worker(engine: Engine, data_dir: Path) -> None:
+    next_lint_check = 0.0
     while True:
         claim_task = asyncio.create_task(asyncio.to_thread(claim_queued_job, engine))
         try:
@@ -171,12 +175,31 @@ async def worker(engine: Engine, data_dir: Path) -> None:
             # No job has been claimed or model request sent. Leave queued work intact.
             claimed = None
         if claimed is None:
+            if asyncio.get_running_loop().time() >= next_lint_check:
+                from researchgraph.lint_maintenance import reconcile_pending
+
+                maintenance = asyncio.create_task(asyncio.to_thread(reconcile_pending, engine))
+                try:
+                    await asyncio.shield(maintenance)
+                except asyncio.CancelledError:
+                    with suppress(OperationalError):
+                        await maintenance
+                    raise
+                except OperationalError as exc:
+                    if not database_busy(exc):
+                        raise
+                next_lint_check = asyncio.get_running_loop().time() + 1.0
             await asyncio.sleep(0.15)
             continue
         job_id, kind = claimed
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "p5_workflow":
+                from researchgraph.p5_execution import execute as execute_p5
+
+                await execute_p5(engine, job_id)
+                continue
             if kind == "query_answer":
                 from researchgraph.query_answers import execute as execute_query
 
@@ -247,6 +270,17 @@ def create_app(
                         .where(Job.status == "running")
                         .values(
                             status="interrupted", error="上次运行中断，可手动重试", updated_at=now()
+                        )
+                    )
+                    from researchgraph.p5_models import P5ModelRun
+
+                    session.execute(
+                        update(P5ModelRun)
+                        .where(P5ModelRun.status == "running")
+                        .values(
+                            status="interrupted",
+                            error="引擎重启，已发送请求不会自动重发",
+                            finished_at=now(),
                         )
                     )
                     session.execute(
@@ -341,6 +375,10 @@ def create_app(
             in {"REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "SOURCE_CHANGED", "STALE_INPUT"}
             else 422
         )
+        if exc.code.startswith(("WIKI_", "P5_", "LINT_")) and any(
+            word in exc.code for word in ("CONFLICT", "CHANGED", "STALE", "REVOKED")
+        ):
+            status = 409
         if exc.code.endswith("NOT_FOUND"):
             status = 404
         return error_response(request, status, exc.code, str(exc))
@@ -351,6 +389,14 @@ def create_app(
     register_reasoning_api(app, engine)
     register_graph_api(app, engine)
     register_query_api(app, engine)
+    register_p5_api(app, engine)
+    register_p5_personal_api(app, engine)
+    register_external_document_api(app, engine)
+    from researchgraph.lint_api import register_lint_api
+    from researchgraph.wiki_api import register_wiki_api
+
+    register_lint_api(app, engine)
+    register_wiki_api(app, engine, native_token=lambda: token)
     from researchgraph.reading_api import register_reading_api
 
     register_reading_api(app, engine)
@@ -505,7 +551,7 @@ def create_app(
             if previous:
                 if action == "retry":
                     original = session.get(Job, job_id)
-                    if original and original.kind == "query_answer":
+                    if original and original.kind in {"query_answer", "p5_workflow"}:
                         actual = session.get(Job, previous["id"])
                         if actual is None or actual.project_id != original.project_id:
                             raise failure(404, "JOB_NOT_FOUND", "续接任务不存在")
@@ -514,6 +560,18 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            if action == "retry" and job.kind == "p5_workflow":
+                from researchgraph.p5_workflows import checked as checked_p5
+                from researchgraph.p5_workflows import enqueue as enqueue_p5
+
+                workflow = checked_p5(
+                    session, str(job.project_id), str((job.payload or {}).get("workflow_id", ""))
+                )
+                response = JobView.model_validate(
+                    enqueue_p5(session, workflow, idempotency_key, continue_requested=True)
+                )
+                remember(session, key, payload, response.model_dump())
+                return response
             if action == "retry" and job.kind == "query_answer":
                 from researchgraph.query_answers import enqueue as enqueue_query
 

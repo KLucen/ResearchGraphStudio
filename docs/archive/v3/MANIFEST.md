@@ -1,8 +1,8 @@
 # 原 v3 历史规范资产清单
 
-2026-11-02：按仓库 .gitattributes 的 LF 字节核验，便于远端复现。归档内容含义保持，排除私人数据和运行产物。
+2026-11-07：保留 2026-11-02 的历史设计内容，归档链接随目录整理更新。按仓库 .gitattributes 的 LF 字节重新核验；本表对应整理后文件，不是原包逐字节指纹。
 
-共 52 项。清单和SHA256SUMS不含自身。
+共 52 项。清单和 SHA256SUMS 不含自身，私人数据和运行产物不纳入。
 
 | 相对路径 | 字节 |
 | --- | ---: |
@@ -13,14 +13,14 @@
 | `03_schema_design.md` | 11348 |
 | `04_graph_interaction_spec.md` | 7135 |
 | `05_prompt_engineering.md` | 5738 |
-| `06_development_migration_plan.md` | 9030 |
+| `06_development_migration_plan.md` | 9050 |
 | `07_api_and_events.md` | 4358 |
 | `08_validation_and_security.md` | 5030 |
 | `09_reference_implementation_notes.md` | 2592 |
 | `AGENTS.template.md` | 1598 |
 | `CHANGELOG_FROM_V2.md` | 1478 |
 | `CODEX_NEXT_TURN.md` | 1902 |
-| `README.md` | 6291 |
+| `README.md` | 6530 |
 | `examples/comparability_report.json` | 842 |
 | `examples/evidence_span.json` | 270 |
 | `examples/extraction_batch.json` | 3384 |

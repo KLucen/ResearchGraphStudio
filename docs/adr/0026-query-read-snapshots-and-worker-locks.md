@@ -1,7 +1,7 @@
 # ADR0026：Query只读快照、任务认领与数据库锁错误边界
 
 日期：2026-11-04（Asia/Shanghai）
-状态：已采用；实际验证和安装反馈分别记录于[本轮报告](../query-history-lock-verification-20261104.md)。
+状态：已采用；实际验证和安装反馈分别记录于[本轮报告](../archive/reports/query-history-lock-verification-20261104.md)。
 
 ## 问题
 
@@ -47,4 +47,4 @@ Rust桥保留结构化服务错误；遇到非JSON错误响应时保留HTTP状�
 - BUSY/LOCKED与其他OperationalError返回分型JSON，不泄露SQL或driver秘密；Rust对结构化错误及非JSON响应保留状态且不回显body。
 - 手动重读历史可恢复列表，失败/重读均不调用模型或生成新任务；旧数据、回答及科学版本不变。
 
-实际命令、结果、未测项和新包身份见[本轮锁修复报告](../query-history-lock-verification-20261104.md)。[ADR0025](0025-query-browsing-and-paper-grouped-answers.md)的分页/论文筛选与冻结引用边界继续生效。
+实际命令、结果、未测项和新包身份见[本轮锁修复报告](../archive/reports/query-history-lock-verification-20261104.md)。[ADR0025](0025-query-browsing-and-paper-grouped-answers.md)的分页/论文筛选与冻结引用边界继续生效。

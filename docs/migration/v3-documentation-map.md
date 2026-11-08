@@ -1,10 +1,12 @@
 > 历史目录整理记录。当前设计及新旧代码适配见 [v3→阅读辅助映射](v3_to_reading_assessment.md)；下文旧契约缺口是当时审计，不代表本版仍未设计。
 
+2026-11-07 整理补记：顶层 `docs/AGENTS.template.md` 已由根 [AGENTS.md](../../AGENTS.md) 替代；`docs/CHANGELOG_FROM_V2.md` 跳转页已移除，直接访问[历史原文](../archive/v3/CHANGELOG_FROM_V2.md)。已结束轮次的验收报告移入 [archive/reports](../archive/reports/README.md)。以下保留 2026-11-02 的目录迁移过程与当时状态，不作为当前阶段或待办。
+
 # v3 文档整理与兼容索引
 
 日期：2026-11-02（Asia/Shanghai）。范围：文档基线切换、归档、去重和版本澄清；**不是 v2→v3 工程审计报告**。没有执行数据库迁移，也未宣称 M0–M6 已完成。
 
-## 当前目录布局
+## 当时目录布局
 
 按用户追加要求，取消独立规范包外层目录；原包 `docs/` 的 10 份章节直接移至仓库 `docs/`，schemas/prompts/examples/tests 分别落在 `docs` 下同名目录。53 份文件搬移，原包 README 合并到现有文档导航；CHANGELOG、Agent 模板、下一轮指令模板、忽略示例及清单也放到 `docs/`。旧 v2 归档保留。
 

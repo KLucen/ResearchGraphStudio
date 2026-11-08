@@ -8,7 +8,7 @@ from alembic import command
 from alembic.config import Config
 from researchgraph.knowledge_models import KnowledgeNode, ModelRun
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore
-from researchgraph.storage import make_engine, migrate
+from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
 from sqlalchemy.orm import Session
 from test_knowledge import apply, batch
 
@@ -37,7 +37,7 @@ def test_0011_preserves_all_old_tables_and_backup(tmp_path):
         assert {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables} == before
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0014",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)
     with sqlite3.connect(next((tmp_path / "backups").glob("*.sqlite3"))) as backup:
         assert backup.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
         assert backup.execute("SELECT * FROM projects").fetchall() == before["projects"]

@@ -2,7 +2,7 @@
 
 - 日期：2026-11-05（Asia/Shanghai）
 - 范围：P4 科学部分支持问题；不进入 P5
-- 状态：本轮实施，实际结果见 [改进验收](../p4-followup-verification-20261105.md)
+- 状态：本轮实施，实际结果见 [改进验收](../archive/reports/p4-followup-verification-20261105.md)
 
 ## 原因
 

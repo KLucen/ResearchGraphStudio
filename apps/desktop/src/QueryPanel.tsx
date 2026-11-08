@@ -34,6 +34,20 @@ const attribution: Record<Attribution, string> = {
   user_view: "个人观点",
   model_synthesis: "AI 综合解释",
 };
+const personalSourceLabel = (type: string) =>
+  (
+    ({
+      note: "个人笔记",
+      annotation: "个人批注评论",
+      external: "外部阅读材料（科学来源未核验）",
+    }) as Record<string, string>
+  )[type];
+const personalSourceNotice = (type: string) =>
+  type === "annotation"
+    ? "此来源仅为个人评论，关联的论文位置不使评论成为论文原文证据。"
+    : type === "external"
+      ? "此来源为已登记的外部材料快照，科学来源仍未核验。"
+      : "此来源为个人笔记，保持个人归属。";
 const states: Record<string, string> = {
   prepared: "证据已准备",
   not_started: "尚未生成",
@@ -530,11 +544,12 @@ export function QueryPanel({
               changed();
             }}
           />
-          同时检索已授权的个人笔记与个人综合
+          同时检索已授权的个人资料（笔记、批注评论与外部材料）及个人综合
         </label>
         {includePersonal && (
           <p className="quiet-note">
-            个人内容保持个人归属。仅使用“笔记来源”中允许相应用途的目录；本地检索授权不会自动授予模型外发。
+            个人内容保持个人归属，仅使用当前用途已授权的材料，包括已保存 Wiki
+            中的个人来源依赖。本地读取与模型外发分别授权；外部材料登记不代表科学来源已核验。
           </p>
         )}
         <label className="query-check">
@@ -544,7 +559,7 @@ export function QueryPanel({
             disabled={busy}
             onChange={(event) => setAllowNetwork(event.target.checked)}
           />
-          允许本次将问题与命中的必要证据发送给全局 Reasoning 模型
+          允许本次将问题与必要来源资料发送给全局 Reasoning 模型
         </label>
         <div className="query-actions">
           <button
@@ -1188,6 +1203,8 @@ function RetrievalPreview({
                   wiki: "Wiki",
                   synthesis: "阅读综合",
                   note: "个人笔记",
+                  annotation: "个人批注评论",
+                  external: "外部阅读材料（科学来源未核验）",
                   paper: "论文题名",
                 } as Record<string, string>
               )[hit.source_kind] ?? hit.source_kind}{" "}
@@ -1196,6 +1213,11 @@ function RetrievalPreview({
                 .map((reason) => reasons[reason] ?? reason)
                 .join("、")}
             </small>
+            {personalSourceLabel(hit.source_kind) && (
+              <p className="quiet-note">
+                {personalSourceNotice(hit.source_kind)}
+              </p>
+            )}
             <GraphPresence display={display} />
             <SourceSummary display={display} />
             <details className="query-original" open>
@@ -1575,12 +1597,12 @@ function QueryCitation({
   answerSummary: string;
   onOpen: () => void;
 }) {
-  const title = display
-    ? sourceTitle(display, paperTitle)
+  const personalLabel = personalSourceLabel(source.type);
+  const sourceLabel = personalLabel ?? "论文依据";
+  const originalTitle = display
+    ? sourceTitle(display, source.title || paperTitle || sourceLabel)
     : [
-        paperTitle ||
-          source.title ||
-          (source.type === "note" ? "个人笔记" : "论文依据"),
+        paperTitle || source.title || sourceLabel,
         typeof source.page_index === "number"
           ? `第 ${source.page_index + 1} 页`
           : null,
@@ -1588,21 +1610,28 @@ function QueryCitation({
       ]
         .filter(Boolean)
         .join(" · ");
+  const title =
+    personalLabel && originalTitle !== personalLabel
+      ? `${personalLabel} · ${originalTitle}`
+      : originalTitle;
   const original = display?.original ?? source.quote ?? source.text;
   return (
     <article className="query-source-card" aria-label={`引用 ${index}`}>
       <h4>
         引用 {index} · {title}
       </h4>
+      {personalLabel && (
+        <p className="quiet-note">{personalSourceNotice(source.type)}</p>
+      )}
       <SourceSummary display={display} answerSummary={answerSummary} />
       {original && (
         <div className="query-original">
-          <strong>对照原文</strong>
+          <strong>{personalLabel ? "来源材料内容" : "对照原文"}</strong>
           <blockquote>{original}</blockquote>
         </div>
       )}
       <button type="button" className="query-citation" onClick={onOpen}>
-        查看完整证据 · {title}
+        {personalLabel ? "查看来源材料" : "查看完整证据"} · {title}
       </button>
     </article>
   );
@@ -1669,6 +1698,7 @@ function QueryEvidence({
   onClose: () => void;
   onGraphNode: (id: string) => void;
 }) {
+  const personalLabel = personalSourceLabel(source.type);
   const [openError, setOpenError] = useState("");
   const paper = useQuery({
     queryKey: ["paper", source.paper_id],
@@ -1694,7 +1724,7 @@ function QueryEvidence({
   return (
     <dialog
       className="dialog query-evidence"
-      aria-label="回答证据"
+      aria-label={personalLabel ? "回答来源材料" : "回答证据"}
       ref={(node) => {
         if (node && !node.open) node.showModal();
       }}
@@ -1704,11 +1734,11 @@ function QueryEvidence({
       }}
     >
       <div className="query-heading">
-        <h3>原文证据</h3>
+        <h3>{personalLabel ?? "原文证据"}</h3>
         <button
           type="button"
           className="icon-button"
-          aria-label="关闭证据"
+          aria-label={personalLabel ? "关闭来源材料" : "关闭证据"}
           onClick={onClose}
         >
           <X size={20} />
@@ -1718,12 +1748,19 @@ function QueryEvidence({
         {display?.title ??
           paper.data?.paper.title ??
           source.title ??
-          (source.type === "note" ? "个人笔记快照" : "已保存的来源片段")}
+          personalLabel ??
+          "已保存的来源片段"}
       </p>
+      {personalLabel && (
+        <p className="quiet-note">{personalSourceNotice(source.type)}</p>
+      )}
       {typeof source.page_index === "number" && (
         <small>
-          PDF 第 {source.page_index + 1} 页 · 字符 [{source.start}, {source.end}
-          )
+          {source.type === "annotation" ? "评论关联位置：" : ""}PDF 第{" "}
+          {source.page_index + 1} 页
+          {typeof source.start === "number" && typeof source.end === "number"
+            ? ` · 字符 [${source.start}, ${source.end})`
+            : ""}
         </small>
       )}
       {source.section_path?.length ? (

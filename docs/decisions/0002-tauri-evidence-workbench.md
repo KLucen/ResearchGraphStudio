@@ -40,7 +40,7 @@ Sidecar 仅监听回环地址，端口和会话令牌由宿主协调，限制允
 
 ## 可安装关卡与当前差距
 
-本轮只读检查发现 WebView2 Runtime `155.0.4283.62`；PATH 和常见 `.cargo/bin` 路径未发现 Rust，常见 Visual Studio Installer 的 `vswhere.exe` 也未发现，MSVC/Windows SDK 可用性尚未确认。详见[环境报告](../environment-check.md)。
+本轮只读检查发现 WebView2 Runtime `155.0.4283.62`；PATH 和常见 `.cargo/bin` 路径未发现 Rust，常见 Visual Studio Installer 的 `vswhere.exe` 也未发现，MSVC/Windows SDK 可用性尚未确认。详见[环境报告](../archive/reports/environment-check.md)。
 
 Phase 1 先补齐并验证 Rust MSVC、C++ Build Tools/SDK，建立最小 Sidecar，再打包 PDF 导入器。安装测试覆盖无开发依赖机器、中文/空格路径、引擎启动失败、正常退出和重启后数据保留。Windows 10 与 11 分开记录实测；未测平台不写通过。
 

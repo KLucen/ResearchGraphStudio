@@ -92,7 +92,7 @@ class PaperSource(Base):
     __table_args__ = (UniqueConstraint("paper_id", "path", "mode"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     paper_id: Mapped[str] = mapped_column(ForeignKey("papers.id"), index=True)
-    revision_id: Mapped[str] = mapped_column(ForeignKey("attachment_revisions.id"))
+    revision_id: Mapped[str] = mapped_column(ForeignKey("attachment_revisions.id"), index=True)
     path: Mapped[str] = mapped_column(Text)
     mode: Mapped[str] = mapped_column(String(20))
     managed_path: Mapped[str | None] = mapped_column(Text, nullable=True)

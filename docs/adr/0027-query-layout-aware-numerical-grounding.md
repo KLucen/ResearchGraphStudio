@@ -2,7 +2,7 @@
 
 - 日期：2026-11-05（Asia/Shanghai）
 - 范围：P4 Query 验收发现的数值错误；不进入 P5
-- 状态：本轮实施，实际验证以 [P4 最终验收](../p4-final-acceptance-20261105.md) 为准
+- 状态：本轮实施，实际验证以 [P4 最终验收](../archive/reports/p4-final-acceptance-20261105.md) 为准
 
 ## 原因
 

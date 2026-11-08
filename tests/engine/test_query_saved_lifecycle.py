@@ -475,7 +475,7 @@ def test_personal_source_permissions_recheck_annotation_replay_and_removal(tmp_p
         assert provider.calls == 1 and note.read_text(encoding="utf-8") == original
 
 
-def test_0013_to_0014_backup_preserves_saved_rows_and_raw_exactly(tmp_path):
+def test_0013_to_current_backup_preserves_saved_rows_and_raw_exactly(tmp_path):
     engine = make_engine(tmp_path)
     config = Config()
     config.set_main_option(
@@ -544,7 +544,7 @@ def test_0013_to_0014_backup_preserves_saved_rows_and_raw_exactly(tmp_path):
             )
             for table in tables
         } == before
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0014",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0020",)
         assert db.execute("SELECT count(*) FROM query_saved_preferences").fetchone() == (0,)
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

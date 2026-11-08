@@ -1,14 +1,16 @@
 # 08 — 验证、安全与质量评价（设计 v3.3）
 
-2026-11-05 后续改进以[P4改进验收](p4-followup-verification-20261105.md)和[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md)为准：新P07v3冻结真实角色/根链接/已检测表格组，引用补齐及背景提示带审计，GET/保存重算，旧v1/v2兼容。不把根闭包完整、Schema或Prompt约束当作科学语义证明；未检表格与缺失公式留未知。性能完整样本、原科学分母及最多两次新定向调用分别记录，不能以候选中位数替代P95。
+当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
 
-2026-11-05 本轮真实/回归以 [P4 最终验收](p4-final-acceptance-20261105.md) 为准，包含原十题64段支持/7部分/1数值错误、额外一次真实补验及其误拦修复；不将原失败删除或记成科学全通过。新 P07 v2 冻结真实版式风险、正文危险数字拒绝；专用限制说明的风险数字只做带审计占位显示，raw不改、完整响应终验后仅显式零调用恢复。旧v1新保存也有当前所选段落版式门槛，历史读取不重写，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。head0014，正式库实验写入0；新包原生反馈与用户对旧正常包的反馈分开，P5未启动。
+## 历史科学质量边界
 
-2026-11-04 当前：P4-Q01～Q07已接入，Q08继续处理安装反馈；浏览/分组增量见[ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)，本轮数据库锁与历史重读边界见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复报告](query-history-lock-verification-20261104.md)。Alembic head保持 **0014**，无新增真实模型请求，P5 Lint/Wiki未启动。此前反馈修复见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)及[反馈报告](p4-query-feedback-verification-20261104.md)；回归、隔离包检查及用户原生确认分别记录，不互相替代。
+P4 原十题 64 支持/7 部分/1 数值错误、v2 补验 5/1 与后续 v3 补验 16/3/0 分别保留在 [P4 最终验收](archive/reports/p4-final-acceptance-20261105.md) 和 [P4 改进验收](archive/reports/p4-followup-verification-20261105.md) 中。引用补齐、Schema、锚点或 Prompt 约束通过不证明语义正确；未知表格/公式保持未知，不冲销旧失败，不自动延长已结束的请求预算。
+
+## 继承的协议与验收边界
 
 当前P13协议可靠性按[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)验收：程序固定槽位与精确Schema、严格拒绝未知字段/重复键、局部有效结果私有保留、一次定向修复及持久两请求上限。旧失败任务独立续接且P12原响应重验零调用采用；不要求用户换模型。格式恢复和真实科学质量分别评价，R5既有实测按对应报告保留，不为Query开发重复付费排序。
 
-R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代关系/依赖状态，缓存组单元、P13请求前/后和Store发布必须再验合法路径；关系变化停止且不改写历史模型状态或重复收费。实际自动化、真实模型、用户反馈与安装结果见[R5补验收报告](r5-acceptance-verification-20261104.md)，早期失败历史见[R5收尾报告](r5-final-verification-20261103.md)。P4基础及回答/保存边界分别见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)与ADR0023，当前执行Q08。
+R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代关系/依赖状态，缓存组单元、P13请求前/后和Store发布必须再验合法路径；关系变化停止且不改写历史模型状态或重复收费。实际自动化、真实模型、用户反馈与安装结果见[R5补验收报告](archive/reports/r5-acceptance-verification-20261104.md)，早期失败历史见[R5收尾报告](archive/reports/r5-final-verification-20261103.md)。P4基础及回答/保存边界分别见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)与ADR0023，P4实际结果按历史报告保留；当前P5结果与未验收项见[续开发报告](p5-verification-20261105.md)。
 
 ## 必须成立的不变量
 
@@ -58,7 +60,7 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 
 ## Q01～Q04基础验证边界（历史验收范围）
 
-以下保留Q01～Q04/head0012基础验收范围；该轮没有模型调用或正式库实验升级，结果见[基础报告](p4-query-foundation-verification-20261104.md)。当前head0014及回答/保存与反馈修复见下方P4-Q05～Q08小节，不用参考契约测试或本地准备代替真实回答验收。
+以下保留Q01～Q04/head0012基础验收范围；该轮没有模型调用或正式库实验升级，结果见[基础报告](archive/reports/p4-query-foundation-verification-20261104.md)。P4当时head0014的回答/保存及反馈修复见下方P4-Q05～Q08小节；当前head0020的P5结果见性能报告及续开发报告，不用参考契约测试或本地准备代替真实回答验收。
 
 - 契约/存储：严格QueryRequest拒绝额外键、空白问题和重复范围；当时QueryAnswer/QuerySaveCommand仅预留，后续已由Q05/Q07接入；0011旧表原列/raw/任务逐行保持，0012备份准确，重启可读，重复启动不多备份。
 - 本地召回：完整合法候选、首屏外/隐藏/收起/retrieval_only、仅原文、已有中英文/术语/数字/单位、来源/类型过滤及特殊FTS字符。派生索引破损可重建，刷新不改变原文或科学表。
@@ -68,7 +70,7 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 - 授权矩阵：默认不读个人笔记或最终被排除的个人文档文件；local/model用途独立、默认禁止外发，撤权穿透文档/缓存/幂等响应；重新授权读取不能静默恢复外发。笔记实际字节、BOM与存储文本hash均核对，目录越界/链接/读取期间替换不放行。
 - 只读与恢复：检索可写派生索引，prepare可写QueryRun和审计；科学知识/关系/选择/布局及GraphRevision不变。GET历史、重复prepare和validate重新终验，变化时拒绝返回旧上下文，保留原记录而不触发模型重试。
 
-上述历史核验只证明身份/锚点/结构/权限与确定性比较，不证明科学结论正确；当时尚未执行回答/保存。当前P07、界面、保存、检索金标和性能的实际结果统一见[P4报告](p4-query-verification-20261104.md)，用户原生反馈、真实质量、离线协议与干净机分别记录。P5发布未启动。
+上述历史核验只证明身份/锚点/结构/权限与确定性比较，不证明科学结论正确；当时尚未执行回答/保存。当前P07、界面、保存、检索金标和性能的实际结果统一见[P4报告](archive/reports/p4-query-verification-20261104.md)，用户原生反馈、真实质量、离线协议与干净机分别记录。P5发布现已接入，其实际验证与退出未验项按独立P5报告登记。
 
 ## 真实质量评价
 
@@ -88,11 +90,11 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 
 ## 验收状态
 
-R1–R4已接入，R5补验收在报告范围内通过；当前Q01～Q07已接入，Q08正在处理安装后的用户反馈，修复包原生确认另记，P5未启动。结构解析合成测试、失败响应重验或本地Query准备不代表真实回答质量通过。章节/双栏/表格仍采用启发式，无OCR或公式语义重建；复杂版面、真实strict、干净机及四份外部补充原文不可用等限制见[progress](progress.md)。历史报告不反向改写。
+R1–R4已接入，R5补验收在报告范围内通过；P4已接入并保留历史验收记录，当前P5 Lint/Wiki已接入head0020；真实P09/P10/P11逐段科学审读、原生目录授权及用户退出反馈尚未验收。结构解析合成测试、失败响应重验或本地Query准备不代表真实回答质量通过。章节/双栏/表格仍采用启发式，无OCR或公式语义重建；复杂版面、真实strict、干净机及四份外部补充原文不可用等限制见[progress](progress.md)。历史报告不反向改写。
 
 ## P4-Q05～Q08 验证边界
 
-本轮新增回答协议/恢复、显式保存/重启和API集成、真实渲染问答与衍生图回归、24题合成检索金标、1万候选/2万正文性能以及隔离真实论文问答；具体数量、失败及实际完成状态只以[P4报告](p4-query-verification-20261104.md)为准，以上历史Q01～Q04结果不叠加为本轮成绩。
+本轮新增回答协议/恢复、显式保存/重启和API集成、真实渲染问答与衍生图回归、24题合成检索金标、1万候选/2万正文性能以及隔离真实论文问答；具体数量、失败及实际完成状态只以[P4报告](archive/reports/p4-query-verification-20261104.md)为准，以上历史Q01～Q04结果不叠加为本轮成绩。
 
 未保存时知识/科学关系/选择/布局保持；缓存回答和保存都要当前来源与用途终验。收到坏JSON保留raw并分类失败，不作为可保存答案；取消/超时请求槽位已用，不隐藏供应商未知费用。孤儿FTS在权威索引缺行时仍须按项目清理，避免撤权后残留私人笔记字节。性能优化只复用同事务已验证端点，科学边及其证据继续逐条终验。
 
@@ -104,11 +106,11 @@ R1–R4已接入，R5补验收在报告范围内通过；当前Q01～Q07已接�
 - 问题、来源、回答和保存绑定同一QueryRun；历史与原问答导航有实际加载/错误和可见定位，不误用当前输入或触发generate。
 - 个人批注仅本地元数据，来源include_personal授权不构成批注外发许可；批注不进入read_passages、FTS、上下文或科学根。批注/移除的幂等、并发和审计不推进科学revision。
 - 移除保存对象须同时排除列表、检索、衍生图、复制到后续文档的相同保存段落和依赖谱系；不相关追加段落保留。原Query/raw/答案/不可变文档/论文证据逐项保持，同fingerprint重存明确拒绝。
-- 0013→0014先备份，旧保存manifest及历史表原列/行保持；宿主/引擎/脚本Schema握手一致。新包原生确认单独记录，具体执行结果见[反馈报告](p4-query-feedback-verification-20261104.md)。
+- 0013→0014先备份，旧保存manifest及历史表原列/行保持；宿主/引擎/脚本Schema握手一致。新包原生确认单独记录，具体执行结果见[反馈报告](archive/reports/p4-query-feedback-verification-20261104.md)。
 
 ### 数据库锁与历史读取的新增不变量
 
-以下为[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)的验收要求，实际执行结果见[锁修复报告](query-history-lock-verification-20261104.md)，不在此预填通过数字：
+以下为[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)的验收要求，实际执行结果见[锁修复报告](archive/reports/query-history-lock-verification-20261104.md)，不在此预填通过数字：
 
 - 使用隔离库和独立写连接持锁，覆盖Query准备记录、validate、文档、问答历史、回答、保存列表、保存详情及衍生图八个只读路径；读取应使用已提交快照，不能读未提交内容或跳过来源/用途终验。只读会话的DML/flush被query_only阻止，归还连接后正常Store写入仍有效。
 - WAL保留默认FULL同步、外键和5000毫秒busy timeout；不通过降低耐久性、增加无限等待、清库或取消验证规避问题。工作区单实例锁和迁移备份继续有效；活动WAL数据库使用SQLite backup API，不只复制主文件。

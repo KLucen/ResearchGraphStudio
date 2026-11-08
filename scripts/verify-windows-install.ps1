@@ -164,7 +164,7 @@ function Wait-DesktopEngine {
                         $receipt.desktop_pid -eq $script:desktop.Id -and
                         $receipt.engine_pid -eq $children[0].ProcessId -and
                         $receipt.connected -eq $true -and $receipt.protocol_version -eq 1 -and
-                        $receipt.schema_version -eq '0014') { return }
+                        $receipt.schema_version -eq '0020') { return }
                 }
             }
         }
@@ -194,7 +194,7 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0014') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0020') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }

@@ -1,5 +1,7 @@
 > 历史 v3 平铺图谱设计，已由当前 [阅读辅助设计](../../README.md)取代；不作为新实现要求。
 
+2026-11-07 整理：以下保留原设计和当时状态；验收报告链接随目录归档更新，本目录 MANIFEST/SHA256SUMS 对应整理后的 LF 字节，不是原包逐字节指纹。
+
 # 文档导航
 
 2026-11-02 起，v3 自动建图与轻量图谱规范是当前设计依据，设计章节直接放在本目录，参考资产按功能分目录存放。它描述目标行为；[实施进度](../../progress.md)、[运行 API](../../api.md)和验收报告描述已经实现、实际验证及尚未完成的内容。用户当前任务和根目录 [AGENTS.md](../../../AGENTS.md)优先；规范包中的下一轮指令和 SQL 不自动执行。
@@ -22,16 +24,16 @@
 | 目标接口、验证和实现说明 | [07 API/事件](07_api_and_events.md) · [08 验证/安全](08_validation_and_security.md) · [09 实现注记](09_reference_implementation_notes.md) |
 | 可运行的参考契约与合成示例 | [Pydantic](schemas/contracts.py) · [JSON Schema](schemas/generated/) · [示例](examples/) · [契约测试](tests/test_contracts.py) |
 
-v3 M0–M6 核心代码已接入；GraphProjection、布局和统一抽取的实际结果见 [v3 验收](../../v3-verification.md)。实时点图、模型能力和真实断点续跑见 [本轮优化验收](../../refinement-verification-20261102.md)。P4 Query、P5 Lint/Wiki 不在当前开发授权范围。
+v3 M0–M6 核心代码已接入；GraphProjection、布局和统一抽取的实际结果见 [v3 验收](../reports/v3-verification.md)。实时点图、模型能力和真实断点续跑见 [本轮优化验收](../reports/refinement-verification-20261102.md)。P4 Query、P5 Lint/Wiki 不在当前开发授权范围。
 
 ## 现有工程与实际结果
 
-- [空占位字段与抽取超时验收](../../extraction-reliability-verification-20261102.md)、[兼容与超时恢复 ADR](../../adr/0007-extraction-null-markers-and-timeout-adaptation.md)
-- [图谱与抽取稳定性验收](../../stability-verification-20261102.md)、[局部引用修复 ADR](../../adr/0006-graph-stability-and-local-reference-repair.md)
+- [空占位字段与抽取超时验收](../reports/extraction-reliability-verification-20261102.md)、[兼容与超时恢复 ADR](../../adr/0007-extraction-null-markers-and-timeout-adaptation.md)
+- [图谱与抽取稳定性验收](../reports/stability-verification-20261102.md)、[局部引用修复 ADR](../../adr/0006-graph-stability-and-local-reference-repair.md)
 - [项目使用与构建](../README.md)、[当前进度](../../progress.md)、[开发日志](../../../DEVELOPMENT_LOG.md)
 - [已实现 API（Schema 0009）](../../api.md)、[全局模型设置](../../model-configuration.md)、[安全检查](../../security-checks.md)
-- [v3 本轮验收](../../v3-verification.md)、[v2→v3 审计](../../migration/v2_to_v3_assessment.md)、[v3 迁移 ADR](../../adr/0004-v3-projection-and-unified-extraction.md)
-- [P3 本机验收](../../phase3-verification.md)、[P1/P2 验证记录](../../phase1-verification.md)、[P0 验证记录](../../phase0-verification.md)、[环境记录](../../environment-check.md)
+- [v3 本轮验收](../reports/v3-verification.md)、[v2→v3 审计](../../migration/v2_to_v3_assessment.md)、[v3 迁移 ADR](../../adr/0004-v3-projection-and-unified-extraction.md)
+- [P3 本机验收](../reports/phase3-verification.md)、[P1/P2 验证记录](../reports/phase1-verification.md)、[P0 验证记录](../reports/phase0-verification.md)、[环境记录](../reports/environment-check.md)
 - [v1→v2 工程评估](../../migration/v1_to_v2_assessment.md)、[统一引擎 ADR](../../adr/0001-unified-knowledge-engine.md)、[全局设置与 P3 ADR](../../adr/0002-phase3-models-and-reasoning.md)
 
 ## 版本与归档

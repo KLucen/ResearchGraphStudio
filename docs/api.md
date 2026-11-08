@@ -1,12 +1,63 @@
-# 本地接口（P1–P3、v3.3阅读图谱与P4问答）
+# 本地接口（P1–P5、阅读图谱、问答与Lint/Wiki）
 
-2026-11-04 当前：P4-Q01～Q07已接入，Q08继续处理安装反馈。完整来源分页、独立论文筛选及回答分组见[ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)和[浏览报告](p4-query-browsing-verification-20261104.md)；本轮问答历史读取锁竞争与错误诊断见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复报告](query-history-lock-verification-20261104.md)。Alembic head保持 **0014**，无新增真实模型请求，P5 Lint/Wiki未启动。此前来源/批注/移除见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)及[反馈报告](p4-query-feedback-verification-20261104.md)，不以旧包成绩证明新包通过。
+2026-11-07 当前 P5 工作区实现见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)，Lint性能与阶段进度见[ADR0030](adr/0030-lint-performance-and-progress.md)，数据库 head0020。本页维护当前运行接口及明确标注的历史兼容路径；生成 OpenAPI 与 TypeScript 契约同步导出，最新验证、基准与未验收项见[本轮报告](p5-lint-performance-verification-20261107.md)及[实施进度](progress.md)，[续开发报告](p5-verification-20261105.md)保留前轮结果。
 
-> 当前分层图谱/自动选择与P4-Q01～Q07已接入，回答/历史/显式保存路由见本页末尾与[接口映射](07_api_and_events.md)。本页保留旧审核接口的兼容说明，新工作流不调用它们；P5文件发布仍未实现。
+所有路径以 `/api/v1/projects/{project_id}` 为前缀，仍须回环 Bearer 鉴权和项目隔离。写入操作使用 `Idempotency-Key`（8～120 字符），新增原生目录授权使用独立 native token。模型任务同时要求 `allow_network: true`；准备和轮询不调用模型。
 
-> 运行契约说明：本页对应保留的 v2 P1–P3 与本轮 v3 M0–M6 增量。[v3 API/事件](07_api_and_events.md)仍包含后续目标；实际差异见 [ADR 0004](adr/0004-v3-projection-and-unified-extraction.md)。
+| 方法与路径 | 行为 |
+| --- | --- |
+| `GET /lint/documents` | page/page_size分页列出可诊断草稿、保存与失效文档metadata；个人文档须include_personal及当前读取授权，不返回正文 |
+| `POST /lint/runs` | 冻结 paper_ids/document_ids/include_personal，创建确定性报告 |
+| `GET /lint/runs`、`GET /lint/runs/{id}`、`GET /lint/runs/{id}/issues` | 读取历史/进度/分页问题；严重性/类别/论文/生命周期过滤，不自动推进扫描；问题附程序派生的只读 repair_plan |
+| `POST /lint/runs/{id}/advance`、`POST /lint/runs/{id}/cancel` | 有界推进对象检查（max_items 1～100，默认25）或已持久阶段、取消；末批必要的依赖重建独立推进，重启保留已检查范围 |
+| `POST /dependencies/rebuild`、`GET /dependencies` | 显式重建派生依赖索引，或按对象查询依赖/受影响闭包；`/lint/dependencies`为同义路径 |
+| `POST /workflows/prepare` | kind为lint_semantic/wiki_synthesis/wiki_delta，Query须为model用途。新请求显式personal_sources指定note_ids/annotation_ids/external_version_ids；P09要求同范围lint_run_id，P11要求page/base_version/affected_section_ids |
+| `GET /workflows`、`GET /workflows/{id}` | 冻结工作流、当前资格、请求槽、用量和结果；不暴露raw或凭据 |
+| `POST /workflows/{id}/generate` | 显式排统一p5_workflow Job；continue_requested才可用下一槽，最多两槽，无隐式重发 |
+| `POST /workflows/{id}/materialize` | 终验P10/P11原响应后幂等创建内部草稿并返回完整页；P09建议不能执行为编辑 |
+| `GET /wiki/pages`、`GET /wiki/pages/{id}` | 默认每页10，offset/limit最大100；详情可指定version_id/include_personal/purpose并逐段重验 |
+| `POST /wiki/pages/{id}/save` | version_id/expected_head_version_id/expected_content_hash匹配后建立不可变保存版本，不写文件 |
+| `GET /wiki/roots`、`POST /wiki/roots`、`POST /wiki/roots/{id}/revoke` | 独立写入授权；新增授权必须由原生选择器经X-ResearchGraph-Native-Token完成 |
+| `POST /wiki/pages/{id}/publish` | root_id/version/head/content/预期文件hash和幂等键核对后写受管文件，不接模型路径 |
+| `GET /wiki/publications`、`POST /wiki/publications/{id}/recover` | 分页发布账本；恢复重验当前来源、授权、hash与文件身份 |
+| `POST /wiki/pages/{id}/inspect-file` | 建立授权文件只读外改快照/diff，不作为新科学证据，不回写 |
+| `GET /p5/personal-sources` | 分页读取当前允许本地查看的笔记、批注评论与外部文档版本，返回独立allow_model；列出不代表已选择或授权外发 |
+| `POST /p5/annotations/{id}/grant` | allow_model/可选allow_local/expected_revision和幂等键独立变更用途授权，不自动选择；local字段省略保留当前值，高亮不是评论 |
+| `POST /external-documents/preview` | include_personal=true，按已授权root_id/relative_path只读预览UTF-8 Markdown及hash，不接受任意绝对路径 |
+| `POST /external-documents` | 显式expected_sha256/title/attribution登记独立快照；追加需document_id/base_version_id，不继承Wiki证据或写权限 |
+| `GET /external-documents`、`GET /external-documents/{id}` | 独立外部来源及版本历史；当前include_personal/用途权限重验，保留source_verified=false及独立文件状态 |
 
-版本：0.0.1 开发增量；协议：1；数据库 Schema：0014；阅读任务 paper-reading-v1 / reading-extraction-1.0保持；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1继续兼容。Pydantic为运行契约来源，生成文件为[OpenAPI](../packages/contracts/openapi.json)与[TypeScript](../packages/contracts/generated.ts)。本页只描述已实现接口，带日期的小节保留当轮兼容背景；当前Query增量见文末。
+### Lint 运行阶段、耗时与依赖查询
+
+LintRunView的`phase`独立于`status`：`scanning`为对象检查，`rebuilding_dependencies`为待执行/执行中的依赖索引重建，`finished`表示已进入终态。首次成功的全范围扫描需要建立依赖索引时，末批先返回`status=running`、`processed=total`、`phase=rebuilding_dependencies`；下次`advance`重验完整来源后重建并结束。已有索引或指定范围等不需要本次初始化的扫描可直接结束。`progress`仍是对象比例，不能单凭1.0宣称整轮完成；客户端用run ID、processed、phase及input_hash区分推进幂等key。重放已处理key只读当前报告，不重复执行。
+
+`timings`字段的单位和意义：
+
+| 键 | 记录内容 |
+| --- | --- |
+| `prepare_seconds` | 准备检查范围等准备阶段累计秒数 |
+| `validate_seconds` | 每次推进对完整冻结输入复验的累计秒数 |
+| `check_seconds` | 对象检查及本批读取的累计秒数 |
+| `dependency_rebuild_seconds` | 依赖索引重建累计秒数 |
+| `finalize_seconds` | 完成归档和报告差异处理累计秒数 |
+| `elapsed_seconds` | 上述五阶段记录值之和，不包含用户等待、停机或全部HTTP往返时间 |
+| `last_advance_seconds` | 最近一次已持久化推进的处理秒数 |
+| `advance_calls` | 已持久化推进次数，幂等重放不累加，单位为次 |
+
+0020迁移后的旧报告`timings={}`；未记录阶段保持缺省，客户端显示“未记录”，不能补成实测零。新增phase/timings不进入P09/P10/P11冻结snapshot、模型输入、hash或问题指纹。GET报告仅读取，准备请求未返回时客户端总数待定；完成对象检查后的依赖重建使用独立进度提示。
+
+`GET /dependencies`使用`object_type`和`object_id`成对指定根，`direction=dependents/dependencies`选择反向影响或正向依赖；省略根时浏览当前项目登记边。指定根的查询通过递归CTE计算完整闭包并去重终止，再按当前权限筛选、计数与分页，不设固定跳数/节点截断。不可见中间对象不会截断后续合法影响，也不返回其身份；响应保留generation/event_sequence/pending_events。重建使用批量读取及同事务派生边写入，catalog指纹和逐调用来源/授权校验不省略。
+
+P5模型任务取消/继续复用 `/api/v1/jobs/{id}/cancel`、`/retry`，GET使用统一JobView合法阶段。Wiki更新使用wiki_delta工作流，仅处理显式段落；开发计划中旧拟定的 `/syntheses` 和 `/wiki/pages/{id}/updates` 未作为运行入口。
+
+新界面总是发送 `personal_sources={"version":"p5-personal-sources-1","note_ids":[],"annotation_ids":[],"external_version_ids":[]}`，只填用户实际勾选的快照/版本。该字段在历史请求缺省时不补默认值，旧P4请求与hash不改。笔记/外部来源沿已有Obsidian根的query-permissions独立控制local/model用途；批注评论默认不允许model，当前性只代表最后显式导入。外部来源`external_source`归属不改为用户作者或论文证据。
+
+P5/Wiki/Lint的CHANGED/STALE/CONFLICT/REVOKED错误返回409，不存在404，Schema/范围/无证据422，SQLite BUSY/LOCKED沿用503标准JSON。来源/权限/基线变化停止并保留历史，幂等重放仍检查当前资格。
+
+
+> 兼容接口说明：本页保留旧审核、v2 P1–P3 和 unified-v3 路由，供旧任务与历史数据读取；新自动阅读流程不调用人工审核接口。P4 Query 与 P5 路由已实现，设计目标与运行差异见[接口映射](07_api_and_events.md)。
+
+版本：0.0.1 开发增量；协议：1；数据库 Schema：0020；阅读任务 paper-reading-v1 / reading-extraction-1.0保持；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1继续兼容。Pydantic为运行契约来源，生成文件为[OpenAPI](../packages/contracts/openapi.json)与[TypeScript](../packages/contracts/generated.ts)。带日期的小节保留当轮兼容背景；当前P5接口见页首，Query增量见文末。
 
 ## 连接和权限
 
@@ -296,7 +347,7 @@ prepare.status=prepared表示本地上下文ready；无证据、表格不完整�
 
 文档content_state与file_state分开；内部有效段落可在未导出、文件缺失或外改时继续读取并明确状态。外部新文本不继承旧manifest，失效段落不给出可作回答的正文。NoteUseGrant区分本地与模型用途，include_personal=false时不读取笔记；purpose=model须allow_model，准备成功不代替生成前的用途终验。撤销root同时撤销外发许可，重新目录授权不静默恢复；缓存和经Wiki转述均不能绕过。
 
-0012为加性迁移，保留旧来源/证据/任务/ModelRun，新增query_runs/query_model_runs/query_answer_versions、文档/段落/依赖登记、文件绑定、用途授权和派生索引。普通检索仅写派生索引，prepare另写执行记录与audit_event，均不改变科学图revision、论文知识、选择或布局。Store.query()仍为内部文档登记；用户回答保存走下节KnowledgeStore.save_query入口，Markdown发布留在P5。基础验证见[Q01～Q04历史报告](p4-query-foundation-verification-20261104.md)，当前结果见[P4报告](p4-query-verification-20261104.md)。
+0012为加性迁移，保留旧来源/证据/任务/ModelRun，新增query_runs/query_model_runs/query_answer_versions、文档/段落/依赖登记、文件绑定、用途授权和派生索引。普通检索仅写派生索引，prepare另写执行记录与audit_event，均不改变科学图revision、论文知识、选择或布局。Store.query()仍为内部文档登记；用户回答保存走下节KnowledgeStore.save_query入口，Markdown发布留在P5。基础验证见[Q01～Q04历史报告](archive/reports/p4-query-foundation-verification-20261104.md)，当前结果见[P4报告](archive/reports/p4-query-verification-20261104.md)。
 
 ## P4 回答、历史与保存接口（2026-11-04 / head0014）
 
@@ -314,7 +365,7 @@ prepare.status=prepared表示本地上下文ready；无证据、表格不完整�
 | `POST /saved/{id}/remove?include_personal=false` | Idempotency-Key必填；`{expected_revision}`，移出已保存库和后续检索/衍生层，保留历史与证据 |
 | `GET /derived-graph?include_personal=false` | 独立衍生节点及DERIVED_FROM引用，非科学关系 |
 
-统一 `/api/v1/jobs/{id}/cancel` 和 `/retry` 支持query_answer；后者幂等返回真实后继状态，不将旧queued缓存冒充成功。每Query最多2个持久发送槽位，收到raw未发布可零调用恢复；失败不自动重试，达到上限零调用。GET不暴露raw；无证据/容量不足零调用并明确insufficient。普通检索/生成只有执行审计，明确save才新增科学revision/event。暂不提供Wiki生成、MD导出、Lint执行路由。
+统一 `/api/v1/jobs/{id}/cancel` 和 `/retry` 支持query_answer；后者幂等返回真实后继状态，不将旧queued缓存冒充成功。每Query最多2个持久发送槽位，收到raw未发布可零调用恢复；失败不自动重试，达到上限零调用。GET不暴露raw；无证据/容量不足零调用并明确insufficient。普通检索/生成只有执行审计，明确save才新增科学revision/event。这些 Query 路由不执行 Wiki 生成、Markdown 导出或 Lint；对应操作使用本页顶部列出的独立 P5 工作流、Lint 与 Wiki 发布路由。
 
 0014保存偏好不改0013保存manifest。保存对象响应增加annotation/metadata_revision/removed_at，旧无偏好行兼容为空字符串/0/null；更新需匹配metadata_revision。annotation可本地查看但不进入read_passages/检索/模型上下文/科学根；include_personal仍只控制来源私人资料用途，false不单独隐藏批注。移除直接读取返回QUERY_SAVED_REMOVED，相同已移除指纹不能再次返回不可见成功。移除排除保存段落的后续副本并重验依赖谱系，不相关追加段落仍可读。批注不改模型正文或作者主张，两类操作只写审计、不推进科学GraphRevision；Query/raw/答案/不可变文档与论文根证据保留。
 
@@ -322,4 +373,4 @@ prepare.status=prepared表示本地上下文ready；无证据、表格不完整�
 
 GET准备记录、POST validate、GET documents、GET runs历史、GET answer、GET saved、GET saved详情及GET derived-graph共八个已审计路径使用`read_session`：关闭autoflush，连接执行`query_only=ON`及deferred `BEGIN`，归还连接时恢复可写模式。它们读取已提交快照，不争IMMEDIATE写锁，仍逐次校验来源/依赖/当前授权；意外写入被数据库保护拒绝。search/search/page及索引同步仍写派生索引，prepare/入队/save/批注/移除仍写持久状态，不能套用只读会话或取消原幂等/事务检查。没有新增接口或Schema迁移。
 
-工作器空轮询只读探测queued，有候选后才以新的短IMMEDIATE事务重验并认领。认领及诊断数据库处理通过线程执行，锁等待不占用异步事件循环；未认领成功时保持queued、不发模型请求。关闭时等待已提交给线程的认领完成再清理running任务。历史页的“重新读取问答历史”只重读GET runs及其分页，不执行generate/retry、不新增任务或收费请求。503 `DATABASE_BUSY`可提示稍后刷新，500 `DATABASE_ERROR`提示设置与诊断；两者都不意味着应重发模型。实际回归、包与原生状态见[锁修复报告](query-history-lock-verification-20261104.md)。
+工作器空轮询只读探测queued，有候选后才以新的短IMMEDIATE事务重验并认领。认领及诊断数据库处理通过线程执行，锁等待不占用异步事件循环；未认领成功时保持queued、不发模型请求。关闭时等待已提交给线程的认领完成再清理running任务。历史页的“重新读取问答历史”只重读GET runs及其分页，不执行generate/retry、不新增任务或收费请求。503 `DATABASE_BUSY`可提示稍后刷新，500 `DATABASE_ERROR`提示设置与诊断；两者都不意味着应重发模型。实际回归、包与原生状态见[锁修复报告](archive/reports/query-history-lock-verification-20261104.md)。

@@ -40,6 +40,7 @@ from researchgraph.knowledge_models import (
 )
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, validate_evidence
 from researchgraph.models import AttachmentRevision, Chunk, Job, Paper, PaperSource, Project, now
+from researchgraph.p5_personal_models import AnnotationUseGrant
 from researchgraph.providers import ConfiguredProvider, provider_for
 from researchgraph.query_contracts import NoteGrantRequest
 from researchgraph.query_models import NoteUseGrant
@@ -371,6 +372,9 @@ def register_knowledge_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
             for annotation in session.scalars(
                 select(Annotation).where(Annotation.document_version_id == version_id)
             ):
+                grant = session.get(AnnotationUseGrant, annotation.id)
+                if grant is not None and not grant.allow_local:
+                    continue
                 link = session.get(ZoteroLink, annotation.link_id)
                 assert link
                 result.append(

@@ -1,6 +1,6 @@
 # 02 — 统一引擎与自动建图工作流（设计 v3.3）
 
-2026-11-04 当前：P4-Q01～Q07 已接入，Q08继续处理安装反馈；独立论文筛选、分页与引用分组见[ADR0025](adr/0025-query-browsing-and-paper-grouped-answers.md)，本轮修复问答历史读取的SQLite锁竞争与错误诊断，见[ADR0026](adr/0026-query-read-snapshots-and-worker-locks.md)及[锁修复报告](query-history-lock-verification-20261104.md)。Alembic head保持 **0014**，没有新增真实模型请求，P5 Lint/Wiki未启动。此前来源显示和保存批注/移除见[ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)及[反馈报告](p4-query-feedback-verification-20261104.md)，安装包与用户原生确认另记。
+当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
 
 ## 职责与数据流
 
@@ -25,18 +25,26 @@ flowchart TD
   ANSWER -->|明确保存并终验| SAVE[经 Store 新增阅读综合]
   SAVE --> DERIVED[独立衍生图层]
   SAVE --> QUERY
-  STRUCT -->|明确整理时组织主题与支撑| WIKI[未来 Wiki：文档与逐段版本依赖]
+  STRUCT -->|明确整理时组织主题与支撑| WIKI[Wiki：文档与逐段版本依赖]
   SAVE -->|明确整理或更新| WIKI
   WIKI -->|有效内容、状态及根来源| QUERY
   WIKI -->|明确授权导出| MD[受管 Markdown / Obsidian]
-  LINT[未来 Lint：来源、支撑、依赖与文件诊断] -.-> STRUCT
+  LINT[Lint：来源、支撑、依赖与文件诊断] -.-> STRUCT
   LINT -.-> WIKI
   LINT -.-> MD
 ```
 
 所有模块使用一个 SQLite 知识底座。候选、结论单元、选择记录是不同职责的对象，不创建独立“图谱库/Query 库/Wiki 知识库”。LLM 只产生候选或提案，校验、幂等、事务与发布由代码控制。模块可重构，以可维护性为目标，不为减少修改量保留错误耦合，也不为目录好看重建工程。
 
-当前已接入 P4-Q01～Q07：运行契约、本地检索、完整图谱扩展、最小文档只读适配、版本化证据上下文、P07回答及显式选段保存；来源presentation、整组问答导航、个人批注/移除的反馈修复正在收尾，Wiki生成发布及Lint留在P5。知识图谱复用 ReadingUnit/ReadingMember、SourceAssertion 和合法支撑闭包，GraphProjection 负责画布分页。Query读取完整结构，不从画布抓取数据，不另建来源或科学数据库。当前head0014，阅读抽取领域和R5协议保持，见[基础ADR0022](adr/0022-query-foundation-and-versioned-context.md)、[回答/保存ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[反馈ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。
+当前已接入 P4-Q01～Q07：运行契约、本地检索、完整图谱扩展、最小文档只读适配、版本化证据上下文、P07回答及显式选段保存；来源presentation、整组问答导航、个人批注/移除的反馈修复已接入；P5另行接入Lint、Wiki生成/保存及受管发布。知识图谱复用 ReadingUnit/ReadingMember、SourceAssertion 和合法支撑闭包，GraphProjection 负责画布分页。Query读取完整结构，不从画布抓取数据，不另建来源或科学数据库。当前head0020，阅读抽取领域和R5协议保持，见[基础ADR0022](adr/0022-query-foundation-and-versioned-context.md)、[回答/保存ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[反馈ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。
+
+## Lint 读取、依赖与进度
+
+[ADR0030](adr/0030-lint-performance-and-progress.md) 的优化保留完整 catalog 的目标排序、字段和输入 hash；大字段以列读取，关联集中读取，避免逐对象加载相同来源。每次推进仍重算完整 catalog，检查仅预取本批所需节点、证据、原文与依赖并运行原验证器，结束后释放本批引用，不复用跨调用校验结论。
+
+依赖重建将来源/成员/引用集中读取，在同一事务中批量写入派生边与游标；文档依赖仍按当前权限和来源验证。正向/反向查询用SQLite递归CTE和对应索引求完整闭包、去重终止，再按当前权限筛选、计数和分页；不让不可见的中间对象截断后续合法影响，也不返回其身份。读取报告和查询影响范围不推进扫描或科学图修订。
+
+扫描启动前显示总数待定的准备状态；对象扫描为`scanning`。首次全范围成功扫描需要建立依赖索引时，末批先持久提交`processed == total`及`rebuilding_dependencies`，下次推进重新验源后重建并进入`finished`。取消、重启与输入变化保留已有范围；幂等key包含阶段，前端保护终态、对象进度和同进度阶段不回退。阶段耗时独立持久保存，旧报告无记录不补零；实际固定规模、峰值内存和剩余验证见[本轮报告](p5-lint-performance-verification-20261107.md)。
 
 ## 来源与证据
 
@@ -98,15 +106,15 @@ Query 读完整 Store 和 Evidence，不以 GraphProjection 作为检索全集�
 
 Query 的路径是文本/术语/文档命中种子→合法单元与科学关系扩展→补全方法/实验/条件/结果/限制→根证据终验。导航线只帮助找内容，NO_DECISION、布局相邻和共享证据不能作为推理依据；没有合法关联时回到原文检索，不能猜边。遍历去重并记录所经路径及修订，只扩展问题相关单元，必要支撑不裁断；真实模型容量不足时明确覆盖范围或停止，不直接继承旧 Comparator 的3跳/100节点/48K字符或画布60/120节点限制。旧 Comparator 保留原兼容路径。
 
-Wiki后续使用这些结论单元组织主题、共同点、分歧与条件，补充未选候选和原文，不逐节点机械转成Markdown。Lint后续分开检查科学支撑图、来源/文档依赖图和文件同步；循环自证禁止，普通文档导航可以双向。Q01已增加KnowledgeStore.audit_event，Query准备及Obsidian授权/用途变更/扫描改走审计入口，不新建或递增GraphRevision；原科学写入继续使用Store.event，布局另有版本。
+Wiki使用这些结论单元组织主题、共同点、分歧与条件，补充未选候选和原文，不逐节点机械转成Markdown。Lint分开检查科学支撑图、来源/文档依赖图和文件同步；循环自证禁止，普通文档导航可以双向。Q01已增加KnowledgeStore.audit_event，Query准备及Obsidian授权/用途变更/扫描改走审计入口，不新建或递增GraphRevision；原科学写入继续使用Store.event，布局另有版本。
 
-按 [ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 澄清：当前图谱是结构化论文知识的视图，Wiki 是带逐段依赖的阅读文档，两者不等同。已保存阅读综合（Synthesis/Insight）、Wiki文档/版本及结构化来源共用一个Store；Obsidian Markdown是授权文件载体，私人笔记仍是独立只读来源。完整Wiki运行能力尚未实现。
+按 [ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 澄清：当前图谱是结构化论文知识的视图，Wiki 是带逐段依赖的阅读文档，两者不等同。已保存阅读综合（Synthesis/Insight）、Wiki文档/版本及结构化来源共用一个Store；Obsidian Markdown是授权文件载体，私人笔记仍是独立只读来源。P5已接入独立Wiki工作流、版本化保存及受管文件发布，真实科学与原生退出验收见[当前报告](p5-verification-20261105.md)。
 
-P4-Q01～Q04已建立最小文档登记、段落manifest、状态和只读适配，Query同时检索有效已保存Wiki/阅读综合与底层知识/证据；没有登记文档时该召回为空。P5再完成文档生成、可靠导出和增量更新。引用Wiki必须携带文档版本和根来源，不能把综合/文档/原论文三次转述算成三个独立证据；来源依赖不允许循环，普通文档导航链接不受此限制。
+P4-Q01～Q04已建立最小文档登记、段落manifest、状态和只读适配，Query同时检索有效已保存Wiki/阅读综合与底层知识/证据；没有登记文档时该召回为空。P5已在同一文档registry上接入文档生成、受管导出和局部更新。引用Wiki必须携带文档版本和根来源，不能把综合/文档/原论文三次转述算成三个独立证据；来源依赖不允许循环，普通文档导航链接不受此限制。
 
 内容依赖有效性、草稿/已保存版本、授权用途和文件同步状态分别保存。磁盘缺失不自动令内部有效文档失效；外部手改不继承旧manifest。Query可明确引用仍有效的内部旧快照并提示文件差异，不能声称读到磁盘最新内容；过期科学段落默认不作为当前依据，其他有效段落可用。Query读取时重验当前状态，不依赖上次Lint的报告结论。
 
-Q07显式保存新增阅读衍生对象，不改写论文Claim或自动调整论文核心；可选独立衍生图层展示。保存可新建内部综合文档，或在明确指定文档和基线后追加已验证段落；这不执行P10/P11主题整理或生成式重写。导出/更新文件另需授权动作。只读适配核对受管Markdown的登记hash和文件状态，不导入外改正文、不静默回写图谱；完整diff、文档整理和发布恢复留在P5。
+Q07显式保存新增阅读衍生对象，不改写论文Claim或自动调整论文核心；可选独立衍生图层展示。保存可新建内部综合文档，或在明确指定文档和基线后追加已验证段落；这不执行P10/P11主题整理或生成式重写。导出/更新文件另需授权动作。只读适配核对受管Markdown的登记hash和文件状态，不导入外改正文、不静默回写图谱；外改只读diff、文档整理和发布恢复由已接入的P5独立流程负责。
 
 保持 Tauri Sidecar 生命周期、回环鉴权、凭据安全、源文件只读。所有新记录与通知经 Store 事务；事件或轮询实现按现有工程演进，本文不宣称已有 outbox/SSE。
 
@@ -118,13 +126,13 @@ Q07显式保存新增阅读衍生对象，不改写论文Claim或自动调整论
 4. query-context-1绑定请求内短编号与不可变Chunk/EvidenceSpan、节点修订、根来源、章节、必要表格完整组、授权和文档双维状态。不会为了查询写新的EvidenceSpan/KnowledgeUnit；现存PDF未检查标not_checked。已知模型容量不足保留完整组并标insufficient，不截掉表头或条件；没有任意字符/跳数预算。
 5. prepare持久化QueryRun及Reasoning配置快照（若已配置），不读取API Key、不调用模型。读取历史准备、相同幂等请求和显式validate均重新组装终验，来源/权限变化拒绝旧上下文，历史记录仍保留。prepared表示本地上下文准备成功，不是已生成回答。
 
-query_model_runs/query_answer_versions已用于项目级P07调用与不可变回答，旧单篇ModelRun不改。上述准备流水线仍不调用模型；只有显式generate入队后才进入下述回答事务。实际接口与边界见[API](api.md)及[本轮报告](p4-query-verification-20261104.md)。
+query_model_runs/query_answer_versions已用于项目级P07调用与不可变回答，旧单篇ModelRun不改。上述准备流水线仍不调用模型；只有显式generate入队后才进入下述回答事务。实际接口与边界见[API](api.md)及[本轮报告](archive/reports/p4-query-verification-20261104.md)。
 
 ## P4 回答与保存的实际事务边界
 
 prepare 冻结问题、用途授权、来源与模型；generate 只排统一 query_answer Job。工作器在外发前提交 QueryModelRun 请求槽位，收到 raw 后先持久化再终验，崩溃可零调用恢复；坏 JSON/Schema/引用与网络错误分型，显式继续才允许第二槽，超时也计入，已发槽位不重发。成功答案不可变保存为 QueryAnswerVersion，不推进科学修订。
 
-用户明确保存选段后，经 KnowledgeStore.save_query 再验回答、根依赖及当前权限，确定性创建 Synthesis/Insight 和文档版本；同内容或幂等重放只保存一次。只有此动作记科学变更事件/revision，原作者知识和模型原响应保持。DERIVED_FROM 仅为衍生引用，不是科学关系；隐藏该图层不影响检索。完整 Wiki 整理与 Markdown 写出继续留给 P5。
+用户明确保存选段后，经 KnowledgeStore.save_query 再验回答、根依赖及当前权限，确定性创建 Synthesis/Insight 和文档版本；同内容或幂等重放只保存一次。只有此动作记科学变更事件/revision，原作者知识和模型原响应保持。DERIVED_FROM 仅为衍生引用，不是科学关系；隐藏该图层不影响检索。Wiki 主题整理、局部更新与 Markdown 写出使用独立 P5 工作流和发布命令，不能借 Query 保存隐式执行。
 
 本地presentation在来源终验后生成可读原文和已有中文摘要，不修改冻结snapshot/hash或增加模型调用。0014保存偏好独立记录个人批注与移除；Store操作只写审计及元数据revision。批注不进入科学回答上下文；移除对象从阅读库、检索和衍生层排除，段落复制及依赖谱系同样重验，原Query/raw/文档/论文根保留。前端把问题、来源、答案和显式保存作为一组阅读内容，并对原问答跳转提供可见反馈。
 
@@ -134,4 +142,4 @@ prepare 冻结问题、用途授权、来源与模型；generate 只排统一 qu
 
 工作器空轮询只读探测queued候选；有候选才在新的短IMMEDIATE事务中重新检查状态并认领，原子提交running/stage/attempt。同步认领及诊断执行/完成持久化通过线程执行，不阻塞异步事件循环。认领繁忙未成功时保持queued、不发送模型请求；关闭时等待已投递的认领结束再清理，避免running任务漏记interrupted。该优化不宣称所有引擎GET或模型流水线数据库步骤都已切换。
 
-数据库锁按错误码返回503 `DATABASE_BUSY`标准JSON，其他数据库OperationalError为500 `DATABASE_ERROR`，不返回SQL、参数或driver原文。桌面桥对非JSON失败保留HTTP状态但不显示body；历史页提供手动重读，仅重新取历史、不生成问答或重试模型。WAL不消除所有写冲突，迁移前一致性备份及工作区单引擎锁保持，不能复制活动主数据库文件代替SQLite backup API。无新迁移或科学版本变化，实际验收和原生结果见[本轮报告](query-history-lock-verification-20261104.md)。
+数据库锁按错误码返回503 `DATABASE_BUSY`标准JSON，其他数据库OperationalError为500 `DATABASE_ERROR`，不返回SQL、参数或driver原文。桌面桥对非JSON失败保留HTTP状态但不显示body；历史页提供手动重读，仅重新取历史、不生成问答或重试模型。WAL不消除所有写冲突，迁移前一致性备份及工作区单引擎锁保持，不能复制活动主数据库文件代替SQLite backup API。无新迁移或科学版本变化，实际验收和原生结果见[本轮报告](archive/reports/query-history-lock-verification-20261104.md)。

@@ -120,7 +120,9 @@ def test_0010_to_0011_is_additive_and_backed_up(tmp_path):
     migrate(engine, tmp_path)
     with sqlite3.connect(database) as db:
         assert before == {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables}
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0014",)
+        from researchgraph.storage import SCHEMA_HEAD
+
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)
         assert db.execute("SELECT * FROM document_parses").fetchall() == []
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     with sqlite3.connect(next((tmp_path / "backups").glob("*.sqlite3"))) as db:

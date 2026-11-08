@@ -1,6 +1,6 @@
 # 09 — 实施注记（设计 v3.3）
 
-2026-11-04 当前：P4-Q01～Q07 已接入，Q08 正在修复安装后的来源显示、整组问答/导航和保存内容批注/移除反馈，Alembic head **0014**。决策见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮状态见[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)及[P4实际报告](p4-query-verification-20261104.md)保留前次结果。P5 Lint/Wiki 未启动，修复包原生确认另记。
+当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
 
 ## 工程原则
 
@@ -10,9 +10,9 @@
 
 ## 当前实现顺序
 
-R1–R4已接入，R5补验收在报告范围内通过；当前P4-Q01～Q07已接入并执行Q08收尾，不重抽已有论文或进入P5。结构解析→支撑展示→限定Schema适配成果保留：PyMuPDF产出pdf-structure-1，0011将解析产物保存在document_parses，既有原文块和证据不改。[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)及[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)的P02v4/reading-semantic-1、程序组单元/P13v3保持；完整章节、无固定字符目标、完整段落/表格组与旧冻结计划规则不变。
+R1–R4已接入，R5补验收在报告范围内通过；P4 Query已接入，当前按明确指令继续P5 Lint/Wiki，不重抽已有论文。结构解析→支撑展示→限定Schema适配成果保留：PyMuPDF产出pdf-structure-1，0011将解析产物保存在document_parses，既有原文块和证据不改。[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)及[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)的P02v4/reading-semantic-1、程序组单元/P13v3保持；完整章节、无固定字符目标、完整段落/表格组与旧冻结计划规则不变。
 
-reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_contract生成Schema对应Prompt规则；structured_output冻结Provider输出策略；reading_finish_wire/reading_finish_semantic拆分语义提案、程序form_units、贡献建议与失败预览；reading_stage_validation统一新响应及缓存终验。Store仍是唯一知识写入口，阅读领域仍1.0。0012增加Query/文档基础与派生索引，0013增加显式保存索引，当前0014再加独立保存偏好；旧阅读模型记录/任务签名和保存manifest不改。
+reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_contract生成Schema对应Prompt规则；structured_output冻结Provider输出策略；reading_finish_wire/reading_finish_semantic拆分语义提案、程序form_units、贡献建议与失败预览；reading_stage_validation统一新响应及缓存终验。Store仍是唯一知识写入口，阅读领域仍1.0。0012增加Query/文档基础与派生索引，0013增加显式保存索引，0014加独立保存偏好，0015～0019加性引入Lint、Wiki发布、P5工作流、外部文档及批注权限/当前性；旧阅读模型记录/任务签名和保存manifest不改。
 
 旧图谱 REPORTS 全连接只保留在旧视图兼容；新版投影基于 GraphSelection/KnowledgeUnit，不靠前端猜“哪个节点挂谁”。来源关系可检索，但不作为每个节点的默认可见边。
 
@@ -20,7 +20,7 @@ reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_
 
 ## 当前Query模块与可复用边界
 
-[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](p4-query-foundation-verification-20261104.md)说明Q01～Q04历史范围；当前回答/保存扩展见ADR0023及本轮P4报告。运行实现与docs/schemas参考契约分别维护，不能把参考SQL直接执行到用户库。
+[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](archive/reports/p4-query-foundation-verification-20261104.md)说明Q01～Q04历史范围；当前回答/保存扩展见ADR0023及本轮P4报告。运行实现与docs/schemas参考契约分别维护，不能把参考SQL直接执行到用户库。
 
 | 运行模块 | 职责 |
 | --- | --- |
@@ -38,9 +38,13 @@ reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_
 
 0012新增Query审计和文档表、query_index_entries/query_fts；旧ModelRun单篇非空约束和原raw保持，跨篇执行用query_runs/query_model_runs，不伪挂首篇。索引重建与普通prepare可写派生/执行记录，不改变知识/科学关系/选择/布局。KnowledgeStore.audit_event与原科学event分开；Obsidian授权/用途/扫描不再推进GraphRevision。
 
-registry可读取已登记的saved文档；新draft不替换已保存头。文件in_sync只证明字节匹配登记基线，不代表Markdown语义渲染认证。外改正文不导入旧版本；完整diff、Wiki组织/增量生成、发布与故障恢复留在P5。内部文档登记与用户选段save入口分开，后者必须重验回答版本、根依赖和当前权限。
+registry可读取已登记的saved文档；新draft不替换已保存头。文件in_sync只证明字节匹配登记基线，不代表Markdown语义渲染认证。外改正文不导入旧版本；外改只读diff、Wiki主题/局部生成、发布与故障恢复已由独立P5流程接入。内部文档登记与用户选段save入口分开，后者必须重验回答版本、根依赖和当前权限。
 
-Q05～Q07的调用/恢复、页面和保存已接入；Q08实际验收分别记录离线HTTP/SSE协议、合成检索/性能、真实论文模型回答和用户原生反馈，不互相替代。本轮没有外部搜索或Wiki发布，也没有新增向量数据库、队列服务或多Agent框架。
+Q05～Q07的调用/恢复、页面和保存已接入；Q08实际验收分别记录离线HTTP/SSE协议、合成检索/性能、真实论文模型回答和用户原生反馈，不互相替代。P5已在上述基础接入Wiki受管发布；没有外部搜索、新向量数据库、队列服务或产品多Agent框架。
+
+## 当前P5模块与复用边界
+
+Lint通过lint_service/lint_maintenance管理确定性报告、反向依赖和变更游标；p5_sources/p5_personal组装所选完整合法来源及逐份个人选择；p5_workflows/p5_execution/p5_transport管理P09/P10/P11快照、严格输出、持久请求槽及恢复。wiki_store/wiki_publish复用文档registry，维护不可变页面、独立写根和受管发布账本；external_documents登记独立外部Markdown版本，不写原文件或继承Wiki证据。P5Workspace及原生桥接提供项目入口；范围与操作以运行API为准。
 
 ## 自动化边界
 
@@ -62,4 +66,4 @@ received/succeeded/validation_failed 缓存同样完成 JSON/DTO、版本/根、
 
 ## 验收与交付
 
-Conda researchgraph-studio；单元/契约/加性迁移/打包引擎/真实渲染与真实模型分别记录。优先自动化，按用户偏好提供操作步骤，由用户反馈原生体验；不频繁Computer Use。未经执行的安装/调用不记通过；迁移与故障只用隔离数据，正式库不作实验，不自动追加真实模型调用。最终命令、调用用量和未知费用统一写本轮验收报告，干净机/跨平台及新包用户反馈未测项单列。前置文档registry和内部选段保存不等于P5 Wiki发布。
+Conda researchgraph-studio；单元/契约/加性迁移/打包引擎/真实渲染与真实模型分别记录。优先自动化，按用户偏好提供操作步骤，由用户反馈原生体验；不频繁Computer Use。未经执行的安装/调用不记通过；迁移与故障只用隔离数据，正式库不作实验，不自动追加真实模型调用。最终命令、调用用量和未知费用统一写本轮验收报告，干净机/跨平台及新包用户反馈未测项单列。内部选段保存、P5主题草稿/保存与授权文件发布分别验证；P5运行实现不等于真实科学或用户原生退出验收通过。

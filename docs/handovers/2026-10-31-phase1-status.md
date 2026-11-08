@@ -17,7 +17,7 @@
 
 已具备可安装桌面壳、引擎鉴权/生命周期、项目持久化、迁移备份、任务取消/重试，以及 PDF 引用/托管导入、内容去重、附件修订、页码原文块、来源可用性检查和同内容重新定位。历史原文不会因来源移动或变化被覆盖。
 
-[CI 41024830613](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41024830613) 已完成且成功：32 项 Python、12 项 React、1 项 Rust 测试，以及 Windows 构建和另一 runner 的独立安装验收。此前 Windows 短路径导致 smoke 断言误判的问题已修复并复验。见 [Phase 1 记录](../phase1-verification.md)及 [CI 摘要](../environment/2026-10-30-phase1-sources-ci.json)。
+[CI 41024830613](https://github.com/KLucen/ResearchGraphStudio/actions/runs/41024830613) 已完成且成功：32 项 Python、12 项 React、1 项 Rust 测试，以及 Windows 构建和另一 runner 的独立安装验收。此前 Windows 短路径导致 smoke 断言误判的问题已修复并复验。见 [Phase 1 记录](../archive/reports/phase1-verification.md)及 [CI 摘要](../environment/2026-10-30-phase1-sources-ci.json)。
 
 已有本机验收包 `.local/phase1-sources-acceptance-kit.zip` 对应这份已验收代码，**不包含下述未提交的新功能**。
 

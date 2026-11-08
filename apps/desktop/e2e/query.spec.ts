@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const consent = "允许本次将问题与命中的必要证据发送给全局 Reasoning 模型";
+const consent = "允许本次将问题与必要来源资料发送给全局 Reasoning 模型";
 async function generate(page: Page) {
   await page.getByLabel("研究问题").fill("这些论文的方法在什么条件下有效？");
   await expect(

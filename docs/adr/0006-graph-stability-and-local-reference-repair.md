@@ -23,4 +23,4 @@
 
 无数据库迁移，Schema head 0009；旧 API、知识 ID、原始模型结果、原件和审核历史保留。新修复不会修改已接受的科学语义。修复局部引用仍属于模型候选判断，不证明科学关系成立。
 
-真实失败批次已在隔离副本以一次真实调用通过校验与 Store，全文其他批次没有重跑。交互采用真实 React Flow 的 headless Edge 回归；本轮不把浏览器结果当作 Windows 安装/原生实测。见[验收报告](../stability-verification-20261102.md)。
+真实失败批次已在隔离副本以一次真实调用通过校验与 Store，全文其他批次没有重跑。交互采用真实 React Flow 的 headless Edge 回归；本轮不把浏览器结果当作 Windows 安装/原生实测。见[验收报告](../archive/reports/stability-verification-20261102.md)。

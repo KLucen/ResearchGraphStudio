@@ -2,7 +2,7 @@
 
 后续调整：双击/拖动语义、模型预算和恢复规划已由 [ADR 0005](0005-model-capabilities-resume-force-graph.md)更新；下文保留原决策记录。
 
-日期：2026-11-02。状态：核心实现已接入，实际验收见 [v3 验收](../v3-verification.md)；范围 M0–M6。
+日期：2026-11-02。状态：核心实现已接入，实际验收见 [v3 验收](../archive/reports/v3-verification.md)；范围 M0–M6。
 
 复用 Tauri、React Flow、FastAPI、SQLite/Alembic、KnowledgeStore 和现有全局 Provider。增加投影与统一抽取适配器，不建立第二套知识存储。
 

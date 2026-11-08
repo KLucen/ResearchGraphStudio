@@ -13,6 +13,7 @@ from researchgraph.knowledge_models import EvidenceSpan, NodeEvidence
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore, digest
 from researchgraph.models import Paper
 from researchgraph.query_contracts import QueryRequest
+from researchgraph.query_local_access import assert_local_sources
 from researchgraph.query_presentation import source_presentation
 from researchgraph.query_retrieval import retrieve
 from researchgraph.reading_projection import collect_backbone
@@ -81,6 +82,7 @@ def browse(session: Session, project_id: str, body: QueryBrowseRequest) -> dict[
         knowledge_kinds=request.knowledge_kinds,
         include_comparison=False,
     )
+    assert_local_sources(session, project_id, found, include_personal=request.include_personal)
     presentation = source_presentation(session, project_id, found)
     members, graph_revision = graph_membership(session, project_id)
     evidence_nodes: dict[str, set[str]] = {}

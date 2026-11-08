@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from researchgraph.models import Base
@@ -19,6 +19,9 @@ class CandidateMetadata(Base):
 
 class ReadingUnit(Base):
     __tablename__ = "reading_units"
+    __table_args__ = (
+        Index("ix_reading_units_root_version", "root_claim_id", "document_version_id"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     document_version_id: Mapped[str] = mapped_column(ForeignKey("attachment_revisions.id"))
     root_claim_id: Mapped[str] = mapped_column(ForeignKey("knowledge_nodes.id"))
@@ -29,6 +32,7 @@ class ReadingUnit(Base):
 
 class ReadingMember(Base):
     __tablename__ = "reading_members"
+    __table_args__ = (Index("ix_reading_members_node", "node_id"),)
     unit_id: Mapped[str] = mapped_column(ForeignKey("reading_units.id"), primary_key=True)
     node_id: Mapped[str] = mapped_column(ForeignKey("knowledge_nodes.id"), primary_key=True)
     association_ids: Mapped[list[str]] = mapped_column(JSON)

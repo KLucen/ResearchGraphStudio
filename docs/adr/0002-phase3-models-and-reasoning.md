@@ -2,7 +2,7 @@
 
 > 本页记录已实现的 v2 P3 行为，P03–P05 使用旧编号。v3 目标设计和编号映射见 [ADR 0003](0003-v3-documentation-baseline.md)及[整理索引](../migration/v3-documentation-map.md)；本轮未改写运行 Prompt 或审核历史。
 
-日期：2026-11-01（Asia/Shanghai）。状态：实现已落地；真实 Claim 关系候选→审核→图谱边验收未通过，详见[实际进度](../progress.md)和[Phase 3 本机验收](../phase3-verification.md)。范围截止 P3，用户本轮禁止未经明确授权 Push。
+日期：2026-11-01（Asia/Shanghai）。状态：实现已落地；真实 Claim 关系候选→审核→图谱边验收未通过，详见[实际进度](../progress.md)和[Phase 3 本机验收](../archive/reports/phase3-verification.md)。范围截止 P3，用户本轮禁止未经明确授权 Push。
 
 1. 复用 Tauri/React/FastAPI、单任务 worker、SQLite/Alembic、Conda 和 KnowledgeStore，不新增服务。保留工作区两份旧计划删除改动，历史版本由 Git 保留。
 2. 先实现全局模型配置和 Zotero 批量导入，运行 P2 回归并交由用户在原生设置页录入真实凭据；真实验证结果与 Mock 测试分开记录。随后完成 P03–P05 与图谱闭环。

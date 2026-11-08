@@ -284,7 +284,7 @@ async function generateAnswer(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("研究问题"), "条件是什么");
   await user.click(
     screen.getByLabelText(
-      "允许本次将问题与命中的必要证据发送给全局 Reasoning 模型",
+      "允许本次将问题与必要来源资料发送给全局 Reasoning 模型",
     ),
   );
   await user.click(screen.getByRole("button", { name: "生成有据回答" }));
@@ -345,7 +345,11 @@ test("loads all paper pages and passes explicit paper and personal scope", async
   mount();
   await user.click(screen.getByText("论文范围 · 全部论文"));
   await user.click(await screen.findByRole("checkbox", { name: "合成论文二" }));
-  await user.click(screen.getByLabelText("同时检索已授权的个人笔记与个人综合"));
+  await user.click(
+    screen.getByLabelText(
+      "同时检索已授权的个人资料（笔记、批注评论与外部材料）及个人综合",
+    ),
+  );
   await user.type(screen.getByLabelText("研究问题"), "比较");
   await user.click(screen.getByRole("button", { name: "本地预览来源" }));
   await waitFor(() =>
@@ -490,7 +494,7 @@ test("failed answer requires fresh consent to continue and does not re-prepare",
   expect(button).toBeDisabled();
   await user.click(
     screen.getByLabelText(
-      "允许本次将问题与命中的必要证据发送给全局 Reasoning 模型",
+      "允许本次将问题与必要来源资料发送给全局 Reasoning 模型",
     ),
   );
   await user.click(button);
@@ -589,6 +593,151 @@ test("permission or source failure hides cached answer and its citations", async
   expect(
     screen.queryByRole("button", { name: /查看完整证据/ }),
   ).not.toBeInTheDocument();
+});
+
+test.each([
+  [
+    "annotation",
+    "个人批注评论",
+    "此来源仅为个人评论，关联的论文位置不使评论成为论文原文证据。",
+  ],
+  [
+    "external",
+    "外部阅读材料（科学来源未核验）",
+    "此来源为已登记的外部材料快照，科学来源仍未核验。",
+  ],
+])(
+  "%s references keep their own attribution and disappear after purpose authorization fails",
+  async (type, label, notice) => {
+    const user = userEvent.setup();
+    const reference = {
+      ref: "S00001",
+      type,
+      id: "private-reference",
+      text: "个人来源保留文本",
+      ...(type === "annotation" ? { page_index: 2 } : {}),
+    };
+    vi.mocked(queryApi.run).mockResolvedValue({
+      ...prepared,
+      presentation: { hits: {}, references: {} },
+      snapshot: {
+        ...prepared.snapshot,
+        request: { ...prepared.snapshot.request, include_personal: true },
+        context: { ...prepared.snapshot.context, references: [reference] },
+      },
+    });
+    vi.mocked(queryApi.answer).mockResolvedValue({
+      ...answered,
+      answer: {
+        ...answered.answer!,
+        knowledge_status: "mixed_sources",
+        passages: [
+          {
+            ...answered.answer!.passages[0],
+            text: "个人来源综合",
+            attribution: "user_view",
+          },
+        ],
+      },
+    });
+    const { client } = mount(true);
+    await user.click(
+      await screen.findByRole("button", { name: "展开所有引用" }),
+    );
+    const citation = await screen.findByRole("article", { name: "引用 1" });
+    expect(
+      within(citation).getByRole("heading", {
+        name: new RegExp(label.replace(/[（）]/g, "\\$&")),
+      }),
+    ).toBeVisible();
+    expect(within(citation).getByText(notice)).toBeVisible();
+    expect(
+      within(citation).queryByRole("button", { name: /查看完整证据/ }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(citation).getByRole("button", { name: /查看来源材料/ }),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "回答来源材料" });
+    expect(within(dialog).getByRole("heading", { name: label })).toBeVisible();
+    expect(within(dialog).getByText("个人来源保留文本")).toBeVisible();
+    expect(within(dialog).queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(api.preview).not.toHaveBeenCalled();
+    vi.mocked(queryApi.run).mockRejectedValue(
+      new Error("个人来源本次用途授权已撤销"),
+    );
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ["query-run", "p", "query"] });
+    });
+    expect(await screen.findByText("个人来源本次用途授权已撤销")).toBeVisible();
+    expect(screen.queryByText("个人来源综合")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /查看来源材料/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "回答来源材料" }),
+    ).not.toBeInTheDocument();
+    expect(queryApi.generate).not.toHaveBeenCalled();
+  },
+);
+
+test("local source preview labels personal comments and unverified external material without changing Query scope", async () => {
+  const user = userEvent.setup();
+  vi.mocked(queryApi.browse).mockResolvedValue({
+    status: "matched",
+    hits: [
+      {
+        entry_id: "comment-hit",
+        source_kind: "annotation",
+        object_id: "comment",
+        text: "个人评论内容",
+        reasons: ["exact_term"],
+        data: {},
+      },
+      {
+        entry_id: "external-hit",
+        source_kind: "external",
+        object_id: "external",
+        text: "外部材料内容",
+        reasons: ["exact_term"],
+        data: {},
+      },
+    ],
+    presentation: { hits: {}, references: {} },
+    total: 2,
+    page: 1,
+    page_size: 10,
+    total_pages: 1,
+    result_hash: "p",
+    graph_node_count: 0,
+    independent_sources: [],
+  });
+  mount();
+  await user.click(
+    screen.getByLabelText(
+      "同时检索已授权的个人资料（笔记、批注评论与外部材料）及个人综合",
+    ),
+  );
+  await user.type(screen.getByLabelText("研究问题"), "个人阅读");
+  await user.click(screen.getByRole("button", { name: "本地预览来源" }));
+  expect(await screen.findByText("个人评论内容")).toBeVisible();
+  expect(
+    screen.getByText(
+      "此来源仅为个人评论，关联的论文位置不使评论成为论文原文证据。",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText("此来源为已登记的外部材料快照，科学来源仍未核验。"),
+  ).toBeVisible();
+  expect(vi.mocked(queryApi.browse).mock.calls[0][1].request).toEqual({
+    project_id: "p",
+    question: "个人阅读",
+    paper_ids: [],
+    include_personal: true,
+    purpose: "local",
+    limit: 20,
+  });
+  expect(queryApi.prepare).not.toHaveBeenCalled();
+  expect(queryApi.generate).not.toHaveBeenCalled();
 });
 
 test("an answer that loads before its frozen references waits for the query record before grouping or showing citations", async () => {
@@ -867,7 +1016,7 @@ test("editing question or source scope clears transmission consent", async () =>
   const user = userEvent.setup();
   mount();
   const consent = screen.getByLabelText(
-    "允许本次将问题与命中的必要证据发送给全局 Reasoning 模型",
+    "允许本次将问题与必要来源资料发送给全局 Reasoning 模型",
   );
   await user.type(screen.getByLabelText("研究问题"), "条件");
   await user.click(consent);
@@ -875,7 +1024,11 @@ test("editing question or source scope clears transmission consent", async () =>
   await user.type(screen.getByLabelText("研究问题"), "变化");
   expect(consent).not.toBeChecked();
   await user.click(consent);
-  await user.click(screen.getByLabelText("同时检索已授权的个人笔记与个人综合"));
+  await user.click(
+    screen.getByLabelText(
+      "同时检索已授权的个人资料（笔记、批注评论与外部材料）及个人综合",
+    ),
+  );
   expect(consent).not.toBeChecked();
   expect(queryApi.generate).not.toHaveBeenCalled();
 });

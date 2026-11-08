@@ -60,7 +60,7 @@ def test_0011_additive_upgrade_preserves_old_sources_model_raw_and_tasks(tmp_pat
         assert (
             db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
             == SCHEMA_HEAD
-            == "0014"
+            == "0020"
         )
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

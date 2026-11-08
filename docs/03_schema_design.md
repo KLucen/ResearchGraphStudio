@@ -1,12 +1,24 @@
 # 03 — 阅读辅助知识图谱 Schema（设计 v3.3）
 
-2026-11-04 当前：P4-Q01～Q07 已接入，Q08 安装反馈修复加入只读来源显示与保存生命周期，Alembic head **0014**。新边界见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)和[反馈报告](p4-query-feedback-verification-20261104.md)；[ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[P4实际报告](p4-query-verification-20261104.md)保留前次结果。P5 Lint/Wiki 未启动。
+当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
 
 R5当前传输见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：新finish计划冻结P13_reading_ranking_v3/reading-ranking-keyed-1，程序固定完整assessments槽位并稳定排序，有界修复不放宽领域约束。v1/v2原计划与响应保留。此前[ADR0020](adr/0020-evidence-aware-core-selection.md)的真实原文/疑点/数字排版上下文、碎片核心门槛及成员caveats继续生效；它们不是科学正确性保证，实际结果见[progress](progress.md)。
 
-参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**当前 Alembic head 0014，阅读任务仍使用 paper-reading-v1；Query加性表不改变阅读领域/传输协议。** 阅读服务使用独立 reading_contracts.py；本轮Query运行契约为[query_contracts.py](../services/engine/researchgraph/query_contracts.py)，与参考契约的区别见下节及[API](07_api_and_events.md)。旧DTO/任务签名仍可读取历史。
+参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**当前 Alembic head 0020，阅读任务仍使用 paper-reading-v1；Query/P5加性表不改变阅读领域/传输协议。** 阅读服务使用独立 reading_contracts.py；本轮Query运行契约为[query_contracts.py](../services/engine/researchgraph/query_contracts.py)，与参考契约的区别见下节及[API](07_api_and_events.md)。旧DTO/任务签名仍可读取历史。
 
 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 引入 reading-semantic-1 传输和 semantic-reading-1 阶段协议，不改阅读领域。参考 PaperIntegrationProposal/CoreSelectionProposal 仍描述程序绑定后的对象，不能直接视为新模型输出 Schema。Q01～Q04新增结构按[ADR0022](adr/0022-query-foundation-and-versioned-context.md)，不改R5协议。
+
+## 当前 Lint 阶段与索引（2026-11-07 / head0020）
+
+0020在`lint_runs`加`phase`和`timings`，不重建旧知识、证据、模型记录、文档版本或问题指纹。`phase`为`scanning`、`rebuilding_dependencies`、`finished`；迁移将旧活动报告保留为`scanning`，旧终态标为`finished`，旧耗时为`{}`而非伪造实测零值。`processed/total`仅表示对象检查数量，末批已满仍可能处于依赖重建阶段。
+
+`timings`保存准备、输入复核、规则检查、依赖重建和归档的`*_seconds`，以及这些阶段累计的`elapsed_seconds`、最近一次推进的`last_advance_seconds`和实际推进次数`advance_calls`；它们不进入P09/P10/P11冻结输入或hash。0020新增三个索引：`ix_paper_sources_revision_id`对应`paper_sources(revision_id)`，`ix_reading_members_node`对应`reading_members(node_id)`，`ix_reading_units_root_version`对应`reading_units(root_claim_id, document_version_id)`。原依赖正反向索引继续供完整闭包查询使用。迁移前仍按现有备份流程，实际验证见[本轮报告](p5-lint-performance-verification-20261107.md)，设计见[ADR0030](adr/0030-lint-performance-and-progress.md)。
+
+## P5 加性结构基线（2026-11-05 / 当轮head0019）
+
+0015保存Lint报告、稳定问题指纹和反向依赖游标；0016保存Wiki页面/稳定段落/版本渲染、独立写入根和发布检查点账本；0017保存P5工作流及两请求槽。0018的external_document_versions只登记明确授权的外部Markdown来源，复用文档registry但保持无科学依赖、source_verified=false和个人/外部归属；0019的批注用途授权与最后显式导入head不重写Annotation快照。该轮Alembic head为0019，领域/抽取/投影版本独立。
+
+新P5 personal_sources分别冻结笔记快照、批注评论和外部文档版本；QueryDependency新增annotation/external类型，按当前用途权限、身份/hash及根归属终验。旧无新字段请求不补默认内容，不改P4 hash/旧raw。批注高亮的原文锚点与comment观点分开，未解析锚点不编页码。外部文件新内容不会继承系统Wiki的旧证据或写权限。
 
 ## 分层与身份
 
@@ -21,7 +33,7 @@ R5当前传输见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：�
 | CoreSelectionProposal | 关键性和覆盖建议 | 模型不决定发布 |
 | GraphSelection / SelectionPreference | 自动选择快照及可选显示偏好 | 选择服务经 Store |
 | GraphProjection | Paper→核心 Claim→支撑的视图 | 投影服务 |
-| GroundedPassage | Query/Wiki 的逐段出处与依赖 | 程序在回答绑定/保存时分配；Wiki整理留待P5 |
+| GroundedPassage | Query/Wiki 的逐段出处与依赖 | 程序在回答绑定/保存时分配；P5复用同一文档/段落registry |
 
 Paper/DocumentVersion 映射现有 Paper/AttachmentRevision，不能再建平行来源库。知识单元是集合，不是新增一份 Claim；local_ref 只在原批/输入上下文内解释。
 
@@ -102,7 +114,7 @@ SelectionPreference 只接受 include_core/exclude_core/reset_automatic，带 ex
 
 include_core 只适用于已有 Claim；Method/Condition 等通过已验证的结论成员关系展开。不能为了“提升”而临时改写候选类型、编造一个 Claim 或手工猜归属。
 
-## 投影与未来消费
+## 投影与读取边界
 
 GraphProjection 的 HAS_CORE_CLAIM 仅连接 Paper→核心 Claim；默认同时显示有合法有向关联的非 Claim 支撑，包括 Method/Experiment/Condition/Finding/Metric，以 UNIT_MEMBER 连接相应结论，可显式收起。证据在详情按需查看。导航线 epistemic_status=navigation，详情解释真实关联路径。SCIENCE_RELATION 需 assertion_id；模型推断虚线，NO_DECISION 不形成边。未选候选不因共享证据进入主图；旧快照漏列但存在合法根到成员路径的支撑可只读补全，搜索临时查看不写回选择。
 
@@ -110,9 +122,9 @@ GraphProjection 的 HAS_CORE_CLAIM 仅连接 Paper→核心 Claim；默认同时
 
 RetrievalHit 不因图谱角色排除候选；来源/有效性门槛独立。QueryAnswer/GroundedPassage 为每段提供 attribution、带 revision/document_version 的论文依赖、证据及限制；个人观点另用 source_kind=note 与 snapshot_id，不能冒充论文证据；不能把图谱导航线作为科学证据。ReadingSynthesisDraft/WikiDeltaProposal 同样逐段引用，文件发布授权和冲突检查独立于知识自动处理。
 
-[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 的最小文档registry、不可变段落版本、根依赖及文件登记已由Q01实现，Q07已加入明确保存阅读综合；完整Wiki生成发布仍待P5。保存综合不是修改作者Claim，Wiki不是GraphProjection，也不以任意Markdown代替结构化知识。
+[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) 的最小文档registry、不可变段落版本、根依赖及文件登记已由Q01实现，Q07已加入明确保存阅读综合；P5已扩展Wiki生成、版本化保存和受管发布，实际验证另见[ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)及[P5报告](p5-verification-20261105.md)。保存综合不是修改作者Claim，Wiki不是GraphProjection，也不以任意Markdown代替结构化知识。
 
-运行契约分别表达内容valid/stale/invalid/unverified、draft/saved版本状态和文件not_exported/in_sync/modified/missing/conflict/unavailable。文件缺失不等于内部内容证据失效，外部新文本不自动继承旧段落证据。当前依赖支持chunk/evidence/node/note/passage并逐层解析到根来源；note授权穿透文档转述，不能借wiki标签绕过权限。Annotation的独立Query引用尚未接入，不能把其历史导入能力记成当前检索来源。检索同时命中不同表达层时按根来源去重，不增加独立支持数。参考Schema继续保留，不用它替代新运行协议。
+运行契约分别表达内容valid/stale/invalid/unverified、draft/saved版本状态和文件not_exported/in_sync/modified/missing/conflict/unavailable。文件缺失不等于内部内容证据失效，外部新文本不自动继承旧段落证据。当前依赖支持chunk/evidence/node/note/annotation/external/passage并逐层解析到根来源；个人资料用途授权穿透文档转述，不能借wiki标签绕过权限。P5按personal_sources显式选择批注评论和外部文档版本，普通Query沿既有include_personal及用途权限读取已保存文档中的这些typed根，不扩展旧QueryRequest.source_kinds。检索同时命中不同表达层时按根来源去重，不增加独立支持数。参考Schema继续保留，不用它替代新运行协议。
 
 query-source-graph-1记录种子、完整合法关联/逐成员路径、补回的方法/实验/条件/结果/限制、各自修订与根证据。GraphSelection角色只提供组织线索，不能充当科学真实性；GraphProjection分页和显示偏好不限制检索。已保存Synthesis/Insight使用独立类型/归属、source_query_id及多源依赖；衍生图层不复制或覆盖原主张。科学关系、单元导航、衍生引用和文档依赖分别处理。
 
@@ -135,9 +147,11 @@ query-source-graph-1记录种子、完整合法关联/逐成员路径、补回�
 | QuerySavedKnowledge / query_saved_knowledge（0013） | 显式保存的Synthesis/Insight、来源答案/文档版本、逐段manifest与幂等指纹 |
 | QuerySavedPreference / query_saved_preferences（0014） | saved_id、个人annotation、独立revision、removed_at与updated_at；不改保存正文或原manifest |
 
-QueryDependency以type/id区分：chunk绑定完整块hash与start/end/quote；evidence复用原chunk hash及现有坐标；node绑定revision并重验当前合法候选和根证据；note绑定不可变快照hash及用途授权；passage绑定段落hash并递归核验。跨项目/循环、失效或Mock候选、假引用和未保存草稿拒绝；原始笔记字节及快照解码文本同时核对。
+QueryDependency以type/id区分：chunk绑定完整块hash与start/end/quote；evidence复用原chunk hash及现有坐标；node绑定revision并重验当前合法候选和根证据；note绑定不可变快照hash及用途授权；annotation绑定独立评论hash、当前性与用途授权；external绑定独立文档版本/hash、原始归属和用途授权；passage绑定段落hash并递归核验。跨项目/循环、失效或Mock候选、假引用和未保存草稿拒绝；原始笔记字节及快照解码文本同时核对。
 
 QueryRequest含project_id/question、paper_ids/document_version_ids、source_kinds/knowledge_kinds、include_personal、purpose和limit。query-context-1以请求内S短编号映射到真实来源及上述根依赖，保存章节路径、完整表格组、图谱路径、内容/文件状态、模型快照hash和覆盖缺口；上下文重新组装与hash终验决定缓存能否读取。
+
+### P4 输入协议历史（当轮 head0014，当前继续兼容）
 
 2026-11-05 新准备额外冻结 `numeric_layout`（`query-numeric-layout-1`）：按实际来源/Chunk/证据映射保留字号位移风险、压平数字和未知/部分覆盖。它属于版本化输入而非模型输出或科学知识改写；有字段时重建并终验，无字段的历史清单仍逐字保持旧 hash。新 P07 v2 与旧 v1 的 Prompt/计划分别选择，Schema `query-grounded-semantic-1` 和 head0014 不变，见 [ADR0027](adr/0027-query-layout-aware-numerical-grounding.md)。
 
@@ -153,7 +167,7 @@ GroundedQueryPassage、QueryAnswer、QuerySaveCommand用于Q05/Q07运行入口�
 
 ## 阅读运行范围与严格校验（2026-11-03基线）
 
-该轮数据库为head0011；当前0014不改变以下阅读协议。领域DTO仍为reading-extraction-1.0，新P02v4传输reading-semantic-1，旧reading-compact-1保持冻结。items/links必须显式存在，字段缺失不能解释为成功抽取零候选；字段级extra=forbid及来源检查不取消。新语义阶段职责和Provider输出策略见ADR0017，旧模板及冻结计划保留。
+该轮数据库为head0011；当前0020不改变以下阅读协议。领域DTO仍为reading-extraction-1.0，新P02v4传输reading-semantic-1，旧reading-compact-1保持冻结。items/links必须显式存在，字段缺失不能解释为成功抽取零候选；字段级extra=forbid及来源检查不取消。新语义阶段职责和Provider输出策略见ADR0017，旧模板及冻结计划保留。
 
 新版阅读与图谱只纳入具有reading-1.0/P02_reading来源、且候选payload通过当前DTO校验的知识；旧unified知识、旧选择快照仅作历史。选择写入candidate_scope=reading-candidates-only-v1；快照包含该范围标记。没有删除、覆盖或重新编号旧知识。相同领域Schema的已成功阅读候选可复用，不因传输字段简化而重抽。新响应与所有可复用状态共用 validate_stage 完整终验；protocol/schema/context/evidence 诊断与 input/raw 哈希保存在 stage_validation，原始响应不改。response_invalid=true 才更新 ModelRun.status=validation_failed、error、finished_at；可信来源/候选/快照变化为 false，保留这三个历史字段，只记录本次复用诊断并停止，不转为新模型请求。
 

@@ -1,6 +1,6 @@
 # ADR0022：项目级 Query、只读文档适配与可重放证据上下文
 
-日期：2026-11-04（Asia/Shanghai）。状态：P4-Q01～Q04 已实现；Q05～Q08、P5 仍待开发。延续 [ADR0018](0018-query-wiki-and-obsidian-lifecycle.md)，实际结果见[本轮报告](../p4-query-foundation-verification-20261104.md)。
+日期：2026-11-04（Asia/Shanghai）。状态：P4-Q01～Q04 已实现；Q05～Q08、P5 仍待开发。延续 [ADR0018](0018-query-wiki-and-obsidian-lifecycle.md)，实际结果见[本轮报告](../archive/reports/p4-query-foundation-verification-20261104.md)。
 
 ## 范围与继承
 

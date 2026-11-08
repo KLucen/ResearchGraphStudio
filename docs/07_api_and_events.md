@@ -1,8 +1,14 @@
 # 07 — 目标 API 与事件（设计 v3.3，与实现差异）
 
-2026-11-04 当前：P4-Q01～Q07 已接入，Q08 安装反馈修复增加来源显示投影及保存内容批注/移除，Alembic head **0014**。边界见 [ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)，本轮状态见[反馈报告](p4-query-feedback-verification-20261104.md)，前次结果保留在[P4实际报告](p4-query-verification-20261104.md)。P5 Lint/Wiki 未启动。
+当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
 
-已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好、paper_backbone和P4-Q01～Q07已接入，数据库head0014；目标事件字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。Query生成/保存运行接口见本页对应章节，P5发布接口仍为目标。
+已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好、paper_backbone、P4 Query和P5 Lint/Wiki已接入，数据库head0020；目标事件字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。Query生成/保存运行接口见本页对应章节；P5的/workflows、/lint、/wiki及个人来源运行路由以[api.md](api.md)和[生成OpenAPI](../packages/contracts/openapi.json)为准，真实科学与原生退出验收另记。
+
+## Lint 阶段与依赖读取（0020）
+
+Lint报告增加`phase=scanning/rebuilding_dependencies/finished`和独立`timings`。`processed/total`为对象检查量；需要初始化依赖索引时，末批可返回`running`、对象数已满及`rebuilding_dependencies`，下一次显式推进重新验源后重建并进入终态。GET报告不执行推进或重建；幂等推进身份包含阶段，同进度下的阶段不能被旧响应回退。准备请求未返回总数时只显示待定进度。
+
+阶段耗时、最近一次推进耗时和推进次数是运行元数据；旧报告无记录保持未知，模型冻结输入、问题指纹与科学图修订保持原边界。依赖查询按完整正向/反向闭包及当前可见性返回分页结果，不因分页或不可见中间节点裁断闭包。字段和单位见[运行API](api.md)，设计见[ADR0030](adr/0030-lint-performance-and-progress.md)，实际结果见[本轮报告](p5-lint-performance-verification-20261107.md)。
 
 ## 自动构建
 
@@ -65,11 +71,11 @@ SOURCE_CHANGED、EVIDENCE_REF_INVALID、INTEGRATION_CONTEXT_STALE、UNRESOLVED_M
 
 模型记录终验失败使用 protocol/schema/context/evidence 分类与稳定 code，保留 raw_output 和 stage_validation 审计。模型回错根/版本等 response_invalid=true 才更新 status=validation_failed、error、finished_at；可信来源/候选/快照变化 response_invalid=false 时保留这三个历史字段，仅写本次复用诊断，停止并要求新构建，不能把它当网络重试。普通继续复用成功 P02/P12/P13 检查点和完整重验通过的旧响应，绝不无条件复用 received 的错误外壳。
 
-所有接口回环鉴权、项目/文献隔离；新增桥接路径需明确方法和正文上限。不可通过任意路径读取PDF。当前Query只接受范围内的合法引用；后续Wiki生成同样须经过来源终验，文件导出授权独立，不属于科学审核。
+所有接口回环鉴权、项目/文献隔离；新增桥接路径需明确方法和正文上限。不可通过任意路径读取PDF。当前Query只接受范围内的合法引用；Wiki生成同样须经过来源终验，文件导出授权独立，不属于科学审核。
 
 ## 当前Query准备API（P4-Q01～Q04）
 
-以下是 Q01～Q04 引入、当前继续兼容的回环 API 与受限 Tauri 桥接。实现见[query_api.py](../services/engine/researchgraph/query_api.py)，基础决策及历史结果见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](p4-query-foundation-verification-20261104.md)。当前 Q06 问答页面已接入，下节说明回答与保存扩展。
+以下是 Q01～Q04 引入、当前继续兼容的回环 API 与受限 Tauri 桥接。实现见[query_api.py](../services/engine/researchgraph/query_api.py)，基础决策及历史结果见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)和[基础报告](archive/reports/p4-query-foundation-verification-20261104.md)。当前 Q06 问答页面已接入，下节说明回答与保存扩展。
 
 | 方法与路径 | 实际行为 |
 | --- | --- |
@@ -120,6 +126,6 @@ prepare.status为prepared/insufficient；prepared表示上下文已准备，不�
 | `POST /saved/{id}/remove?include_personal=false` | Idempotency-Key必填；`{expected_revision}`移出保存库/检索/衍生层，保留原始历史与证据 |
 | `GET /derived-graph?include_personal=false` | 独立衍生节点及DERIVED_FROM引用，非科学关系 |
 
-统一 `/api/v1/jobs/{id}/cancel` 和 `/retry` 支持query_answer；后者幂等返回真实后继状态，不将旧queued缓存冒充成功。每Query最多2个持久发送槽位，收到raw未发布可零调用恢复；失败不自动重试，达到上限零调用。GET不暴露raw；无证据/容量不足零调用并明确insufficient。普通检索/生成只有执行审计，明确save才新增科学revision/event。暂不提供Wiki生成、MD导出、Lint执行路由。
+统一 `/api/v1/jobs/{id}/cancel` 和 `/retry` 支持query_answer；后者幂等返回真实后继状态，不将旧queued缓存冒充成功。每Query最多2个持久发送槽位，收到raw未发布可零调用恢复；失败不自动重试，达到上限零调用。GET不暴露raw；无证据/容量不足零调用并明确insufficient。普通检索/生成只有执行审计，明确save才新增科学revision/event。上述Query路由不执行Wiki生成、MD导出或Lint；这些操作使用api.md中的独立P5工作流、诊断与发布路由。
 
 保存对象增加annotation、metadata_revision及removed_at；无旧偏好行时分别为空字符串、0、null。批注上限12000字符，metadata_revision用于expected_revision并发检查，不能拿GraphRevision替代。annotation仅本地个人元数据，不进入read_passages/检索/模型上下文；include_personal只控制来源私人材料用途，false不单独隐藏批注。移除直接读取返回QUERY_SAVED_REMOVED，已移除指纹再次保存明确拒绝；保存段落的后续副本及依赖谱系重验，不能从其它文档重新暴露。批注与移除只记审计事件，不删除Query/raw/答案/不可变文档或论文根，不推进科学图revision。

@@ -1,6 +1,6 @@
 # ADR 0020：带原文核对的贡献选择与证据上下文底线
 
-日期：2026-11-03（Asia/Shanghai）。状态：R5质量修复；实际结果见[收尾验收](../r5-final-verification-20261103.md)。数据库与领域版本不变，不进入P4/P5。
+日期：2026-11-03（Asia/Shanghai）。状态：R5质量修复；实际结果见[收尾验收](../archive/reports/r5-final-verification-20261103.md)。数据库与领域版本不变，不进入P4/P5。
 
 ## 真实验收发现
 

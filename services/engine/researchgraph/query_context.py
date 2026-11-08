@@ -33,6 +33,15 @@ def build_context(
     )
     paper_scope = {v.paper_id for v in versions.values()}
     personal, purpose = request.get("include_personal", False), request.get("purpose", "local")
+    personal_selection = retrieval.get("p5_personal_sources")
+    selected_personal: dict[tuple[str, str], dict[str, Any]] | None = None
+    if personal_selection is not None:
+        from researchgraph.p5_personal import selected_sources
+
+        selected_personal = {
+            (s["type"], s["id"]): s
+            for s in selected_sources(session, project_id, personal_selection, purpose=purpose)
+        }
     docs = {
         p["id"]: p
         for p in read_passages(session, project_id, include_personal=personal, purpose=purpose)
@@ -142,6 +151,10 @@ def build_context(
         )
         if state["content_state"] != "valid":
             raise KnowledgeError("QUERY_DOCUMENT_INVALID", "文档根依赖不再有效")
+        if personal_selection is not None:
+            from researchgraph.p5_personal import assert_selected_roots
+
+            assert_selected_roots(state["roots"], personal_selection)
         references[("passage", oid)] = {
             "type": "passage",
             **passage,
@@ -161,6 +174,30 @@ def build_context(
                 if not note:
                     raise KnowledgeError("QUERY_PERMISSION_CHANGED", "笔记根快照不存在")
                 references[("note", root["id"])] = {**root, "text": note.text}
+            elif root.get("type") in {"annotation", "external"}:
+                if selected_personal is None:
+                    if root["type"] == "annotation":
+                        from researchgraph.p5_personal import annotation_source
+
+                        source = annotation_source(session, project_id, root["id"], purpose=purpose)
+                    else:
+                        from researchgraph.external_documents import validate_external_version
+
+                        source = validate_external_version(
+                            session,
+                            project_id,
+                            root["id"],
+                            include_personal=personal,
+                            purpose=purpose,
+                        )
+                else:
+                    chosen_source = selected_personal.get((root["type"], root["id"]))
+                    if chosen_source is None:
+                        raise KnowledgeError(
+                            "P5_PERSONAL_SOURCE_NOT_SELECTED", "个人来源未被明确选中"
+                        )
+                    source = chosen_source
+                references[(root["type"], root["id"])] = source
 
     for hit in retrieval["hits"]:
         kind, oid = hit["source_kind"], hit["object_id"]
@@ -182,9 +219,16 @@ def build_context(
             add_document(oid)
         elif kind == "note":
             note = notes.get(oid)
+            if selected_personal is not None and ("note", oid) not in selected_personal:
+                raise KnowledgeError("P5_PERSONAL_SOURCE_NOT_SELECTED", "笔记未被明确选中")
             if note is None or note["sha256"] != hit["data"].get("sha256"):
                 raise KnowledgeError("QUERY_PERMISSION_CHANGED", "笔记快照或用途授权已变化")
             references[("note", oid)] = {"type": "note", **note}
+        elif kind in {"annotation", "external"}:
+            source = selected_personal.get((kind, oid)) if selected_personal is not None else None
+            if not personal or source is None or source != hit["data"]:
+                raise KnowledgeError("QUERY_PERSONAL_NOT_AUTHORIZED", "个人来源选择或授权已变化")
+            references[(kind, oid)] = source
         elif kind == "paper":
             paper = session.get(Paper, oid)
             if not paper or paper.id not in paper_scope or paper.title != hit["text"]:
@@ -310,6 +354,9 @@ def build_context(
         manifest["request"]["document_version_ids"] = sorted(
             request.get("document_version_ids", [])
         )
+    if personal_selection is not None:
+        manifest["p5_personal_sources"] = personal_selection
+        manifest["personal_source_snapshots"] = list((selected_personal or {}).values())
     if include_layout:
         from researchgraph.query_numeric_layout import freeze_layout
 
@@ -336,7 +383,9 @@ def build_context(
         "insufficient"
         if coverage or not manifest["capacity"]["sufficient"]
         else "ready"
-        if any(ref["type"] in {"chunk", "evidence", "note"} for ref in refs)
+        if any(
+            ref["type"] in {"chunk", "evidence", "note", "annotation", "external"} for ref in refs
+        )
         else "no_evidence"
     )
     manifest["input_hash"] = digest(manifest)

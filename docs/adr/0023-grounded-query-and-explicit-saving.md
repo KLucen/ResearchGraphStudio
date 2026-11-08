@@ -1,6 +1,6 @@
 # ADR0023：有据 Query、持久请求槽位与显式保存阅读知识
 
-日期：2026-11-04（Asia/Shanghai）。状态：Q05～Q07已实现，Q08实际验收另记[本轮报告](../p4-query-verification-20261104.md)。继承[ADR0018](0018-query-wiki-and-obsidian-lifecycle.md)和[ADR0022](0022-query-foundation-and-versioned-context.md)，不启动P5。
+日期：2026-11-04（Asia/Shanghai）。状态：Q05～Q07已实现，Q08实际验收另记[本轮报告](../archive/reports/p4-query-verification-20261104.md)。继承[ADR0018](0018-query-wiki-and-obsidian-lifecycle.md)和[ADR0022](0022-query-foundation-and-versioned-context.md)，不启动P5。
 
 ## 问题与边界
 

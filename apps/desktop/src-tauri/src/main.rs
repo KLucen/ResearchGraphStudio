@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "0014";
+const ENGINE_SCHEMA_VERSION: &str = "0020";
 
 #[derive(Default)]
 struct Host {
@@ -180,6 +180,9 @@ fn allowed(method: &str, path: &str) -> bool {
     if !path.starts_with('/') || path.starts_with("//") {
         return false;
     }
+    if allowed_p5(method, path) {
+        return true;
+    }
     if allowed_query(method, path) {
         return true;
     }
@@ -287,6 +290,113 @@ fn allowed(method: &str, path: &str) -> bool {
                 && matches!(parts[1], "cancel" | "retry" | "resume-adapted"));
     }
     false
+}
+
+fn allowed_p5(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    let p: Vec<_> = route.split('/').collect();
+    let id = |v: &str| uuid::Uuid::parse_str(v).is_ok();
+    if p.len() < 6 || p[1..4] != ["api", "v1", "projects"] || !id(p[4]) {
+        return false;
+    }
+    let suffix = &p[5..];
+    let is_id = |i: usize| suffix.get(i).is_some_and(|v| id(v));
+    let route_ok = match (method, suffix) {
+        ("GET", ["lint", "runs"]) | ("POST", ["lint", "runs"]) => true,
+        ("GET", ["lint", "documents"] | ["p5", "personal-sources"]) => true,
+        ("POST", ["p5", "annotations", _, "grant"]) => is_id(2),
+        ("GET" | "POST", ["external-documents"]) => true,
+        ("POST", ["external-documents", "preview"]) => true,
+        ("GET", ["external-documents", _]) => is_id(1),
+        ("GET", ["lint", "runs", _]) => is_id(2),
+        ("GET", ["lint", "runs", _, "issues"]) => is_id(2),
+        ("POST", ["lint", "runs", _, "advance" | "cancel"]) => is_id(2),
+        ("GET", ["dependencies"] | ["lint", "dependencies"])
+        | ("POST", ["dependencies", "rebuild"] | ["lint", "dependencies", "rebuild"]) => true,
+        ("GET", ["wiki", "pages"]) | ("GET", ["wiki", "roots"]) => true,
+        ("GET", ["wiki", "pages", _]) => is_id(2),
+        ("POST", ["wiki", "pages", _, "save" | "publish" | "inspect-file"]) => is_id(2),
+        ("POST", ["wiki", "roots", _, "revoke"]) => is_id(2),
+        ("POST", ["wiki", "publications", _, "recover"]) => is_id(2),
+        ("GET", ["wiki", "publications"]) => true,
+        ("GET", ["workflows"]) | ("POST", ["workflows", "prepare"]) => true,
+        ("GET", ["workflows", _]) => is_id(1),
+        ("POST", ["workflows", _, "generate" | "materialize"]) => is_id(1),
+        _ => false,
+    };
+    let external = suffix.first() == Some(&"external-documents");
+    if !route_ok || (method != "GET" && !external && path.contains('?')) {
+        return false;
+    }
+    if !path.contains('?') {
+        return true;
+    }
+    if query.is_empty() {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::new();
+    query.split('&').all(|part| {
+        part.split_once('=').is_some_and(|(k, v)| {
+            if !seen.insert(k) {
+                return false;
+            }
+            let dependency = suffix == ["dependencies"] || suffix == ["lint", "dependencies"];
+            let offset_paged = suffix == ["wiki", "pages"] || suffix == ["wiki", "publications"];
+            let paged = suffix == ["lint", "runs"]
+                || suffix == ["lint", "documents"]
+                || suffix == ["p5", "personal-sources"]
+                || dependency
+                || (suffix.len() == 4 && suffix[0..2] == ["lint", "runs"] && suffix[3] == "issues");
+            let issue =
+                suffix.len() == 4 && suffix[0..2] == ["lint", "runs"] && suffix[3] == "issues";
+            match k {
+                "page" | "page_size" if paged => {
+                    v.bytes().all(|c| c.is_ascii_digit())
+                        && v.parse::<u32>()
+                            .is_ok_and(|n| n >= 1 && (k == "page" || n <= 100))
+                }
+                "offset" | "limit" if offset_paged => {
+                    v.bytes().all(|c| c.is_ascii_digit())
+                        && v.parse::<u32>()
+                            .is_ok_and(|n| k == "offset" || (1..=100).contains(&n))
+                }
+                "page_id" if suffix == ["wiki", "publications"] => id(v),
+                "severity" if issue => matches!(v, "error" | "warning" | "info"),
+                "category" | "lifecycle" | "code" if issue => {
+                    !v.is_empty()
+                        && v.len() <= 80
+                        && v.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_')
+                }
+                "paper_id" if issue => id(v),
+                "version_id" if suffix.len() == 3 && suffix[0..2] == ["wiki", "pages"] => id(v),
+                "version_id" if external && suffix.len() == 2 && method == "GET" => id(v),
+                "purpose" if external && suffix.len() == 2 && method == "GET" => {
+                    matches!(v, "local" | "model")
+                }
+                "include_personal"
+                    if suffix == ["wiki", "pages"]
+                        || suffix == ["lint", "documents"]
+                        || external
+                        || (suffix.len() == 3 && suffix[0..2] == ["wiki", "pages"]) =>
+                {
+                    matches!(v, "true" | "false")
+                }
+                "object_type" if dependency => {
+                    !v.is_empty()
+                        && v.len() <= 32
+                        && v.bytes().all(|c| c.is_ascii_lowercase() || c == b'_')
+                }
+                "object_id" if dependency => {
+                    !v.is_empty()
+                        && v.len() <= 200
+                        && v.bytes()
+                            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+                }
+                "direction" if dependency => matches!(v, "dependents" | "dependencies"),
+                _ => false,
+            }
+        })
+    })
 }
 
 fn allowed_query(method: &str, path: &str) -> bool {
@@ -695,6 +805,47 @@ async fn authorize_notes_directory(
 }
 
 #[tauri::command]
+async fn wiki_authorize_output(
+    state: State<'_, Shared>,
+    project_id: String,
+) -> Result<Option<Value>, String> {
+    uuid::Uuid::parse_str(&project_id).map_err(|_| "无效项目")?;
+    let chosen = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("授权 Wiki Markdown 导出目录（只写入受管子目录）")
+            .pick_folder()
+    })
+    .await
+    .map_err(|_| "目录选择失败")?;
+    let Some(path) = chosen else { return Ok(None) };
+    let (port, token) = {
+        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+        (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
+    };
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|_| "授权请求无法初始化")?
+        .post(format!(
+            "http://127.0.0.1:{port}/api/v1/projects/{project_id}/wiki/roots"
+        ))
+        .bearer_auth(&token)
+        .header("X-ResearchGraph-Native-Token", &token)
+        .header("Idempotency-Key", uuid::Uuid::new_v4().to_string())
+        .json(&json!({"path":path.to_string_lossy()}))
+        .send()
+        .await
+        .map_err(|_| "Wiki 导出授权失败，请检查引擎连接")?;
+    let status = response.status();
+    let body = response
+        .bytes()
+        .await
+        .map_err(|_| "本地服务返回了无效响应")?;
+    decode_engine_response(status, &body).map(Some)
+}
+
+#[tauri::command]
 async fn import_pdf_file(
     state: State<'_, Shared>,
     project_id: String,
@@ -807,7 +958,8 @@ fn request_body_limit(method: &str, path: &str) -> usize {
     } else if method == "POST"
         && (path.ends_with("/query/search")
             || path.ends_with("/query/search/page")
-            || path.ends_with("/query/prepare"))
+            || path.ends_with("/query/prepare")
+            || path.ends_with("/workflows/prepare"))
         && allowed(method, path)
     {
         // Query accepts 12,000 Unicode characters, which may exceed 16KB in UTF-8.
@@ -943,6 +1095,7 @@ fn main() {
             import_pdf_file,
             relocate_source_file,
             authorize_notes_directory,
+            wiki_authorize_output,
             engine_request,
             open_zotero
         ])
@@ -959,6 +1112,72 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn p5_desktop_routes_cover_pagination_dependencies_and_publication_recovery() {
+        let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        let base = format!("/api/v1/projects/{id}");
+        for suffix in [
+            "lint/runs?page=1&page_size=10".to_string(),
+            "lint/documents?page=1&page_size=10&include_personal=false".to_string(),
+            "p5/personal-sources?page=1&page_size=10".to_string(),
+            "external-documents?include_personal=true".to_string(),
+            format!("external-documents/{id}?include_personal=true&version_id={id}&purpose=local"),
+            format!("lint/runs/{id}/issues?page=2&page_size=10&severity=error&lifecycle=new&paper_id={id}"),
+            format!("lint/dependencies?object_type=node&object_id={id}&page=1&page_size=10&direction=dependents"),
+            "wiki/pages?offset=10&limit=10&include_personal=false".to_string(),
+            format!("wiki/pages/{id}?version_id={id}&include_personal=true"),
+            format!("wiki/publications?page_id={id}&offset=0&limit=10"),
+            format!("workflows/{id}"),
+        ] {
+            assert!(super::allowed("GET", &format!("{base}/{suffix}")), "{suffix}");
+        }
+        for suffix in [
+            "lint/dependencies/rebuild".to_string(),
+            format!("p5/annotations/{id}/grant"),
+            "external-documents?include_personal=true".to_string(),
+            "external-documents/preview?include_personal=true".to_string(),
+            format!("wiki/pages/{id}/inspect-file"),
+            format!("wiki/publications/{id}/recover"),
+            format!("workflows/{id}/generate"),
+        ] {
+            assert!(
+                super::allowed("POST", &format!("{base}/{suffix}")),
+                "{suffix}"
+            );
+        }
+        for suffix in [
+            "wiki/roots".to_string(),
+            format!("wiki/pages/{id}/publish?path=private"),
+            "lint/dependencies/rebuild?path=private".to_string(),
+            format!("p5/annotations/{id}/grant?allow_model=true"),
+            "external-documents?include_personal=true&path=private".to_string(),
+            "external-documents/preview?include_personal=true&purpose=model".to_string(),
+        ] {
+            assert!(
+                !super::allowed("POST", &format!("{base}/{suffix}")),
+                "{suffix}"
+            );
+        }
+        for suffix in [
+            "wiki/pages?offset=-1&limit=10".to_string(),
+            "wiki/pages?offset=0&limit=101".to_string(),
+            "wiki/pages?offset=0&offset=10".to_string(),
+            "wiki/publications?page_id=private".to_string(),
+            "wiki/publications?path=private".to_string(),
+            "wiki/roots?include_personal=true".to_string(),
+            "p5/personal-sources?page_size=101".to_string(),
+            "lint/documents?include_personal=1".to_string(),
+            "external-documents?include_personal=true&include_personal=false".to_string(),
+            format!("external-documents/{id}?purpose=upload"),
+            "lint/dependencies?object_id=../../private".to_string(),
+        ] {
+            assert!(
+                !super::allowed("GET", &format!("{base}/{suffix}")),
+                "{suffix}"
+            );
+        }
+    }
+
     #[test]
     fn engine_response_preserves_success_and_structured_error_message() {
         let success = br#"{"items":[],"next_cursor":null}"#;
@@ -1040,7 +1259,7 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0014",
+            "schema_version": "0020",
             "database": "ready",
             "fts5": true
         })));
@@ -1052,14 +1271,14 @@ mod tests {
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "0014",
+            "schema_version": "0020",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"0014"}),
-            super::json!({"protocol_version":1,"schema_version":"0014","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"0014","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"0020"}),
+            super::json!({"protocol_version":1,"schema_version":"0020","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"0020","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

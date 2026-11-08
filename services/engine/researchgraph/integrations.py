@@ -169,20 +169,27 @@ class AnnotationImporter:
         spans = self.session.scalars(
             select(EvidenceSpan).where(EvidenceSpan.document_version_id == version_id)
         ).all()
+        from researchgraph.p5_personal_models import AnnotationHead
+
         added, unresolved = 0, 0
+        current: dict[str, str] = {}
         for item in annotations:
             data = item.get("data", {})
             key = ZoteroAdapter.key(str(item.get("key", data.get("key", ""))))
+            if key in current:
+                raise KnowledgeError("ANNOTATION_KEY_DUPLICATE", "一次同步含重复批注身份")
             if data.get("parentItem") != attachment_key:
                 raise KnowledgeError("ANNOTATION_PARENT_MISMATCH", "批注不属于当前附件")
             fingerprint = digest({"data": data, "version": version_id})
-            if self.session.scalar(
+            existing = self.session.scalar(
                 select(Annotation).where(
                     Annotation.link_id == link.id,
                     Annotation.annotation_key == key,
                     Annotation.source_hash == fingerprint,
                 )
-            ):
+            )
+            if existing:
+                current[key] = existing.id
                 continue
             try:
                 position = json.loads(data.get("annotationPosition", "{}"))
@@ -204,9 +211,11 @@ class AnnotationImporter:
             # Annotation maps to the containing evidence block, never fabricates exact offsets.
             anchor = matches[0].id if len(matches) == 1 else None
             unresolved += int(anchor is None)
+            annotation_id = str(uuid4())
+            current[key] = annotation_id
             self.session.add(
                 Annotation(
-                    id=str(uuid4()),
+                    id=annotation_id,
                     link_id=link.id,
                     document_version_id=version_id,
                     annotation_key=key,
@@ -221,6 +230,32 @@ class AnnotationImporter:
                 )
             )
             added += 1
+        self.session.flush()
+        heads = {
+            h.annotation_key: h
+            for h in self.session.scalars(
+                select(AnnotationHead).where(AnnotationHead.link_id == link.id)
+            )
+        }
+        for key, annotation_id in current.items():
+            head = heads.get(key)
+            if head is None:
+                self.session.add(
+                    AnnotationHead(
+                        link_id=link.id,
+                        annotation_key=key,
+                        annotation_id=annotation_id,
+                        removed=False,
+                        revision=1,
+                    )
+                )
+            elif head.annotation_id != annotation_id or head.removed:
+                head.annotation_id, head.removed = annotation_id, False
+                head.revision += 1
+        for key, head in heads.items():
+            if key not in current and not head.removed:
+                head.removed = True
+                head.revision += 1
         self.store.event(
             paper.project_id,
             "ANNOTATIONS_IMPORTED",

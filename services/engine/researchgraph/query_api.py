@@ -29,6 +29,7 @@ from researchgraph.query_contracts import (
     SavedReadingRemoval,
 )
 from researchgraph.query_documents import read_passages
+from researchgraph.query_local_access import assert_local_sources
 from researchgraph.query_models import QueryOperation, QueryRun
 from researchgraph.query_presentation import source_presentation
 from researchgraph.query_retrieval import rebuild_index, retrieve, scope_versions
@@ -100,6 +101,13 @@ def register_query_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
         )
 
     def view(session: Session, run: QueryRun) -> QueryPreparationView:
+        assert_local_sources(
+            session,
+            run.project_id,
+            run.snapshot["retrieval"],
+            run.snapshot["context"],
+            include_personal=run.request["include_personal"],
+        )
         return QueryPreparationView.model_validate(
             dict(
                 query_id=run.id,
@@ -118,6 +126,7 @@ def register_query_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
         check_scope(project_id, body)
         with Session(engine()) as session, session.begin():
             found = search(session, body)
+            assert_local_sources(session, project_id, found, include_personal=body.include_personal)
             return QueryRetrievalView.model_validate(
                 {**found, "presentation": source_presentation(session, project_id, found)}
             )
@@ -361,6 +370,16 @@ def register_query_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
         from researchgraph.query_answers import get_answer
 
         with read_session(engine()) as session:
+            run = session.get(QueryRun, query_id)
+            if run is None or run.project_id != project_id:
+                raise KnowledgeError("QUERY_NOT_FOUND", "项目中不存在该查询")
+            assert_local_sources(
+                session,
+                project_id,
+                run.snapshot["retrieval"],
+                run.snapshot["context"],
+                include_personal=run.request["include_personal"],
+            )
             return get_answer(session, project_id, query_id)
 
     @app.post("/api/v1/projects/{project_id}/query/runs/{query_id}/save")

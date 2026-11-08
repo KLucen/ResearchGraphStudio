@@ -1,6 +1,6 @@
 # ADR 0019：支撑路径冻结与发布再验证
 
-日期：2026-11-03（Asia/Shanghai）。状态：已实现；实际验收与交付见 [R5报告](../r5-final-verification-20261103.md)。不进入 P4/P5。
+日期：2026-11-03（Asia/Shanghai）。状态：已实现；实际验收与交付见 [R5报告](../archive/reports/r5-final-verification-20261103.md)。不进入 P4/P5。
 
 ## 问题
 

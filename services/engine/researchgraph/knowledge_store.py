@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel
@@ -37,6 +37,10 @@ from researchgraph.knowledge_models import (
     Section,
 )
 from researchgraph.models import AttachmentRevision, Chunk, Event, Paper, now
+
+if TYPE_CHECKING:
+    from researchgraph.lint_service import LintStore
+    from researchgraph.wiki_store import WikiMutations
 
 DOMAIN_VERSION = "knowledge-v2.1"
 NODE_TYPES: dict[str, type[BaseModel]] = {
@@ -116,6 +120,16 @@ class KnowledgeStore:
         from researchgraph.query_documents import QueryMutations
 
         return QueryMutations(self)
+
+    def lint(self) -> "LintStore":
+        from researchgraph.lint_service import LintStore
+
+        return LintStore(self)
+
+    def wiki(self) -> "WikiMutations":
+        from researchgraph.wiki_store import WikiMutations
+
+        return WikiMutations(self)
 
     def save_query(self, command: Any, key: str, *, project_id: str) -> dict[str, Any]:
         from researchgraph.query_save import save_query

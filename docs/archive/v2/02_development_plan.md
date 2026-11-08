@@ -2,7 +2,7 @@
 
 > 历史归档（2026-11-02）：v2 设计包已由 [v3 规范包](../../README.md)接替。下文保留当时设计、指令模板及实施语境，不作为当前施工指令；现状见[实施进度](../../progress.md)。
 
-> 日期：2026-11-01 | 使用者：Codex / 软件工程师 | 开发状态：**P1–P3 最小功能闭环已实现；真实关系候选→审核→图谱边仍待通过，见[实际进度](../../progress.md)与[Phase 3 验收](../../phase3-verification.md)**
+> 日期：2026-11-01 | 使用者：Codex / 软件工程师 | 开发状态：**P1–P3 最小功能闭环已实现；真实关系候选→审核→图谱边仍待通过，见[实际进度](../../progress.md)与[Phase 3 验收](../reports/phase3-verification.md)**
 > 文档层级：`01_product_design.md` 定义产品目标；**本文件**定义工程与分期；`03_knowledge_schema_and_prompts.md`定义数据与LLM契约。
 > 这是旧版 `development_plan.md` 的**架构更新版**；保持 Phase 0～6 名称，但职责按 Graph-Centric Knowledge Lifecycle 重排。
 

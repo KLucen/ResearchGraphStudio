@@ -48,7 +48,9 @@ def _root_kinds(ref: dict[str, Any], references: dict[str, dict[str, Any]]) -> s
     kind = ref["type"]
     if kind in {"chunk", "evidence"}:
         return {"paper"} if ref.get("paper_id") and ref.get("document_version_id") else set()
-    if kind == "note":
+    if kind == "external":
+        return {"external"} if ref.get("attribution") == "external_source" else {"note"}
+    if kind in {"note", "annotation"}:
         return {"note"}
     if kind == "node":
         roots: set[str] = set()
@@ -59,10 +61,16 @@ def _root_kinds(ref: dict[str, Any], references: dict[str, dict[str, Any]]) -> s
         return roots
     if kind == "passage":
         return {
-            "note" if root.get("source_kind") == "note" or root.get("type") == "note" else "paper"
+            "external"
+            if root.get("source_kind") == "external"
+            and root.get("attribution") == "external_source"
+            else "note"
+            if root.get("source_kind") in {"note", "annotation", "external"}
+            or root.get("type") in {"note", "annotation", "external"}
+            else "paper"
             for root in ref.get("roots", [])
-            if root.get("source_kind") in {"note", "paper"}
-            or root.get("type") in {"note", "chunk", "evidence"}
+            if root.get("source_kind") in {"note", "annotation", "external", "paper"}
+            or root.get("type") in {"note", "annotation", "external", "chunk", "evidence"}
         }
     return set()  # Paper title/metadata alone never grounds a scientific paragraph.
 
@@ -81,13 +89,17 @@ def validate_semantics(wire: AnswerWire, context: dict[str, Any]) -> None:
         if passage.attribution == "user_view":
             if "note" not in roots:
                 raise KnowledgeError("QUERY_ATTRIBUTION_INVALID", "个人观点缺少授权笔记根来源")
-        elif "paper" not in roots:
+        elif "paper" not in roots and not (
+            passage.attribution == "model_synthesis" and "external" in roots
+        ):
             raise KnowledgeError("QUERY_GROUNDING_INVALID", "科学段落缺少原始论文证据")
         elif "note" in roots:
             raise KnowledgeError(
                 "QUERY_ATTRIBUTION_INVALID", "个人观点与科学段落必须分段并保留各自归属"
             )
         if passage.attribution in {"paper_author", "citation_report"}:
+            if "external" in roots:
+                raise KnowledgeError("QUERY_ATTRIBUTION_INVALID", "外部资料不能冒充论文作者主张")
             # Multiple papers or previously generated synthesis cannot silently
             # become a single author's statement. Raw text attribution remains
             # a model judgment and is explicitly not scientific truth validation.

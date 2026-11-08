@@ -29,6 +29,7 @@ import { SourceIntegrations } from "./SourceIntegrations";
 import { ModelSettings } from "./ModelSettings";
 import { GraphWorkspace } from "./GraphWorkspace";
 import { QueryPanel } from "./QueryPanel";
+import { P5Workspace } from "./P5Workspace";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -50,8 +51,9 @@ export default function App() {
   const [selected, setSelected] = useState<Project | null>(null);
   const [search, setSearch] = useState("");
   const [graphFocus, setGraphFocus] = useState("");
+  const [wikiFocus, setWikiFocus] = useState("");
   const [projectView, setProjectView] = useState<
-    "papers" | "graph" | "query" | "notes"
+    "papers" | "graph" | "query" | "lint" | "wiki" | "notes"
   >("papers");
   const client = useQueryClient();
   const host = useQuery({
@@ -155,7 +157,7 @@ export default function App() {
           <span className="nav-label">设置与诊断</span>
         </button>
         <div className="version">
-          PHASE 4 <span>0.0.1</span>
+          PHASE 5 <span>0.0.1</span>
         </div>
       </aside>
       <main>
@@ -237,6 +239,26 @@ export default function App() {
                 </button>
                 <button
                   className={
+                    projectView === "lint"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("lint")}
+                >
+                  Lint 诊断
+                </button>
+                <button
+                  className={
+                    projectView === "wiki"
+                      ? "button primary"
+                      : "button secondary"
+                  }
+                  onClick={() => setProjectView("wiki")}
+                >
+                  Wiki 阅读整理
+                </button>
+                <button
+                  className={
                     projectView === "notes"
                       ? "button primary"
                       : "button secondary"
@@ -263,6 +285,22 @@ export default function App() {
                     setProjectView("graph");
                   }}
                   onSettings={() => setPage("settings")}
+                />
+              ) : projectView === "lint" || projectView === "wiki" ? (
+                <P5Workspace
+                  key={`${selected.id}-${projectView}-${wikiFocus}`}
+                  projectId={selected.id}
+                  connected={connected}
+                  mode={projectView}
+                  initialPageId={wikiFocus}
+                  onGraphNode={(id) => {
+                    setGraphFocus(id);
+                    setProjectView("graph");
+                  }}
+                  onWikiPage={(id) => {
+                    setWikiFocus(id);
+                    setProjectView("wiki");
+                  }}
                 />
               ) : projectView === "notes" ? (
                 <SourceIntegrations
@@ -330,6 +368,7 @@ export default function App() {
                       key={p.id}
                       onClick={() => {
                         setGraphFocus("");
+                        setWikiFocus("");
                         setProjectView("papers");
                         setSelected(p);
                       }}
@@ -391,6 +430,7 @@ export default function App() {
           onCreated={(p) => {
             setCreating(false);
             setGraphFocus("");
+            setWikiFocus("");
             setProjectView("papers");
             setSelected(p);
             void client.invalidateQueries({ queryKey: ["projects"] });

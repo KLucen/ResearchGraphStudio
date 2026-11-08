@@ -274,7 +274,7 @@ def test_default_paper_read_does_not_open_excluded_personal_document_file(
         root, note, path = add_note(session, tmp_path)
         body = request()
         body["passages"][0].update(
-            attribution="model_synthesis",
+            attribution="user_view",
             dependencies=[{"type": "note", "id": note.id, "sha256": note.sha256}],
         )
         mutation = KnowledgeStore(session).query()
