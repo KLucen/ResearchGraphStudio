@@ -42,11 +42,13 @@ function displayText(node: KnowledgeNode): string {
 export function KnowledgeReading({
   versionId,
   connected,
+  liteMode = false,
 }: {
   versionId: string;
   connected: boolean;
+  liteMode?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(liteMode);
   return (
     <section className="knowledge-area">
       <button
@@ -54,10 +56,16 @@ export function KnowledgeReading({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        论文结构与知识 {open ? "收起" : "展开"}
+        {liteMode ? "章节与本地索引" : "论文结构与知识"}{" "}
+        {open ? "收起" : "展开"}
       </button>
       {open && (
-        <Reading key={versionId} versionId={versionId} connected={connected} />
+        <Reading
+          key={versionId}
+          versionId={versionId}
+          connected={connected}
+          liteMode={liteMode}
+        />
       )}
     </section>
   );
@@ -66,9 +74,11 @@ export function KnowledgeReading({
 function Reading({
   versionId,
   connected,
+  liteMode,
 }: {
   versionId: string;
   connected: boolean;
+  liteMode: boolean;
 }) {
   const client = useQueryClient();
   const provider = "project";
@@ -109,7 +119,12 @@ function Reading({
     retry: false,
   });
   const extract = useMutation({
-    mutationFn: () => api.extract(versionId, provider, allow, pipeline),
+    mutationFn: () => {
+      if (liteMode) {
+        throw new Error("Lite 阅读模式只执行本地解析，不启动知识图谱抽取");
+      }
+      return api.extract(versionId, provider, allow, pipeline);
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["jobs"] });
     },
@@ -137,28 +152,41 @@ function Reading({
   }
   return (
     <div>
-      <h3>Paper & Reading</h3>
+      <h3>{liteMode ? "Paper & Reading · 本地索引" : "Paper & Reading"}</h3>
       <p className="quiet-note">
-        当前展示新版 Schema 的候选与图谱。历史知识保留，不参与新版建图。
+        {liteMode
+          ? "当前展示本地解析的章节、证据定位和已有历史知识。Lite 模式不会自动向模型发送论文内容。"
+          : "当前展示新版 Schema 的候选与图谱。历史知识保留，不参与新版建图。"}
       </p>
-      <div className="import-controls">
-        <span>使用全局 Extraction 模型</span>
-        <button
-          className="button primary"
-          disabled={!connected || extract.isPending || !allow}
-          onClick={() => extract.mutate()}
-        >
-          生成论文知识图谱
-        </button>
-      </div>
-      <label className="quality-note">
-        <input
-          type="checkbox"
-          checked={allow}
-          onChange={(e) => setAllow(e.target.checked)}
-        />{" "}
-        同意向已配置模型发送当前论文解析片段及证据 ID。私人笔记不参与此次抽取。
-      </label>
+      {liteMode && structure.data && (
+        <p role="status" className="quality-note">
+          本地结构索引已就绪：{structure.data.sections.length} 个章节、
+          {structure.data.evidence.length} 个可定位原文片段。
+        </p>
+      )}
+      {!liteMode && (
+        <>
+          <div className="import-controls">
+            <span>使用全局 Extraction 模型</span>
+            <button
+              className="button primary"
+              disabled={!connected || extract.isPending || !allow}
+              onClick={() => extract.mutate()}
+            >
+              生成论文知识图谱
+            </button>
+          </div>
+          <label className="quality-note">
+            <input
+              type="checkbox"
+              checked={allow}
+              onChange={(e) => setAllow(e.target.checked)}
+            />{" "}
+            同意向已配置模型发送当前论文解析片段及证据
+            ID。私人笔记不参与此次抽取。
+          </label>
+        </>
+      )}
       {extract.isSuccess && (
         <p role="status">
           抽取任务已排队，可在上方任务记录查看阶段、取消或重试。
@@ -172,7 +200,7 @@ function Reading({
           </p>
         ))}
       <div className="reading-grid">
-        <details className="reading-sections">
+        <details className="reading-sections" open={liteMode || undefined}>
           <summary>章节与证据索引（按需查看）</summary>
           <nav aria-label="论文章节">
             <h4>章节与证据</h4>
@@ -291,7 +319,9 @@ function Reading({
           ))}
           {!cards.length && (
             <p className="muted">
-              尚无此类知识。抽取完成后，候选内容会显示在这里。
+              {liteMode
+                ? "尚未生成 AI 内容。可以直接阅读左侧章节和原文索引。"
+                : "尚无此类知识。抽取完成后，候选内容会显示在这里。"}
             </p>
           )}
         </div>

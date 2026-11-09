@@ -32,6 +32,39 @@ export type Annotation = {
   annotation_key: string;
   evidence_id: string | null;
 };
+export type LiteUsage = {
+  project_id: string;
+  paper_id: string | null;
+  calls: number;
+  retry_count: number;
+  cache_hits: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  unknown_usage_calls: number;
+  calls_known: boolean;
+  unrecorded_runs: number;
+  unattributed_runs: number;
+  estimated_usage_calls: number;
+  cost_estimate: number | null;
+  cost_known: boolean;
+  by_kind: {
+    task_kind: string;
+    calls: number;
+    retry_count: number;
+    cache_hits: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    unknown_usage_calls: number;
+    calls_known: boolean;
+    unrecorded_runs: number;
+    unattributed_runs: number;
+    estimated_usage_calls: number;
+    cost_estimate: number | null;
+    cost_known: boolean;
+  }[];
+};
 
 export interface HostStatus {
   running: boolean;
@@ -195,6 +228,13 @@ export const api = {
     request<PaperList>(
       "GET",
       `/api/v1/projects/${projectId}/papers?cursor=${cursor}&limit=50`,
+    ),
+  liteUsage: (projectId: string, paperId?: string) =>
+    request<LiteUsage>(
+      "GET",
+      `/api/v1/projects/${projectId}/lite/usage${
+        paperId ? `?paper_id=${encodeURIComponent(paperId)}` : ""
+      }`,
     ),
   paper: (paperId: string) =>
     request<PaperDetail>("GET", `/api/v1/papers/${paperId}`),

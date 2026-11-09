@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from researchgraph.integrations import ZoteroAdapter
-from researchgraph.knowledge_models import ZoteroLink
+from researchgraph.knowledge_models import ModelRun, ZoteroLink
 from researchgraph.models import AttachmentRevision, Paper
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -78,6 +78,28 @@ def test_browse_import_dedup_and_restart(tmp_path, zotero):
         assert hashlib.sha256(zotero.read_bytes()).hexdigest() == original
     with client(tmp_path / "data") as reopened:
         assert len(reopened.get("/api/v1" + route).json()) == 2
+
+
+def test_lite_zotero_selection_forces_local_only(tmp_path, zotero):
+    with client(tmp_path / "data", worker=True) as api:
+        project = post(
+            api,
+            "/projects",
+            {"name": "Lite local", "experience_mode": "lite"},
+        ).json()["id"]
+        route = f"/projects/{project}/zotero-imports"
+        result = post(
+            api,
+            route,
+            {**body(), "extract_after_parse": True, "allow_network": True},
+            "lite-local-only",
+        )
+        assert result.status_code == 202, result.text
+        completed = wait_job(api, result.json()[0]["job"])
+        assert completed["status"] == "succeeded", completed
+        assert "extraction_job_id" not in completed["result"]
+        with Session(api.app.state.engine) as session:
+            assert session.scalar(select(func.count()).select_from(ModelRun)) == 0
 
 
 def test_collection_mismatch_fails_without_ingest_and_retry_recovers(tmp_path, zotero, monkeypatch):

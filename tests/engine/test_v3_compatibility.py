@@ -28,6 +28,14 @@ paired = test_reasoning.paired
 zotero = test_zotero_batch.zotero
 
 
+def assert_old_rows(db, before):
+    for table, values in before.items():
+        metadata = db.execute(f'PRAGMA table_info("{table}")').fetchall()
+        column_count = len(values[0]) if values else len(metadata)
+        columns = ",".join(f'"{column[1]}"' for column in metadata[:column_count])
+        assert db.execute(f'SELECT {columns} FROM "{table}" ORDER BY 1').fetchall() == values
+
+
 def test_0009_migration_preserves_every_old_row_and_backup(tmp_path):
     engine = make_engine(tmp_path)
     config = Config()
@@ -52,11 +60,8 @@ def test_0009_migration_preserves_every_old_row_and_backup(tmp_path):
         before = {t: db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() for t in tables}
     migrate(engine, tmp_path)
     with sqlite3.connect(dbfile) as db:
-        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0020"
-        assert all(
-            db.execute(f'SELECT * FROM "{t}" ORDER BY 1').fetchall() == rows
-            for t, rows in before.items()
-        )
+        assert db.execute("select version_num from alembic_version").fetchone()[0] == "0022"
+        assert_old_rows(db, before)
         assert db.execute("pragma integrity_check").fetchone()[0] == "ok"
         assert not db.execute("pragma foreign_key_check").fetchall()
     backup = next((tmp_path / "backups").glob("*.sqlite3"))

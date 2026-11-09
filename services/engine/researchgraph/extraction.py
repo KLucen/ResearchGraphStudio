@@ -370,6 +370,15 @@ def resolve_evidence_aliases(value: Any, aliases: dict[str, str]) -> Any:
 async def run_extraction(engine: Engine, job_id: str) -> None:
     with Session(engine) as dispatch_session:
         dispatch_job = dispatch_session.get(Job, job_id)
+        if dispatch_job is not None:
+            from researchgraph.lite_mode import block_model_job, is_lite_project
+
+            if is_lite_project(dispatch_session, dispatch_job.project_id):
+                with Session(engine) as blocked_session, blocked_session.begin():
+                    blocked = blocked_session.get(Job, job_id)
+                    if blocked is not None:
+                        block_model_job(blocked_session, blocked)
+                return
         unified = bool(
             dispatch_job
             and dispatch_job.payload

@@ -113,3 +113,58 @@ test("failed item remains visible and can be retried independently", async () =>
     expect.any(String),
   );
 });
+
+test("Lite mode submits local parsing only and hides model controls", async () => {
+  const user = userEvent.setup();
+  vi.mocked(request).mockImplementation(async (_method, path) => {
+    if (path.includes("/collections?"))
+      return [{ key: "COLLECT1", data: { name: "Test" } }];
+    if (path.endsWith("/browse"))
+      return {
+        items: [
+          {
+            key: "PAPER001",
+            title: "Lite paper",
+            attachments: [
+              {
+                key: "ATTACH01",
+                title: "PDF",
+                filename: "fixture.pdf",
+                available: true,
+              },
+            ],
+          },
+        ],
+        next_start: null,
+      };
+    if (path.endsWith("/zotero-imports")) return [];
+    return [];
+  });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ZoteroImport projectId="p" connected liteMode />
+    </QueryClientProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: "连接并读取分类" }));
+  await user.selectOptions(
+    await screen.findByLabelText("Collection"),
+    "COLLECT1",
+  );
+  await screen.findByText("Lite paper");
+  expect(screen.getByText(/Lite 模式：仅解析/)).toBeVisible();
+  expect(screen.queryByText("解析后直接建图")).toBeNull();
+  expect(screen.queryByText("同意向已配置模型发送所选论文原文片段")).toBeNull();
+  await user.click(screen.getByLabelText("全选本页可用附件"));
+  await user.click(
+    screen.getByRole("button", { name: "仅解析 · 已选 1 个附件" }),
+  );
+  expect(request).toHaveBeenCalledWith(
+    "POST",
+    "/api/v1/projects/p/zotero-imports",
+    expect.objectContaining({
+      extract_after_parse: false,
+      allow_network: false,
+    }),
+    expect.any(String),
+  );
+});

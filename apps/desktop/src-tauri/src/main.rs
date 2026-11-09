@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "0020";
+const ENGINE_SCHEMA_VERSION: &str = "0022";
 
 #[derive(Default)]
 struct Host {
@@ -180,6 +180,9 @@ fn allowed(method: &str, path: &str) -> bool {
     if !path.starts_with('/') || path.starts_with("//") {
         return false;
     }
+    if allowed_lite(method, path) {
+        return true;
+    }
     if allowed_p5(method, path) {
         return true;
     }
@@ -290,6 +293,32 @@ fn allowed(method: &str, path: &str) -> bool {
                 && matches!(parts[1], "cancel" | "retry" | "resume-adapted"));
     }
     false
+}
+
+fn allowed_lite(method: &str, path: &str) -> bool {
+    let (route, query) = path.split_once('?').unwrap_or((path, ""));
+    let parts: Vec<_> = route.split('/').collect();
+    if method != "GET"
+        || parts.len() != 7
+        || parts[1..4] != ["api", "v1", "projects"]
+        || uuid::Uuid::parse_str(parts[4]).is_err()
+        || parts[5..] != ["lite", "usage"]
+    {
+        return false;
+    }
+    if query.is_empty() {
+        return true;
+    }
+    let mut seen = false;
+    query.split('&').all(|part| {
+        part.split_once('=').is_some_and(|(key, value)| {
+            if key != "paper_id" || seen || uuid::Uuid::parse_str(value).is_err() {
+                return false;
+            }
+            seen = true;
+            true
+        })
+    })
 }
 
 fn allowed_p5(method: &str, path: &str) -> bool {
@@ -1259,7 +1288,7 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0020",
+            "schema_version": "0022",
             "database": "ready",
             "fts5": true
         })));
@@ -1271,14 +1300,14 @@ mod tests {
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "0020",
+            "schema_version": "0022",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"0020"}),
-            super::json!({"protocol_version":1,"schema_version":"0020","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"0020","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"0022"}),
+            super::json!({"protocol_version":1,"schema_version":"0022","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"0022","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }
@@ -1765,6 +1794,19 @@ mod tests {
         assert!(allowed("GET", "/api/v1/projects?cursor=0&limit=50"));
         assert!(allowed("POST", "/api/v1/projects"));
         let id = "b2d49eca-ec74-443c-9314-6b172d7f83a2";
+        assert!(allowed("GET", &format!("/api/v1/projects/{id}/lite/usage")));
+        assert!(allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/lite/usage?paper_id={id}")
+        ));
+        assert!(!allowed(
+            "POST",
+            &format!("/api/v1/projects/{id}/lite/usage")
+        ));
+        assert!(!allowed(
+            "GET",
+            &format!("/api/v1/projects/{id}/lite/usage?paper_id=private")
+        ));
         assert!(allowed("POST", &format!("/api/v1/sources/{id}/check")));
         assert!(allowed(
             "POST",

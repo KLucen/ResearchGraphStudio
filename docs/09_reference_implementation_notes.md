@@ -1,6 +1,8 @@
 # 09 — 实施注记（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：Lite P0 代码集中在 `lite_mode.py`、`lite_models.py`、`lite_usage.py`、`0021/0022` 迁移及桌面 Lite 入口。旧来源/解析/FTS5/Store 直接复用；卡片、导读、问答和逐 Provider 真实计量仍待后续阶段。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 ## 工程原则
 
@@ -10,7 +12,7 @@
 
 ## 当前实现顺序
 
-R1–R4已接入，R5补验收在报告范围内通过；P4 Query已接入，当前按明确指令继续P5 Lint/Wiki，不重抽已有论文。结构解析→支撑展示→限定Schema适配成果保留：PyMuPDF产出pdf-structure-1，0011将解析产物保存在document_parses，既有原文块和证据不改。[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)及[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)的P02v4/reading-semantic-1、程序组单元/P13v3保持；完整章节、无固定字符目标、完整段落/表格组与旧冻结计划规则不变。
+R1–R4已接入，R5补验收在报告范围内通过；P4 Query和P5 Lint/Wiki属于重构前完整模式，不重抽已有论文。结构解析→支撑展示→限定Schema适配成果保留：PyMuPDF产出pdf-structure-1，0011将解析产物保存在document_parses，既有原文块和证据不改。[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md)及[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)的P02v4/reading-semantic-1、程序组单元/P13v3保持；完整章节、无固定字符目标、完整段落/表格组与旧冻结计划规则不变。Lite P0 复用来源解析和索引，不自动进入这些高成本阶段。
 
 reading_transport处理严格语义外壳和程序身份绑定，reading_prompt_contract生成Schema对应Prompt规则；structured_output冻结Provider输出策略；reading_finish_wire/reading_finish_semantic拆分语义提案、程序form_units、贡献建议与失败预览；reading_stage_validation统一新响应及缓存终验。Store仍是唯一知识写入口，阅读领域仍1.0。0012增加Query/文档基础与派生索引，0013增加显式保存索引，0014加独立保存偏好，0015～0019加性引入Lint、Wiki发布、P5工作流、外部文档及批注权限/当前性；旧阅读模型记录/任务签名和保存manifest不改。
 
@@ -42,7 +44,7 @@ registry可读取已登记的saved文档；新draft不替换已保存头。文�
 
 Q05～Q07的调用/恢复、页面和保存已接入；Q08实际验收分别记录离线HTTP/SSE协议、合成检索/性能、真实论文模型回答和用户原生反馈，不互相替代。P5已在上述基础接入Wiki受管发布；没有外部搜索、新向量数据库、队列服务或产品多Agent框架。
 
-## 当前P5模块与复用边界
+## 重构前 P5 模块与 Lite 复用边界
 
 Lint通过lint_service/lint_maintenance管理确定性报告、反向依赖和变更游标；p5_sources/p5_personal组装所选完整合法来源及逐份个人选择；p5_workflows/p5_execution/p5_transport管理P09/P10/P11快照、严格输出、持久请求槽及恢复。wiki_store/wiki_publish复用文档registry，维护不可变页面、独立写根和受管发布账本；external_documents登记独立外部Markdown版本，不写原文件或继承Wiki证据。P5Workspace及原生桥接提供项目入口；范围与操作以运行API为准。
 

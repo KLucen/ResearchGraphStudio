@@ -36,7 +36,7 @@ from researchgraph.query_models import (
 from researchgraph.query_retrieval import collect_entries
 from researchgraph.storage import make_engine
 from researchgraph.wiki_models import WikiPage, WikiWriteRoot
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from test_query_documents import add_note
 from test_query_documents import engine as engine
@@ -489,8 +489,13 @@ def test_0017_to_0018_preserves_old_rows_and_external_file_bytes(tmp_path):
         config.attributes["connection"] = connection
         command.upgrade(config, "0017")
     with Session(engine) as session, session.begin():
-        session.add(Project(id="p", name="Old project", description="Keep", created_at="old"))
-        session.flush()
+        session.execute(
+            text(
+                "INSERT INTO projects (id, name, description, created_at) "
+                "VALUES (:id, :name, :description, :created_at)"
+            ),
+            {"id": "p", "name": "Old project", "description": "Keep", "created_at": "old"},
+        )
         _, _, path = add_note(session, tmp_path)
     old_bytes = path.read_bytes()
     database = data / "researchgraph.sqlite3"

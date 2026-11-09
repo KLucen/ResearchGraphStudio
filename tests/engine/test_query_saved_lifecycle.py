@@ -537,14 +537,12 @@ def test_0013_to_current_backup_preserves_saved_rows_and_raw_exactly(tmp_path):
         }
     migrate(engine, tmp_path)
     with sqlite3.connect(database) as db:
-        assert {
-            table: (
-                db.execute(f'PRAGMA table_info("{table}")').fetchall(),
-                db.execute(f'SELECT * FROM "{table}"').fetchall(),
-            )
-            for table in tables
-        } == before
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0020",)
+        for table, (metadata, values) in before.items():
+            current_metadata = db.execute(f'PRAGMA table_info("{table}")').fetchall()
+            assert current_metadata[: len(metadata)] == metadata, table
+            columns = ",".join(f'"{column[1]}"' for column in metadata)
+            assert db.execute(f'SELECT {columns} FROM "{table}"').fetchall() == values, table
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("0022",)
         assert db.execute("SELECT count(*) FROM query_saved_preferences").fetchone() == (0,)
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

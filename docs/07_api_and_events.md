@@ -1,8 +1,10 @@
 # 07 — 目标 API 与事件（设计 v3.3，与实现差异）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：P0 已提供项目 `experience_mode` 与只读 `GET /api/v1/projects/{project_id}/lite/usage`；`0021/0022` 为加性迁移。B 卡片、A 导读、D 问答路由仍未实现，旧 Query/P5 API 保留兼容并在 Lite 执行边界内停用。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
 
-已实现接口见 [api.md](api.md) 与生成 OpenAPI。自动构建、候选/选择/偏好、paper_backbone、P4 Query和P5 Lint/Wiki已接入，数据库head0020；目标事件字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。Query生成/保存运行接口见本页对应章节；P5的/workflows、/lint、/wiki及个人来源运行路由以[api.md](api.md)和[生成OpenAPI](../packages/contracts/openapi.json)为准，真实科学与原生退出验收另记。
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
+
+已实现接口见 [api.md](api.md) 与生成 OpenAPI。重构前完整模式接入自动构建、候选/选择/偏好、paper_backbone、P4 Query和P5 Lint/Wiki，数据库head0020；Lite P0新增项目模式与只读用量接口，当前head0022；目标事件字段不保证与当前响应逐项同名。实际使用 expected_revision、selection_revision，项目投影 selections 按论文记录版本；未实现单独的 selection_revision 请求固定参数。Query生成/保存运行接口见本页对应章节；旧P5的/workflows、/lint、/wiki及个人来源运行路由以[api.md](api.md)和[生成OpenAPI](../packages/contracts/openapi.json)为准，真实科学与原生退出验收另记。
 
 ## Lint 阶段与依赖读取（0020）
 

@@ -1,6 +1,8 @@
 # 02 — 统一引擎与自动建图工作流（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：`experience_mode=lite` 复用现有 Tauri/React、FastAPI/SQLite/FTS5、Zotero、PyMuPDF 和 KnowledgeStore；Lite 选择论文不进入完整图谱抽取。旧 `legacy` 项目和历史图谱保留可读，P0 不实现 B/A/D 业务。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 ## 职责与数据流
 
@@ -36,7 +38,7 @@ flowchart TD
 
 所有模块使用一个 SQLite 知识底座。候选、结论单元、选择记录是不同职责的对象，不创建独立“图谱库/Query 库/Wiki 知识库”。LLM 只产生候选或提案，校验、幂等、事务与发布由代码控制。模块可重构，以可维护性为目标，不为减少修改量保留错误耦合，也不为目录好看重建工程。
 
-当前已接入 P4-Q01～Q07：运行契约、本地检索、完整图谱扩展、最小文档只读适配、版本化证据上下文、P07回答及显式选段保存；来源presentation、整组问答导航、个人批注/移除的反馈修复已接入；P5另行接入Lint、Wiki生成/保存及受管发布。知识图谱复用 ReadingUnit/ReadingMember、SourceAssertion 和合法支撑闭包，GraphProjection 负责画布分页。Query读取完整结构，不从画布抓取数据，不另建来源或科学数据库。当前head0020，阅读抽取领域和R5协议保持，见[基础ADR0022](adr/0022-query-foundation-and-versioned-context.md)、[回答/保存ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[反馈ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。
+重构前完整模式已接入 P4-Q01～Q07：运行契约、本地检索、完整图谱扩展、最小文档只读适配、版本化证据上下文、P07回答及显式选段保存；来源presentation、整组问答导航、个人批注/移除的反馈修复已接入；P5另行接入Lint、Wiki生成/保存及受管发布。知识图谱复用 ReadingUnit/ReadingMember、SourceAssertion 和合法支撑闭包，GraphProjection 负责画布分页。旧 Query读取完整结构，不从画布抓取数据，不另建来源或科学数据库。重构前完整模式为head0020，阅读抽取领域和R5协议保持；Lite P0当前为head0022，见[基础ADR0022](adr/0022-query-foundation-and-versioned-context.md)、[回答/保存ADR0023](adr/0023-grounded-query-and-explicit-saving.md)与[反馈ADR0024](adr/0024-query-reading-cards-and-saved-lifecycle.md)。
 
 ## Lint 读取、依赖与进度
 

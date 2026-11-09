@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, type LiteUsage } from "./api";
 import { SourceFiles } from "./SourceFiles";
 import { JobHistory } from "./JobHistory";
 import { KnowledgeReading } from "./KnowledgeReading";
@@ -15,12 +15,16 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+export type ExperienceMode = "lite" | "legacy" | "full";
+
 export function Papers({
   projectId,
   connected,
+  experienceMode = "full",
 }: {
   projectId: string;
   connected: boolean;
+  experienceMode?: ExperienceMode;
 }) {
   const [mode, setMode] = useState<"reference" | "managed">("reference");
   const [paperId, setPaperId] = useState<string | null>(null);
@@ -44,6 +48,13 @@ export function Papers({
   const items = papers.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <section className="paper-workbench" aria-label="文献与阅读">
+      {experienceMode === "lite" && (
+        <LiteUsageSummary
+          projectId={projectId}
+          connected={connected}
+          paperId={paperId ?? undefined}
+        />
+      )}
       <WorkbenchSection
         projectId={projectId}
         id="import"
@@ -93,8 +104,10 @@ export function Papers({
             </button>
           </div>
           <p className="muted">
-            选择本地 PDF 解析原文，随后可在项目文献中抽取知识。每次一份，最多 50
-            MiB / 300 页。
+            {experienceMode === "lite"
+              ? "选择本地 PDF 后仅在本机解析章节、文本块和全文索引，不会自动调用模型。"
+              : "选择本地 PDF 解析原文，随后可在项目文献中抽取知识。"}
+            每次一份，最多 50 MiB / 300 页。
           </p>
           {[importing.error].filter(Boolean).map((error, i) => (
             <p role="alert" className="error-text" key={i}>
@@ -104,7 +117,11 @@ export function Papers({
         </div>
         <div hidden={source !== "zotero"}>
           {zoteroVisited && (
-            <ZoteroImport projectId={projectId} connected={connected} />
+            <ZoteroImport
+              projectId={projectId}
+              connected={connected}
+              liteMode={experienceMode === "lite"}
+            />
           )}
         </div>
       </WorkbenchSection>
@@ -160,7 +177,12 @@ export function Papers({
             )}
           </div>
           {paperId ? (
-            <PaperText key={paperId} paperId={paperId} connected={connected} />
+            <PaperText
+              key={paperId}
+              paperId={paperId}
+              connected={connected}
+              experienceMode={experienceMode}
+            />
           ) : (
             <div className="paper-reading muted">
               选择文献查看知识概览、证据和抽取状态。
@@ -172,12 +194,98 @@ export function Papers({
   );
 }
 
+function LiteUsageSummary({
+  projectId,
+  connected,
+  paperId,
+}: {
+  projectId: string;
+  connected: boolean;
+  paperId?: string;
+}) {
+  const usage = useQuery({
+    queryKey: ["lite-usage", projectId, paperId ?? null],
+    queryFn: () => api.liteUsage(projectId, paperId),
+    enabled: connected,
+    refetchInterval: 5000,
+  });
+  if (usage.isPending) return <p className="muted">正在读取本地用量统计…</p>;
+  if (usage.isError)
+    return <p className="quality-note">用量统计暂不可用，阅读流程仍可继续。</p>;
+  const data: LiteUsage | undefined = usage.data;
+  if (!data) return null;
+  const unrecordedRuns = data.unrecorded_runs;
+  const unattributedRuns = data.unattributed_runs;
+  const callsKnown = data.calls_known;
+  const callLabel = callsKnown
+    ? data.calls === 0
+      ? data.cache_hits > 0
+        ? "0 次新增模型调用"
+        : "尚未调用模型"
+      : `${data.calls} 次调用`
+    : `已记录调用 ${data.calls} 次；${
+        unrecordedRuns > 0
+          ? `另有 ${unrecordedRuns} 条历史记录未记录调用次数`
+          : "调用次数不完整"
+      }`;
+  return (
+    <section className="settings-card" aria-label="Lite 模型用量">
+      <div className="settings-title">
+        <h2>Lite 用量</h2>
+        <span className="pill">{callLabel}</span>
+      </div>
+      <dl>
+        <dt>输入 Token</dt>
+        <dd>{data.input_tokens.toLocaleString("zh-CN")}</dd>
+        <dt>输出 Token</dt>
+        <dd>{data.output_tokens.toLocaleString("zh-CN")}</dd>
+        <dt>重试次数</dt>
+        <dd>{data.retry_count}</dd>
+        <dt>缓存命中</dt>
+        <dd>{data.cache_hits}</dd>
+        <dt>费用</dt>
+        <dd>
+          {data.cost_known && data.cost_estimate !== null
+            ? data.cost_estimate.toLocaleString("zh-CN", {
+                style: "currency",
+                currency: "USD",
+              })
+            : "未提供定价"}
+        </dd>
+      </dl>
+      {paperId && unattributedRuns > 0 && (
+        <p className="quality-note">
+          另有 {unattributedRuns}{" "}
+          条项目级历史请求未归入这篇论文，以上单篇统计不包含它们。
+        </p>
+      )}
+      {!paperId && unattributedRuns > 0 && (
+        <p className="quality-note">
+          有 {unattributedRuns} 条项目级历史请求没有归入单篇论文。
+        </p>
+      )}
+      {data.cache_hits > 0 && (
+        <p className="muted">
+          缓存命中 {data.cache_hits} 次，未产生新的模型调用或 Token。
+        </p>
+      )}
+      {data.calls === 0 && data.cache_hits === 0 && (
+        <p className="muted">
+          本地解析、章节建立和全文索引不会产生模型 Token。
+        </p>
+      )}
+    </section>
+  );
+}
+
 function PaperText({
   paperId,
   connected,
+  experienceMode,
 }: {
   paperId: string;
   connected: boolean;
+  experienceMode: ExperienceMode;
 }) {
   const detail = useQuery({
     queryKey: ["paper", paperId],
@@ -257,6 +365,7 @@ function PaperText({
               key={revisionId}
               versionId={revisionId}
               connected={connected}
+              liteMode={experienceMode === "lite"}
             />
           )}
           <details>

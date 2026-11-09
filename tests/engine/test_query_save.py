@@ -555,8 +555,16 @@ def test_integrated_p07_raw_execution_save_same_wiki_replay_and_retrieval(seeded
 def _database_rows(db, tables):
     return {
         table: (
-            db.execute(f'PRAGMA table_info("{table}")').fetchall(),
-            db.execute(f'SELECT * FROM "{table}"').fetchall(),
+            [
+                column
+                for column in db.execute(f'PRAGMA table_info("{table}")').fetchall()
+                if table != "projects" or column[1] != "experience_mode"
+            ],
+            db.execute(
+                'SELECT id, name, description, created_at FROM "projects"'
+                if table == "projects"
+                else f'SELECT * FROM "{table}"'
+            ).fetchall(),
         )
         for table in tables
     }
@@ -571,7 +579,10 @@ def test_0012_to_0013_is_additive_and_backup_keeps_query_and_raw_history(tmp_pat
     with engine.begin() as connection:
         config.attributes["connection"] = connection
         command.upgrade(config, "0012")
-        connection.exec_driver_sql("INSERT INTO projects VALUES ('p','Synthetic','','now')")
+        connection.exec_driver_sql(
+            "INSERT INTO projects (id, name, description, created_at) VALUES "
+            "('p','Synthetic','','now')"
+        )
         connection.exec_driver_sql(
             """INSERT INTO query_runs VALUES
             ('q','p','{"question":"old"}','{"immutable":true}',:hash,'answered',NULL,'now','now')""",
@@ -602,7 +613,7 @@ def test_0012_to_0013_is_additive_and_backup_keeps_query_and_raw_history(tmp_pat
     with sqlite3.connect(database) as db:
         assert _database_rows(db, tables) == before
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)
-        assert SCHEMA_HEAD == "0020"
+        assert SCHEMA_HEAD == "0022"
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         assert db.execute("SELECT count(*) FROM query_saved_knowledge").fetchone() == (0,)

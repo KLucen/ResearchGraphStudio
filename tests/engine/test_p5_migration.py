@@ -35,6 +35,19 @@ def snapshot(database, tables=None):
         }
 
 
+def assert_old_values(database, before):
+    """Later additive fields must not change any original column or value."""
+    with sqlite3.connect(database) as db:
+        for table, (metadata, rows) in before.items():
+            current_metadata = db.execute(f'PRAGMA table_info("{table}")').fetchall()
+            assert current_metadata[: len(metadata)] == metadata, table
+            quoted = ",".join(f'"{column[1]}"' for column in metadata)
+            current_rows = sorted(
+                db.execute(f'SELECT {quoted} FROM "{table}"').fetchall(), key=repr
+            )
+            assert current_rows == rows, table
+
+
 def old_database(tmp_path):
     """Create genuine 0014 schema, then fill its tables with validated synthetic P4 records.
 
@@ -152,10 +165,10 @@ def test_populated_0014_upgrade_preserves_every_old_column_row_raw_and_exact_bac
     database = data / "researchgraph.sqlite3"
     engine = make_engine(data)
     migrate(engine, data)
-    assert snapshot(database, before) == before
+    assert_old_values(database, before)
     with sqlite3.connect(database) as db:
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)
-        assert SCHEMA_HEAD == "0020"
+        assert SCHEMA_HEAD == "0022"
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         for table in (
@@ -201,7 +214,7 @@ def test_full_worker_restart_preserves_interrupted_p5_ledger_without_dispatch(
 
     with client(data) as api:
         assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD
-        assert snapshot(database, before) == before
+        assert_old_values(database, before)
         prepared = api.post(
             "/api/v1/projects/project/workflows/prepare",
             json={
@@ -293,7 +306,7 @@ def test_full_worker_restart_preserves_interrupted_p5_ledger_without_dispatch(
                 for table, value in before.items()
                 if table not in append_only | {"sqlite_sequence"}
             }
-            assert snapshot(database, immutable) == immutable
+            assert_old_values(database, immutable)
             for table in append_only:
                 current_columns, current_rows = snapshot(database, [table])[table]
                 old_columns, old_rows = before[table]

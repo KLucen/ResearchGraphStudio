@@ -1,14 +1,16 @@
 # 03 — 阅读辅助知识图谱 Schema（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：新增迁移 `0021`（项目模式）和 `0022`（`lite_token_usage`、`lite_cache_entries`）；既有图谱、来源、ModelRun 和历史数据不删除。用量/cache 表是 B/A/D 的基础，尚无三类 Lite 业务记录。旧项目为 `legacy`，新项目默认 `lite`。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 R5当前传输见[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)：新finish计划冻结P13_reading_ranking_v3/reading-ranking-keyed-1，程序固定完整assessments槽位并稳定排序，有界修复不放宽领域约束。v1/v2原计划与响应保留。此前[ADR0020](adr/0020-evidence-aware-core-selection.md)的真实原文/疑点/数字排版上下文、碎片核心门槛及成员caveats继续生效；它们不是科学正确性保证，实际结果见[progress](progress.md)。
 
-参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**当前 Alembic head 0020，阅读任务仍使用 paper-reading-v1；Query/P5加性表不改变阅读领域/传输协议。** 阅读服务使用独立 reading_contracts.py；本轮Query运行契约为[query_contracts.py](../services/engine/researchgraph/query_contracts.py)，与参考契约的区别见下节及[API](07_api_and_events.md)。旧DTO/任务签名仍可读取历史。
+参考 Pydantic：[contracts.py](schemas/contracts.py)，生成 JSON：[generated](schemas/generated/)。参考契约版本 reading-extraction-1.0 / reading-integration-1.0 / reading-selection-1.0 / reading-projection-2.0。**重构前完整模式 Alembic head 为 0020；Lite P0 当前 head 为 0022。** 阅读任务仍使用 paper-reading-v1；Query/P5加性表不改变阅读领域/传输协议。阅读服务使用独立 reading_contracts.py；本轮Query运行契约为[query_contracts.py](../services/engine/researchgraph/query_contracts.py)，与参考契约的区别见下节及[API](07_api_and_events.md)。旧DTO/任务签名仍可读取历史。
 
 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 引入 reading-semantic-1 传输和 semantic-reading-1 阶段协议，不改阅读领域。参考 PaperIntegrationProposal/CoreSelectionProposal 仍描述程序绑定后的对象，不能直接视为新模型输出 Schema。Q01～Q04新增结构按[ADR0022](adr/0022-query-foundation-and-versioned-context.md)，不改R5协议。
 
-## 当前 Lint 阶段与索引（2026-11-07 / head0020）
+## 重构前完整模式 Lint 阶段与索引（2026-11-07 / head0020）
 
 0020在`lint_runs`加`phase`和`timings`，不重建旧知识、证据、模型记录、文档版本或问题指纹。`phase`为`scanning`、`rebuilding_dependencies`、`finished`；迁移将旧活动报告保留为`scanning`，旧终态标为`finished`，旧耗时为`{}`而非伪造实测零值。`processed/total`仅表示对象检查数量，末批已满仍可能处于依赖重建阶段。
 
@@ -167,7 +169,7 @@ GroundedQueryPassage、QueryAnswer、QuerySaveCommand用于Q05/Q07运行入口�
 
 ## 阅读运行范围与严格校验（2026-11-03基线）
 
-该轮数据库为head0011；当前0020不改变以下阅读协议。领域DTO仍为reading-extraction-1.0，新P02v4传输reading-semantic-1，旧reading-compact-1保持冻结。items/links必须显式存在，字段缺失不能解释为成功抽取零候选；字段级extra=forbid及来源检查不取消。新语义阶段职责和Provider输出策略见ADR0017，旧模板及冻结计划保留。
+该轮数据库为head0011；重构前完整模式的0020不改变以下阅读协议。领域DTO仍为reading-extraction-1.0，新P02v4传输reading-semantic-1，旧reading-compact-1保持冻结。items/links必须显式存在，字段缺失不能解释为成功抽取零候选；字段级extra=forbid及来源检查不取消。新语义阶段职责和Provider输出策略见ADR0017，旧模板及冻结计划保留。
 
 新版阅读与图谱只纳入具有reading-1.0/P02_reading来源、且候选payload通过当前DTO校验的知识；旧unified知识、旧选择快照仅作历史。选择写入candidate_scope=reading-candidates-only-v1；快照包含该范围标记。没有删除、覆盖或重新编号旧知识。相同领域Schema的已成功阅读候选可复用，不因传输字段简化而重抽。新响应与所有可复用状态共用 validate_stage 完整终验；protocol/schema/context/evidence 诊断与 input/raw 哈希保存在 stage_validation，原始响应不改。response_invalid=true 才更新 ModelRun.status=validation_failed、error、finished_at；可信来源/候选/快照变化为 false，保留这三个历史字段，只记录本次复用诊断并停止，不转为新模型请求。
 

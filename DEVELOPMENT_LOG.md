@@ -1453,3 +1453,32 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 215运行源LF指纹在冻结/回归/构建前后稳定，基准自身165后端文件实测前后也保持；314资源含引擎与Tauri副本逐字配对，无私人数据资源路径。封存安装器 `.local/releases/p5-lint-performance-20261107/ResearchGraph Studio_0.0.1_x64-setup.exe`，39,054,979字节，SHA256 `afd062f6f700f9081db2f756d37e6b8fa38b5206f06c1f25d7d4488fd4d12198`；引擎 `e56076072856c567b83367fb309b5c33651050fd491472c1aaca57890f539bd7`，schema0020，旧包保留。新包原生升级/扫描和目录发布重启待用户反馈，不重抽已有论文，旧报告可只读重取，未完成可继续。
 
 新增ADR0030与性能报告，同步README、docs00～09、API、导航/续接、progress、AGENTS及开发日志。最终192 Markdown/832本地链接、86当前规范与52归档资产LF大小/hash通过，内部断链0；4份已登记外部原文仍不可用。689源码候选实际内容/私人路径/Gitleaks、git diff --check及空暂存区检查通过。所有最终凭据在.local/lint-performance-20261107，真实模型0/正式库实验0/未Computer Use/替用户安装/Commit/Push；科学质量与原生退出门槛保持未验，未标P5退出全过。
+
+## DEV-0063 — 2026-11-09（Asia/Shanghai）：ResearchGraph Lite P0 重定位
+
+**目标与执行顺序**：用户要求先总结完整工程，再备份推送，确认后建立 Lite 分支，最后只实施 Lite P0。已先阅读 README、docs/README、progress、DEVELOPMENT_LOG、docs/00–09 和 Lite A+B+D 规范包；当前基线写入 `docs/current_project_baseline.md`，区分已实现、部分实现、仅设计、问题与技术债务，并记录当前高 Token 流程和可复用模块。未直接在原分支上重构。
+
+**备份与分支**：检查当前分支、未提交文件、origin 和敏感内容路径；`.env`、密钥、Token、本地数据库、Zotero数据、私人PDF/批注/日志均未加入本轮备份。`check-sensitive.py` 与 Gitleaks（源文件/私人路径及全历史28个提交）通过，未发现泄露。完整工程和基线文档已提交为 `7b45f0dce9168f8b547fca95f06a117e80404198` 并普通推送到 `origin/backup/pre-lite-refactor`；未推送main、未强推。随后从该备份创建 `refactor/researchgraph-lite-p0`，当前分支仅本地工作区改动，未Commit/Push。
+
+**Lite P0 实现**：
+
+- `0021_lite_project_mode.py` 增加 `projects.experience_mode`；旧项目回填 `legacy`，新项目默认 `lite`，显式 legacy 继续可创建，旧幂等响应兼容。
+- `0022_lite_usage_and_cache.py` 增加 `lite_token_usage`、`lite_cache_entries` 及项目/任务/论文/版本索引；不删除旧表、旧知识、历史 raw 或图谱。
+- `lite_mode.py`、Worker、抽取入口、Zotero批量导入和 Lint 后台维护共同阻断 Lite 的完整抽取、跨论文推理、Query/P5、翻译修复和自动依赖维护；Lite导入强制本地路径。
+- Lite PDF/Zotero保存事务复用 PyMuPDF、跨页章节、Chunk/EvidenceSpan，并直接物化 query_index_entries/query_fts；本地读取、正文MATCH和重启保持不创建模型任务。
+- `lite_usage.py` 提供只读用量聚合接口和可复用基础：已知/未知调用、缺失 attempts、无法论文归属、Token来源、重试、费用、缓存命中均分别披露。每条实际请求一行，重试另记一行；缓存命中计0新调用/0新Token。缓存身份绑定项目、论文、文献版本、小节、任务、输入、Prompt、Schema、Provider、模型、配置和源hash；来源归属、源hash和不可变响应在读写/失效时重验。
+- 桌面 Lite 入口保留Zotero、论文、解析、章节/索引和用量显示；隐藏完整图谱、Query、Lint/Wiki和默认个人来源入口；legacy仍保留原入口。Tauri白名单、OpenAPI/TypeScript、README、docs/API、ADR0031、迁移评估、progress和清单同步。
+
+**实际验证**：
+
+- 后端：最终 `1208 passed / 3 skipped / 1 warning`，456.23秒；警告为既有 Starlette/httpx TestClient 弃用提示。P0/用量/模式专项18 passed，Ruff 256文件、mypy141源文件、pip check和契约生成通过。
+- 前端：最终17个测试文件、169 passed（17.82秒）；TypeScript、ESLint、Prettier和生产构建通过，652.72KB chunk提示保留。
+- Rust/Tauri：20 passed、1 ignored；cargo fmt通过。用最终0022引擎执行原生Host启动/健康连接/停止/重启1 passed（3.41秒）；Windows PowerShell5.1/System32-only PATH隔离验证17项通过。
+- Lite专门验收使用两份不同的合成PDF和匿名Zotero fixture。模型Provider哨兵始终未被调用；PDF解析、章节结构、Chunk/EvidenceSpan、query_index_entries、query_fts正文MATCH和重启保持通过。Lite本地流程实际输入Token=0、输出Token=0、调用=0、重试=0、增量费用=0。
+- 最终冻结引擎补充Lite探针：默认创建项目返回`experience_mode=lite`，合成PDF导入成功并保存4个文本块，`GET /lite/usage`返回calls/input/output/total均为0；引擎正常EOF退出。一次过短（少于32字符）测试令牌未计入结果，已清理进程后用合法会话令牌重跑通过。
+- `scripts/smoke-engine.py` 的最终冻结引擎回归包含1次离线P07 HTTP/SSE协议stub，用于旧Query兼容路径；它不是Lite本地流程，也不是真实Provider请求。真实模型调用0，正式用户数据库实验写入0。
+- 真实用户数据库、Zotero库、私人PDF/批注、真实API Key/Token、真实Provider和NSIS安装器均未读取/调用/安装。隔离库升级和重启证明旧数据结构可保留、legacy历史数据可读；不能表述为用户正式库已经实际升级验收。
+
+**文档与安全**：当前文档专项208份Markdown、868个目标（含4个登记外部路径），仓库内断链0；最终额外包含30份QA原件的检查为238份Markdown、864个仓库内链接目标全部有效，S1–S4四份外部原文仍不可用，未计通过。当前规范86项、archive/v3 52项、用户Lite规范包28项校验通过。最终729个源码候选的内容/私人路径/Gitleaks与全历史28个提交扫描无泄露，diff空白检查通过；远端备份hash再核对为7b45f0d，当前Lite分支未暂存、未提交、未推送。
+
+**未解决问题与下一步**：Lite P0没有实现B论文卡片、A章节导读、D证据问答，也没有把未来Provider调用点接入逐尝试真实usage回调；旧账本缺失Token/费用时保留unknown，不能据零值推断免费。复杂表格/公式、OCR、真实模型质量、真实价格、跨平台/干净机和用户原生安装仍待后续验收。Lite P1只计划做B01六字段论文卡片、受限证据Span、版本化缓存、显式生成/重生成和逐请求Provider用量；本轮已停止，未开始P1。

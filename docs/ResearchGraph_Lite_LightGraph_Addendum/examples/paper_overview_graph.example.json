@@ -1,0 +1,99 @@
+{
+  "schema_version": "paper_overview_graph.v1",
+  "paper_card": {
+    "research_question": "共享记忆机制在合作型多智能体任务中如何影响协作表现？",
+    "motivation": "多智能体需要利用其他智能体的信息形成协调行为。",
+    "method_summary": "通过共享记忆机制组织智能体可访问的信息，并在合作任务中评估表现。",
+    "contributions": [
+      "提出一种共享记忆组织方式",
+      "分析记忆共享与协作表现之间的关系"
+    ],
+    "main_findings": [
+      "在所设定的合作任务中观察到成功率提升"
+    ],
+    "limitations": [
+      "结果是否适用于竞争任务仍需进一步研究"
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "type": "RESEARCH_QUESTION",
+        "label_zh": "记忆如何促进协作",
+        "label_en": "How memory supports cooperation",
+        "description_zh": "研究共享记忆机制对多智能体合作表现的影响。",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "n2",
+        "type": "CONCEPT",
+        "label_zh": "多智能体协作",
+        "label_en": "Multi-Agent Cooperation",
+        "description_zh": "多个智能体通过协调行动共同完成任务。",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "n3",
+        "type": "METHOD",
+        "label_zh": "共享记忆",
+        "label_en": "Shared Memory",
+        "description_zh": "让多个智能体访问或利用共享的信息状态。",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "n4",
+        "type": "FINDING",
+        "label_zh": "合作成功率提升",
+        "label_en": "Improved Cooperation Success",
+        "description_zh": "论文报告该机制在设定的合作任务中改善了成功率。",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "n5",
+        "type": "CONTRIBUTION",
+        "label_zh": "记忆协作机制",
+        "label_en": "Memory-Based Coordination",
+        "description_zh": "论文提出的利用共享记忆支持协作的设计贡献。",
+        "basis": "EXPLICIT"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e1",
+        "source": "n1",
+        "target": "n2",
+        "type": "INVESTIGATES",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "e2",
+        "source": "n1",
+        "target": "n3",
+        "type": "USES",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "e3",
+        "source": "n3",
+        "target": "n2",
+        "type": "ANALYZES",
+        "basis": "INFERRED"
+      },
+      {
+        "id": "e4",
+        "source": "n3",
+        "target": "n4",
+        "type": "YIELDS",
+        "basis": "EXPLICIT"
+      },
+      {
+        "id": "e5",
+        "source": "n4",
+        "target": "n5",
+        "type": "CONTRIBUTES_TO",
+        "basis": "INFERRED"
+      }
+    ]
+  }
+}

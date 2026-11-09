@@ -177,18 +177,26 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
     def submit(project_id: str, body: BatchImport, idempotency_key: Key) -> list[ImportStatus]:
         ZoteroAdapter.library(body.library)
         request_body = body.model_dump()
-        if not body.extract_after_parse:
+        with Session(engine()) as session:
+            project = session.get(Project, project_id)
+            if project is None:
+                raise KnowledgeError("PROJECT_NOT_FOUND", "项目不存在")
+            # Lite selection is deliberately local-only.  Keep the request
+            # idempotent after normalizing a client that still sends the old
+            # ``extract_after_parse=true`` flag.
+            lite_mode = getattr(project, "experience_mode", "legacy") == "lite"
+        extract_after_parse = body.extract_after_parse and not lite_mode
+        request_body["extract_after_parse"] = extract_after_parse
+        if not extract_after_parse:
             for field in ("extract_after_parse", "provider", "allow_network"):
                 request_body.pop(field, None)
         request = {"project_id": project_id, **request_body}
         with Session(engine()) as session, session.begin():
-            if session.get(Project, project_id) is None:
-                raise KnowledgeError("PROJECT_NOT_FOUND", "项目不存在")
             previous = remembered(session, "zotero-batch:" + idempotency_key, request)
             if previous:
                 return [ImportStatus.model_validate(j) for j in previous["items"]]
             extraction_options: dict[str, Any] = {}
-            if body.extract_after_parse:
+            if extract_after_parse:
                 extraction_options = {
                     "provider": body.provider,
                     "allow_network": body.allow_network,
@@ -221,11 +229,8 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                     "collection_key": body.collection_key,
                     "mode": body.mode,
                     **choice.model_dump(),
-                    **(
-                        {"extraction_options": extraction_options}
-                        if body.extract_after_parse
-                        else {}
-                    ),
+                    **({"extraction_options": extraction_options} if extract_after_parse else {}),
+                    **({"lite_mode": True} if lite_mode else {}),
                 }
                 existing = next(
                     (

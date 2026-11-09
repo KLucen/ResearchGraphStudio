@@ -96,7 +96,7 @@ beforeEach(() => {
     precision: "block",
   });
 });
-function mount(connected = true) {
+function mount(connected = true, liteMode = false) {
   render(
     <QueryClientProvider
       client={
@@ -108,7 +108,11 @@ function mount(connected = true) {
         })
       }
     >
-      <KnowledgeReading versionId="v" connected={connected} />
+      <KnowledgeReading
+        versionId="v"
+        connected={connected}
+        liteMode={liteMode}
+      />
     </QueryClientProvider>,
   );
 }
@@ -165,4 +169,18 @@ test("offline reading disables extraction without issuing new calls", async () =
     screen.getByRole("button", { name: "生成论文知识图谱" }),
   ).toBeDisabled();
   expect(api.knowledge).not.toHaveBeenCalled();
+});
+
+test("Lite reading opens the local index and never exposes extraction", async () => {
+  vi.mocked(api.knowledge).mockResolvedValue({ items: [], graph_revision: 0 });
+  mount(true, true);
+  expect(screen.getByRole("button", { name: /章节与本地索引/ })).toBeVisible();
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "本地结构索引已就绪：1 个章节、1 个可定位原文片段。",
+  );
+  expect(
+    screen.queryByRole("button", { name: "生成论文知识图谱" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByText(/尚未生成 AI 内容/)).toBeVisible();
+  expect(api.extract).not.toHaveBeenCalled();
 });

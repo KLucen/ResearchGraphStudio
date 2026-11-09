@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore
 from researchgraph.lint_models import DependencyCursor, LintRun
 from researchgraph.lint_service import LintStore, _sequence
+from researchgraph.models import Project
 from researchgraph.storage import read_session
 
 # Scheduling only, never a source/permission/validation cache. Periodic reconciliation also
@@ -22,13 +23,20 @@ def reconcile_pending(engine: Engine) -> None:
     stamp = time.monotonic()
     with read_session(engine) as session, session.begin():
         cursors = list(
-            session.execute(select(DependencyCursor.project_id, DependencyCursor.event_sequence))
+            session.execute(
+                select(DependencyCursor.project_id, DependencyCursor.event_sequence)
+                .join(Project, Project.id == DependencyCursor.project_id)
+                .where(Project.experience_mode != "lite")
+            )
         )
         active = {
             project_id
             for project_id, scope in session.execute(
                 select(LintRun.project_id, LintRun.scope).where(
-                    LintRun.status.in_({"queued", "running"})
+                    LintRun.status.in_({"queued", "running"}),
+                    ~LintRun.project_id.in_(
+                        select(Project.id).where(Project.experience_mode == "lite")
+                    ),
                 )
             )
             if scope.get("incremental")
@@ -47,6 +55,9 @@ def reconcile_pending(engine: Engine) -> None:
     project_id = min(due, key=lambda p: _last_attempt.get((str(engine.url), p), float("-inf")))
     try:
         with Session(engine) as session, session.begin():
+            project = session.get(Project, project_id)
+            if project is None or project.experience_mode == "lite":
+                return
             LintStore(KnowledgeStore(session)).reconcile(project_id, max_items=25)
     except (KnowledgeError, SQLAlchemyError, OSError):
         # The transaction rolls back, including the cursor. Nothing has been acknowledged;

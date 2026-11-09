@@ -289,11 +289,15 @@ def run(executable: Path | None, *, source_python: Path | None = None):
 
         process, port = start()
         try:
-            assert request("/health")["schema_version"] == "0020"
+            assert request("/health")["schema_version"] == "0022"
             project = request(
                 "/projects",
                 "POST",
-                {"name": "P5合成隔离验收", "description": "Offline protocol only"},
+                {
+                    "name": "P5合成隔离验收",
+                    "description": "Offline protocol only",
+                    "experience_mode": "legacy",
+                },
                 key="p5-smoke-project",
             )
             project_id = project["id"]

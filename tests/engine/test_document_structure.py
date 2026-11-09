@@ -107,7 +107,10 @@ def test_0010_to_0011_is_additive_and_backed_up(tmp_path):
     with engine.begin() as connection:
         config.attributes["connection"] = connection
         command.upgrade(config, "0010")
-        connection.exec_driver_sql("INSERT INTO projects VALUES ('p','Synthetic','', 'now')")
+        connection.exec_driver_sql(
+            "INSERT INTO projects (id, name, description, created_at) VALUES "
+            "('p','Synthetic','', 'now')"
+        )
     database = tmp_path / "researchgraph.sqlite3"
     with sqlite3.connect(database) as db:
         tables = [
@@ -116,10 +119,25 @@ def test_0010_to_0011_is_additive_and_backed_up(tmp_path):
                 "SELECT name FROM sqlite_master WHERE type='table' AND name!='alembic_version'"
             )
         ]
-        before = {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables}
+        before = {
+            t: db.execute(
+                'SELECT id, name, description, created_at FROM "projects"'
+                if t == "projects"
+                else f'SELECT * FROM "{t}"'
+            ).fetchall()
+            for t in tables
+        }
     migrate(engine, tmp_path)
     with sqlite3.connect(database) as db:
-        assert before == {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables}
+        after = {
+            t: db.execute(
+                'SELECT id, name, description, created_at FROM "projects"'
+                if t == "projects"
+                else f'SELECT * FROM "{t}"'
+            ).fetchall()
+            for t in tables
+        }
+        assert before == after
         from researchgraph.storage import SCHEMA_HEAD
 
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)

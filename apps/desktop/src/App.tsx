@@ -38,6 +38,15 @@ function date(value: string): string {
   return new Date(value).toLocaleDateString("zh-CN");
 }
 
+type ProjectMode = "lite" | "legacy" | "full";
+
+function projectMode(project: Project | null): ProjectMode {
+  const mode = (project as (Project & { experience_mode?: string }) | null)
+    ?.experience_mode;
+  if (mode === "lite" || mode === "legacy") return mode;
+  return "full";
+}
+
 export default function App() {
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -78,6 +87,9 @@ export default function App() {
     `${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase()),
   );
   const connected = health.isSuccess && !health.isError;
+  const selectedMode = projectMode(selected);
+  const liteProject = selectedMode === "lite";
+  const activeProjectView = liteProject ? "papers" : projectView;
 
   return (
     <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`}>
@@ -206,10 +218,16 @@ export default function App() {
               {selected.description && (
                 <p className="quiet-note">{selected.description}</p>
               )}
+              {liteProject && (
+                <p className="quality-note">
+                  Lite 阅读模式：选择论文后只进行本地 PDF
+                  解析、章节建立和全文索引。 AI 内容需要后续由你主动请求。
+                </p>
+              )}
               <div className="project-tabs" aria-label="项目工作区">
                 <button
                   className={
-                    projectView === "papers"
+                    activeProjectView === "papers"
                       ? "button primary"
                       : "button secondary"
                   }
@@ -217,65 +235,69 @@ export default function App() {
                 >
                   文献与阅读
                 </button>
-                <button
-                  className={
-                    projectView === "graph"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("graph")}
-                >
-                  图谱与比较
-                </button>
-                <button
-                  className={
-                    projectView === "query"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("query")}
-                >
-                  问答与阅读知识
-                </button>
-                <button
-                  className={
-                    projectView === "lint"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("lint")}
-                >
-                  Lint 诊断
-                </button>
-                <button
-                  className={
-                    projectView === "wiki"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("wiki")}
-                >
-                  Wiki 阅读整理
-                </button>
-                <button
-                  className={
-                    projectView === "notes"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("notes")}
-                >
-                  笔记来源
-                </button>
+                {!liteProject && (
+                  <>
+                    <button
+                      className={
+                        activeProjectView === "graph"
+                          ? "button primary"
+                          : "button secondary"
+                      }
+                      onClick={() => setProjectView("graph")}
+                    >
+                      图谱与比较
+                    </button>
+                    <button
+                      className={
+                        activeProjectView === "query"
+                          ? "button primary"
+                          : "button secondary"
+                      }
+                      onClick={() => setProjectView("query")}
+                    >
+                      问答与阅读知识
+                    </button>
+                    <button
+                      className={
+                        activeProjectView === "lint"
+                          ? "button primary"
+                          : "button secondary"
+                      }
+                      onClick={() => setProjectView("lint")}
+                    >
+                      Lint 诊断
+                    </button>
+                    <button
+                      className={
+                        activeProjectView === "wiki"
+                          ? "button primary"
+                          : "button secondary"
+                      }
+                      onClick={() => setProjectView("wiki")}
+                    >
+                      Wiki 阅读整理
+                    </button>
+                    <button
+                      className={
+                        activeProjectView === "notes"
+                          ? "button primary"
+                          : "button secondary"
+                      }
+                      onClick={() => setProjectView("notes")}
+                    >
+                      笔记来源
+                    </button>
+                  </>
+                )}
               </div>
-              {projectView === "graph" ? (
+              {activeProjectView === "graph" ? (
                 <GraphWorkspace
                   key={selected.id}
                   projectId={selected.id}
                   connected={connected}
                   initialFocus={graphFocus}
                 />
-              ) : projectView === "query" ? (
+              ) : activeProjectView === "query" ? (
                 <QueryPanel
                   key={selected.id}
                   projectId={selected.id}
@@ -286,12 +308,13 @@ export default function App() {
                   }}
                   onSettings={() => setPage("settings")}
                 />
-              ) : projectView === "lint" || projectView === "wiki" ? (
+              ) : activeProjectView === "lint" ||
+                activeProjectView === "wiki" ? (
                 <P5Workspace
                   key={`${selected.id}-${projectView}-${wikiFocus}`}
                   projectId={selected.id}
                   connected={connected}
-                  mode={projectView}
+                  mode={activeProjectView}
                   initialPageId={wikiFocus}
                   onGraphNode={(id) => {
                     setGraphFocus(id);
@@ -302,7 +325,7 @@ export default function App() {
                     setProjectView("wiki");
                   }}
                 />
-              ) : projectView === "notes" ? (
+              ) : activeProjectView === "notes" ? (
                 <SourceIntegrations
                   key={selected.id}
                   projectId={selected.id}
@@ -313,6 +336,7 @@ export default function App() {
                   key={selected.id}
                   projectId={selected.id}
                   connected={connected}
+                  experienceMode={selectedMode}
                 />
               )}
             </section>

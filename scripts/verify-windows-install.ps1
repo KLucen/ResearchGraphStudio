@@ -164,7 +164,7 @@ function Wait-DesktopEngine {
                         $receipt.desktop_pid -eq $script:desktop.Id -and
                         $receipt.engine_pid -eq $children[0].ProcessId -and
                         $receipt.connected -eq $true -and $receipt.protocol_version -eq 1 -and
-                        $receipt.schema_version -eq '0020') { return }
+                        $receipt.schema_version -eq '0022') { return }
                 }
             }
         }
@@ -194,14 +194,15 @@ try {
     $EnginePath = (Resolve-Path -LiteralPath $EnginePath).Path
     Start-ProbeEngine
     $health = Invoke-ProbeApi '/health'
-    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0020') 'Health handshake failed.'
+    Assert-Probe ($health.database -eq 'ready' -and $health.fts5 -and $health.schema_version -eq '0022') 'Health handshake failed.'
     $rejected = $false
     try { Invoke-ProbeApi '/health' 'GET' $null $false | Out-Null }
     catch { $rejected = Test-HttpStatus $_ 401 }
     Assert-Probe $rejected 'Unauthenticated request was not rejected.'
     $report.checks['authentication'] = 'passed'
-    $project = Invoke-ProbeApi '/projects' 'POST' @{name = "$unicodeName acceptance"; description = 'Synthetic installer test'}
-    $replay = Invoke-ProbeApi '/projects' 'POST' @{name = "$unicodeName acceptance"; description = 'Synthetic installer test'}
+    $projectBody = @{name = "$unicodeName acceptance"; description = 'Synthetic installer test'; experience_mode = 'legacy'}
+    $project = Invoke-ProbeApi '/projects' 'POST' $projectBody
+    $replay = Invoke-ProbeApi '/projects' 'POST' $projectBody
     Assert-Probe ($project.id -eq $replay.id) 'Idempotency replay failed.'
     $job = Invoke-ProbeApi '/jobs' 'POST' @{kind = 'diagnostics'}
     $deadline = [DateTime]::UtcNow.AddSeconds(10)

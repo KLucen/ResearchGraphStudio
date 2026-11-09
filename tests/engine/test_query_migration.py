@@ -18,6 +18,15 @@ def rows(db, tables):
     }
 
 
+def old_rows_unchanged(db, before):
+    for table, (metadata, values) in before.items():
+        current_metadata = db.execute(f'PRAGMA table_info("{table}")').fetchall()
+        assert current_metadata[: len(metadata)] == metadata, table
+        columns = ",".join(f'"{column[1]}"' for column in metadata)
+        current = db.execute(f'SELECT {columns} FROM "{table}"').fetchall()
+        assert current == values, table
+
+
 def test_0011_additive_upgrade_preserves_old_sources_model_raw_and_tasks(tmp_path):
     engine = make_engine(tmp_path)
     config = Config()
@@ -56,11 +65,11 @@ def test_0011_additive_upgrade_preserves_old_sources_model_raw_and_tasks(tmp_pat
         before = rows(db, tables)
     migrate(engine, tmp_path)
     with sqlite3.connect(database) as db:
-        assert rows(db, tables) == before
+        old_rows_unchanged(db, before)
         assert (
             db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
             == SCHEMA_HEAD
-            == "0020"
+            == "0022"
         )
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

@@ -1,10 +1,12 @@
 # 00 — 阅读辅助知识图谱：决策与范围（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：新项目默认 `experience_mode=lite`，选择论文只做本地 PDF/章节/FTS5 处理，默认 0 次 LLM 调用；旧项目回填 `legacy`，历史图谱仍可读。完整抽取、跨论文推理、Lint/Wiki 自动任务在 Lite 中默认停用。P0 用量/缓存基础已接入，B 卡片、A 导读、D 问答仍未实现。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 日期：2026-11-02。决策见 [ADR 0008](adr/0008-reading-knowledge-graph.md)。本版替代 v3 平铺投影目标；[旧设计](archive/v3/README.md)保留追溯。设计版本不是应用版本、Prompt 运行版本或数据库迁移号。
 
-Query 的项目级执行、只读文档适配、多源检索和版本化证据上下文见 [ADR0022](adr/0022-query-foundation-and-versioned-context.md)，回答与保存扩展见 ADR0023，来源展示与保存生命周期见 ADR0024。0011～0020 均为加性迁移，当前 head0020 不改变既有阅读领域和任务协议；P5 运行边界见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)，Lint 性能和阶段进度见 [ADR0030](adr/0030-lint-performance-and-progress.md)。0020仅增加诊断阶段/耗时和查询索引；批量读取仍逐调用校验完整来源，依赖查询保留完整闭包，阶段元数据不进入P09/P10/P11冻结输入、hash或问题指纹。
+Query 的项目级执行、只读文档适配、多源检索和版本化证据上下文见 [ADR0022](adr/0022-query-foundation-and-versioned-context.md)，回答与保存扩展见 ADR0023，来源展示与保存生命周期见 ADR0024。0011～0020 均为重构前完整模式的加性迁移，head0020 不改变既有阅读领域和任务协议；P5 运行边界见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)，Lint 性能和阶段进度见 [ADR0030](adr/0030-lint-performance-and-progress.md)。0020仅增加诊断阶段/耗时和查询索引；批量读取仍逐调用校验完整来源，依赖查询保留完整闭包，阶段元数据不进入P09/P10/P11冻结输入、hash或问题指纹。
 
 2026-11-03 的解析与展示增量见 [ADR0014](adr/0014-structured-pdf-and-support-graph.md)：结构文档、跨页章节、正文抽取及默认结论支撑。该轮 head0011，领域 Schema 不变；对应历史验收见 [progress](progress.md)。
 
@@ -25,7 +27,7 @@ ResearchGraph Studio 是辅助阅读、理解和整理科研论文的通用桌�
 
 选择 Zotero 论文/PDF → 一键生成知识图谱 → 自动解析、候选抽取、论文级整合、核心选择、发布 → 逐层浏览与原文回查。
 
-完整目标延伸为：图谱组织结论与支撑→Query按问题沿合法路径扩展并补原文/候选/有效Wiki/授权个人资料→明确保存为衍生综合→明确整理Wiki→授权导出Markdown，Lint横向检查来源、支撑、依赖和文件状态。知识图谱提供组织与推理上下文，画布只是其交互视图。完整图见[项目介绍](../README.md#从论文到阅读知识)，实施顺序见[开发计划](06_development_migration_plan.md)。当前已接入自动建图、Query回答/显式保存，以及P5确定性诊断、Wiki主题草稿/保存、受管发布和局部更新；真实科学与原生退出验收仍按P5报告单列。
+完整模式目标延伸为：图谱组织结论与支撑→Query按问题沿合法路径扩展并补原文/候选/有效Wiki/授权个人资料→明确保存为衍生综合→明确整理Wiki→授权导出Markdown，Lint横向检查来源、支撑、依赖和文件状态。知识图谱提供组织与推理上下文，画布只是其交互视图。完整图见[项目介绍](../README.md#从论文到阅读知识)，实施顺序见[开发计划](06_development_migration_plan.md)。这些能力在 legacy 完整模式已接入；Lite P0 默认不启动自动建图、Query、Lint/Wiki，真实科学与原生退出验收仍按历史P5报告单列。
 
 **新流程没有人工审核、待审队列、接受/驳回或审核门槛。** 确定性校验失败自动隔离；上下文不足自动保留为仅检索候选并说明原因；可恢复的技术失败提供继续入口。用户改变展示密度/核心偏好是视图配置，不授予科学真实性。旧审核记录只作历史兼容，不能删除，也不能要求新任务继承审核步骤。
 
@@ -49,4 +51,4 @@ Query/Wiki/Obsidian边界见[ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle
 
 ## 本轮范围与阶段
 
-工程继承 P0～P3，R5 补验收在报告范围内通过，当前继续 P5 — Lint / Wiki；P4 已接入并保留原验收记录，P5 真实科学与原生退出未验项按报告保留。所有章节继续使用共同抽取规则，不使用固定 6000 字符/48 证据目标，也不引入 MarkItDown。本轮已获继续P5开发的明确指令，但不继承旧付费预算或上传授权，未经新授权不 Commit/Push。
+工程继承 P0～P3，R5 补验收在报告范围内通过；P5 — Lint / Wiki 是 Lite 重构前的完整模式基线，P4 已接入并保留原验收记录。所有章节继续使用共同抽取规则，不使用固定 6000 字符/48 证据目标，也不引入 MarkItDown。Lite P0 已切换新项目默认入口，B/A/D 尚待后续阶段；不继承旧付费预算或上传授权，未经新授权不 Commit/Push。

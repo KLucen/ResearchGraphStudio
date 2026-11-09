@@ -1,27 +1,27 @@
 # v3.3 当前规范资产清单
 
-2026-11-07：按仓库 .gitattributes 的 LF 字节核验，便于远端复现。
+2026-11-09：按仓库 .gitattributes 的 LF 字节核验，包含当前 Lite P0 对 00–09、导航、参考资产的文档覆盖；Lite 规范包独立维护自己的 MANIFEST/SHA256SUMS。
 
-本清单沿用当前设计章节、导航/续接及参考 Prompt、Schema、示例和测试的资产范围；不覆盖全部运行说明、ADR、验收报告或软件产物。归档含义保持，私人数据和运行产物不纳入。
+本清单沿用当前设计章节、导航/续接及参考 Prompt、Schema、示例和测试的资产范围；不覆盖全部运行说明、ADR、迁移评估、验收报告或软件产物。归档含义保持，私人数据和运行产物不纳入。
 
 共 86 项；已移除重复协作模板与旧版跳转页。清单和 SHA256SUMS 不含自身。
 
 | 相对路径 | 字节 |
 | --- | ---: |
 | `.gitignore.sample` | 292 |
-| `00_decisions_and_scope.md` | 6937 |
-| `01_product_design.md` | 12645 |
-| `02_architecture_and_workflows.md` | 22063 |
-| `03_schema_design.md` | 30014 |
-| `04_graph_interaction_spec.md` | 9453 |
-| `05_prompt_engineering.md` | 17794 |
-| `06_development_migration_plan.md` | 58558 |
-| `07_api_and_events.md` | 20085 |
-| `08_validation_and_security.md` | 19062 |
-| `09_reference_implementation_notes.md` | 10033 |
+| `00_decisions_and_scope.md` | 7546 |
+| `01_product_design.md` | 13295 |
+| `02_architecture_and_workflows.md` | 22655 |
+| `03_schema_design.md` | 30668 |
+| `04_graph_interaction_spec.md` | 9989 |
+| `05_prompt_engineering.md` | 18308 |
+| `06_development_migration_plan.md` | 59212 |
+| `07_api_and_events.md` | 20708 |
+| `08_validation_and_security.md` | 19878 |
+| `09_reference_implementation_notes.md` | 10642 |
 | `CHANGELOG_FROM_V3.md` | 1383 |
-| `CODEX_NEXT_TURN.md` | 4447 |
-| `README.md` | 5978 |
+| `CODEX_NEXT_TURN.md` | 4710 |
+| `README.md` | 6269 |
 | `examples/README.md` | 561 |
 | `examples/candidate_record.json` | 1223 |
 | `examples/comparability_report.json` | 470 |

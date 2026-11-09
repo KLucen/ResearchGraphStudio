@@ -278,6 +278,11 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
     with Session(engine) as session:
         initial = session.get(Job, job_id)
         zotero = initial is not None and initial.kind == "zotero_import"
+        lite_mode = False
+        if initial is not None:
+            from researchgraph.lite_mode import is_lite_project
+
+            lite_mode = is_lite_project(session, initial.project_id)
     if zotero:
         from researchgraph.zotero_batch import prepare_import
 
@@ -358,7 +363,17 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
                     # Preserve an existing title when merely deduplicating another source.
                     if paper.title == Path(payload["path"]).stem:
                         paper.title = str(metadata.get("data", {}).get("title") or paper.title)
-                if payload.get("extraction_options"):
+                if lite_mode and kind in {"pdf_import", "zotero_import"}:
+                    from researchgraph.query_retrieval import rebuild_index
+
+                    # Materialize local source text during import. Lite must not
+                    # depend on a later GraphRAG search to create its FTS rows.
+                    # The empty validated-node collection deliberately omits
+                    # historical knowledge traversal from this local path.
+                    session.flush()
+                    assert current.project_id is not None
+                    rebuild_index(session, current.project_id, _validated_nodes=[])
+                if payload.get("extraction_options") and not lite_mode:
                     from researchgraph.knowledge_store import stable_id
 
                     child_id = stable_id("zotero-extraction", job_id)

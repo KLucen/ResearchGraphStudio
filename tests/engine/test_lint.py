@@ -574,6 +574,35 @@ def test_maintenance_is_opt_in_and_unchanged_inputs_create_no_report(engine):
         assert dependencies(session, "p")["pending_events"] is False
 
 
+@pytest.mark.parametrize("mode", ["lite", "legacy"])
+@pytest.mark.parametrize("trigger", ["event", "interval"])
+def test_automatic_maintenance_excludes_lite_cursors(engine, monkeypatch, mode, trigger):
+    from researchgraph import lint_maintenance
+    from researchgraph.models import Project
+
+    baseline = scan(engine)
+    assert baseline["status"] == "completed"
+    with Session(engine) as session, session.begin():
+        assert session.get(DependencyCursor, "p") is not None
+        session.get(Project, "p").experience_mode = mode
+        if trigger == "event":
+            KnowledgeStore(session).audit_event("p", "UNRELATED_EXECUTION", {})
+    monkeypatch.setattr(lint_maintenance.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(
+        lint_maintenance,
+        "_last_attempt",
+        {(str(engine.url), "p"): 99.0 if trigger == "event" else 0.0},
+    )
+    calls = []
+
+    def reconcile(_self, project_id, *, max_items):
+        calls.append((project_id, max_items))
+
+    monkeypatch.setattr(lint_maintenance.LintStore, "reconcile", reconcile)
+    lint_maintenance.reconcile_pending(engine)
+    assert calls == ([] if mode == "lite" else [("p", 25)])
+
+
 def test_automatic_incremental_only_checks_impacted_subset_and_preserves_full_lifecycle(engine):
     from researchgraph.knowledge_store import text_hash
     from researchgraph.query_models import QueryDocument

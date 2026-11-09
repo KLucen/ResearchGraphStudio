@@ -5725,6 +5725,61 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/lite/usage": {
+      "get": {
+        "summary": "Usage",
+        "operationId": "usage_api_v1_projects__project_id__lite_usage_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "paper_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiteUsageView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/graph/translate": {
       "post": {
         "summary": "Translate",
@@ -8385,6 +8440,109 @@
         ],
         "title": "LintRunView"
       },
+      "LiteUsageView": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "paper_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Id"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "cache_hits": {
+            "type": "integer",
+            "title": "Cache Hits",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "unknown_usage_calls": {
+            "type": "integer",
+            "title": "Unknown Usage Calls",
+            "default": 0
+          },
+          "unrecorded_runs": {
+            "type": "integer",
+            "title": "Unrecorded Runs",
+            "default": 0
+          },
+          "unattributed_runs": {
+            "type": "integer",
+            "title": "Unattributed Runs",
+            "default": 0
+          },
+          "calls_known": {
+            "type": "boolean",
+            "title": "Calls Known",
+            "default": true
+          },
+          "estimated_usage_calls": {
+            "type": "integer",
+            "title": "Estimated Usage Calls",
+            "default": 0
+          },
+          "cost_estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Estimate"
+          },
+          "cost_known": {
+            "type": "boolean",
+            "title": "Cost Known",
+            "default": true
+          },
+          "by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/UsageKindView"
+            },
+            "type": "array",
+            "title": "By Kind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_id"
+        ],
+        "title": "LiteUsageView"
+      },
       "ModelCapabilities": {
         "properties": {
           "max_output_tokens": {
@@ -9339,6 +9497,15 @@
             "maxLength": 4000,
             "title": "Description",
             "default": ""
+          },
+          "experience_mode": {
+            "type": "string",
+            "enum": [
+              "lite",
+              "legacy"
+            ],
+            "title": "Experience Mode",
+            "default": "lite"
           }
         },
         "additionalProperties": false,
@@ -9389,6 +9556,15 @@
             "maxLength": 4000,
             "title": "Description",
             "default": ""
+          },
+          "experience_mode": {
+            "type": "string",
+            "enum": [
+              "lite",
+              "legacy"
+            ],
+            "title": "Experience Mode",
+            "default": "legacy"
           },
           "id": {
             "type": "string",
@@ -11323,6 +11499,91 @@
           "node_ids"
         ],
         "title": "TranslationRequest"
+      },
+      "UsageKindView": {
+        "properties": {
+          "task_kind": {
+            "type": "string",
+            "title": "Task Kind"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "cache_hits": {
+            "type": "integer",
+            "title": "Cache Hits",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "unknown_usage_calls": {
+            "type": "integer",
+            "title": "Unknown Usage Calls",
+            "default": 0
+          },
+          "unrecorded_runs": {
+            "type": "integer",
+            "title": "Unrecorded Runs",
+            "default": 0
+          },
+          "unattributed_runs": {
+            "type": "integer",
+            "title": "Unattributed Runs",
+            "default": 0
+          },
+          "calls_known": {
+            "type": "boolean",
+            "title": "Calls Known",
+            "default": true
+          },
+          "estimated_usage_calls": {
+            "type": "integer",
+            "title": "Estimated Usage Calls",
+            "default": 0
+          },
+          "cost_estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Estimate"
+          },
+          "cost_known": {
+            "type": "boolean",
+            "title": "Cost Known",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "task_kind"
+        ],
+        "title": "UsageKindView"
       },
       "ValidationError": {
         "properties": {

@@ -1,6 +1,33 @@
-# 本地接口（P1–P5、阅读图谱、问答与Lint/Wiki）
+# 本地接口（Lite P0 与完整模式兼容）
 
-2026-11-07 当前 P5 工作区实现见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)，Lint性能与阶段进度见[ADR0030](adr/0030-lint-performance-and-progress.md)，数据库 head0020。本页维护当前运行接口及明确标注的历史兼容路径；生成 OpenAPI 与 TypeScript 契约同步导出，最新验证、基准与未验收项见[本轮报告](p5-lint-performance-verification-20261107.md)及[实施进度](progress.md)，[续开发报告](p5-verification-20261105.md)保留前轮结果。
+2026-11-09 当前 Lite P0 为数据库 head `0022`，模式和本地阅读基础见 [ADR0031](adr/0031-researchgraph-lite-p0.md) 与 [迁移评估](migration/lite_from_v3_assessment.md)。下文 P5、阅读图谱和 Query 路由继续供完整模式与历史兼容使用；相关原实现见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 和 [ADR0030](adr/0030-lint-performance-and-progress.md)。生成 OpenAPI/TypeScript 是当前契约；实际验证与未完成项见[实施进度](progress.md)。
+
+## Lite P0：项目模式与用量
+
+`POST /api/v1/projects` 接受 `name`、`description` 和可选 `experience_mode: "lite" | "legacy"`。新请求省略模式时默认 `lite`；项目列表和创建响应均返回当前模式。`0021` 把已有项目设为 `legacy`，不重建其论文、图谱、Wiki 或历史模型行；旧幂等创建响应仅在实际项目为 legacy 时兼容重放。P0 没有切换已有项目模式的公开接口。
+
+Lite 模式下，Zotero 批量选择、PDF 解析、章节结构、文本块和 FTS5 索引只做本地处理。服务端强制 `extract_after_parse=false`，Worker 和抽取执行入口阻断旧完整模型任务，Lint 后台维护跳过 Lite 项目。旧接口保留并不授予执行完整模型流程的能力；旧客户端提交后可能得到本地阻断的 Job，`model_calls=0`。legacy 项目继续保留原入口和历史数据。
+
+`GET /api/v1/projects/{project_id}/lite/usage` 接受可选 `paper_id`，返回 `LiteUsageView`。接口核对项目与论文归属；不存在或不属于当前项目的论文返回 `PAPER_NOT_FOUND`。GET 不触发模型、不推进任务、不更新缓存命中或用量行。
+
+| 字段 | 当前含义 |
+| --- | --- |
+| `project_id`、`paper_id` | 汇总项目与可选论文范围 |
+| `calls`、`retry_count` | 已有账本能确认的请求次数和重试数；不是缺失历史的推测值 |
+| `calls_known` | `unrecorded_runs=0` 且 `unattributed_runs=0` 时为 true；false 时 `calls` 只表示可确认部分 |
+| `unrecorded_runs` | 旧 ModelRun/Query/P5 行缺少有效 attempts 账本的数量；不按一行默认推断为一次调用 |
+| `unattributed_runs` | 论文级统计时无法由冻结来源确定为本篇独占的 Query/P5 行数，包含多论文或来源未知记录；其调用、Token 和费用不随意分摊到本篇 |
+| `input_tokens`、`output_tokens`、`total_tokens` | 可获得的 Token 记录合计；有 unknown 或不完整历史时不是完整供应商账单 |
+| `unknown_usage_calls`、`estimated_usage_calls` | usage 未知或明确估算的已知请求计数；估算不冒充 Provider 实测 |
+| `cache_hits` | Lite 显式缓存读取事件数；命中只累加该项，新增调用、重试、Token 与费用均为 0 |
+| `cost_estimate`、`cost_known` | 费用估算及是否完整已知；未知时 `cost_estimate=null`，不能把零个可确认调用当成免费 |
+| `by_kind` | 使用相同口径按 `task_kind` 分组，保留 `legacy:p02`、`legacy:p12`、`legacy:p13`、`legacy:d` 和 `legacy:p5` 等历史类别 |
+
+真正没有模型历史的新 Lite 项目可返回精确零调用、零 Token、`calls_known=true`、`cost_known=true`、`cost_estimate=0.0`。历史有缺账本、无法归属或缺价格时必须保留未知标记，即使当前 `calls=0`；客户端应显示“调用记录不完整”或“费用未知”。论文范围使用 Query/P5 冻结输入的实际来源版本，不用整项目范围或问题检索范围编造调用归属。
+
+`0022` 新增的 `lite_token_usage` 和 `lite_cache_entries` 是后续 B/A/D 的基础。P0 没有卡片/导读/问答生成接口，也没有将它们的 Provider 回调写入用量表的业务路径。内部缓存读写必须给出并重验项目、论文、文献版本及可选小节归属；缓存键绑定来源/输入/模型/Prompt/配置指纹，已保存响应不可原键覆盖，失效通过 stale 标记或新身份表示。这里的校验是保存来源版本的归属和哈希校验，不宣称磁盘原文件持续可用。
+
+## 完整模式与 P5 兼容接口
 
 所有路径以 `/api/v1/projects/{project_id}` 为前缀，仍须回环 Bearer 鉴权和项目隔离。写入操作使用 `Idempotency-Key`（8～120 字符），新增原生目录授权使用独立 native token。模型任务同时要求 `allow_network: true`；准备和轮询不调用模型。
 
@@ -57,7 +84,7 @@ P5/Wiki/Lint的CHANGED/STALE/CONFLICT/REVOKED错误返回409，不存在404，Sc
 
 > 兼容接口说明：本页保留旧审核、v2 P1–P3 和 unified-v3 路由，供旧任务与历史数据读取；新自动阅读流程不调用人工审核接口。P4 Query 与 P5 路由已实现，设计目标与运行差异见[接口映射](07_api_and_events.md)。
 
-版本：0.0.1 开发增量；协议：1；数据库 Schema：0020；阅读任务 paper-reading-v1 / reading-extraction-1.0保持；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1继续兼容。Pydantic为运行契约来源，生成文件为[OpenAPI](../packages/contracts/openapi.json)与[TypeScript](../packages/contracts/generated.ts)。带日期的小节保留当轮兼容背景；当前P5接口见页首，Query增量见文末。
+版本：0.0.1 开发增量；协议：1；数据库 Schema：0022；阅读任务 paper-reading-v1 / reading-extraction-1.0保持；既有领域契约 knowledge-v2.1 和统一抽取/补译 unified-v3.1继续兼容。Pydantic为运行契约来源，生成文件为[OpenAPI](../packages/contracts/openapi.json)与[TypeScript](../packages/contracts/generated.ts)。带日期的小节保留当轮兼容背景；Lite P0 和 P5 接口见页首，Query增量见文末。
 
 ## 连接和权限
 
@@ -71,7 +98,8 @@ Tauri 启动随安装包分发的 Python 引擎，通过私有 stdin 传入随�
 | --- | --- |
 | GET `/api/v1/health` | status、version、protocol_version、schema_version、database（ready）、fts5 |
 | GET `/api/v1/projects?cursor=0&limit=50` | items、next_cursor；当前 cursor 是偏移量，limit 为 1–100 |
-| POST `/api/v1/projects` | name（去空白后 1–120 字符）、description（最多 4000）；201 返回项目 |
+| POST `/api/v1/projects` | name（去空白后 1–120 字符）、description（最多 4000）、experience_mode=lite/legacy（新项目默认 lite）；201 返回含模式的项目 |
+| GET `/api/v1/projects/{id}/lite/usage?paper_id=...` | 只读汇总模型用量、缓存命中、未知账本/归属和费用完整性；不调用模型 |
 | GET `/api/v1/jobs` | 最近 50 个任务 |
 | GET `/api/v1/projects/{id}/jobs?limit=10&cursor=<opaque-token>` | 本项目任务历史；按 `(created_at DESC, id DESC)` 稳定快照 keyset 分页，返回 `items` 与不透明 `next_cursor`，`limit` 为 1–100 |
 | POST `/api/v1/jobs` | 当前只接受 `{"kind":"diagnostics"}`；202 返回任务 |

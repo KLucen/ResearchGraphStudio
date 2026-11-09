@@ -1,12 +1,12 @@
-# 下一轮续接：P5 Lint / Wiki
+# 下一轮续接：ResearchGraph Lite P0 收尾 / P1 规划
 
-更新：2026-11-07（Asia/Shanghai）。本文件用于接续已有工程；产品规范见 00–09，当前状态、最新包和验证分母统一见[实施进度](progress.md)。根[协作规则](../AGENTS.md)和用户当前指令优先。
+更新：2026-11-09（Asia/Shanghai）。Lite P0 已在 `refactor/researchgraph-lite-p0` 完成代码和回归收尾；本文件用于接续已有工程。产品规范见 00–09 与 [`researchgraph_lite_ABD`](researchgraph_lite_ABD/README.md)，当前状态和验证分母统一见[实施进度](progress.md)。根[协作规则](../AGENTS.md)和用户当前指令优先。
 
 ## 开始前
 
-先读根 README、文档导航、progress、开发日志最新条目，再按任务读取 00–09 与相关 ADR。保留工作区已有 P5 运行源、迁移、测试和文档；P5 尚未 Commit/Push，不能将 P4 的远端 CI 当作当前未提交源码验收。
+先读根 README、文档导航、progress、开发日志最新条目，再按任务读取 Lite 规范、00–09 和相关 ADR。保留已有完整工程、Lite P0 运行源、迁移、测试和文档；备份分支已推送，当前 Lite 分支未提交/推送，不能将旧 CI 当作当前 Lite 源码验收。
 
-当前 Alembic head `0020`，领域 `reading-extraction-1.0`、入口 `paper-reading-v1`。0020仅新增Lint阶段/耗时与三个查询索引；不要重建工程、重抽已有论文或改写旧 Prompt/hash/raw、历史任务和原科学知识。
+当前 Alembic head `0022`。`0021` 增加 `projects.experience_mode`，`0022` 增加 Lite 用量/缓存表；不要重建工程、重抽已有论文或改写旧 Prompt/hash/raw、历史任务和原科学知识。旧 P5/head0020 作为兼容能力和历史基线保留。
 
 ## 已完成，避免重复开发
 
@@ -22,12 +22,18 @@
 
 实现及失败尝试见[Lint 性能与进度报告](p5-lint-performance-verification-20261107.md)、[ADR0030](adr/0030-lint-performance-and-progress.md)、[P5 报告](p5-verification-20261105.md)、[扫描反馈修复](p5-scan-feedback-verification-20261105.md)和[ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。参考模板不代替运行 DTO，软件存在不等于真实科学/原生退出验收通过。
 
+## Lite P0 结果与边界
+
+- 新项目默认 Lite；Zotero/PDF/章节/FTS5 本地处理已验证不调用模型，旧项目回填 legacy 并继续可读。
+- Worker、抽取入口和 Lint 维护任务阻断 Lite 的完整模型流程；用量汇总接口和版本缓存基础已接入。
+- 真实模型调用、正式库实验写入、B 卡片、A 导读、D 问答均为 0/未实现；不要把设计规范或离线协议 stub 当真实模型验收。
+- 费用、无 Provider usage 的 Token 和实验条件保持 unknown；不据此推断矛盾或补造条件。
+
 ## 下一步与边界
 
-1. 用户已确认扫描可以继续；继续接收处理方案新包及原生目录选择/发布/重启反馈。已有报告可重新读取，确实未完成才显式继续；不要为显示新方案重抽论文。
-2. 真实 P09/P10/P11 逐段科学验收未执行，没有新增预算。不得继承已结束的 P4/R5 请求或上传授权，不自动读取凭据收费。
-3. 完整 catalog 复验仍逐调用保留；本轮已优化读取、依赖重建与完整影响闭包。固定规模基准应分别记录准备/推进/重建/闭包耗时、实际对象/依赖规模与峰值内存；待测和完成项以本轮报告为准，不把旧 430.284749 秒或 P4 两秒检索目标冒充新成绩。
-4. 保留真实 strict、跨模型/平台、干净机、复杂表格/公式、无 OCR 和四份不可用补充原文限制。
-5. 文档整理、处理方案和性能增量分开记账；新增应用回归/安装器以最新开发日志和 progress 的实际记录为准。后续迁移和故障注入用隔离数据，正式库不作实验。
+1. Lite P1 先实现 B01 论文卡片：受限输入、六字段、证据 Span 白名单、版本缓存和逐尝试用量。
+2. Lite P2/P3 再评估 A01 章节导读与 D01 局部证据问答；没有新的明确预算和真实模型授权，不发起真实调用。
+3. 旧 P5 的扫描/处理方案和原生包反馈仍按历史报告记录，不自动恢复为 Lite 默认流程。
+4. 迁移、故障注入和新回归继续使用隔离数据；不删除旧数据库、图谱、Zotero 数据或私人材料。
 
 [历史报告索引](archive/reports/README.md)与[完整旧进度](archive/reports/progress-through-20261105.md)保留旧成绩及阶段授权。当前用户若授权提交/上传，再进行实际内容、路径、历史、暂存区和 Gitleaks 检查；私人资料和本地安装器不上传。

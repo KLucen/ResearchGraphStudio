@@ -1,19 +1,57 @@
 # 实施进度
 
-更新：2026-11-07（Asia/Shanghai）。本文维护当前状态和下一步；2026-11-05 及更早的完整实施记录移至[历史时间线](archive/reports/progress-through-20261105.md)，各轮失败、分母、授权和交付记录保留，历史阶段限制只适用于对应日期。
+更新：2026-11-09（Asia/Shanghai）。本文维护当前状态和下一步；2026-11-05 及更早的完整实施记录移至[历史时间线](archive/reports/progress-through-20261105.md)。本页下半部分的 P5 成绩、包及未验项是重构前历史，不代表当前 Lite 开发范围。
 
 ## 当前阶段
 
-**P5 — Lint / Wiki 软件主流程已实现，真实科学质量与用户原生退出验收尚未闭环。**
+**ResearchGraph Lite P0（A+B+D 路线）：本地阅读基础、模式开关、用量与缓存基础；完成 P0 后停止，尚未开发 P1。**
 
 | 标识 | 当前值 |
 | --- | --- |
 | 应用版本 | `0.0.1` |
-| Alembic head | `0020` |
+| Alembic head | `0022`：0021 项目模式、0022 用量/缓存 |
+| 新项目默认 / 旧项目迁移 | `lite` / `legacy` |
+| 重构前备份 | `origin/backup/pre-lite-refactor`，`7b45f0dce9168f8b547fca95f06a117e80404198`，已核实远端 |
+| 当前分支 | `refactor/researchgraph-lite-p0`，从备份创建；工作区改动未提交、未推送 |
 | 阅读领域 / 入口 | `reading-extraction-1.0` / `paper-reading-v1` |
 | Query 上下文 / 回答传输 | `query-context-1` / `query-grounded-semantic-1` |
 | P5 工作流传输 | `reading-workflows-1` |
-| 最后提交 | `e24b947`（2026-11-05 P4 交付文档）；当前 P5 改动仍在工作区 |
+
+重构前的架构、功能实际状态、Schema/API、Zotero/PDF/Provider/Knowledge Engine、Token 成本原因与可复用范围已记录在[当前项目基线](current_project_baseline.md)。旧 P5 工程已提交为 `9ef8cde`，基线文档随 `7b45f0d` 保存到独立备份分支。本轮仅向备份分支普通推送，未向 main 或 Lite 分支上传。
+
+## Lite P0 已实现
+
+- 新项目默认 Lite；0021 把既有项目回填为 legacy，保留全部旧论文、图谱、布局、ModelRun/Query/P5 raw 与历史版本。未重建工程或清空旧表。
+- Lite Zotero 选择和 PDF 导入只做本地解析、章节结构、原文块/证据与 FTS5 索引。旧客户端提交 `extract_after_parse=true` 也被服务端规范化为本地处理，ingest 不创建抽取子任务。
+- Worker 阻断 Lite 项目的完整抽取、跨论文推理、Query/P5/翻译模型任务；抽取入口再次保护；后台 Lint 维护跳过 Lite。前端 Lite 默认只显示文献与阅读，legacy 保留原导航和图谱访问。
+- 统一只读用量接口 `GET /api/v1/projects/{project_id}/lite/usage?paper_id=...` 汇总旧账本与新 Lite 记录，区分已知调用、缺账本、usage/费用未知、估算、重试与缓存命中。
+- `lite_token_usage` 与 `lite_cache_entries` 建立论文/文献版本/小节缓存基础；缓存命中计 0 新调用/0 新 Token，键绑定来源、Prompt/Schema、模型和安全配置指纹；旧版本可标记 stale，不自动重算。
+
+用量写入服务与缓存是 P0 基础，尚未有 B/A/D 生成业务或自动 Provider 回调接入。legacy 账本只读聚合，不重写历史；缺失的调用次数、Token 或价格继续标未知。当前零调用的本地流程具有确切的零增量费用，不能将其当作已有历史账单的零费用。
+
+## Lite P0 验证与边界
+
+最终完整后端 **1208 passed / 3 skipped / 1 既有 TestClient 弃用警告**（456.23 秒）；P0/用量/模式专项 **18 passed**，Ruff/256 文件格式、mypy141运行源、Python依赖及生成契约通过。初次全量1194/3为中间结果，不与最终分母累加；旧Schema fixture的6个失败按旧列插入/保持修正，专项56通过。新测试另发现导入未物化FTS，已在Lite保存事务内建立本地来源索引，直接MATCH及重启保持通过；已有依赖cursor的Lite自动Lint维护也已阻断。
+
+最终完整前端 **169 passed / 17 文件**（17.82 秒），TypeScript/ESLint、Prettier、生产构建通过；Rust **20 passed / 1 ignored**，格式检查通过。最终源码重建PyInstaller引擎后，显式原生Host健康握手/停止/重启 **1 passed**（3.41 秒）；Windows PowerShell5.1/System32-only PATH隔离 **17项**通过。源引擎及最终冻结引擎smoke的认证、导入、旧图谱/Query、强退恢复及重启持久化分别通过；每轮旧Query兼容smoke各有 **1 次本地P07协议stub**，不是Lite本地流程或真实模型请求。旧冻结引擎head0020的首次Host失败保留，重建为0022后通过；本轮没有重建NSIS安装器或安装用户应用，未将旧安装器当Lite验收。前端652.72KB chunk及PyInstaller可选模块提示保留。
+
+Lite 本地测试使用至少两份不同的合成 PDF，模型入口设调用哨兵；正常导入/章节索引、重启读取与五类旧排队模型任务均要求调用数为 0。Zotero 测试使用本地匿名 adapter fixture，并非直接操作用户 Zotero 或私人 PDF。
+
+真实模型调用 **0**、正式库实验写入 **0**、私人论文/批注/凭据读取 **0**。实际用户旧库未升级或安装测试；旧数据保持以隔离的已填充历史 Schema 升级和重启回归证明，不能表述为用户所有正式数据已经实际验收。真实 B/A/D 质量、价格、strict、复杂表格/公式、无 OCR、跨平台/干净机和用户安装反馈仍待相应阶段验证。
+
+Lite本地两份PDF的实际增量：输入0 Token、输出0 Token、调用0、重试0、费用0；零值由Provider调用哨兵和空账本共同验证。源码候选内容/私人路径/Gitleaks与全历史扫描、文档链接及清单复核的最终结果见DEV-0063；Lite改动保留在本地工作区，未Commit/Push。
+
+最终冻结引擎独立Lite探针也通过：默认Lite项目、合成PDF导入、4个文本块和用量接口calls/input/output/total均为0，正常EOF退出。首次临时探针使用过短会话令牌未启动，已清理后以合法令牌重跑，不计失败尝试为通过。
+
+## 下一阶段（尚未开始）
+
+Lite P1 仅做 **B01 六字段论文卡片**：受限源段落选择、Span 白名单、版本化结果和缓存、显式“生成/重新生成”与费用提示、逐请求 Provider usage/失败重试记账，验证二次打开缓存零新增调用。A 章节导读、D 局部问答和完整预算设置在后续阶段。本轮不提前实现这些业务，也不追加真实模型调用。
+
+迁移/复用映射见[Lite迁移评估](migration/lite_from_v3_assessment.md)，决策见[ADR0031](adr/0031-researchgraph-lite-p0.md)，目标设计见[Lite A+B+D](researchgraph_lite_ABD/README.md)。
+
+## 重构前 P5 状态（截至 2026-11-07）
+
+**以下是 backup/pre-lite-refactor 所含完整模式的历史状态；P5 的真实科学质量与用户原生退出验收尚未闭环，不作为 Lite P0 的未完成开发任务自动续做。**
 
 已接入确定性 Lint、稳定问题指纹/生命周期、反向依赖与影响闭包、P09/P10/P11 独立任务、Wiki 草稿/不可变保存/历史、受管 Markdown 发布/恢复和局部更新。笔记快照、批注评论和外部 Markdown 版本按来源选择；local/model 用途与目录写入授权分别校验。实现边界见[ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)与[P5 实施报告](p5-verification-20261105.md)。
 
@@ -31,7 +69,7 @@
 
 上述为带日期的历史成绩。本轮性能优化已完成同字节脚本的串行前后基准：完整推进 856.662931→469.026664 秒，依赖重建 13.185584→3.217814 秒，反向查询 P95 1.027968→0.030090 秒，峰值 RSS 300.695→247.469 MiB。完整 catalog 仍逐调用重验且占主要耗时，不能宣称所有项目即时完成，也不继承 P4 的两秒检索目标。具体实现、SQL/阶段计时及失败尝试见[本轮性能报告](p5-lint-performance-verification-20261107.md)与[ADR0030](adr/0030-lint-performance-and-progress.md)。
 
-## 当前交付包
+## 重构前历史交付包
 
 最新性能与阶段反馈包为 `.local/releases/p5-lint-performance-20261107/ResearchGraph Studio_0.0.1_x64-setup.exe`，39,054,979 字节，SHA256：
 
@@ -39,13 +77,13 @@
 
 退出旧应用后安装此包，首次启动按既有机制先备份再升级到0020；原论文、报告、旧科学输入与版本保持。打开“Lint / Wiki”中的原报告并“重新读取报告”，未完成则显式继续；新推进记录阶段耗时，历史未记录耗时不会补造。新全范围扫描可观察对象检查满数后仍进行的依赖重建阶段，不需重抽论文。旧 `p5-lint-repair-20261107`、`p5-scan-status-20261105` 和 `p5-lint-wiki-complete-20261105` 包保留。用户确认旧扫描可以继续；本性能包的用户原生升级/扫描、目录选择、发布和重启反馈仍需分别确认。
 
-## 待完成与下一步
+## P5 历史未验项
 
 - 扫描可以继续已收到用户确认；性能/阶段反馈新版及原生目录选择、发布/重启反馈仍待确认。
 - 真实 P09/P10/P11 逐段科学验收尚未执行，当前没有新增付费预算，不继承已结束的 P4/R5 调用授权。
 - Lint 本轮已优化并新跑同规格基准，完整 catalog 复验仍是主要耗时；用户原生效果另验，历史文档整理没有重跑性能。
 - 真实 strict、跨模型/平台、干净机、复杂表格/公式和无 OCR 限制，以及 S1–S4 四份不可用补充原文单列保留。
-- P5 未提交、未推送；提交/上传需要新的明确授权及实际内容/暂存区安全检查。
+- 截至11月7日当轮P5未提交、未推送；该快照现已包含在11月9日的重构前备份，不能将历史授权状态作为当前分支状态。
 
 本次 P5 开发及反馈修复真实模型调用 0、正式库实验写入 0；未替用户安装、未使用 Computer Use。合成协议通过不代表科学语义和 P5 全部退出门槛通过。
 

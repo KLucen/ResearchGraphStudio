@@ -22,7 +22,10 @@ def test_0011_preserves_all_old_tables_and_backup(tmp_path):
     with engine.begin() as connection:
         config.attributes["connection"] = connection
         command.upgrade(config, "0009")
-        connection.exec_driver_sql("INSERT INTO projects VALUES ('p','Synthetic','', 'now')")
+        connection.exec_driver_sql(
+            "INSERT INTO projects (id, name, description, created_at) VALUES "
+            "('p','Synthetic','', 'now')"
+        )
     path = tmp_path / "researchgraph.sqlite3"
     with sqlite3.connect(path) as db:
         tables = [
@@ -31,16 +34,34 @@ def test_0011_preserves_all_old_tables_and_backup(tmp_path):
                 "SELECT name FROM sqlite_master WHERE type='table' AND name != 'alembic_version'"
             )
         ]
-        before = {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables}
+        before = {
+            t: db.execute(
+                'SELECT id, name, description, created_at FROM "projects"'
+                if t == "projects"
+                else f'SELECT * FROM "{t}"'
+            ).fetchall()
+            for t in tables
+        }
     migrate(engine, tmp_path)
     with sqlite3.connect(path) as db:
-        assert {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables} == before
+        after = {
+            t: db.execute(
+                'SELECT id, name, description, created_at FROM "projects"'
+                if t == "projects"
+                else f'SELECT * FROM "{t}"'
+            ).fetchall()
+            for t in tables
+        }
+        assert after == before
         assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == (SCHEMA_HEAD,)
     with sqlite3.connect(next((tmp_path / "backups").glob("*.sqlite3"))) as backup:
         assert backup.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
-        assert backup.execute("SELECT * FROM projects").fetchall() == before["projects"]
+        assert (
+            backup.execute("SELECT id, name, description, created_at FROM projects").fetchall()
+            == before["projects"]
+        )
     migrate(engine, tmp_path)
     assert len(list((tmp_path / "backups").glob("*.sqlite3"))) == 1
     engine.dispose()

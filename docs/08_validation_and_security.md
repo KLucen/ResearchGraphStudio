@@ -1,6 +1,8 @@
 # 08 — 验证、安全与质量评价（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：已验证 Lite 本地解析和章节索引不调用模型、旧项目数据可读、旧高成本任务在 Lite 中被阻断；未验证真实 Provider Token/费用、B/A/D 科学质量或完整 Lite 业务。`unknown` 表示信息或计量缺口，不推断矛盾、不补造条件，也不把未知费用写成零。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 ## 历史科学质量边界
 
@@ -10,7 +12,7 @@ P4 原十题 64 支持/7 部分/1 数值错误、v2 补验 5/1 与后续 v3 补�
 
 当前P13协议可靠性按[ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md)验收：程序固定槽位与精确Schema、严格拒绝未知字段/重复键、局部有效结果私有保留、一次定向修复及持久两请求上限。旧失败任务独立续接且P12原响应重验零调用采用；不要求用户换模型。格式恢复和真实科学质量分别评价，R5既有实测按对应报告保留，不为Query开发重复付费排序。
 
-R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代关系/依赖状态，缓存组单元、P13请求前/后和Store发布必须再验合法路径；关系变化停止且不改写历史模型状态或重复收费。实际自动化、真实模型、用户反馈与安装结果见[R5补验收报告](archive/reports/r5-acceptance-verification-20261104.md)，早期失败历史见[R5收尾报告](archive/reports/r5-final-verification-20261103.md)。P4基础及回答/保存边界分别见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)与ADR0023，P4实际结果按历史报告保留；当前P5结果与未验收项见[续开发报告](p5-verification-20261105.md)。
+R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代关系/依赖状态，缓存组单元、P13请求前/后和Store发布必须再验合法路径；关系变化停止且不改写历史模型状态或重复收费。实际自动化、真实模型、用户反馈与安装结果见[R5补验收报告](archive/reports/r5-acceptance-verification-20261104.md)，早期失败历史见[R5收尾报告](archive/reports/r5-final-verification-20261103.md)。P4基础及回答/保存边界分别见[ADR0022](adr/0022-query-foundation-and-versioned-context.md)与ADR0023，P4实际结果按历史报告保留；重构前P5结果与未验收项见[续开发报告](p5-verification-20261105.md)。
 
 ## 必须成立的不变量
 
@@ -60,7 +62,7 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 
 ## Q01～Q04基础验证边界（历史验收范围）
 
-以下保留Q01～Q04/head0012基础验收范围；该轮没有模型调用或正式库实验升级，结果见[基础报告](archive/reports/p4-query-foundation-verification-20261104.md)。P4当时head0014的回答/保存及反馈修复见下方P4-Q05～Q08小节；当前head0020的P5结果见性能报告及续开发报告，不用参考契约测试或本地准备代替真实回答验收。
+以下保留Q01～Q04/head0012基础验收范围；该轮没有模型调用或正式库实验升级，结果见[基础报告](archive/reports/p4-query-foundation-verification-20261104.md)。P4当时head0014的回答/保存及反馈修复见下方P4-Q05～Q08小节；重构前head0020的P5结果见性能报告及续开发报告，不用参考契约测试或本地准备代替真实回答验收。Lite P0当前head0022的实际结果见[Lite迁移评估](migration/lite_from_v3_assessment.md)。
 
 - 契约/存储：严格QueryRequest拒绝额外键、空白问题和重复范围；当时QueryAnswer/QuerySaveCommand仅预留，后续已由Q05/Q07接入；0011旧表原列/raw/任务逐行保持，0012备份准确，重启可读，重复启动不多备份。
 - 本地召回：完整合法候选、首屏外/隐藏/收起/retrieval_only、仅原文、已有中英文/术语/数字/单位、来源/类型过滤及特殊FTS字符。派生索引破损可重建，刷新不改变原文或科学表。
@@ -70,7 +72,7 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 - 授权矩阵：默认不读个人笔记或最终被排除的个人文档文件；local/model用途独立、默认禁止外发，撤权穿透文档/缓存/幂等响应；重新授权读取不能静默恢复外发。笔记实际字节、BOM与存储文本hash均核对，目录越界/链接/读取期间替换不放行。
 - 只读与恢复：检索可写派生索引，prepare可写QueryRun和审计；科学知识/关系/选择/布局及GraphRevision不变。GET历史、重复prepare和validate重新终验，变化时拒绝返回旧上下文，保留原记录而不触发模型重试。
 
-上述历史核验只证明身份/锚点/结构/权限与确定性比较，不证明科学结论正确；当时尚未执行回答/保存。当前P07、界面、保存、检索金标和性能的实际结果统一见[P4报告](archive/reports/p4-query-verification-20261104.md)，用户原生反馈、真实质量、离线协议与干净机分别记录。P5发布现已接入，其实际验证与退出未验项按独立P5报告登记。
+上述历史核验只证明身份/锚点/结构/权限与确定性比较，不证明科学结论正确；当时尚未执行回答/保存。P07、界面、保存、检索金标和性能的实际结果统一见[P4报告](archive/reports/p4-query-verification-20261104.md)，用户原生反馈、真实质量、离线协议与干净机分别记录。P5发布曾在完整模式接入，其实际验证与退出未验项按独立P5报告登记。
 
 ## 真实质量评价
 
@@ -90,7 +92,7 @@ R5补充[ADR0019](adr/0019-support-path-revalidation.md)：候选哈希不替代
 
 ## 验收状态
 
-R1–R4已接入，R5补验收在报告范围内通过；P4已接入并保留历史验收记录，当前P5 Lint/Wiki已接入head0020；真实P09/P10/P11逐段科学审读、原生目录授权及用户退出反馈尚未验收。结构解析合成测试、失败响应重验或本地Query准备不代表真实回答质量通过。章节/双栏/表格仍采用启发式，无OCR或公式语义重建；复杂版面、真实strict、干净机及四份外部补充原文不可用等限制见[progress](progress.md)。历史报告不反向改写。
+R1–R4已接入，R5补验收在报告范围内通过；P4已接入并保留历史验收记录，重构前P5 Lint/Wiki已接入head0020；Lite P0当前head0022已验证本地解析零模型调用和旧数据可读。真实P09/P10/P11逐段科学审读、B/A/D质量、原生目录授权及用户退出反馈尚未验收。结构解析合成测试、失败响应重验或本地Query准备不代表真实回答质量通过。章节/双栏/表格仍采用启发式，无OCR或公式语义重建；复杂版面、真实strict、干净机及四份外部补充原文不可用等限制见[progress](progress.md)。历史报告不反向改写。
 
 ## P4-Q05～Q08 验证边界
 

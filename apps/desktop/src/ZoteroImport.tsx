@@ -44,9 +44,11 @@ function errorText(error: unknown): string {
 export function ZoteroImport({
   projectId,
   connected,
+  liteMode = false,
 }: {
   projectId: string;
   connected: boolean;
+  liteMode?: boolean;
 }) {
   const client = useQueryClient();
   const [library, setLibrary] = useState("users/0");
@@ -56,7 +58,7 @@ export function ZoteroImport({
   const [start, setStart] = useState(0);
   const [chosen, setChosen] = useState<Record<string, Choice>>({});
   const [mode, setMode] = useState<"reference" | "managed">("reference");
-  const [extractAfter, setExtractAfter] = useState(true);
+  const [extractAfter, setExtractAfter] = useState(!liteMode);
   const provider = "project";
   const [allow, setAllow] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -117,9 +119,9 @@ export function ZoteroImport({
           collection_key: collection,
           selections: Object.values(chosen),
           mode,
-          extract_after_parse: extractAfter,
+          extract_after_parse: liteMode ? false : extractAfter,
           provider,
-          allow_network: allow,
+          allow_network: liteMode ? false : allow,
         },
         crypto.randomUUID(),
       ),
@@ -326,23 +328,31 @@ export function ZoteroImport({
             >
               下一页
             </button>
-            <label>
-              <input
-                type="checkbox"
-                checked={extractAfter}
-                onChange={(e) => setExtractAfter(e.target.checked)}
-              />
-              解析后直接建图
-            </label>
-            <span>全局 Extraction 模型</span>
-            <label>
-              <input
-                type="checkbox"
-                checked={allow}
-                onChange={(e) => setAllow(e.target.checked)}
-              />
-              同意向已配置模型发送所选论文原文片段
-            </label>
+            {liteMode ? (
+              <span className="quality-note">
+                Lite 模式：仅解析、建立章节和全文索引，不调用模型。
+              </span>
+            ) : (
+              <>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={extractAfter}
+                    onChange={(e) => setExtractAfter(e.target.checked)}
+                  />
+                  解析后直接建图
+                </label>
+                <span>全局 Extraction 模型</span>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allow}
+                    onChange={(e) => setAllow(e.target.checked)}
+                  />
+                  同意向已配置模型发送所选论文原文片段
+                </label>
+              </>
+            )}
             <label>
               保存方式
               <select
@@ -358,13 +368,13 @@ export function ZoteroImport({
               disabled={
                 !connected ||
                 submit.isPending ||
-                (extractAfter && !allow) ||
+                (!liteMode && extractAfter && !allow) ||
                 Object.keys(chosen).length === 0 ||
                 Object.keys(chosen).length > 50
               }
               onClick={() => submit.mutate()}
             >
-              {extractAfter ? "开始建图" : "仅解析"} · 已选{" "}
+              {liteMode || !extractAfter ? "仅解析" : "开始建图"} · 已选{" "}
               {Object.keys(chosen).length} 个附件
             </button>
             <button className="text-button" onClick={() => setChosen({})}>
@@ -392,11 +402,13 @@ export function ZoteroImport({
                     {job.stage ? `· ${stages[job.stage] ?? job.stage}` : ""}{" "}
                     {job.result?.reused ? "· 内容已存在，复用版本" : ""}
                   </span>
-                  {typeof job.result?.extraction_job_id === "string" && (
-                    <small>统一抽取已排队，批次进度及重试见任务记录。</small>
-                  )}
+                  {!liteMode &&
+                    typeof job.result?.extraction_job_id === "string" && (
+                      <small>统一抽取已排队，批次进度及重试见任务记录。</small>
+                    )}
                   {job.error && <p role="alert">{job.error}</p>}
-                  {job.status === "succeeded" &&
+                  {!liteMode &&
+                    job.status === "succeeded" &&
                     !job.result?.extraction_job_id &&
                     typeof job.result?.revision_id === "string" && (
                       <button

@@ -14,6 +14,7 @@ vi.mock("./api", () => ({
     importPdf: vi.fn(),
     paper: vi.fn(),
     chunks: vi.fn(),
+    liteUsage: vi.fn(),
   },
 }));
 beforeEach(() => {
@@ -21,8 +22,29 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.papers).mockResolvedValue({ items: [], next_cursor: null });
   vi.mocked(api.jobs).mockResolvedValue([]);
+  vi.mocked(api.liteUsage).mockResolvedValue({
+    project_id: "p",
+    paper_id: null,
+    calls: 0,
+    retry_count: 0,
+    cache_hits: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    unknown_usage_calls: 0,
+    calls_known: true,
+    unrecorded_runs: 0,
+    unattributed_runs: 0,
+    estimated_usage_calls: 0,
+    cost_estimate: 0,
+    cost_known: true,
+    by_kind: [],
+  });
 });
-function mount(connected = true) {
+function mount(
+  connected = true,
+  experienceMode: "lite" | "legacy" | "full" = "full",
+) {
   return render(
     <QueryClientProvider
       client={
@@ -34,7 +56,11 @@ function mount(connected = true) {
         })
       }
     >
-      <Papers projectId="p" connected={connected} />
+      <Papers
+        projectId="p"
+        connected={connected}
+        experienceMode={experienceMode}
+      />
     </QueryClientProvider>,
   );
 }
@@ -137,4 +163,84 @@ test("native import rejection is shown without adding fake results", async () =>
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "提交导入任务失败",
   );
+});
+
+test("Lite usage keeps cache hits out of new call counts", async () => {
+  vi.mocked(api.liteUsage).mockResolvedValue({
+    project_id: "p",
+    paper_id: null,
+    calls: 0,
+    retry_count: 0,
+    cache_hits: 2,
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    unknown_usage_calls: 0,
+    calls_known: true,
+    unrecorded_runs: 0,
+    unattributed_runs: 0,
+    estimated_usage_calls: 0,
+    cost_estimate: 0,
+    cost_known: true,
+    by_kind: [],
+  });
+  mount(true, "lite");
+  expect(
+    await screen.findByRole("region", { name: "Lite 模型用量" }),
+  ).toHaveTextContent("0 次新增模型调用");
+  expect(
+    screen.getByText("缓存命中 2 次，未产生新的模型调用或 Token。"),
+  ).toBeVisible();
+  expect(screen.queryByText("2 次调用")).not.toBeInTheDocument();
+});
+
+test("paper usage explains incomplete and unattributed historical counts", async () => {
+  const user = userEvent.setup();
+  const paper = {
+    id: "paper",
+    project_id: "p",
+    title: "Filtered paper",
+    created_at: "2026-11-09T00:00:00Z",
+  };
+  vi.mocked(api.papers).mockResolvedValue({
+    items: [paper],
+    next_cursor: null,
+  });
+  vi.mocked(api.paper).mockResolvedValue({
+    paper,
+    sources: [],
+    zotero_links: [],
+    revisions: [],
+  });
+  vi.mocked(api.liteUsage).mockImplementation(async (_projectId, paperId) => ({
+    project_id: "p",
+    paper_id: paperId ?? null,
+    calls: paperId ? 3 : 4,
+    retry_count: 0,
+    cache_hits: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    unknown_usage_calls: 0,
+    calls_known: false,
+    unrecorded_runs: paperId ? 2 : 1,
+    unattributed_runs: paperId ? 4 : 0,
+    estimated_usage_calls: 0,
+    cost_estimate: null,
+    cost_known: false,
+    by_kind: [],
+  }));
+  mount(true, "lite");
+  await user.click(
+    await screen.findByRole("button", { name: "Filtered paper" }),
+  );
+  expect(
+    await screen.findByText("已记录调用 3 次；另有 2 条历史记录未记录调用次数"),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "另有 4 条项目级历史请求未归入这篇论文，以上单篇统计不包含它们。",
+    ),
+  ).toBeVisible();
+  expect(api.liteUsage).toHaveBeenLastCalledWith("p", "paper");
 });

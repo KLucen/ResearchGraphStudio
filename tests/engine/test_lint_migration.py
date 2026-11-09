@@ -141,10 +141,10 @@ def test_0019_lint_upgrade_backup_defaults_indexes_restart_and_idempotency(
     database = data / "researchgraph.sqlite3"
     engine = make_engine(data)
     migrate(engine, data)
-    assert SCHEMA_HEAD == "0020"
+    assert SCHEMA_HEAD == "0022"
     assert_old_values(database, before)
     with sqlite3.connect(database) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0020",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0022",)
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         for run_id, status, phase, timings in connection.execute(
@@ -198,7 +198,7 @@ def test_0019_lint_upgrade_backup_defaults_indexes_restart_and_idempotency(
     monkeypatch.setattr("httpx.AsyncClient.send", forbidden_network)
     for _ in range(2):
         with client(data, worker=True) as api:
-            assert api.get("/api/v1/health").json()["schema_version"] == "0020"
+            assert api.get("/api/v1/health").json()["schema_version"] == "0022"
             for run_id, original in runs.items():
                 response = api.get(f"/api/v1/projects/project/lint/runs/{run_id}")
                 assert response.status_code == 200, response.text

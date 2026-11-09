@@ -1,6 +1,8 @@
 # 05 — 阅读辅助 Prompt 与调用协议（设计 v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：本页保留完整工程 Prompt/协议设计；Lite P0 的论文选择、PDF 解析、章节索引不触发任何 Prompt。B01/A01/D01 仅为后续显式任务设计，当前没有真实 Provider 调用或质量验收。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 当前参考模板统一版本 `reading-1.0`，各文件声明 output_contract。当前运行传输按 [ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 使用新语义协议；参考内部对象不直接等于模型 wire Schema。旧运行模板、哈希与任务计划保持，不覆盖历史。对照见 [迁移计划](06_development_migration_plan.md)。
 

@@ -18,6 +18,10 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text)
+    # Direct ORM fixtures created before Lite mode remain compatible with the
+    # historical product.  The project creation API supplies ``lite``
+    # explicitly for all newly created projects.
+    experience_mode: Mapped[str] = mapped_column(String(16), default="legacy")
     created_at: Mapped[str] = mapped_column(String(40))
 
 

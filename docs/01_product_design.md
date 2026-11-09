@@ -1,6 +1,8 @@
 # 01 — 科研论文阅读辅助产品设计（v3.3）
 
-当前运行基线为 P5 — Lint / Wiki、Alembic `0020`。功能状态、最新修复包与未验收项统一见 [实施进度](progress.md)；P5 设计决策见 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md)。本页维护设计与实现边界，历史验收按各轮报告保留。
+> **当前 Lite P0 覆盖（2026-11-09）**：本页保留完整阅读产品设计；当前 Lite 仅完成 P0 模式开关、本地解析/章节/FTS5 索引、旧高成本流程默认关闭、用量与缓存基础。B/A/D 生成流程仍是后续阶段，不要把目标契约当成已验收功能。详见 [Lite 迁移评估](migration/lite_from_v3_assessment.md) 与 [ADR0031](adr/0031-researchgraph-lite-p0.md)。以下 v3.3 内容保留完整模式与历史兼容边界，P5/head0020 是重构前基线。
+
+重构前完整模式基线为 P5 — Lint / Wiki、Alembic `0020`；当前 Lite P0 为 `0022`，实际状态统一见 [实施进度](progress.md)。P5 设计决策和未验收项保留在 [ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) 与对应历史报告中，本页其余完整模式设计继续用于 legacy 兼容。
 
 ## 目标体验
 
@@ -8,7 +10,7 @@
 
 ## 从自动建图到阅读知识循环
 
-完整流程图见[项目介绍](../README.md#从论文到阅读知识)。自动建图与阅读交互、P4多源检索/图谱扩展/P07回答、项目问答页面和显式保存已接入。P5已在共享文档和依赖基础上接入Lint、Wiki主题草稿/保存、受管Markdown导出和局部更新；下图表达生命周期，功能接入不代表真实科学与原生退出验收通过。当前验证边界见[P5报告](p5-verification-20261105.md)，P4结果保留在原报告。
+完整流程图见[项目介绍](../README.md#从论文到阅读知识)。自动建图与阅读交互、P4多源检索/图谱扩展/P07回答、项目问答页面和显式保存已接入 legacy 完整模式。P5曾在共享文档和依赖基础上接入Lint、Wiki主题草稿/保存、受管Markdown导出和局部更新；下图表达完整模式生命周期，功能接入不代表真实科学与原生退出验收通过。Lite P0 默认不启动这些高成本流程，当前验证边界见[Lite迁移评估](migration/lite_from_v3_assessment.md)，旧P5结果保留在历史报告。
 
 ```mermaid
 flowchart TD

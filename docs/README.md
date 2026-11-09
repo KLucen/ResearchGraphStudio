@@ -1,17 +1,20 @@
 # 文档导航
 
-更新：2026-11-07（Asia/Shanghai）。当前为 **P5 — Lint / Wiki**，Alembic head `0020`。软件主流程、扫描阶段反馈及依赖性能优化已接入；真实 P09/P10/P11 科学质量、新包原生反馈及跨平台/干净机/strict 验收仍待完成。当前状态集中维护在[实施进度](progress.md)，本页提供文档入口。
+更新：2026-11-09（Asia/Shanghai）。当前为 **ResearchGraph Lite P0（A+B+D）**，Alembic head `0022`。新项目默认本地解析/章节/FTS5 索引且 0 次 LLM 调用；旧项目 `legacy` 和历史图谱保持可读。完整 P5/Lint/Wiki 作为旧兼容能力保留但不再是 Lite 默认路径；B/A/D 业务仍待后续阶段。当前状态集中维护在[实施进度](progress.md)，本页提供文档入口。
+
+Lite P0 迁移评估见[文档](migration/lite_from_v3_assessment.md)，决策见[ADR0031](adr/0031-researchgraph-lite-p0.md)。
 
 ## 先读哪些文档
 
 | 目的 | 入口 |
 | --- | --- |
 | 了解产品和实际进度 | [根 README](../README.md) · [实施进度](progress.md) |
+| Lite 迁移与当前基线 | [Lite 规范](researchgraph_lite_ABD/README.md) · [迁移评估](migration/lite_from_v3_assessment.md) · [重构前基线](current_project_baseline.md) · [ADR0031](adr/0031-researchgraph-lite-p0.md) |
 | 接续当前开发 | [根协作规则](../AGENTS.md) · [下一轮续接](CODEX_NEXT_TURN.md) · [开发日志](../DEVELOPMENT_LOG.md) |
 | 查看最新 P5 验证和操作步骤 | [Lint 性能与进度报告](p5-lint-performance-verification-20261107.md) · [P5 实施报告](p5-verification-20261105.md) · [扫描反馈修复](p5-scan-feedback-verification-20261105.md) |
 | 查阅历史结果 | [历史报告索引](archive/reports/README.md) · [完整旧进度](archive/reports/progress-through-20261105.md) · [历史设计索引](archive/README.md) |
 
-产品辅助科研论文阅读，不预设研究方向，统一称知识图谱。默认“论文→核心结论→有据支撑”，候选、原文、表格、证据和模型原输出保留；当前自动流程没有人工审核、待审或接受/驳回环节。Query 沿完整合法知识及根证据检索，不受画布分页/折叠影响；明确保存才形成衍生阅读知识。Wiki 是有版本和逐段依赖的阅读文档，Lint 检查来源/支撑/依赖/文件状态；Markdown 导出需要独立写入授权。
+产品辅助科研论文阅读，不预设研究方向。Lite 默认先本地解析和索引；下述 v3.3/00–09 完整模式设计仍保留“论文→核心结论→有据支撑”的历史兼容边界。原文、表格、证据和模型原输出不删除；旧 Query/Wiki/Lint 的授权、来源和写入要求继续适用，但不会因打开 Lite 论文而自动执行。
 
 ## 当前设计与运行说明
 

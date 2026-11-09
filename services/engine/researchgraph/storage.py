@@ -9,7 +9,7 @@ from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-SCHEMA_HEAD = "0020"
+SCHEMA_HEAD = "0022"
 
 
 def make_engine(data_dir: Path) -> Engine:

@@ -52,6 +52,7 @@ vi.mock("./api", () => ({
     projectJobs: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
     restart: vi.fn(),
     papers: vi.fn(),
+    liteUsage: vi.fn(),
   },
 }));
 beforeEach(() => {
@@ -72,6 +73,24 @@ beforeEach(() => {
   });
   vi.mocked(api.projects).mockResolvedValue({ items: [], next_cursor: null });
   vi.mocked(api.papers).mockResolvedValue({ items: [], next_cursor: null });
+  vi.mocked(api.liteUsage).mockResolvedValue({
+    project_id: "p",
+    paper_id: null,
+    calls: 0,
+    retry_count: 0,
+    cache_hits: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    total_tokens: 0,
+    unknown_usage_calls: 0,
+    calls_known: true,
+    unrecorded_runs: 0,
+    unattributed_runs: 0,
+    estimated_usage_calls: 0,
+    cost_estimate: 0,
+    cost_known: true,
+    by_kind: [],
+  });
   vi.mocked(api.jobs).mockResolvedValue([]);
 });
 function mount() {
@@ -96,6 +115,7 @@ test("create project persists via API and opens the project workspace", async ()
     id: "project-1",
     name: "研究一",
     description: "",
+    experience_mode: "lite",
     created_at: "2026-10-27T00:00:00Z",
   });
   mount();
@@ -121,6 +141,7 @@ test("failed creation keeps the dialog and reuses idempotency key when retried",
       id: "p",
       name: "A",
       description: "",
+      experience_mode: "lite",
       created_at: "2026-10-27T00:00:00Z",
     });
   mount();
@@ -179,6 +200,7 @@ test("project Query tab opens independently and evidence focus switches to the o
         id: "p",
         name: "合成项目",
         description: "",
+        experience_mode: "legacy",
         created_at: "2026-11-04T00:00:00Z",
       },
     ],
@@ -196,6 +218,32 @@ test("project Query tab opens independently and evidence focus switches to the o
   ).toHaveTextContent("来源节点：synthetic-claim");
 });
 
+test("Lite projects keep local reading as the only default workspace", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.projects).mockResolvedValue({
+    items: [
+      {
+        id: "lite-project",
+        name: "Lite 项目",
+        description: "",
+        experience_mode: "lite",
+        created_at: "2026-11-09T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  mount();
+  await user.click(
+    await screen.findByRole("button", { name: /Lite 项目 本地项目/ }),
+  );
+  expect(screen.getByText(/Lite 阅读模式/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "文献与阅读" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "图谱与比较" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "问答与阅读知识" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Lint 诊断" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Wiki 阅读整理" })).toBeNull();
+});
+
 test("Lint and Wiki tabs navigate to existing graph and page without losing sidebar collapse", async () => {
   const user = userEvent.setup();
   vi.mocked(api.projects).mockResolvedValue({
@@ -204,6 +252,7 @@ test("Lint and Wiki tabs navigate to existing graph and page without losing side
         id: "p",
         name: "合成P5项目",
         description: "",
+        experience_mode: "legacy",
         created_at: "2026-11-05T00:00:00Z",
       },
     ],

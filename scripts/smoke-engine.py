@@ -213,13 +213,13 @@ def run(executable: Path | None, *, source_python: Path | None = None) -> dict[s
                 raise AssertionError("Unauthenticated request succeeded")
             except urllib.error.HTTPError as error:
                 assert error.code == 401
-            project = request(
-                port, "/projects", "POST", {"name": "中文项目", "description": "Smoke"}
-            )
-            assert (
-                request(port, "/projects", "POST", {"name": "中文项目", "description": "Smoke"})
-                == project
-            )
+            project_body = {
+                "name": "中文项目",
+                "description": "Smoke",
+                "experience_mode": "legacy",
+            }
+            project = request(port, "/projects", "POST", project_body)
+            assert request(port, "/projects", "POST", project_body) == project
             job = request(port, "/jobs", "POST", {"kind": "diagnostics"})
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:

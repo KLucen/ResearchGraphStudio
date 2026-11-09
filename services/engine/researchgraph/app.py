@@ -195,6 +195,20 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind in {
+                "knowledge_extract",
+                "knowledge_reason",
+                "query_answer",
+                "p5_workflow",
+                "translation_repair",
+            }:
+                from researchgraph.lite_mode import block_model_job, is_lite_project
+
+                with Session(engine) as session, session.begin():
+                    current = session.get(Job, job_id)
+                    if current is not None and is_lite_project(session, current.project_id):
+                        block_model_job(session, current)
+                        continue
             if kind == "p5_workflow":
                 from researchgraph.p5_execution import execute as execute_p5
 
@@ -400,6 +414,9 @@ def create_app(
     from researchgraph.reading_api import register_reading_api
 
     register_reading_api(app, engine)
+    from researchgraph.lite_usage import register_lite_usage_api
+
+    register_lite_usage_api(app, engine)
     from researchgraph.translation import register_translation_api
 
     register_translation_api(app, engine)
@@ -432,9 +449,31 @@ def create_app(
     def create_project(body: ProjectCreate, idempotency_key: Key) -> ProjectView:
         key, payload = f"project:{idempotency_key}", body.model_dump()
         with Session(engine()) as session, session.begin():
+            existing = session.get(Idempotency, key)
+            if (
+                existing is not None
+                and "experience_mode" not in body.model_fields_set
+                and "experience_mode" not in existing.response
+            ):
+                # A project created before Lite used a two-field request hash.
+                # Preserve exact old replay without letting an explicit mode
+                # change reuse the historical idempotency key.
+                old_payload = {
+                    name: value for name, value in payload.items() if name != "experience_mode"
+                }
+                old_response = remembered(session, key, old_payload)
+                if old_response:
+                    project = session.get(Project, old_response.get("id"))
+                    if project is None or project.experience_mode != "legacy":
+                        raise failure(409, "IDEMPOTENCY_CONFLICT", "历史项目模式与请求标识不一致")
+                    return ProjectView.model_validate(old_response)
             previous = remembered(session, key, payload)
             if previous:
                 return ProjectView.model_validate(previous)
+            # New projects start in Lite mode.  The mode is part of the
+            # idempotency payload through ``ProjectCreate.model_dump()`` and
+            # remains immutable in P0; legacy projects keep their historical
+            # mode after the additive migration backfill.
             project = Project(id=str(uuid4()), created_at=now(), **payload)
             session.add(project)
             session.flush()
@@ -634,7 +673,8 @@ def create_app(
         payload = {"path": str(path.resolve()), "mode": body.mode, "project_id": project_id}
         key = f"pdf-import:{idempotency_key}"
         with Session(engine()) as session, session.begin():
-            if not session.get(Project, project_id):
+            project = session.get(Project, project_id)
+            if not project:
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
             previous = remembered(session, key, payload)
             if previous:

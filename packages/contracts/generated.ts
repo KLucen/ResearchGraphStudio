@@ -1558,6 +1558,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/lite/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Usage */
+        get: operations["usage_api_v1_projects__project_id__lite_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/graph/translate": {
         parameters: {
             query?: never;
@@ -2534,6 +2551,77 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
         };
+        /** LiteUsageView */
+        LiteUsageView: {
+            /** Project Id */
+            project_id: string;
+            /** Paper Id */
+            paper_id?: string | null;
+            /**
+             * Calls
+             * @default 0
+             */
+            calls: number;
+            /**
+             * Retry Count
+             * @default 0
+             */
+            retry_count: number;
+            /**
+             * Cache Hits
+             * @default 0
+             */
+            cache_hits: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Unknown Usage Calls
+             * @default 0
+             */
+            unknown_usage_calls: number;
+            /**
+             * Unrecorded Runs
+             * @default 0
+             */
+            unrecorded_runs: number;
+            /**
+             * Unattributed Runs
+             * @default 0
+             */
+            unattributed_runs: number;
+            /**
+             * Calls Known
+             * @default true
+             */
+            calls_known: boolean;
+            /**
+             * Estimated Usage Calls
+             * @default 0
+             */
+            estimated_usage_calls: number;
+            /** Cost Estimate */
+            cost_estimate?: number | null;
+            /**
+             * Cost Known
+             * @default true
+             */
+            cost_known: boolean;
+            /** By Kind */
+            by_kind?: components["schemas"]["UsageKindView"][];
+        };
         /** ModelCapabilities */
         ModelCapabilities: {
             /** Max Output Tokens */
@@ -2873,6 +2961,12 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Experience Mode
+             * @default lite
+             * @enum {string}
+             */
+            experience_mode: "lite" | "legacy";
         };
         /** ProjectList */
         ProjectList: {
@@ -2890,6 +2984,12 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Experience Mode
+             * @default legacy
+             * @enum {string}
+             */
+            experience_mode: "lite" | "legacy";
             /** Id */
             id: string;
             /** Created At */
@@ -3647,6 +3747,73 @@ export interface components {
              * @default false
              */
             allow_network: boolean;
+        };
+        /** UsageKindView */
+        UsageKindView: {
+            /** Task Kind */
+            task_kind: string;
+            /**
+             * Calls
+             * @default 0
+             */
+            calls: number;
+            /**
+             * Retry Count
+             * @default 0
+             */
+            retry_count: number;
+            /**
+             * Cache Hits
+             * @default 0
+             */
+            cache_hits: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Unknown Usage Calls
+             * @default 0
+             */
+            unknown_usage_calls: number;
+            /**
+             * Unrecorded Runs
+             * @default 0
+             */
+            unrecorded_runs: number;
+            /**
+             * Unattributed Runs
+             * @default 0
+             */
+            unattributed_runs: number;
+            /**
+             * Calls Known
+             * @default true
+             */
+            calls_known: boolean;
+            /**
+             * Estimated Usage Calls
+             * @default 0
+             */
+            estimated_usage_calls: number;
+            /** Cost Estimate */
+            cost_estimate?: number | null;
+            /**
+             * Cost Known
+             * @default true
+             */
+            cost_known: boolean;
         };
         /** ValidationError */
         ValidationError: {
@@ -7250,6 +7417,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    usage_api_v1_projects__project_id__lite_usage_get: {
+        parameters: {
+            query?: {
+                paper_id?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiteUsageView"];
                 };
             };
             /** @description Validation Error */

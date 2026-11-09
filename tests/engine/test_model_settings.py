@@ -9,9 +9,10 @@ from alembic import command
 from alembic.config import Config
 from researchgraph.credentials import SecretStore
 from researchgraph.model_settings import ModelProfile, ModelRole, from_snapshot, snapshot_for
-from researchgraph.models import Project, now
+from researchgraph.models import now
 from researchgraph.providers import ConfiguredProvider
 from researchgraph.storage import make_engine
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from test_engine import client, post
 
@@ -123,8 +124,13 @@ def test_upgrade_preserves_profiles_credentials_and_old_roles(tmp_path, vault, c
     vault[reference] = "unit-migrated-credential"
     with Session(engine) as session, session.begin():
         for pid in project_ids:
-            session.add(Project(id=pid, name="Existing project", description="", created_at=now()))
-        session.flush()
+            session.execute(
+                text(
+                    "INSERT INTO projects (id, name, description, created_at) "
+                    "VALUES (:id, :name, :description, :created_at)"
+                ),
+                {"id": pid, "name": "Existing project", "description": "", "created_at": now()},
+            )
         for profile_id in profile_ids:
             session.add(
                 ModelProfile(

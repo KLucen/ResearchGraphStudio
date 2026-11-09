@@ -10,6 +10,7 @@ class InputModel(BaseModel):
 class ProjectCreate(InputModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=4000)
+    experience_mode: Literal["lite", "legacy"] = "lite"
 
     @field_validator("name")
     @classmethod
@@ -23,6 +24,10 @@ class ProjectCreate(InputModel):
 class ProjectView(ProjectCreate):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    # Old idempotency responses predate the mode field.  Treat a missing
+    # response field as a legacy project while new ORM rows always expose the
+    # persisted value explicitly.
+    experience_mode: Literal["lite", "legacy"] = "legacy"
     created_at: str
 
 
