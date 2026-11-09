@@ -6,7 +6,7 @@
 
 - 使用 feature flag / project setting 切换 `experience_mode = lite`，不改名覆盖旧 Graph 模式。
 - 采用新增 `lite_*` 表与已存在 `Paper/Section/EvidenceSpan/ModelRun` 的外键或映射关系，不重建论文库。
-- **保留旧完整Schema、P02/P12/P13等实现，但停止默认运行**；已有数据和老项目图谱至少保留只读访问入口。后续是否删除由用户另行决定。
+- **Lite 干净工程不携带旧完整 Schema、P02/P12/P13 等实现**；旧工程在 `backup/pre-lite-refactor` 保留回退点，Lite 数据库不迁移旧数据。
 - `read/parse/index` 不产生LLM任务；通过服务端能力边界和测试强制落实。
 - 在数据库迁移前备份（包括文件及schema版本），做Alembic/现有迁移工具升级和回退演练；不要用破坏性`DROP TABLE`。
 - 不改动Zotero条目、原始PDF、Obsidian私人笔记；沿用现有安全密钥与Sidecar生命周期处理。
@@ -19,7 +19,7 @@
 任务：
 1. 审计旧任务图：识别“选择/解析文献”阶段隐式触发 P02/P12/P13、Wiki、Lint、全量GraphRAG 的调用位置和队列。
 2. 验证真实日志里的 `input_tokens/output_tokens`、重试、模型、每批时延；若不存在，先建立统一计量表，区分估算与Provider原始usage。
-3. 增加 `experience_mode=lite`（新项目默认）并禁用旧自动任务触发，不删除旧任务；旧项目允许继续查看已有图谱。
+3. 增加 `experience_mode=lite`（新项目默认）并禁用旧自动任务触发；旧任务和已有图谱不迁移到 Lite，历史访问通过备份工程完成。
 4. 给出 `docs/migration/lite_from_v3_assessment.md`：旧表复用、API兼容、开关位置、已测Token基线与风险。
 5. 修改前端默认入口：Zotero选论文→本地解析章节/FTS5→Lite工作台；不要求先建图。
 
@@ -72,7 +72,7 @@
 3. 源文件变化处理：`document_version_id`变更使旧成果标记 stale，旧内容保留，可主动生成新版本。
 4. 修复残留PowerShell空窗口、重启任务状态、模型429/超时、Zotero不可用等历史问题；不重写无关UI。
 5. 完成Windows安装/启动回归、Mock端到端与**获准的真实模型**集成测试；检查Git暂存区、历史与私有文献/API Key泄露。
-6. 旧Graph功能保留数据和只读入口；Obsidian仅提供可选Markdown导出，不引入自动Wiki更新。
+6. 旧 Graph、Wiki 和 Obsidian 流程不进入 Lite 入口；后续若需要导出或历史访问，另行从备份工程实现。
 
 **验收**：Windows安装包正常关闭不依赖外置PowerShell；完整 B+3A+3D 的实际Token、耗时、证据正确性有报告；没有真密钥时明确写“未完成真实API验证”。
 
@@ -84,9 +84,9 @@
 | PyMuPDF、Section/Span/文件SHA | 复用，作为阅读信息核心 | 否 |
 | Provider设置、Mock、Sidecar和任务历史 | 复用，新增预算/计量 | 否 |
 | P02/P12/P13完整抽取与贡献排序 | 默认关；原代码作为历史/高级能力 | 否 |
-| GraphProjection、拖动图谱、Claim Comparator | 默认隐藏高级入口、旧数据可读 | 否 |
+| GraphProjection、拖动图谱、Claim Comparator | Lite 不保留旧入口；轻量图谱使用 PaperCard + LightGraph | 否 |
 | 全量跨论文推理/实体融合 | 默认不运行 | 否 |
-| P07老Query大上下文拼接 | Lite D01限定范围检索，旧接口保留兼容 | 否 |
+| P07老Query大上下文拼接 | Lite D01限定范围检索；旧接口不进入干净工程 | 否 |
 | 语义Lint、Wiki批量或增量生成 | 默认关 | 否 |
 | Obsidian Wiki自动维护 | 从主路径移除，可保留手动Markdown导出 | 否 |
 | 论文阅读大段解析结果页面 | 隐藏/改诊断入口 | 仅移除默认UI |
@@ -119,4 +119,4 @@ apps/desktop/src/features/lite/
 
 ## 9. 交给同一Codex会话的执行方式
 
-`CODEX_NEXT_TURN.md`刻意简短。先执行Lite P0，待现有代码和Token基线被验证后再推进P1–P4；不凭空声称真API、Windows安装或学术结论已经通过测试。
+迁移阶段接续指令已移除。当前工作以 `docs/progress.md` 和 Lite ADR 为准；不凭空声称真 API、Windows 安装或学术结论已经通过测试。

@@ -1,15 +1,9 @@
-import json
 import subprocess
 import time
-from pathlib import Path
 from uuid import UUID, uuid4
 
-from alembic import command
-from alembic.config import Config
 from researchgraph import ingest
 from researchgraph.models import Job
-from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 from test_engine import client, post
 from test_ingest import FIXTURES, queue
@@ -76,11 +70,16 @@ def test_observed_progress_survives_cancel_and_retry_keeps_batch_result(tmp_path
 
     def slow_child(command, **kwargs):
         work = command[command.index("--output-dir") + 1]
-        script = (
-            "import sys,time; from pathlib import Path; "
-            "from researchgraph.workspaces import worker_workspace,report_stage; "
-            "work=Path(sys.argv[1]); "
-            "\nwith worker_workspace(work):\n report_stage(work,'parsing'); time.sleep(60)\n"
+        script = "\n".join(
+            [
+                "import sys, time",
+                "from pathlib import Path",
+                "from researchgraph.workspaces import report_stage, worker_workspace",
+                "work = Path(sys.argv[1])",
+                "with worker_workspace(work):",
+                "    report_stage(work, 'parsing')",
+                "    time.sleep(60)",
+            ]
         )
         return original([command[0], "-c", script, work], **kwargs)
 
@@ -114,45 +113,3 @@ def test_observed_progress_survives_cancel_and_retry_keeps_batch_result(tmp_path
         assert retry["status"] == "queued" and retry["stage"] is None
         assert retry["result"]["completed_batches"] == "1"
         assert retry["result"]["batches"][0]["status"] == "succeeded"
-
-
-def test_upgrade_0003_keeps_jobs_and_old_idempotent_responses(tmp_path):
-    engine = make_engine(tmp_path)
-    config = Config()
-    config.set_main_option(
-        "script_location",
-        str(Path(__file__).parents[2] / "services/engine/researchgraph/migrations"),
-    )
-    old = dict(
-        id=str(uuid4()),
-        kind="diagnostics",
-        status="succeeded",
-        attempt=1,
-        error=None,
-        result=None,
-        project_id=None,
-        created_at="now",
-        updated_at="now",
-    )
-    with engine.begin() as connection:
-        config.attributes["connection"] = connection
-        command.upgrade(config, "0003")
-        connection.exec_driver_sql(
-            "INSERT INTO jobs (id,kind,status,attempt,created_at,updated_at) "
-            "VALUES (?,?,'succeeded',1,'now','now')",
-            (old["id"], old["kind"]),
-        )
-    migrate(engine, tmp_path)
-    with Session(engine) as session:
-        job = session.get(Job, old["id"])
-        assert job.stage is None and job.status == "succeeded" and job.attempt == 1
-    from researchgraph.schemas import JobView
-
-    assert JobView.model_validate(json.loads(json.dumps(old))).stage is None
-    with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == SCHEMA_HEAD
-        assert connection.exec_driver_sql(
-            "SELECT name FROM sqlite_master WHERE name='ix_jobs_project_history'"
-        ).fetchone()
-    assert len(list((tmp_path / "backups").glob("*.sqlite3"))) == 1
-    engine.dispose()

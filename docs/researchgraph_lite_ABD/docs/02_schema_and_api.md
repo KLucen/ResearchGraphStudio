@@ -149,7 +149,7 @@ sha256(canonical_json({
 
 新增 `lite_paper_cards`, `lite_section_guides`, `lite_qa_records`, `lite_cache_entries`, `lite_token_usage`（详见 `schemas/sqlite_reference.sql`）。正式迁移应基于现有Alembic历史实现，只新增字段/表和索引。
 
-不要删除旧表：`claims / evidence / graph_nodes / relation_assertions / wiki_*`等现有数据和API在Lite模式仍需可读取。用项目级 `experience_mode=lite`/feature flags 切换默认导航，而不是靠数据迁移清空旧图谱。旧用户可返回“高级/历史图谱”页面浏览，但首版不必维持全量构建后台任务。
+Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertions / wiki_*` 等旧业务表，也不提供旧 API 入口；运行时使用独立 `lite0001` 空 Schema，不读取或迁移旧图谱。旧用户需要访问历史数据时，使用 `backup/pre-lite-refactor` 和原工程数据目录回退，不把旧历史混入 Lite 数据库。
 
 ## 10. 安全与权限不变量
 

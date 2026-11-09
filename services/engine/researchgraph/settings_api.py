@@ -9,12 +9,11 @@ from fastapi import FastAPI
 from sqlalchemy import Engine, delete
 from sqlalchemy.orm import Session
 
+from researchgraph.core import KnowledgeError
 from researchgraph.credentials import CredentialError, SecretStore
-from researchgraph.knowledge_store import KnowledgeError
 from researchgraph.model_adapters import new_task_parameters
 from researchgraph.model_settings import (
     GlobalModelRole,
-    ModelRole,
     ProfileInput,
     ProfileView,
     RolesInput,
@@ -68,7 +67,6 @@ def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: 
                 except CredentialError as error:
                     raise KnowledgeError("CREDENTIAL_FAILURE", str(error)) from None
             profile.active, profile.credential_ref, profile.secret_refs = False, None, []
-            session.execute(delete(ModelRole).where(ModelRole.profile_id == profile_id))
             session.execute(delete(GlobalModelRole).where(GlobalModelRole.profile_id == profile_id))
         return {"deleted": True}
 

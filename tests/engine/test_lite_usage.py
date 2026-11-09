@@ -1,18 +1,14 @@
 """Focused Lite P0 usage and cache checks on isolated synthetic records."""
 
 import pytest
-from researchgraph.knowledge_models import ModelRun, Section
 from researchgraph.lite_usage import (
-    aggregate_usage,
     cache_key,
     mark_cache_stale,
     read_cache,
     record_usage,
     write_cache,
 )
-from researchgraph.models import AttachmentRevision, Job, Paper, now
-from researchgraph.p5_models import P5ModelRun, P5Workflow
-from researchgraph.query_models import QueryModelRun, QueryRun
+from researchgraph.models import AttachmentRevision, Paper, Section, now
 from sqlalchemy.orm import Session
 from test_engine import client
 
@@ -186,6 +182,30 @@ def test_retry_requests_are_recorded_as_separate_calls(tmp_path):
         assert value["total_tokens"] == 120
 
 
+def test_unknown_usage_is_counted_once_and_cost_stays_unknown(tmp_path):
+    with client(tmp_path) as api:
+        project = api.post(
+            "/api/v1/projects",
+            json={"name": "Lite unknown usage"},
+            headers={"Idempotency-Key": "usage-unknown"},
+        ).json()
+        with Session(api.app.state.engine) as session, session.begin():
+            seed_source(session, project["id"])
+            record_usage(
+                session,
+                project_id=project["id"],
+                paper_id="paper-1",
+                document_version_id="version-1",
+                task_kind="paper_overview",
+                usage_source="unknown",
+            )
+        value = api.get(f"/api/v1/projects/{project['id']}/lite/usage").json()
+        assert value["calls"] == 1
+        assert value["unknown_usage_calls"] == 1
+        assert value["cost_known"] is False
+        assert value["cost_estimate"] is None
+
+
 def test_cache_hit_has_zero_new_calls_and_rejects_fabricated_usage(tmp_path):
     with client(tmp_path) as api:
         project = api.post(
@@ -271,153 +291,3 @@ def test_cache_validates_complete_identity_and_retains_old_response(tmp_path):
             assert read_cache(session, key, allow_stale=True, **scope(parts)).response == {
                 "old": True
             }
-
-
-def test_old_runs_without_attempt_ledger_remain_unknown(tmp_path):
-    with client(tmp_path) as api:
-        project = api.post(
-            "/api/v1/projects",
-            json={"name": "Lite old usage"},
-            headers={"Idempotency-Key": "usage-old-runs"},
-        ).json()
-        with Session(api.app.state.engine) as session, session.begin():
-            seed_source(session, project["id"])
-            session.add(
-                Job(
-                    id="j",
-                    project_id=project["id"],
-                    kind="knowledge_extract",
-                    payload={},
-                    status="failed",
-                    attempt=1,
-                    created_at=now(),
-                    updated_at=now(),
-                )
-            )
-            session.flush()
-            session.add(
-                ModelRun(
-                    id="m",
-                    job_id="j",
-                    document_version_id="version-1",
-                    provider="synthetic",
-                    model="synthetic",
-                    prompt_name="P02",
-                    prompt_hash="a" * 64,
-                    schema_version="old",
-                    input_hash="b" * 64,
-                    status="failed",
-                    parameters={"usage": {"input_tokens": 100, "output_tokens": 20}},
-                    created_at=now(),
-                )
-            )
-        value = api.get(f"/api/v1/projects/{project['id']}/lite/usage").json()
-        assert value["calls"] == 0
-        assert value["calls_known"] is False
-        assert value["unrecorded_runs"] == 1
-        assert value["total_tokens"] == 120
-        assert value["cost_known"] is False
-
-
-def test_paper_usage_uses_frozen_single_paper_input_and_discloses_ambiguity(tmp_path):
-    with client(tmp_path) as api:
-        project = api.post(
-            "/api/v1/projects",
-            json={"name": "Lite paper usage"},
-            headers={"Idempotency-Key": "usage-paper-scope"},
-        ).json()
-        with Session(api.app.state.engine) as session, session.begin():
-            seed_source(session, project["id"])
-            seed_source(session, project["id"], "2")
-            session.add(
-                Job(
-                    id="j",
-                    project_id=project["id"],
-                    kind="query_answer",
-                    payload={},
-                    status="succeeded",
-                    attempt=1,
-                    created_at=now(),
-                    updated_at=now(),
-                )
-            )
-            session.flush()
-            for index, papers in enumerate(
-                (["paper-1"], ["paper-2"], ["paper-1", "paper-2"], None)
-            ):
-                snapshot = (
-                    {"context": {"source_versions": [{"paper_id": p} for p in papers]}}
-                    if papers is not None
-                    else {}
-                )
-                session.add(
-                    QueryRun(
-                        id=f"q{index}",
-                        project_id=project["id"],
-                        request={},
-                        snapshot=snapshot,
-                        input_hash="a" * 64,
-                        status="answered",
-                        created_at=now(),
-                        updated_at=now(),
-                    )
-                )
-                session.add(
-                    P5Workflow(
-                        id=f"w{index}",
-                        project_id=project["id"],
-                        kind="wiki_synthesis",
-                        request={},
-                        snapshot=snapshot,
-                        input_hash="a" * 64,
-                        status="succeeded",
-                        created_at=now(),
-                        updated_at=now(),
-                    )
-                )
-                session.flush()
-                parameters = {
-                    "attempts": [{"attempt": 1}],
-                    "usage": {"input_tokens": 100, "output_tokens": 20},
-                }
-                session.add(
-                    QueryModelRun(
-                        id=f"qm{index}",
-                        query_run_id=f"q{index}",
-                        project_id=project["id"],
-                        provider="synthetic",
-                        model="synthetic",
-                        prompt_name="P07",
-                        prompt_hash="a" * 64,
-                        schema_version="old",
-                        input_hash="a" * 64,
-                        parameters=parameters,
-                        manifest={},
-                        status="succeeded",
-                        created_at=now(),
-                    )
-                )
-                session.add(
-                    P5ModelRun(
-                        id=f"pm{index}",
-                        workflow_id=f"w{index}",
-                        job_id="j",
-                        sequence=1,
-                        prompt_name="P09",
-                        prompt_hash="a" * 64,
-                        input_hash="a" * 64,
-                        parameters=parameters,
-                        status="succeeded",
-                        created_at=now(),
-                    )
-                )
-        value = api.get(f"/api/v1/projects/{project['id']}/lite/usage?paper_id=paper-1").json()
-        assert value["calls"] == 2
-        assert value["input_tokens"] == 200
-        assert value["output_tokens"] == 40
-        assert value["unattributed_runs"] == 4
-        assert value["calls_known"] is False
-        with Session(api.app.state.engine) as session:
-            full = aggregate_usage(session, project["id"])
-            assert full.calls == 8
-            assert full.total_tokens == 960

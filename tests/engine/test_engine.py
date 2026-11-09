@@ -21,23 +21,6 @@ def client(path: Path, worker: bool = False) -> TestClient:
 
 
 def post(api: TestClient, path: str, body: dict | None = None, key: str = "test-key-123"):
-    # Historical integration fixtures exercise the complete product contract;
-    # opt them into legacy mode explicitly now that the public API defaults new
-    # projects to Lite mode.
-    if path == "/projects" and body is not None and "experience_mode" not in body:
-        body = {"experience_mode": "legacy", **body}
-    if path.endswith("/graph/projection") and body is not None:
-        body = {"include_test_data": True, **body}
-    # Offline fixtures are explicit test inputs, never production API defaults.
-    if body is not None and (
-        path == "/knowledge/extract"
-        or path.endswith("/infer")
-        or path.endswith("/graph/translate")
-        or path.endswith("/zotero-imports")
-    ):
-        body = {"provider": "mock", **body}
-        if path == "/knowledge/extract":
-            body = {"pipeline": "legacy-v2", **body}
     return api.post("/api/v1" + path, json=body, headers={"Idempotency-Key": key})
 
 

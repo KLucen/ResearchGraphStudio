@@ -23,121 +23,15 @@ class Provider(Protocol):
 
 
 class MockProvider:
+    """Explicit test double, never selected by Lite production tasks."""
+
     name = "mock"
-    model = "offline-extractive-fixture-v1"
+    model = "offline-test-fixture"
 
     async def complete(self, prompt: str, data: dict[str, Any], schema: dict[str, Any]) -> str:
-        if schema.get("title") in {
-            "ReadingSemanticBatch",
-            "SemanticIntegration",
-            "ContributionRanking",
-            "KeyedContributionRanking",
-        }:
-            from researchgraph.reading_mock import semantic_complete
-
-            return json.dumps(semantic_complete(schema["title"], data), ensure_ascii=False)
-        await asyncio.sleep(0)
-        if data.get("contract_version") == "reading-extraction-1.0" or schema.get("title") in {
-            "PaperIntegrationProposal",
-            "CoreSelectionProposal",
-        }:
-            from researchgraph.reading_mock import complete as reading_complete
-
-            result = reading_complete(schema["title"], data)
-            if data.get("wire_format") == "reading-compact-1":
-                from researchgraph.reading_wire import compact_fixture
-
-                result = compact_fixture(result)
-            return json.dumps(result, ensure_ascii=False)
-        if schema.get("title") == "KnowledgeExtractionBatch":
-            from researchgraph.unified_mock import complete as unified_complete
-
-            return json.dumps(unified_complete(data), ensure_ascii=False)
-        if schema.get("title") == "TranslationRepair":
-            return json.dumps(
-                {
-                    "items": [
-                        {
-                            "node_ref": x["node_ref"],
-                            "label_zh": "离线补译验证",
-                            "summary_zh": "Mock 仅验证显示字段更新，不代表真实翻译。",
-                        }
-                        for x in data["items"]
-                    ]
-                },
-                ensure_ascii=False,
-            )
         if schema.get("title") == "ConnectionTest":
             return '{"ok":true}'
-        if schema.get("title") in {
-            "EntityAlignmentBatch",
-            "ComparabilityReport",
-            "RelationInference",
-        }:
-            from researchgraph.reasoning_mock import complete
-
-            return json.dumps(complete(schema["title"], data), ensure_ascii=False)
-        if schema.get("title") == "PaperOutline":
-            return json.dumps(
-                {
-                    "sections": [
-                        dict(section_id=s["id"], role="other", paragraph_ids=s["paragraph_ids"])
-                        for s in data["sections"]
-                    ],
-                    "unresolved_sections": [],
-                }
-            )
-        claims, methods, findings = [], [], []
-        concepts: list[dict[str, Any]] = []
-        for index, evidence in enumerate(data["evidence_texts"]):
-            text, eid = evidence["quote"].strip(), evidence["id"]
-            if len(text) < 10:
-                continue
-            cited = bool(re.search(r"\b(?:et al|prior work|previous work)\b", text, re.I))
-            method_refs = []
-            if re.search(r"\b(?:method|algorithm|approach|framework)\b", text, re.I):
-                ref = f"method-{index}"
-                methods.append(
-                    {
-                        "local_ref": ref,
-                        "name": text.splitlines()[0],
-                        "mechanism": text,
-                        "evidence_span_ids": [eid],
-                    }
-                )
-                method_refs = [ref]
-            if re.search(r"\b(?:result|accuracy|improv|achiev|success|score)\w*\b", text, re.I):
-                # Deliberately conservative: no synthetic metric values invented by the mock.
-                findings.append(
-                    {"local_ref": f"finding-{index}", "statement": text, "evidence_span_ids": [eid]}
-                )
-            claims.append(
-                {
-                    "local_ref": f"claim-{index}",
-                    "statement": text,
-                    "origin": "cited_claim" if cited else "unknown",
-                    "claim_type": "other",
-                    "modality": "unknown",
-                    "evidence": [
-                        {"evidence_span_id": eid, "role": "cited_other" if cited else "direct"}
-                    ],
-                    "conditions": [],
-                    "method_local_refs": method_refs,
-                    "limitations": ["MockProvider 原文摘录，仅验证流程，未作科学语义抽取。"],
-                }
-            )
-        return json.dumps(
-            {
-                "paper_id": data["paper_id"],
-                "schema_version": data["schema_version"],
-                "concepts": concepts,
-                "methods": methods,
-                "claims": claims,
-                "findings": findings,
-                "open_questions": [],
-            },
-            ensure_ascii=False,
-        )
+        raise ValueError("MockProvider requires an explicit test fixture")
 
 
 class ProviderError(ValueError):
@@ -561,11 +455,3 @@ class ConfiguredProvider:
         """Separate the inactivity timeout from a bounded active-generation deadline."""
         timeout = float(self.parameters.get("timeout_seconds", 30))
         return min(max(timeout * 2, timeout + 5), 300)
-
-
-def provider_for(name: str, allow_network: bool) -> Provider:
-    if name == "mock":
-        return MockProvider()
-    if name != "configured" or not allow_network:
-        raise ValueError("真实模型需要明确同意发送当前论文的解析文本")
-    return ConfiguredProvider()

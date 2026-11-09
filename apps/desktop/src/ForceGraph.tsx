@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import "@xyflow/react/dist/style.css";
 import {
   Controls,
   ReactFlow,
@@ -6,13 +7,16 @@ import {
   type ReactFlowInstance,
   type Viewport,
 } from "@xyflow/react";
-import type { components } from "../../../packages/contracts/generated";
 import { ForceSimulation } from "./forceSimulation";
 import { placeNodes } from "./graphLayout";
 import { getGraphAppearance } from "./graphAppearance";
-
-type Graph = components["schemas"]["GraphProjection"];
-type Layout = components["schemas"]["LayoutView"];
+import {
+  graphEdgeType,
+  graphNodeKind,
+  type GraphData,
+  type GraphLayout,
+  type GraphPosition,
+} from "./graphTypes";
 
 export function ForceGraph({
   graph,
@@ -28,8 +32,8 @@ export function ForceGraph({
   viewKey,
   fitRequest = 0,
 }: {
-  graph: Graph;
-  layout: Layout;
+  graph: GraphData;
+  layout: GraphLayout;
   selected: string;
   language: string;
   reset: number;
@@ -38,7 +42,7 @@ export function ForceGraph({
   fitRequest?: number;
   onSelect: (id: string) => void;
   onEdge: (id: string) => void;
-  onPositions: (positions: Layout["positions"]) => void;
+  onPositions: (positions: GraphPosition[]) => void;
   onViewport: (v: Viewport) => void;
 }) {
   const [hover, setHover] = useState("");
@@ -179,18 +183,26 @@ export function ForceGraph({
       measured: { width: 18, height: 18 },
       selected: n.id === selected,
       className: `graph-dot${p?.pinned ? " pinned" : ""}`,
-      ariaLabel: `${n.label_zh || n.label_en}${p?.pinned ? "，已固定" : ""}`,
+      ariaLabel: `${n.label_en || n.label_zh || "节点"}${p?.pinned ? "，已固定" : ""}`,
       data: {
         label: (
-          <span className="dot-label" title={n.label_en} data-kind={n.kind}>
-            {language === "en" ? n.label_en : n.label_zh || n.label_en}
-            {language === "both" && n.label_zh && <small>{n.label_en}</small>}
+          <span
+            className="dot-label"
+            title={n.label_en || undefined}
+            data-kind={n.kind}
+          >
+            {language === "en"
+              ? n.label_en || n.label_zh || ""
+              : n.label_zh || n.label_en || ""}
+            {language === "both" && n.label_zh && n.label_en && (
+              <small>{n.label_en}</small>
+            )}
           </span>
         ),
       },
       style: {
         // The built-in default node is white without a background override.
-        background: getGraphAppearance(n.kind).color,
+        background: getGraphAppearance(graphNodeKind(n)).color,
         opacity: !active || neighbors.has(n.id) ? 1 : 0.2,
       },
     };
@@ -210,8 +222,8 @@ export function ForceGraph({
         label:
           hover && (e.source === hover || e.target === hover)
             ? language === "en"
-              ? e.relation
-              : e.label_zh
+              ? graphEdgeType(e)
+              : e.label_zh || graphEdgeType(e)
             : undefined,
         style: {
           stroke: "#81958c",

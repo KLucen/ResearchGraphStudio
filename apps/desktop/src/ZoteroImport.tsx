@@ -35,20 +35,16 @@ const stages: Record<string, string> = {
   starting: "连接 Zotero",
   reading: "读取 PDF",
   parsing: "解析原文",
-  saving: "保存与关联",
+  saving: "保存与索引",
+  indexing: "建立索引",
 };
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function ZoteroImport({
   projectId,
   connected,
-  liteMode = false,
 }: {
   projectId: string;
   connected: boolean;
-  liteMode?: boolean;
 }) {
   const client = useQueryClient();
   const [library, setLibrary] = useState("users/0");
@@ -58,9 +54,6 @@ export function ZoteroImport({
   const [start, setStart] = useState(0);
   const [chosen, setChosen] = useState<Record<string, Choice>>({});
   const [mode, setMode] = useState<"reference" | "managed">("reference");
-  const [extractAfter, setExtractAfter] = useState(!liteMode);
-  const provider = "project";
-  const [allow, setAllow] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const collections = useQuery({
     queryKey: ["zotero-collections", library],
@@ -70,7 +63,7 @@ export function ZoteroImport({
       for (let offset = 0; offset < 10000; offset += 50) {
         const page = await request<Collection[]>(
           "GET",
-          `/api/v1/integrations/zotero/collections?library=${library}&start=${offset}`,
+          `/api/v1/integrations/zotero/collections?library=${encodeURIComponent(library)}&start=${offset}`,
         );
         all.push(...page);
         if (page.length < 50) return all;
@@ -101,14 +94,6 @@ export function ZoteroImport({
     enabled: connected,
     refetchInterval: 2000,
   });
-  const successIds = history.data
-    ?.filter((x) => x.job.status === "succeeded")
-    .map((x) => x.job.id)
-    .join(",");
-  useEffect(() => {
-    if (successIds)
-      void client.invalidateQueries({ queryKey: ["papers", projectId] });
-  }, [successIds, client, projectId]);
   const submit = useMutation({
     mutationFn: () =>
       request<ImportState[]>(
@@ -119,9 +104,6 @@ export function ZoteroImport({
           collection_key: collection,
           selections: Object.values(chosen),
           mode,
-          extract_after_parse: liteMode ? false : extractAfter,
-          provider,
-          allow_network: liteMode ? false : allow,
         },
         crypto.randomUUID(),
       ),
@@ -130,64 +112,45 @@ export function ZoteroImport({
       void client.invalidateQueries({
         queryKey: ["zotero-imports", projectId],
       });
+      void client.invalidateQueries({ queryKey: ["papers", projectId] });
       void client.invalidateQueries({ queryKey: ["jobs", projectId] });
     },
   });
-  const retry = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: "retry" | "cancel" }) =>
-      api.jobAction(id, action, crypto.randomUUID()),
-    onSuccess: () => {
+  const action = useMutation({
+    mutationFn: ({ id, kind }: { id: string; kind: "retry" | "cancel" }) =>
+      api.jobAction(id, kind, crypto.randomUUID()),
+    onSuccess: () =>
       void client.invalidateQueries({
         queryKey: ["zotero-imports", projectId],
-      });
-    },
+      }),
   });
-  const extract = useMutation({
-    mutationFn: (revisionId: string) =>
-      request<Job>(
-        "POST",
-        "/api/v1/knowledge/extract",
-        {
-          document_version_id: revisionId,
-          provider,
-          allow_network: allow,
-          pipeline: "paper-reading-v1",
-        },
-        crypto.randomUUID(),
-      ),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["jobs", projectId] });
-    },
-  });
-  function choose(rows: Choice[], checked: boolean) {
-    setChosen((previous) => {
-      const next = { ...previous };
-      for (const row of rows) {
-        if (checked) next[row.attachment_key] = row;
-        else delete next[row.attachment_key];
-      }
+  useEffect(() => {
+    if (history.data?.some((item) => item.job.status === "succeeded"))
+      void client.invalidateQueries({ queryKey: ["papers", projectId] });
+  }, [history.data, client, projectId]);
+  const choose = (rows: Choice[], checked: boolean) =>
+    setChosen((old) => {
+      const next = { ...old };
+      rows.forEach((row) =>
+        checked
+          ? (next[row.attachment_key] = row)
+          : delete next[row.attachment_key],
+      );
       return next;
     });
-  }
-  const rows =
-    papers.data?.items.flatMap((p) =>
-      p.attachments
-        .filter((a) => a.available)
-        .map((a) => ({ item_key: p.key, attachment_key: a.key })),
-    ) ?? [];
   const jobs =
     history.data?.filter(
-      (j) => j.collection_key === collection && j.library === library,
+      (item) => item.collection_key === collection && item.library === library,
     ) ?? [];
-  const complete = jobs.filter((j) =>
-    ["succeeded", "failed", "cancelled", "interrupted"].includes(j.job.status),
+  const complete = jobs.filter(
+    (item) => !["queued", "running"].includes(item.job.status),
   ).length;
   return (
     <section className="zotero-import" aria-label="Zotero 批量导入">
       <h4>Zotero 分类批量导入</h4>
       <p>
-        勾选附件即授权只读导入对应 PDF 与批注。原文件保持在
-        Zotero；同一条目的不同 PDF 保留为文献版本。
+        勾选附件即授权只读导入对应 PDF。原文件保持在 Zotero；Lite
+        只解析、建立章节和全文索引。
       </p>
       <label>
         文献库
@@ -223,9 +186,9 @@ export function ZoteroImport({
             }}
           >
             <option value="">选择分类</option>
-            {collections.data.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.data.name} · {c.key}
+            {collections.data.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.data.name} · {item.key}
               </option>
             ))}
           </select>
@@ -256,63 +219,55 @@ export function ZoteroImport({
               搜索
             </button>
           </form>
-          <label>
-            <input
-              type="checkbox"
-              aria-label="全选本页可用附件"
-              checked={
-                !!rows.length && rows.every((r) => !!chosen[r.attachment_key])
-              }
-              disabled={!rows.length}
-              onChange={(e) => choose(rows, e.target.checked)}
-            />
-            全选本页可用附件
-          </label>
-          {papers.isFetching && <p role="status">读取论文及本地附件状态…</p>}
-          {papers.data?.items.map((p) => (
-            <article className="text-chunk" key={p.key}>
+          {papers.data?.items.map((paper) => (
+            <article className="text-chunk" key={paper.key}>
               <label>
                 <input
                   type="checkbox"
-                  aria-label={`选择论文 ${p.title}`}
-                  checked={p.attachments.some((a) => !!chosen[a.key])}
-                  disabled={!p.attachments.some((a) => a.available)}
+                  aria-label={`选择论文 ${paper.title}`}
+                  checked={paper.attachments.some((a) => !!chosen[a.key])}
+                  disabled={!paper.attachments.some((a) => a.available)}
                   onChange={(e) =>
                     choose(
-                      p.attachments
+                      paper.attachments
                         .filter((a) => a.available)
                         .map((a) => ({
-                          item_key: p.key,
+                          item_key: paper.key,
                           attachment_key: a.key,
                         })),
                       e.target.checked,
                     )
                   }
                 />{" "}
-                <strong>{p.title}</strong>
+                <strong>{paper.title}</strong>
               </label>
-              {!p.attachments.length && <p>没有 PDF 附件</p>}
-              {p.attachments.map((a) => (
-                <label className="attachment-choice" key={a.key}>
+              {paper.attachments.map((attachment) => (
+                <label className="attachment-choice" key={attachment.key}>
                   <input
                     type="checkbox"
-                    aria-label={`选择附件 ${a.key}`}
-                    checked={!!chosen[a.key]}
-                    disabled={!a.available}
+                    aria-label={`选择附件 ${attachment.key}`}
+                    checked={!!chosen[attachment.key]}
+                    disabled={!attachment.available}
                     onChange={(e) =>
                       choose(
-                        [{ item_key: p.key, attachment_key: a.key }],
+                        [
+                          {
+                            item_key: paper.key,
+                            attachment_key: attachment.key,
+                          },
+                        ],
                         e.target.checked,
                       )
                     }
                   />
-                  {a.filename || a.title} · {a.key}{" "}
-                  {a.available ? "" : "（本地不可用，请先在 Zotero 下载）"}
+                  {attachment.filename || attachment.title} · {attachment.key}
+                  {attachment.available
+                    ? ""
+                    : "（本地不可用，请先在 Zotero 下载）"}
                 </label>
               ))}
             </article>
           ))}
-          {papers.data?.items.length === 0 && <p>没有匹配的论文。</p>}
           <div className="import-controls">
             <button
               className="button secondary"
@@ -328,31 +283,6 @@ export function ZoteroImport({
             >
               下一页
             </button>
-            {liteMode ? (
-              <span className="quality-note">
-                Lite 模式：仅解析、建立章节和全文索引，不调用模型。
-              </span>
-            ) : (
-              <>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={extractAfter}
-                    onChange={(e) => setExtractAfter(e.target.checked)}
-                  />
-                  解析后直接建图
-                </label>
-                <span>全局 Extraction 模型</span>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={allow}
-                    onChange={(e) => setAllow(e.target.checked)}
-                  />
-                  同意向已配置模型发送所选论文原文片段
-                </label>
-              </>
-            )}
             <label>
               保存方式
               <select
@@ -368,14 +298,12 @@ export function ZoteroImport({
               disabled={
                 !connected ||
                 submit.isPending ||
-                (!liteMode && extractAfter && !allow) ||
                 Object.keys(chosen).length === 0 ||
                 Object.keys(chosen).length > 50
               }
               onClick={() => submit.mutate()}
             >
-              {liteMode || !extractAfter ? "仅解析" : "开始建图"} · 已选{" "}
-              {Object.keys(chosen).length} 个附件
+              仅解析 · 已选 {Object.keys(chosen).length} 个附件
             </button>
             <button className="text-button" onClick={() => setChosen({})}>
               清空选择
@@ -384,75 +312,47 @@ export function ZoteroImport({
           {Object.keys(chosen).length > 50 && (
             <p role="alert">单批最多 50 个附件。</p>
           )}
-          {!!jobs.length && (
-            <>
-              <p>
-                本分类最近任务：{complete}/{jobs.length} 已结束，
-                {jobs.filter((j) => j.job.status === "succeeded").length} 成功
-              </p>
-              <progress
-                max={jobs.length}
-                value={complete}
-                aria-label="批量导入进度"
-              />
-              {jobs.map(({ job, attachment_key }) => (
-                <article className="import-job" key={job.id}>
-                  <span>
-                    {attachment_key} · {statuses[job.status]}{" "}
-                    {job.stage ? `· ${stages[job.stage] ?? job.stage}` : ""}{" "}
-                    {job.result?.reused ? "· 内容已存在，复用版本" : ""}
-                  </span>
-                  {!liteMode &&
-                    typeof job.result?.extraction_job_id === "string" && (
-                      <small>统一抽取已排队，批次进度及重试见任务记录。</small>
-                    )}
-                  {job.error && <p role="alert">{job.error}</p>}
-                  {!liteMode &&
-                    job.status === "succeeded" &&
-                    !job.result?.extraction_job_id &&
-                    typeof job.result?.revision_id === "string" && (
-                      <button
-                        className="text-button"
-                        disabled={!connected || extract.isPending || !allow}
-                        onClick={() =>
-                          extract.mutate(String(job.result?.revision_id))
-                        }
-                      >
-                        解析并抽取知识
-                      </button>
-                    )}
-                  {["failed", "interrupted", "cancelled"].includes(
-                    job.status,
-                  ) && (
-                    <button
-                      className="text-button"
-                      disabled={!connected || retry.isPending}
-                      onClick={() =>
-                        retry.mutate({ id: job.id, action: "retry" })
-                      }
-                    >
-                      重试 {attachment_key}
-                    </button>
-                  )}
-                  {["queued", "running"].includes(job.status) && (
-                    <button
-                      className="text-button"
-                      disabled={!connected || retry.isPending}
-                      onClick={() =>
-                        retry.mutate({ id: job.id, action: "cancel" })
-                      }
-                    >
-                      取消 {attachment_key}
-                    </button>
-                  )}
-                </article>
-              ))}
-              {extract.error && <p role="alert">{errorText(extract.error)}</p>}
-              <p className="muted">
-                此处显示项目最近 100 个 Zotero 任务，更早记录见任务历史。
-              </p>
-            </>
-          )}
+        </>
+      )}
+      {jobs.length > 0 && (
+        <>
+          <p>
+            本分类最近任务：{complete}/{jobs.length} 已结束，
+            {jobs.filter((item) => item.job.status === "succeeded").length} 成功
+          </p>
+          <progress
+            max={jobs.length}
+            value={complete}
+            aria-label="批量导入进度"
+          />
+          {jobs.map(({ job, attachment_key }) => (
+            <article className="import-job" key={job.id}>
+              <span>
+                {attachment_key} · {statuses[job.status]}{" "}
+                {job.stage ? `· ${stages[job.stage] || job.stage}` : ""}{" "}
+                {job.result?.reused ? "· 内容已存在，复用版本" : ""}
+              </span>
+              {job.error && <p role="alert">{job.error}</p>}
+              {["failed", "interrupted", "cancelled"].includes(job.status) && (
+                <button
+                  className="text-button"
+                  disabled={!connected || action.isPending}
+                  onClick={() => action.mutate({ id: job.id, kind: "retry" })}
+                >
+                  重试 {attachment_key}
+                </button>
+              )}
+              {["queued", "running"].includes(job.status) && (
+                <button
+                  className="text-button"
+                  disabled={!connected || action.isPending}
+                  onClick={() => action.mutate({ id: job.id, kind: "cancel" })}
+                >
+                  取消 {attachment_key}
+                </button>
+              )}
+            </article>
+          ))}
         </>
       )}
       {[
@@ -460,12 +360,12 @@ export function ZoteroImport({
         papers.error,
         submit.error,
         history.error,
-        retry.error,
+        action.error,
       ]
         .filter(Boolean)
-        .map((e, i) => (
-          <p role="alert" key={i}>
-            {e instanceof Error ? e.message : "读取失败"}
+        .map((error, index) => (
+          <p role="alert" key={index}>
+            {error instanceof Error ? error.message : "读取失败"}
           </p>
         ))}
     </section>

@@ -35,11 +35,11 @@
 ### 主要产物
 
 - [项目入口](README.md)
-- [需求依据](docs/design/requirements-baseline.md)
-- [开发流程（后续 v2 历史入口）](docs/archive/v2/02_development_plan.md)
-- [环境报告](docs/archive/reports/environment-check.md)与[机器快照](docs/environment/2026-10-27.json)
-- [候选技术决策](docs/decisions/0001-local-desktop-baseline.md)
-- [实验计划](experiments/README.md)
+- [需求依据](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/design/requirements-baseline.md)
+- [开发流程（后续 v2 历史入口）](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/v2/02_development_plan.md)
+- [环境报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/environment-check.md)与[机器快照](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-27.json)
+- [候选技术决策](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/decisions/0001-local-desktop-baseline.md)
+- [实验计划](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/experiments/README.md)
 - [环境复查脚本](scripts/check-environment.ps1)
 - [协作约定](AGENTS.md)、`.gitignore`、`.editorconfig`
 
@@ -130,10 +130,10 @@
 
 ### 实际改动
 
-1. 阅读四份材料并记录路径、行号、SHA-256；新建[来源登记](docs/design/source-register.md)。QA 原文及四份桌面材料均未改写，未复制其中的本地图片。
+1. 阅读四份材料并记录路径、行号、SHA-256；新建[来源登记](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/design/source-register.md)。QA 原文及四份桌面材料均未改写，未复制其中的本地图片。
 2. 新建[完整开发计划 v0.4](https://github.com/KLucen/ResearchGraphStudio/blob/8e15a9583a7a6becff9d49800af3717eee867121/docs/development-plan-v0.4.md)，包含产品范围、工具所有权、归属/条件/证据版本、实体合并、AI 流水线、API、UI、Wiki 发布恢复、阶段验收、RG-001–RG-015、评测和剩余依赖。旧计划保留为 docs/development-plan-v0.3.md；docs/development-plan.md 改为当前入口，避免两份活动全文漂移。
 3. 按现有项目约定保留 v0.1 五篇 PDF 闭环；完整产品采用 Zotero 默认入口，但适配、自动演化与批量实验仍在 v1.0。新范围加入受控 Wiki、授权笔记回流、Query/Lint；Phase 0–6 初估 12–19 周，v0.1 初估 5–8 周，均不是实测工期或交付承诺。
-4. 新建[ADR 0003](docs/decisions/0003-controlled-knowledge-evolution.md)记录范围与权限取舍。保留 Conda、services/engine、唯一开发日志和六态；新材料的 uv、progress.md、machine_checked/pending_review 均作映射或替换。
+4. 新建[ADR 0003](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/decisions/0003-controlled-knowledge-evolution.md)记录范围与权限取舍。保留 Conda、services/engine、唯一开发日志和六态；新材料的 uv、progress.md、machine_checked/pending_review 均作映射或替换。
 5. 同步 docs/design/requirements-baseline.md 至 R01–R34、domain-model.md 的归属/来源修订/RelationAssertion/Wiki 对象；实验计划保留 E1–E3 并新增 E4 抽取、E5 合并、E6 问答/新鲜度。
 6. 同步 README、AGENTS、引擎/桌面/契约目录说明、旧 ADR 的当前入口和环境报告阶段名；补记 DEV-0003 当轮已执行但未写入的验证结果。
 
@@ -181,7 +181,7 @@
 - 安装目录中的打包引擎再次通过独立 smoke。实际桌面完成诊断、单实例、引擎异常退出后报错/重连；强制终止宿主后子引擎在 15 秒等待窗口内退出，正常关闭后也无残留服务。
 - 静默卸载退出 0，程序文件移除而用户数据库保留；修复 UI 后重新构建安装器，重装退出 0，项目仍可读回。应用与自造项目保留供用户查看。
 - 故障测试发现缓存的健康值在断连后仍显示“FTS5 可用”，修正为等待检查，侧栏明确“引擎未连接”。相关 TypeScript/ESLint、格式、3 项 React 测试与 release 构建再次通过；引擎重试上限补充断言后 11 项 Python 测试通过。
-- 最终检查：21 份 Markdown、98 个本地链接及五份用户原文 SHA-256 通过，安装器哈希与记录一致。PowerShell 脚本语法检查通过。汇总见 [Phase 0 验证记录](docs/archive/reports/phase0-verification.md)和[环境增量 JSON](docs/environment/2026-10-28-phase0.json)。
+- 最终检查：21 份 Markdown、98 个本地链接及五份用户原文 SHA-256 通过，安装器哈希与记录一致。PowerShell 脚本语法检查通过。汇总见 [Phase 0 验证记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/phase0-verification.md)和[环境增量 JSON](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-28-phase0.json)。
 - RG-001–RG-004 本机实现/验证完成；RG-005 安装器与 CI 已写，独立 Windows G0、缺 WebView2 安装及远端 CI 尚未验证。未提交或推送代码，安装包未签名。下一项是独立 Windows G0；Phase 1 再做 PDF 来源与证据链。
 
 ## 2026-10-28 20:19 · DEV-0006 · Phase 0 验收脚本与 main 自动推送
@@ -340,7 +340,7 @@
 
 - 新增 workspaces.py、迁移 0004、JobHistory 界面与三份测试文件；修改引擎生命周期、阶段上报、项目任务游标、契约、Rust 白名单和回收统计展示。新回收逻辑仅删除带归属标记且未被子进程锁定的普通临时文件，保留历史附件、未知内容和目录链接。
 - 扩展打包引擎与 PowerShell 验收，加入分页、阶段、暂存目录回收和来源/托管附件保留。环境与依赖锁未改变。
-- 创建 [2026-10-31 开发交接](docs/handovers/2026-10-31-phase1-status.md)，详细区分已交付基线、本机未提交实现、验证证据和下一轮收尾步骤。
+- 创建 [2026-10-31 开发交接](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/handovers/2026-10-31-phase1-status.md)，详细区分已交付基线、本机未提交实现、验证证据和下一轮收尾步骤。
 
 ### 验证
 
@@ -392,7 +392,7 @@
 
 - 发现 `apps/desktop/src-tauri/src/main.rs` 把任务历史 `cursor` 按 UUID 检查；服务端 `next_cursor` 是 Base64URL JSON 快照令牌，导致桌面第二页请求会被宿主白名单拒绝。
 - 将白名单改为接受 1–512 位 ASCII Base64URL 字符，保留查询参数去重、限制字符和服务端解码校验；增加 Rust 路由回归断言。
-- 更新 [RG-006 原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)与 [Phase 1 记录](docs/archive/reports/phase1-verification.md)，撤回无法由旧桌面桥接实现的“加载后 13 项”结论。
+- 更新 [RG-006 原生验收报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-31-phase1-jobs-native.json)与 [Phase 1 记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/phase1-verification.md)，撤回无法由旧桌面桥接实现的“加载后 13 项”结论。
 
 #### 验证
 
@@ -440,8 +440,8 @@
 
 ### 实际改动
 
-- 新增 [CI 验收摘要](docs/environment/2026-10-31-phase1-jobs-ci.json)，更新 [原生验收报告](docs/environment/2026-10-31-phase1-jobs-native.json)、[Phase 1 记录](docs/archive/reports/phase1-verification.md)、ADR 0006、API/计划入口相关状态和 README。CI 通过、原生分页未复测、M1/干净环境未完成分别记录。
-- 保留 GitHub artifact 内的原始安装报告副本 [安装验收报告](docs/environment/2026-10-31-phase1-jobs-installed.json)，SHA-256 `D2F3F06B031B2C6B7C3D65E968E50DBBD2CB5FFF0D762732D82C46291BFD6842`。验收包 `.local/phase1-jobs-acceptance-kit-41206071801.zip` 含安装器、自造 PDF、PowerShell 脚本、报告、说明和校验清单；压缩包 SHA-256 `5D0D497C533DB85FE1CE7EE05A79CF0619DB6A2796CA2BC12B5C3E52BE7E25EA`，安装器 37,622,305 字节、SHA-256 `B8F1E66D2665B4C920F827E860637C9D8C5206288120070195233E19500B22F7`。二进制及验收包位于忽略目录，不进入源码提交。
+- 新增 [CI 验收摘要](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-31-phase1-jobs-ci.json)，更新 [原生验收报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-31-phase1-jobs-native.json)、[Phase 1 记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/phase1-verification.md)、ADR 0006、API/计划入口相关状态和 README。CI 通过、原生分页未复测、M1/干净环境未完成分别记录。
+- 保留 GitHub artifact 内的原始安装报告副本 [安装验收报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-10-31-phase1-jobs-installed.json)，SHA-256 `D2F3F06B031B2C6B7C3D65E968E50DBBD2CB5FFF0D762732D82C46291BFD6842`。验收包 `.local/phase1-jobs-acceptance-kit-41206071801.zip` 含安装器、自造 PDF、PowerShell 脚本、报告、说明和校验清单；压缩包 SHA-256 `5D0D497C533DB85FE1CE7EE05A79CF0619DB6A2796CA2BC12B5C3E52BE7E25EA`，安装器 37,622,305 字节、SHA-256 `B8F1E66D2665B4C920F827E860637C9D8C5206288120070195233E19500B22F7`。二进制及验收包位于忽略目录，不进入源码提交。
 - S1–S4 登记的桌面原文路径均未找到，不能复核当前内容或哈希；未修改原文及来源登记。
 
 ### 验证
@@ -487,7 +487,7 @@
 
 ### 实际改动
 
-- 新增[迁移评估](docs/migration/v1_to_v2_assessment.md)、[架构 ADR](docs/adr/0001-unified-knowledge-engine.md)、[实际进度](docs/progress.md)，更新 AGENTS、README、API、旧基线/计划历史标记及 Phase 1 记录。新设计包保持主要依据；参考 schema/prompt/test 与运行实现区分。
+- 新增[迁移评估](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/migration/v1_to_v2_assessment.md)、[架构 ADR](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0001-unified-knowledge-engine.md)、[实际进度](docs/progress.md)，更新 AGENTS、README、API、旧基线/计划历史标记及 Phase 1 记录。新设计包保持主要依据；参考 schema/prompt/test 与运行实现区分。
 - Python 新 knowledge_models/contracts/store/api、integrations、providers、extraction、Prompt 资源及 0005 加性迁移。旧 Paper/AttachmentRevision/Chunk 和 API 不变；统一 Store 校验证据/写入/事件/revision/审核。Zotero 只读批注、授权 Markdown 快照、未知条件、模型原始结果/人工历史均持久化。
 - React 新 KnowledgeReading、SourceIntegrations、知识 API/阶段/阅读样式；Rust 新精确白名单和目录授权选择器。修复点击卡片需二次选证据、证据 UUID 排序、模型模板占位输入及过时文案。同步 Schema 0005、生成契约、打包 Prompt、smoke/安装脚本 P2 验收。
 - 新测试覆盖离线端到端、锚点篡改/非法 ID、归属/数值/unknown、重跑去重、人工修订/乐观冲突/原始输出、新来源保留 accepted、模型失败/超时/非法 JSON/取消、只读目录/批注与迁移恢复。
@@ -496,7 +496,7 @@
 
 - Conda `researchgraph-studio`：完整检查 76 Python passed、2 skipped，20 React passed；Ruff/format/mypy/pip/生成契约/TS/ESLint/Prettier/Web build 通过。参考契约 5 passed；Rust fmt/clippy 与 2 tests 通过。两项 skip 为文件 symlink 权限，Windows junction 测试通过；保留已有弃用提示。
 - 重新冻结引擎，扩展 smoke 和 Windows PowerShell 5.1 验收通过 P1 导入/来源/分页/阶段/回收/重启以及 P2 Mock/preview/审核/重启。第一次 PS5.1 被执行策略拒绝后采用单进程参数，不改全局设置。顺序测试初稿忘计 PyMuPDF 原文换行，改为仅在顺序断言中 strip，运行证据仍保留原文，完整复测通过。
-- [原生报告](docs/environment/2026-11-01-v2-phase2-native.json)：独立 0004→0005 与备份、历史 10→13、原生自造 PDF 导入、8 张 Mock 卡片、块高亮、修订/接受 v3 与两条历史；公开 15 页论文导入和 221 张摘录卡片，第 4 页点击回查。仅流程验收，不是模型科学质量指标。
+- [原生报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-11-01-v2-phase2-native.json)：独立 0004→0005 与备份、历史 10→13、原生自造 PDF 导入、8 张 Mock 卡片、块高亮、修订/接受 v3 与两条历史；公开 15 页论文导入和 221 张摘录卡片，第 4 页点击回查。仅流程验收，不是模型科学质量指标。
 - 正式用户库只读审计仍为 0001、1 project、1 job，没有在其上实验。四份 S1–S4 原登记路径均缺失；QA 哈希保持登记值。Markdown/本地链接/JSON 检查通过，明确排除四个不可用外部原文。
 - 推送前 fetch 确认 `origin/main` 仍为 `18b4598`。Git SSH 443 可用；API 的继承代理连接失败，显式直连官方 API 200，未改全局配置。最终提交、CI 和新安装验收包待下条记录，不提前记成功。
 
@@ -514,7 +514,7 @@
 ### 实际改动
 
 - 代码提交 `e67854d50c0b286d0b511b7b1f92892d682a1f0b` 已通过官方 SSH 443 普通推送 `main`，保留现有工程与用户设计包。
-- 新增 [CI/产物摘要](docs/environment/2026-11-01-v2-phase2-ci.json)和[原始安装报告](docs/environment/2026-11-01-v2-phase2-installed.json)，同步 [实际进度](docs/progress.md)。本次收尾只改文档与验收记录，不改应用代码。
+- 新增 [CI/产物摘要](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-11-01-v2-phase2-ci.json)和[原始安装报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/environment/2026-11-01-v2-phase2-installed.json)，同步 [实际进度](docs/progress.md)。本次收尾只改文档与验收记录，不改应用代码。
 - 建立本机忽略目录中的 `.local/v2-phase2-acceptance-kit-41271020398.zip`，包含安装器、原始报告、PowerShell 验证脚本、自造 PDF、原生验收记录及逐文件校验清单。未将安装器、私人材料、运行数据库或下载论文纳入源码。
 
 ### 验证
@@ -565,7 +565,7 @@
 
 ### 实际改动
 
-- 新增 [Phase 3 本机验收记录](docs/archive/reports/phase3-verification.md)，记载全局设置迁移、Zotero Test collection、三篇真实论文抽取、来源完整性、P03–P05、Mock 关系审核、侧栏及图谱重启验证和限制。
+- 新增 [Phase 3 本机验收记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/phase3-verification.md)，记载全局设置迁移、Zotero Test collection、三篇真实论文抽取、来源完整性、P03–P05、Mock 关系审核、侧栏及图谱重启验证和限制。
 - 同步 README、开发计划、ADR v2-0002 与 [实施进度](docs/progress.md)：明确 P3 最小功能已实现，但真实 Claim 关系候选→审核→图谱边尚未验收通过。Mock 只作为软件路径验证。
 - 保留两份旧计划的既有删除；历史指向改用固定 Git permalink。S1–S4 原文登记路径不可用，无法复核本轮原文或哈希；QA 原件和既有登记值保持不变。
 
@@ -654,7 +654,7 @@
 ### 实际改动
 
 - 旧 v2 的 README、三份主文档、AGENTS 模板及 prompts/schemas/examples/tests 共 29 文件移至 `docs/archive/v2/`。5 份入口 Markdown 添加历史标识并修复相对链接，其余 24 份文件内容保持不变；既有两份旧计划删除保持。
-- 新建 [文档导航](docs/README.md)、[历史索引](docs/archive/README.md)、[整理映射](docs/migration/v3-documentation-map.md)和 [ADR 0003](docs/adr/0003-v3-documentation-baseline.md)。合并 v3 自动建图、完整领域模型/轻量投影、断点续跑和数据保护要求到根 AGENTS，保留原环境与禁止未经授权 Push 的约束。
+- 新建 [文档导航](docs/README.md)、[历史索引](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/README.md)、[整理映射](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/migration/v3-documentation-map.md)和 [ADR 0003](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0003-v3-documentation-baseline.md)。合并 v3 自动建图、完整领域模型/轻量投影、断点续跑和数据保护要求到根 AGENTS，保留原环境与禁止未经授权 Push 的约束。
 - 更新 README、进度、API/模型配置说明、旧需求/领域/来源/ADR/迁移与实验入口；标明当前设计、已实现运行契约和历史上下文。同步 DEV-0022 的安装器已构建未验收状态，不把构建当作安装测试。
 - v3 原包保持原样；Prompt 编号映射及双击交互、嵌套 DTO、中文必填与英文回退、证据 hash 命名等参考差异登记待实施前澄清。没有改写运行 Prompt、数据库 Schema、用户数据或既有代码改动。
 
@@ -703,12 +703,12 @@
 
 ### 实际改动
 
-- M0 修改前执行 104 Python passed/2 skipped、28 React passed，保存 305 个源码文件快照与四份 SQLite 一致性备份到 `.local/v3-m0/`；新增 [v2→v3 迁移评估](docs/migration/v2_to_v3_assessment.md)和 [ADR 0004](docs/adr/0004-v3-projection-and-unified-extraction.md)。没有重搭工程。
+- M0 修改前执行 104 Python passed/2 skipped、28 React passed，保存 305 个源码文件快照与四份 SQLite 一致性备份到 `.local/v3-m0/`；新增 [v2→v3 迁移评估](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/migration/v2_to_v3_assessment.md)和 [ADR 0004](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0004-v3-projection-and-unified-extraction.md)。没有重搭工程。
 - `graph_models.py`、`graph_contracts.py`、`graph_projection.py`、`0009_graph_projection.py` 新增显示元数据、来源结构边、独立布局；五类默认投影、带 revision 的分页、限定邻域及按需完整详情。旧 ID、知识/证据/审核/模型结果沿用，不删除实验与条件。
 - `unified_contracts.py`、`unified_extraction.py`、`unified_store.py`、`unified_mock.py` 与运行 P02 实现 unified-v3.1 单批多类型抽取，严格证据/局部引用检查后经 KnowledgeStore 写入。`translation.py` 与运行 P04 只补译显示字段，保留 accepted 科学内容、原始英文与模型输出。
 - `extraction.py`、`app.py`、`ingest.py`、`knowledge_api.py`、`knowledge_store.py`、`providers.py`、`zotero_batch.py` 等接入新流程；按章节 6000 字符预算、批次幂等/恢复、有界退避、调用时长/Token 记录。Zotero 解析后在同事务排队确定性抽取子任务，默认引用原文；旧 API 默认 legacy-v2 保持兼容。
 - `GraphWorkspace.tsx`、`graphLayout.ts`、`App.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`JobHistory.tsx`、`GraphExplorer.tsx` 等接入图谱主视图、双语/英文回退、证据详情、拖动固定、独立布局自动保存、可选旧抽取对照与旧 Comparator。P3 候选关系保留虚线、审核与模型依据；NO_DECISION 不建科学边。
-- `main.rs` 增加受限图谱/布局/补译 API 和 Zotero URI 白名单，通过 ShellExecuteW 打开 Zotero，不经过 Shell 命令。契约导出到 `packages/contracts/`；同步 AGENTS、README、API、进度、迁移计划、[实际验收报告](docs/archive/reports/v3-verification.md)与 52 项设计资产清单。
+- `main.rs` 增加受限图谱/布局/补译 API 和 Zotero URI 白名单，通过 ShellExecuteW 打开 Zotero，不经过 Shell 命令。契约导出到 `packages/contracts/`；同步 AGENTS、README、API、进度、迁移计划、[实际验收报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/v3-verification.md)与 52 项设计资产清单。
 - 原生发现并修复论文无限分页与图谱论文筛选的缓存键冲突白屏；统一图谱位置状态并调整快速拖动起始阈值，原地点击不保存/固定；收窄详情关联遍历并折叠实验详情。新增 `test_graph_v3.py`、`test_v3_compatibility.py`、`GraphWorkspace.test.tsx`，扩展冻结引擎 smoke。
 
 ### 验证
@@ -744,7 +744,7 @@
 - `src-tauri/src/main.rs`：原生发现跨页布局超过 16 KiB，只有已授权 graph/layout POST 放宽至 512 KiB；服务端仍最多 2000 个有限坐标，其他请求预算不变。新增 Rust 边界测试。
 - `knowledge_visibility.py`、`graph_projection.py`、`graph_contracts.py`、知识/推理 API：正常视图隐藏未经人工修改的 Mock 节点，人工接受/修订及历史详情保留；分页最多附加 24 个真实父论文上下文节点和 REPORTS 来源边，主游标不变。
 - `ModelSettings.tsx`、`KnowledgeReading.tsx`、`ZoteroImport.tsx`、`GraphExplorer.tsx`、`JobHistory.tsx`、`App.tsx`：真实全局模型入口、移除旧基线/Mock/手工 Token、去旧卡片画布、压缩项目头、长批次详情折叠与明确继续入口。同步生成 API 契约；离线测试与冻结 smoke 显式使用测试 Provider。
-- 新 [ADR 0005](docs/adr/0005-model-capabilities-resume-force-graph.md)与[优化验收](docs/archive/reports/refinement-verification-20261102.md)；更新 AGENTS、README、progress、模型/API 说明、v3 架构/交互/迁移/实现注记、导航与映射，52 项设计资产 hash/清单同步。Schema 仍为 0009，无新增迁移。
+- 新 [ADR 0005](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0005-model-capabilities-resume-force-graph.md)与[优化验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/refinement-verification-20261102.md)；更新 AGENTS、README、progress、模型/API 说明、v3 架构/交互/迁移/实现注记、导航与映射，52 项设计资产 hash/清单同步。Schema 仍为 0009，无新增迁移。
 
 ### 验证
 
@@ -775,7 +775,7 @@
 - `ForceGraph.tsx`、`forceSimulation.ts`、`graphLayout.ts`、`style.css`：受控点节点稳定 width/height/measured，防止 React Flow 清空尺寸造成隐藏；坐标有限性检查、RAF 清理和边标签指针处理。新增 `e2e/graph.*`、Playwright 配置/开发依赖/脚本，真实渲染验证悬停、持续/快速拖动、邻居联动、固定/缩放/容器改变；原单元测试保留。
 - `unified_contracts.py`、`extraction.py`、`unified_extraction.py`、新增 `extraction_repair.py` / `P02_local_link_repair.md`：精确 Schema 错误，仅对缺失局部引用执行一次受限端点修复。旧 P02 与 JSON Schema 不变、原始结果保留、修复运行关联来源；修复越界/拒绝/失败不入图，同任务不无限调用。其他非法响应仍可重新抽取未完成批次。新增 `test_extraction_repair.py` 覆盖七批恢复、禁止虚构/改写、原结果及旧节点保留、无额外调用。
 - `WorkbenchSection.tsx`、`Papers.tsx`、`SourceIntegrations.tsx`、`App.tsx`、`KnowledgeReading.tsx` 与测试：三块折叠及项目内记忆，PDF/Zotero 平行入口，Obsidian 移至独立笔记来源，模型运行显示原始响应/修复来源。API 与数据库保持兼容，Schema head 0009，无迁移。
-- 更新 AGENTS 的用户验收偏好、README/桌面说明、progress、运行 API、v3 交互/Prompt/计划、[ADR 0006](docs/adr/0006-graph-stability-and-local-reference-repair.md)和[实际验收](docs/archive/reports/stability-verification-20261102.md)，同步设计资产清单。
+- 更新 AGENTS 的用户验收偏好、README/桌面说明、progress、运行 API、v3 交互/Prompt/计划、[ADR 0006](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0006-graph-stability-and-local-reference-repair.md)和[实际验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/stability-verification-20261102.md)，同步设计资产清单。
 
 ### 验证
 
@@ -802,7 +802,7 @@
 - `unified_extraction.py`、新运行模板 `P02_unified_section_extract_v3_2.md`：新任务持久化 Prompt 名称，旧任务保留旧签名与计划；新计划 8000 字符/64 证据目标、4–16 候选提示，表格缺列头不得猜测。按原文字数二分超时根批一次，子批再失败即停；旧已三次超时的同证据根批恢复时直接拆分。成功批次与成功子批不重发。
 - `providers.py` / `extraction.py`：记录连接/请求发送/响应头/响应体阶段与耗时，不打印密钥或原文；明确响应超时转交有界拆分，连接/429/5xx 等保留有限重试；未增加 90 秒/180 秒时限。
 - `KnowledgeReading.tsx`、`JobHistory.tsx`：展示空占位规范化和“超时后缩小”。新 `test_extraction_reliability.py` 14 项覆盖精确兼容、旧结果零调用续跑、拆分停止/恢复/幂等、超时阶段脱敏。
-- 更新 AGENTS、README、docs 导航、API/模型说明、v3 架构/Prompt/计划、progress、[ADR 0007](docs/adr/0007-extraction-null-markers-and-timeout-adaptation.md)与[验收记录](docs/archive/reports/extraction-reliability-verification-20261102.md)。Alembic 仍 0009、DTO 仍 unified-v3.1，无数据库迁移；既有改动全部保留。
+- 更新 AGENTS、README、docs 导航、API/模型说明、v3 架构/Prompt/计划、progress、[ADR 0007](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0007-extraction-null-markers-and-timeout-adaptation.md)与[验收记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/extraction-reliability-verification-20261102.md)。Alembic 仍 0009、DTO 仍 unified-v3.1，无数据库迁移；既有改动全部保留。
 
 ### 验证
 
@@ -831,7 +831,7 @@
 - 重写 docs/00–09，确立 indexing/extracting/integrating/selecting/publishing 自动工作流，Paper→核心 Claim→支撑、多对多单元、选择/知识/布局分版本；未选候选可检索，未来 Query/Wiki 逐段来源依赖。没有人工审核/待审/接受驳回步骤；历史状态保留，新流程只用自动有效性与显示角色。
 - docs/schemas/contracts.py 及 29 份 JSON Schema、sqlite_reference.sql：显式候选 union、SourceTable、CandidateRecord、KnowledgeUnit、GraphSelection、显示偏好、上下文守卫和未来问答/页面引用。引用类型、source hash/offset、条件状态、单元路径、完整选择快照与默认图谱拓扑可执行校验；正式运行仍 0009/unified-v3.1/P02 3.2。
 - docs/prompts 13 份重写（reading-1.0），新增 P12 论文整合、P13 核心选择。25 个虚构示例、index/README 与 78 项参考测试；不使用用户论文或模型数据。原 v3 52 项资产归档到 docs/archive/v3，保留旧契约测试和来源；不把旧报告反写为新验收。
-- 新 [ADR 0008](docs/adr/0008-reading-knowledge-graph.md)、[兼容映射](docs/migration/v3_to_reading_assessment.md)、[验证记录](docs/archive/reports/reading-design-verification-20261102.md)与变化摘要；更新根 AGENTS/README、导航、API 目标边界、progress、下一轮模板、清单哈希。
+- 新 [ADR 0008](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0008-reading-knowledge-graph.md)、[兼容映射](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/migration/v3_to_reading_assessment.md)、[验证记录](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/reading-design-verification-20261102.md)与变化摘要；更新根 AGENTS/README、导航、API 目标边界、progress、下一轮模板、清单哈希。
 
 ### 验证
 
@@ -856,7 +856,7 @@
 
 - 先提交306文件既有P3/v3/R0成果 `8d3ba1d`，内容扫描304暂存文件、候选440与13提交历史Gitleaks通过，官方SSH443普通推送main并核对远端；HTTPS实测连接失败，没有修改全局Git/网络。该提交CI 41415123193全部成功。
 - R1：Alembic0010和reading_models/store，新增候选质量、结论单元/成员、选择快照/活跃指针、展示偏好、阶段检查点；复用原知识/原文/证据/模型表。隔离备份当前正式库275知识，迁移前后所有旧表逐行一致，原文/原模型输出保留。
-- R2：独立reading_contracts/P02_reading_extract，10类候选及严格证据/归属/状态；正常PDF/Zotero入口显式paper-reading-v1，旧任务不换Prompt/签名。R3：P12/P13有界整合、重复组范围检查、根路径闭合、冻结窗口与跨任务缓存、CAS发布和密度/偏好重算。见[ADR0009](docs/adr/0009-reading-pipeline-implementation.md)。
+- R2：独立reading_contracts/P02_reading_extract，10类候选及严格证据/归属/状态；正常PDF/Zotero入口显式paper-reading-v1，旧任务不换Prompt/签名。R3：P12/P13有界整合、重复组范围检查、根路径闭合、冻结窗口与跨任务缓存、CAS发布和密度/偏好重算。见[ADR0009](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0009-reading-pipeline-implementation.md)。
 - 实测修正：严格候选合法时仅隔离非法端点关联，参数记录原因且原输出不改；无路径成员保留可检索并标partial，不编造替代关系。
 - R4：graph_projection/reading_projection及GraphWorkspace/ReadingControls/KnowledgeReading，默认论文→核心Claim→展开支撑、共享节点、候选搜索、密度/偏好，无人工审核控件。旧API与review历史保留。Comparator能读取新SourceAssertion支撑条件。
 - Tauri桥接新增白名单，任务阶段/用量/覆盖缺口展示，OpenAPI生成同步；更新README、AGENTS、docs00–09、progress、ADR和实际验收。
@@ -865,7 +865,7 @@
 
 - Conda researchgraph-studio；`scripts/check-phase0.ps1`最终通过：175 Python passed / 2 symlink skipped，Ruff/format/mypy、依赖、契约、前端格式/类型/lint/build。之后新增共享投影用例，针对性4通过；React最终39通过。浏览器真实React Flow3通过，Rust7通过和clippy -D warnings通过；参考docs/tests78通过。
 - 7批第2批超时离线故障注入：首批不再调用、续跑7/7，8次抽取请求含1失败；整合/选择失败不重抽。Mock仅自动化，不作为真实质量证明。
-- 真实API：两篇真实论文最初全文尝试分别0/9、0/34停在非法关联，另一次90秒timeout。修正后复用两份已收P02响应，局部21候选、2/3核心单元经真实P12/P13发布且标partial，实际投影Paper边2/3条。已知71,260 Tokens，timeout用量未知。不是全文或科学质量通过；详细范围见[验收](docs/archive/reports/reading-implementation-verification-20261102.md)。
+- 真实API：两篇真实论文最初全文尝试分别0/9、0/34停在非法关联，另一次90秒timeout。修正后复用两份已收P02响应，局部21候选、2/3核心单元经真实P12/P13发布且标partial，实际投影Paper边2/3条。已知71,260 Tokens，timeout用量未知。不是全文或科学质量通过；详细范围见[验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/reading-implementation-verification-20261102.md)。
 - 最终PyInstaller/Tauri/NSIS通过；冻结引擎smoke包含paper-reading-v1完整离线闭环及重启，原功能兼容通过；PowerShell5.1仅System32 PATH测试通过。首次PowerShell受执行策略阻止，使用当前进程Bypass执行；又发现旧0009断言，更新0010后通过，未更改系统策略。
 - 安装包仅本机 `.local/releases/reading-graph-20261102/ResearchGraph Studio_0.0.1_x64-setup.exe`，38,526,897字节，SHA256 `a7fd43ef7818a682a3ff490dd7706f58b6e3965a9aca59c60ca5171de0794660`。未安装替换当前软件，未使用Computer Use。
 - 17:58 收尾去除 Comparator 遗留审核筛选/文案，保留明确标识的历史状态；边详情区分导航/原文/模型推断。React39、TS/eslint/格式、重打包与冻结smoke、PowerShell5.1再次通过。测试启动曾遇 Vitest 不支持 runInBand、Conda 控制台编码错误，改为直接 Node 命令；文案断言不一致修正后完整前端通过，未将失败尝试记为通过。
@@ -943,7 +943,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - 新 `model_adapters.py` / `chat_stream.py`，修改providers/model_settings/settings_api/extraction：准确端点/模型的官方能力兜底，1M/384K；新抽取非思考JSON预算32K、新推理思考预算64K，端点更低上限优先。SSE流、2MB正文/32MB传输边界、总时限≤300秒、活动计数、失败partial安全保留。
 - 新 `reading_resume.py`，修改app/models/schemas/unified_extraction及原生main.rs/api.ts/JobHistory：用户显式创建确定ID续接任务，原模型快照/签名/计划/成功批次不变，只有剩余调用使用新策略。原任务不改，新增调用用量独立记录；当前文献活动任务拒绝并发建图。
 - 新 `reading_status.py`、更新reading_api/reading_projection/graph_contracts与GraphWorkspace/ReadingControls：显示候选保存/发布差异、未完成批次和部分图入口；P12/P13保留覆盖缺口，不重抽PDF、无人工审核。
-- 新/扩展Python与React行为测试、Rust路由边界，更新OpenAPI/TypeScript、README、AGENTS、docs/progress/api/model-configuration/06与导航。新增[ADR0011](docs/adr/0011-tencent-streaming-and-reading-recovery.md)、[实际验收](docs/archive/reports/tencent-recovery-verification-20261102.md)。head0010，无迁移；上一轮精确去重实现完整保留。
+- 新/扩展Python与React行为测试、Rust路由边界，更新OpenAPI/TypeScript、README、AGENTS、docs/progress/api/model-configuration/06与导航。新增[ADR0011](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0011-tencent-streaming-and-reading-recovery.md)、[实际验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/tencent-recovery-verification-20261102.md)。head0010，无迁移；上一轮精确去重实现完整保留。
 
 ### 验证
 
@@ -970,7 +970,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 - `model_adapters.py`删除额外32K/64K预算，保留端点能力/剩余上下文约束；`app.py`将适用续接合入普通retry，JobHistory/ModelSettings移除供应商操作与旧预算说明，旧接口兼容留存。
 - 新`reading_wire.py`、`prompts/P02_reading_extract_compact.md`，wire=reading-compact-1；共同language、相同summary省略、Schema限定SourceText原文字符串形式，确定性展开到原领域1.0。不会把任意数值、未知键或错误证据转换为合法内容，数值/条件/原语义保留。
 - `unified_extraction.py`按冻结计划选择新旧Prompt/Schema，`reading_validation.py`展开后严格字段/来源验证，保留raw_output和逐字段规则审计，重复检查基于原wire对象；`extraction.py`兼容新格式失败响应复用，Mock仅测试。旧领域/Prompt文件无diff，head0010无迁移。
-- 新15项wire场景，调整模型上限、普通续接、旧响应回归；同步AGENTS/README、Schema/Prompt/计划/API/模型说明/导航，新增[ADR0012](docs/adr/0012-compact-extraction-and-model-output-ceiling.md)和[验收](docs/archive/reports/compact-output-verification-20261102.md)。ADR0011的旧32K/64K预算和专属按钮标为后续替代，历史实测不改写。
+- 新15项wire场景，调整模型上限、普通续接、旧响应回归；同步AGENTS/README、Schema/Prompt/计划/API/模型说明/导航，新增[ADR0012](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/adr/0012-compact-extraction-and-model-output-ceiling.md)和[验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/compact-output-verification-20261102.md)。ADR0011的旧32K/64K预算和专属按钮标为后续替代，历史实测不改写。
 
 ### 验证
 
@@ -1047,7 +1047,7 @@ scripts/check-phase0.ps1首次集成回归暴露旧测试API升级和历史适�
 
 **改动**：新增 pdf_structure/document_structure/structure_models、Alembic0011、section_planner；ingest 使用独立可取消进程解析，KnowledgeStore 精确核对 hash/原块文本/bbox 后发布结构旁表。跨页章节树及可识别表格行列/表头/单元格保留；References、重复页眉页脚不送抽取。纠正合块标题遗漏、内联大字/普通编号误判与小字号参考文献污染正文基准。新 P02_reading_extract_compact_v3 对所有章节同规则，章节连同子节组织，取消6000字符/48证据目标，仅按实际模型容量拆分；表格跨节不拆、排除材料不通过表格元数据旁路进入输入。冻结旧计划、成功操作及原证据不改。
 
-reading_support/selection/projection 与 GraphWorkspace 默认显示有合法来源路径的非 Claim 支撑，增加 collapsed_unit_ids，保留共享节点、分页闭合与布局；不以共享证据猜边。reading_validation 只适配 Claim.kind_note_unused=null 并审计，其他未知字段/非null仍拒绝，原始 JSON 保留。同步宿主/脚本0011握手、运行契约、ADR0014、docs00–09、README/AGENTS和进度。详见 [本轮报告](docs/archive/reports/structured-reading-verification-20261103.md)。
+reading_support/selection/projection 与 GraphWorkspace 默认显示有合法来源路径的非 Claim 支撑，增加 collapsed_unit_ids，保留共享节点、分页闭合与布局；不以共享证据猜边。reading_validation 只适配 Claim.kind_note_unused=null 并审计，其他未知字段/非null仍拒绝，原始 JSON 保留。同步宿主/脚本0011握手、运行契约、ADR0014、docs00–09、README/AGENTS和进度。详见 [本轮报告](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/structured-reading-verification-20261103.md)。
 
 **实际验证**：正式库只读备份后在隔离副本迁移、解析及回放。44旧表迁移/重解析原行保持；27页/766块→35章节/29检测表格，9页/159块→14章节/2表格，References分别排除30/6块。1M/384K离线规划11/6窗口，最大18270/18895字符，不记为模型成绩。真实失败响应的额外值确为null；零新调用重验并保存4候选/0关联，重复apply幂等，262旧知识/47旧ModelRun及原响应全部原列不变。现有真实投影38节点54边（含4方法/1实验/2条件），全部收起10节点；正式库、原PDF和Zotero未改。
 
@@ -1061,7 +1061,7 @@ scripts/check-phase0.ps1首轮274pass/3fail/2skip，发现旧P01空根上下文�
 
 **目标与根因**：用户报告“选择上下文超过预算，保留整合检查点；未截断必要支撑”，要求不要设置上下文预算。实际是 reading_pipeline.py 在 P13 模型调用前硬拒超过48000字符；P12另有26000/24000字符、60候选及20窗口限制。完整支撑会放大单元输入，增加模型输出额度不能解除本地门槛。
 
-**改动**：reading_pipeline.py移除上述预算，新finish plan记录complete-context-v1，P12全候选/完整引用证据一窗，P13全部单元一次；旧reading_windows优先读，旧签名与P13八单元分组保持，成功检查点不重调。来源/Schema/路径/版本/取消与真实端点能力、有界超时仍生效。新增test_reading_complete_context.py并更新旧大支撑测试，覆盖69候选、68有效支撑、超24K证据/48K选择、161根、旧P13第二组失败续接和真实错误类别模拟。同步README、AGENTS、docs02/05/06/导航/清单及ADR0015；实际报告见[完整上下文验收](docs/archive/reports/complete-context-verification-20261103.md)。
+**改动**：reading_pipeline.py移除上述预算，新finish plan记录complete-context-v1，P12全候选/完整引用证据一窗，P13全部单元一次；旧reading_windows优先读，旧签名与P13八单元分组保持，成功检查点不重调。来源/Schema/路径/版本/取消与真实端点能力、有界超时仍生效。新增test_reading_complete_context.py并更新旧大支撑测试，覆盖69候选、68有效支撑、超24K证据/48K选择、161根、旧P13第二组失败续接和真实错误类别模拟。同步README、AGENTS、docs02/05/06/导航/清单及ADR0015；实际报告见[完整上下文验收](https://github.com/KLucen/ResearchGraphStudio/blob/backup/pre-lite-refactor/docs/archive/reports/complete-context-verification-20261103.md)。
 
 **实际验证**：只读备份正式库，副本找到2预算失败任务，P02为15/15和34/34；P12的4/4与10/10检查点全可复用，P13最大116934字符。无网络Probe保留历史签名，零P02/P12调用直接到87342/52592字符的P13调用边界后主动停止；旧知识/来源表/原ModelRun及冻结计划保持，正式库/PDF/Zotero/凭据未改。真实模型调用0，不记为真实P13选择通过。
 
@@ -1482,3 +1482,37 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 **文档与安全**：当前文档专项208份Markdown、868个目标（含4个登记外部路径），仓库内断链0；最终额外包含30份QA原件的检查为238份Markdown、864个仓库内链接目标全部有效，S1–S4四份外部原文仍不可用，未计通过。当前规范86项、archive/v3 52项、用户Lite规范包28项校验通过。最终729个源码候选的内容/私人路径/Gitleaks与全历史28个提交扫描无泄露，diff空白检查通过；远端备份hash再核对为7b45f0d，当前Lite分支未暂存、未提交、未推送。
 
 **未解决问题与下一步**：Lite P0没有实现B论文卡片、A章节导读、D证据问答，也没有把未来Provider调用点接入逐尝试真实usage回调；旧账本缺失Token/费用时保留unknown，不能据零值推断免费。复杂表格/公式、OCR、真实模型质量、真实价格、跨平台/干净机和用户原生安装仍待后续验收。Lite P1只计划做B01六字段论文卡片、受限证据Span、版本化缓存、显式生成/重生成和逐请求Provider用量；本轮已停止，未开始P1。
+
+## DEV-0064 — 2026-11-09 19:27（Asia/Shanghai）：全面清理 Lite 工程与联合论文概览收尾
+
+**目标与范围**：用户要求在 Lite A+B+D 方向上全面清理项目文件夹，删除旧安装包、构建输出、运行数据库、历史图谱/任务/缓存、过期文档、完整图谱抽取、跨论文推理、Query、Lint、Wiki、旧 Reading/Reasoning 业务及失效依赖，同时保留 Tauri、React、FastAPI、SQLite/FTS5、Zotero、PDF/章节解析、文本索引、Provider、用量、任务管理和可复用图谱画布。完整工程先前已保存并推送到 `origin/backup/pre-lite-refactor`（`7b45f0d`）；本轮只做本地提交与合并，不推送。
+
+**清理与重组**：完成目录盘点并保留 `docs/current_project_baseline.md`、`docs/lite_cleanup_inventory.md`、Lite A+B+D 规范包、LightGraph 补充包、安全说明、迁移说明和匿名 fixture。移除活跃目录中的旧 v2/v3 设计归档、旧 Prompt/Schema/契约、旧迁移、完整知识图谱/Query/Lint/Wiki/P5/Reading/Reasoning/外部文档代码及测试，删除根目录过期选题说明 `QA.md`。`.local`、安装包、SQLite/WAL/SHM、日志、构建输出和依赖缓存不进入提交；历史完整工程仍可从备份分支恢复。
+
+**Lite 空库与运行边界**：活跃工程使用 `researchgraph-lite.sqlite3`、独立初始 Schema `lite0001`，不迁移旧业务数据。选择 Zotero 论文或导入 PDF 后只进行本地解析、章节识别、文本块保存和 FTS5 索引，默认模型调用 0。发现旧数据库结构时拒绝在 Lite 路径升级。`unknown` 保持为信息/计量缺口，不据此补造实验条件、推断矛盾或把未知费用写为零。
+
+**PaperCard + LightGraph**：B 模块概览通过一次联合调用生成 PaperCard 与轻量图谱；保留双语名称、简短属性、关系类型和 `EXPLICIT/INFERRED`，不生成 Evidence 节点或段落级证据。补齐显式重新生成、失败不自动重试、缓存身份、缓存命中 0 新调用、逐尝试 usage 记录、同论文同文献版本按稳定节点 ID 继承布局/相机、跨论文/跨版本隔离布局和布局重置。React Flow 交互覆盖节点拖动、缩放、点击详情、关系详情和布局持久化。
+
+**接口与契约修正**：Tauri 白名单与实际 Lite 路由/查询参数对齐（检索 `revision_id`、概览 `document_version_id`/`overview_result_id`、Zotero collections/status）；Zotero URI 改为与宿主校验一致的 `library/items/KEY` 或 `groups/N/items/KEY`。Job stage 契约补充 Lite 的 `queued/indexing/completed/failed/interrupted`。
+
+**验证**：清理前 P0 基线已完成后端 1208、前端 169 等验证；本轮代理专项后端 `test_lite_clean.py` 6 项、概览联合/布局专项 13 项、前端 5 文件 28 项、真实浏览器图谱 2 项通过，Ruff/TypeScript/ESLint/Prettier/Vite 通过；布局专项在代理调整后需重新运行全量。未访问正式用户数据库、真实 Zotero 库、私人 PDF/批注、真实 Provider 或 API Key，未执行安装器安装验收。
+
+**剩余问题**：A 章节导读和 D 证据问答尚未开发；真实 Provider 科学质量、Token/价格、复杂表格/公式、OCR、跨平台、干净机和用户原生安装仍待独立验收。待最终全量回归、安全扫描和显式提交后合并到本地 `main`，不推送。
+
+## DEV-0065 — 2026-11-09 20:18（Asia/Shanghai）：清理后最终回归与本地合并准备
+
+**最终实现**：在 Lite P0/P1 清理基础上补齐概览的真实章节角色输入：优先从结构化 Section/EvidenceSpan/Chunk 组合摘要、引言、方法、结果和结论，排除 References；无结构时只使用 `unclassified_excerpt`，不把字符切片误标成章节。联合概览继续由一次 Provider 请求同时生成 PaperCard 与 LightGraph；显式 `force_regenerate`、缓存命中、失败/重启恢复、逐尝试用量、同论文同版本布局继承和跨版本布局隔离均保留。补齐 Zotero status/collections 只读接口、Job 阶段契约、论文 Zotero 原生 URI、桌面检索/概览/layout 查询白名单和 `open_zotero` 调用。
+
+**验证**：最终后端 `pytest -q` 为 **143 passed / 1 skipped / 1 既有 Starlette/httpx 弃用 warning**；概览专项 13 passed，Lite/Zotero专项16 passed；Ruff check/format、mypy、compileall、pip check、OpenAPI/TypeScript契约导出通过。前端 TypeScript/ESLint、Prettier、Vitest **30 passed**、Vite production build 和真实浏览器 LightGraph **2/2** 通过。Rust `cargo fmt --check` 和 `cargo test` 为 **7 passed / 1 ignored**；源引擎和打包引擎 smoke 均通过，Schema `lite0001`、PDF 导入和模型调用数 0。
+
+**安全与清理**：移除所有验证生成的 `.local`、依赖目录、Rust/前端构建输出、Python 缓存、运行数据库/日志/安装包。自定义路径与常见密钥模式扫描覆盖 442 个仓库候选，Git 历史 28 个提交的常见密钥模式扫描通过；Gitleaks 二进制已随本轮清理移除且当前机器未找到可执行文件，因此未把自定义扫描冒充 Gitleaks 结果。暂存前仍需逐文件核对，不使用 `git add .`。
+
+**未完成与下一步**：A 章节导读、D 证据问答、真实 Provider 科学质量/价格、复杂表格/公式/OCR、跨平台、干净机和用户原生安装仍未验收。下一步只做显式暂存、安全扫描和本地提交，随后合并到 `main`；不推送远端。
+
+## DEV-0066 — 2026-11-09 21:35（Asia/Shanghai）：清理收尾与合并前安全核对
+
+**清理收尾**：根据全项目引用审计，移除桌面端未使用的 `/api/v1/providers` 客户端方法和 Tauri 白名单项，删除退役 GraphRAG/Query/审阅工作台样式，保留 Lite 论文阅读、PaperCard、LightGraph、章节索引和布局所需样式。删除活跃 Lite 规范中的过时接续指令，并把 A+B+D、LightGraph 和迁移文档统一到“旧工程只在 `backup/pre-lite-refactor` 回退，Lite 使用 `lite0001` 空库、不加载旧业务”的边界。历史开发日志中的旧路径链接改为备份分支链接，当前文档路径引用已修正。
+
+**临时文件与安全**：清除活跃源码中的 Python 缓存和前端 `tsbuildinfo`；未发现构建目录、Node/Rust 依赖目录、SQLite/日志/安装包或私人 PDF进入工作区。项目外 Gitleaks 8.24.3 官方压缩包 SHA-256 已核对，暂存内容 73 个可扫描文件、工作区源码 223 个候选文件和 Git 历史 29 个提交均通过 Gitleaks；路径规则、`git diff --cached --check` 和 OpenAPI 36 路由/Schema 一致性复核通过。
+
+**验证边界**：沿用本轮最终回归：后端 143 passed/1 skipped、前端 Vitest 30 passed、真实浏览器 LightGraph 2/2、Rust 7 passed/1 ignored；本轮没有访问正式用户数据库、真实 Zotero 库、私人 PDF/批注、真实 Provider 或 API Key，Lite 本地解析实际模型调用和 Token 均为 0。等待显式提交并在本地合并 `main`，不推送远端。A 章节导读、D 证据问答、真实 Provider 科学质量/价格、复杂表格/公式/OCR、跨平台和用户原生安装仍待后续验收。

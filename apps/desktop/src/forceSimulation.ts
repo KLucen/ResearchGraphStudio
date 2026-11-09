@@ -1,5 +1,5 @@
-import type { components } from "../../../packages/contracts/generated";
-type Position = components["schemas"]["LayoutPosition"];
+import type { GraphEdge, GraphPosition } from "./graphTypes";
+type Position = GraphPosition;
 type Point = Position & { vx: number; vy: number };
 
 // Small, bounded local projections (60 nodes). Physics never touches knowledge data.
@@ -9,7 +9,7 @@ export class ForceSimulation {
   dragging: string | null = null;
   constructor(
     positions: Position[],
-    private edges: { source: string; target: string }[],
+    private edges: Pick<GraphEdge, "source" | "target">[],
   ) {
     this.points = new Map(
       positions.map((p) => [p.node_id, { ...p, vx: 0, vy: 0 }]),

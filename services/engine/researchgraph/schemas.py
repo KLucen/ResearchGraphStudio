@@ -10,7 +10,7 @@ class InputModel(BaseModel):
 class ProjectCreate(InputModel):
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=4000)
-    experience_mode: Literal["lite", "legacy"] = "lite"
+    experience_mode: Literal["lite"] = "lite"
 
     @field_validator("name")
     @classmethod
@@ -24,10 +24,7 @@ class ProjectCreate(InputModel):
 class ProjectView(ProjectCreate):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    # Old idempotency responses predate the mode field.  Treat a missing
-    # response field as a legacy project while new ORM rows always expose the
-    # persisted value explicitly.
-    experience_mode: Literal["lite", "legacy"] = "legacy"
+    experience_mode: Literal["lite"] = "lite"
     created_at: str
 
 
@@ -48,21 +45,18 @@ class JobView(BaseModel):
     status: Literal["queued", "running", "succeeded", "failed", "cancelled", "interrupted"]
     stage: (
         Literal[
+            "queued",
             "starting",
             "reading",
             "parsing",
             "checking",
             "saving",
             "diagnostics",
-            "outlining",
-            "extracting",
+            "generating",
             "indexing",
-            "integrating",
-            "selecting",
-            "publishing",
-            "resolving",
-            "comparing",
-            "reasoning",
+            "completed",
+            "failed",
+            "interrupted",
         ]
         | None
     ) = None
@@ -175,3 +169,62 @@ class ChunkView(BaseModel):
 class ChunkList(BaseModel):
     items: list[ChunkView]
     next_cursor: int | None
+
+
+class SectionView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    document_version_id: str
+    title: str
+    ordinal: int
+    role: str
+    parent_id: str | None
+    level: int
+    start_page: int
+    end_page: int
+    excluded: bool
+    text: str = ""
+    chunk_ids: list[str] = Field(default_factory=list)
+
+
+class EvidenceView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    document_version_id: str
+    section_id: str
+    paragraph_id: str
+    page_index: int
+    start_offset: int
+    end_offset: int
+    quote: str
+    text_sha256: str
+    normalization: str
+    bbox_list: list[list[float]]
+
+
+class DocumentStructure(BaseModel):
+    document_version_id: str
+    sections: list[SectionView]
+    evidence: list[EvidenceView] = Field(default_factory=list)
+    structured_document: dict[str, Any] | None = None
+
+
+class SectionList(BaseModel):
+    document_version_id: str
+    sections: list[SectionView]
+
+
+class SearchHit(BaseModel):
+    chunk_id: str
+    section_id: str
+    document_version_id: str
+    paper_id: str
+    text: str
+    page_index: int
+    page_label: str
+    score: float
+
+
+class SearchResults(BaseModel):
+    query: str
+    items: list[SearchHit]

@@ -1,10 +1,4 @@
-"""Additive persistence models for ResearchGraph Lite P0.
-
-These tables deliberately sit beside the existing ModelRun/Query/P5 ledgers.  The
-legacy ledgers remain the source of truth for historical work; Lite usage is a
-small, normalized ledger that can be written by future A/B/D services without
-changing the old protocol rows.
-"""
+"""Lite model usage and source-scoped response cache."""
 
 from typing import Any
 

@@ -1,27 +1,19 @@
-# ADR 0031：ResearchGraph Lite P0 模式开关与本地阅读基础
+# ADR 0031：ResearchGraph Lite P0 本地阅读基础
 
 - 日期：2026-11-09
-- 状态：已实现 P0，A/B/D 业务仍待后续阶段
-- 适用分支：`refactor/researchgraph-lite-p0`
+- 状态：P0 已实现；数据策略已由用户后续清理要求和 ADR0032更新
+- 原始 P0 快照：29e4495
 
-## 决策
+## P0 决策
 
-ResearchGraph 从完整科研知识图谱的默认流程迁移为 Lite A+B+D 的渐进路线。P0 只改变默认入口和高成本任务触发边界：新项目使用 `experience_mode=lite`，选择 Zotero 论文后执行本地 PDF/章节/FTS5 处理，默认 0 次 LLM 调用。旧项目迁移后为 `legacy`，旧知识图谱、查询、Lint/Wiki 数据和 API 保留可读性。
+ResearchGraph 转向 Lite A+B+D。选择 Zotero 论文或本地 PDF 后只进行本地解析、章节识别与 FTS5 索引，默认不调用模型。用量与论文/章节缓存建立独立基础，Provider usage、估算、未知及费用未知必须区分；缓存命中不产生新模型调用或 Token。
 
-P0 用新增的 `lite_token_usage`、`lite_cache_entries` 和只读用量接口建立统一观测与缓存基础。新增表不替代历史 ModelRun/Query/P5 账本；Provider usage、估算、未知和费用未知必须保持可区分。缓存命中不产生新调用，缓存内容按模型、Prompt、来源版本和小节身份形成版本化键并可标记 stale。
+原始 P0 采用 0021/0022 加性迁移和 legacy 可访问策略。用户随后要求全面清理并建立新空 Lite 数据库；当前活跃工程改用 lite0001、researchgraph-lite.sqlite3，不迁移旧业务数据，旧系统只通过 backup/pre-lite-refactor 回退。当前决策见 [ADR0032](0032-lite-clean-engine-and-paper-overview.md)。
 
-## 取舍
+## 验收口径
 
-完整图谱抽取、跨论文推理、Lint/Wiki 后台和旧 Query 入口继续存在以保护历史数据与兼容性，但 Lite 模式默认不触发；Worker、抽取入口和后台维护任务共同执行保护，避免仅依赖前端隐藏。P0 不新增 B/A/D 生成接口，不把旧图谱显示当成 Lite 论文卡片、章节导读或局部问答的替代。
+P0 的核心条件是匿名 PDF/Zotero 本地处理、章节/FTS5、任务重启和零模型调用通过。旧正式数据库和真实 Zotero 库没有作为实验对象；原 P0 的旧数据兼容测试属于29e4495的历史验证，不能表述为清理后的 Lite 仍能打开旧图谱。
 
-采用增量 Alembic 迁移 `0021`、`0022`，而不是重建数据库或删除旧表。迁移为旧项目设置 `legacy`，新项目 API 默认 `lite`，这样既能保存已有图谱，又能让新用户从低成本本地阅读开始。
+## 后续范围
 
-## 验收边界
-
-P0 的通过条件是本地解析和索引链路对匿名样例不调用模型，旧数据可读，Lite/legacy 模式不会导致应用启动异常，模式/用量/缓存回归通过。真实 Provider Token、价格、引用质量、B/A/D 功能和安装器原生体验不在本 ADR 的通过结论中；这些项目必须在对应阶段单独验收。
-
-`unknown` 只表示信息或计量缺口。缺少实验条件、Provider usage 或价格时，程序保留 unknown/费用未知，不据此推断矛盾、补造条件或把未知费用写为零。
-
-## 后续
-
-Lite P1 先实现 B01 论文卡片：限制输入范围、六字段结构化输出、Span 引用校验、逐版本缓存和逐尝试用量记录。A01 章节导读和 D01 局部证据问答分别属于后续阶段；在此之前不恢复完整 P02/P12/P13 自动建图，也不把全量 Lint/Wiki 放回 Lite 默认路径。
+P1 联合实现 B 的 PaperCard + LightGraph，一次调用且无 Evidence 节点；A 章节导读和 D 证据问答仍待后续阶段。unknown只表示信息/计量缺口，不能补造条件或推断未知费用为零。

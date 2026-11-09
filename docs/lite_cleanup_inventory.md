@@ -27,7 +27,7 @@ Lite 活跃数据只包含来源、解析、章节/文本索引、任务、模�
 
 清理前已核对以下耦合：
 
-- `app.py` 的旧抽取、Query、P5、Lint、Wiki、推理和外部文档路由需要从 Lite 入口移除；worker 不再空闲执行 Lint 维护。
+- `app.py` 的旧抽取、Query、P5、Lint、Wiki、推理和外部文档路由已从 Lite 入口移除；worker 不再空闲执行 Lint 维护。
 - `ingest.py`、`document_structure.py` 和 Zotero 适配器只保留来源、解析和 FTS 写入，不再调用完整 KnowledgeStore/GraphRAG 抽取。
 - `lite_usage.py` 使用独立 Lite 用量/缓存表，不能把旧 Query/P5/知识模型行摊给 Lite 论文。
 - `Job.resume_adapter_available` 和旧 Provider Mock 不再导入 reading/Query/P5 协议。

@@ -24,13 +24,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
-from researchgraph.external_document_api import register_external_document_api
-from researchgraph.extraction import run_extraction
-from researchgraph.graph_projection import register_graph_api
+from researchgraph.core import KnowledgeError
 from researchgraph.ingest import run_file_job
-from researchgraph.knowledge_api import register_knowledge_api
-from researchgraph.knowledge_models import ModelRun, ZoteroLink
-from researchgraph.knowledge_store import KnowledgeError, KnowledgeStore
 from researchgraph.models import (
     AttachmentRevision,
     Chunk,
@@ -40,14 +35,9 @@ from researchgraph.models import (
     Paper,
     PaperSource,
     Project,
+    ZoteroLink,
     now,
 )
-from researchgraph.p5_api import register_p5_api
-from researchgraph.p5_personal_api import register_p5_personal_api
-from researchgraph.query_api import register_query_api
-from researchgraph.query_models import QueryModelRun
-from researchgraph.reasoning import run_reasoning
-from researchgraph.reasoning_api import register_reasoning_api
 from researchgraph.schemas import (
     ChunkList,
     ChunkView,
@@ -159,7 +149,6 @@ def finish_diagnostic(
 
 
 async def worker(engine: Engine, data_dir: Path) -> None:
-    next_lint_check = 0.0
     while True:
         claim_task = asyncio.create_task(asyncio.to_thread(claim_queued_job, engine))
         try:
@@ -175,64 +164,22 @@ async def worker(engine: Engine, data_dir: Path) -> None:
             # No job has been claimed or model request sent. Leave queued work intact.
             claimed = None
         if claimed is None:
-            if asyncio.get_running_loop().time() >= next_lint_check:
-                from researchgraph.lint_maintenance import reconcile_pending
-
-                maintenance = asyncio.create_task(asyncio.to_thread(reconcile_pending, engine))
-                try:
-                    await asyncio.shield(maintenance)
-                except asyncio.CancelledError:
-                    with suppress(OperationalError):
-                        await maintenance
-                    raise
-                except OperationalError as exc:
-                    if not database_busy(exc):
-                        raise
-                next_lint_check = asyncio.get_running_loop().time() + 1.0
             await asyncio.sleep(0.15)
             continue
         job_id, kind = claimed
         result: dict[str, str | bool] | None = None
         error = None
         try:
-            if kind in {
-                "knowledge_extract",
-                "knowledge_reason",
-                "query_answer",
-                "p5_workflow",
-                "translation_repair",
-            }:
-                from researchgraph.lite_mode import block_model_job, is_lite_project
+            if kind == "paper_overview":
+                from researchgraph.paper_overview_api import execute_overview
 
-                with Session(engine) as session, session.begin():
-                    current = session.get(Job, job_id)
-                    if current is not None and is_lite_project(session, current.project_id):
-                        block_model_job(session, current)
-                        continue
-            if kind == "p5_workflow":
-                from researchgraph.p5_execution import execute as execute_p5
-
-                await execute_p5(engine, job_id)
-                continue
-            if kind == "query_answer":
-                from researchgraph.query_answers import execute as execute_query
-
-                await execute_query(engine, job_id)
-                continue
-            if kind == "translation_repair":
-                from researchgraph.translation import run_translation
-
-                await run_translation(engine, job_id)
-                continue
-            elif kind == "knowledge_extract":
-                await run_extraction(engine, job_id)
-                continue
-            if kind == "knowledge_reason":
-                await run_reasoning(engine, job_id)
+                await execute_overview(engine, job_id, data_dir)
                 continue
             if kind in {"pdf_import", "source_check", "source_relocate", "zotero_import"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
+            if kind != "diagnostics":
+                raise ValueError("任务类型不受当前 Lite 版本支持")
             result = await asyncio.to_thread(diagnostics, engine)
         except Exception as exc:
             error = (
@@ -267,41 +214,17 @@ def create_app(
                 migrate(engine, data_dir)
                 diagnostics(engine)
                 app.state.workspace_cleanup = recover_workspaces(data_dir)
+                # Overview requests persist their own PENDING result and must be
+                # marked interrupted on restart without being sent again.
+                from researchgraph.paper_overview_api import recover_overviews
+
+                recover_overviews(engine)
                 with Session(engine) as session, session.begin():
-                    # Add derived anchors through the same store for legacy and new documents.
-                    store = KnowledgeStore(session)
-                    for revision_id in session.scalars(select(AttachmentRevision.id)).all():
-                        store.ensure_document(revision_id)
-                    session.execute(
-                        update(ModelRun)
-                        .where(ModelRun.status.in_(["running"]))
-                        .values(
-                            status="interrupted", error="引擎重启，模型运行中断", finished_at=now()
-                        )
-                    )
                     session.execute(
                         update(Job)
                         .where(Job.status == "running")
                         .values(
                             status="interrupted", error="上次运行中断，可手动重试", updated_at=now()
-                        )
-                    )
-                    from researchgraph.p5_models import P5ModelRun
-
-                    session.execute(
-                        update(P5ModelRun)
-                        .where(P5ModelRun.status == "running")
-                        .values(
-                            status="interrupted",
-                            error="引擎重启，已发送请求不会自动重发",
-                            finished_at=now(),
-                        )
-                    )
-                    session.execute(
-                        update(QueryModelRun)
-                        .where(QueryModelRun.status == "running")
-                        .values(
-                            status="interrupted", error="引擎重启，模型运行中断", finished_at=now()
                         )
                     )
                 if start_worker:
@@ -389,37 +312,19 @@ def create_app(
             in {"REVISION_CONFLICT", "IDEMPOTENCY_CONFLICT", "SOURCE_CHANGED", "STALE_INPUT"}
             else 422
         )
-        if exc.code.startswith(("WIKI_", "P5_", "LINT_")) and any(
-            word in exc.code for word in ("CONFLICT", "CHANGED", "STALE", "REVOKED")
-        ):
-            status = 409
         if exc.code.endswith("NOT_FOUND"):
             status = 404
         return error_response(request, status, exc.code, str(exc))
 
-    register_knowledge_api(app, engine)
     register_settings_api(app, engine, data_dir)
     register_zotero_batch_api(app, engine)
-    register_reasoning_api(app, engine)
-    register_graph_api(app, engine)
-    register_query_api(app, engine)
-    register_p5_api(app, engine)
-    register_p5_personal_api(app, engine)
-    register_external_document_api(app, engine)
-    from researchgraph.lint_api import register_lint_api
-    from researchgraph.wiki_api import register_wiki_api
-
-    register_lint_api(app, engine)
-    register_wiki_api(app, engine, native_token=lambda: token)
-    from researchgraph.reading_api import register_reading_api
-
-    register_reading_api(app, engine)
     from researchgraph.lite_usage import register_lite_usage_api
+    from researchgraph.local_index import register_local_index_api
+    from researchgraph.paper_overview_api import register_paper_overview_api
 
     register_lite_usage_api(app, engine)
-    from researchgraph.translation import register_translation_api
-
-    register_translation_api(app, engine)
+    register_local_index_api(app, engine)
+    register_paper_overview_api(app, engine, data_dir)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -449,31 +354,9 @@ def create_app(
     def create_project(body: ProjectCreate, idempotency_key: Key) -> ProjectView:
         key, payload = f"project:{idempotency_key}", body.model_dump()
         with Session(engine()) as session, session.begin():
-            existing = session.get(Idempotency, key)
-            if (
-                existing is not None
-                and "experience_mode" not in body.model_fields_set
-                and "experience_mode" not in existing.response
-            ):
-                # A project created before Lite used a two-field request hash.
-                # Preserve exact old replay without letting an explicit mode
-                # change reuse the historical idempotency key.
-                old_payload = {
-                    name: value for name, value in payload.items() if name != "experience_mode"
-                }
-                old_response = remembered(session, key, old_payload)
-                if old_response:
-                    project = session.get(Project, old_response.get("id"))
-                    if project is None or project.experience_mode != "legacy":
-                        raise failure(409, "IDEMPOTENCY_CONFLICT", "历史项目模式与请求标识不一致")
-                    return ProjectView.model_validate(old_response)
             previous = remembered(session, key, payload)
             if previous:
                 return ProjectView.model_validate(previous)
-            # New projects start in Lite mode.  The mode is part of the
-            # idempotency payload through ``ProjectCreate.model_dump()`` and
-            # remains immutable in P0; legacy projects keep their historical
-            # mode after the additive migration backfill.
             project = Project(id=str(uuid4()), created_at=now(), **payload)
             session.add(project)
             session.flush()
@@ -582,76 +465,44 @@ def create_app(
 
     @app.post("/api/v1/jobs/{job_id}/{action}", response_model=JobView)
     def change_job(job_id: str, action: str, idempotency_key: Key) -> JobView:
-        if action not in {"cancel", "retry", "resume-adapted"}:
+        if action not in {"cancel", "retry"}:
             raise failure(404, "ACTION_NOT_FOUND", "操作不存在")
         key, payload = f"job-action:{idempotency_key}", {"job_id": job_id, "action": action}
         with Session(engine()) as session, session.begin():
             previous = remembered(session, key, payload)
             if previous:
-                if action == "retry":
-                    original = session.get(Job, job_id)
-                    if original and original.kind in {"query_answer", "p5_workflow"}:
-                        actual = session.get(Job, previous["id"])
-                        if actual is None or actual.project_id != original.project_id:
-                            raise failure(404, "JOB_NOT_FOUND", "续接任务不存在")
-                        return JobView.model_validate(actual)
                 return JobView.model_validate(previous)
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
-            if action == "retry" and job.kind == "p5_workflow":
-                from researchgraph.p5_workflows import checked as checked_p5
-                from researchgraph.p5_workflows import enqueue as enqueue_p5
-
-                workflow = checked_p5(
-                    session, str(job.project_id), str((job.payload or {}).get("workflow_id", ""))
+            if action == "retry" and job.kind == "paper_overview":
+                raise failure(
+                    409,
+                    "EXPLICIT_GENERATION_REQUIRED",
+                    "请在论文概览中手动重新生成；模型任务不会自动重发",
                 )
-                response = JobView.model_validate(
-                    enqueue_p5(session, workflow, idempotency_key, continue_requested=True)
-                )
-                remember(session, key, payload, response.model_dump())
-                return response
-            if action == "retry" and job.kind == "query_answer":
-                from researchgraph.query_answers import enqueue as enqueue_query
-
-                response = JobView.model_validate(
-                    enqueue_query(
-                        session,
-                        str((job.payload or {}).get("query_id", "")),
-                        str(job.project_id),
-                        idempotency_key,
-                        continue_requested=True,
-                    )
-                )
-                remember(session, key, payload, response.model_dump())
-                return response
-            from researchgraph.reading_finish_upgrade import available as finish_upgrade_available
-            from researchgraph.reading_finish_upgrade import upgrade_job as upgrade_finish_job
-            from researchgraph.reading_upgrade import upgrade_available, upgrade_job
-
-            if action == "retry" and finish_upgrade_available(job):
-                response = JobView.model_validate(upgrade_finish_job(session, job))
-                remember(session, key, payload, response.model_dump())
-                return response
-
-            if action == "retry" and upgrade_available(job):
-                response = JobView.model_validate(upgrade_job(session, job))
-                remember(session, key, payload, response.model_dump())
-                return response
-            if action == "resume-adapted" or (action == "retry" and job.resume_adapter_available):
-                from researchgraph.reading_resume import resume_with_adapter
-
-                response = JobView.model_validate(resume_with_adapter(session, job))
-                remember(session, key, payload, response.model_dump())
-                return response
             if action == "cancel" and job.status in {"queued", "running"}:
                 job.status = "cancelled"
+                if job.kind == "paper_overview":
+                    from researchgraph.paper_overview_models import PaperOverviewResult
+
+                    overview = session.scalar(
+                        select(PaperOverviewResult).where(
+                            PaperOverviewResult.job_id == job.id,
+                            PaperOverviewResult.status == "PENDING",
+                        )
+                    )
+                    if overview is not None:
+                        overview.status = "FAILED"
+                        overview.error_code = "CANCELLED"
+                        overview.error = "概览任务已取消，未自动重发"
+                        overview.updated_at = now()
             elif (
                 action == "retry"
                 and job.status in {"failed", "interrupted", "cancelled"}
                 and job.attempt < 3
             ):
-                # Keep observed batch progress so retry resumes from the first
+                # Keep observed local-file progress so retry resumes from the first
                 # failed/pending batch. KnowledgeOperation makes completed batches
                 # idempotent; clearing this result hid that progress from the UI.
                 job.status, job.error = "queued", None
@@ -791,7 +642,15 @@ def create_app(
                         "library_id": link.library_id,
                         "item_key": link.item_key,
                         "attachment_key": link.attachment_key,
-                        "url": f"zotero://select/items/{link.item_key}",
+                        "url": (
+                            "zotero://select/"
+                            + (
+                                "library"
+                                if link.library_id.startswith("users/")
+                                else link.library_id
+                            )
+                            + f"/items/{link.item_key}"
+                        ),
                     }
                     for link in session.scalars(
                         select(ZoteroLink).where(ZoteroLink.paper_id == paper_id)

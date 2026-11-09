@@ -27,7 +27,7 @@
 
 ### 3. 实现边界
 - 复用现有 PDF 本地解析、Model Provider、PaperCard 能力和图谱组件。
-- 旧版完整科研图谱、Evidence、Claim、Condition、跨论文推理代码和数据先保留，不要破坏性删除。
+- 旧版完整科研图谱、Evidence、Claim、Condition、跨论文推理代码和数据不进入当前 Lite 工程；完整旧工程已在 `backup/pre-lite-refactor` 保留回退点，不复制到 Lite 数据库。
 - 新增独立 `paper_overview_graph_v1` 契约；不要把轻量节点写入旧版完整科研图谱表，除非已有架构明确支持版本隔离。
 - 图谱布局坐标由前端/布局算法生成并单独持久化，不能让 LLM 生成 x/y。
 - 先做确定性 Schema 校验、ID 重映射、去重和边端点校验；不要为普通校验失败再调用 LLM 修复。
@@ -63,7 +63,7 @@
 4. 图谱通过 Schema、重复项、端点、类型约束校验。
 5. 图谱不含 Evidence、citation、page、quote、source_span 等证据溯源字段。
 6. 节点可拖动、缩放、点击查看详情，布局重开后恢复。
-7. 旧版完整知识图谱数据和代码仍然可用。
+7. 旧版完整知识图谱数据和代码只在 `backup/pre-lite-refactor` 对应的旧工程中可用；当前 Lite 工程不加载旧业务。
 8. 记录真实 input/output tokens、调用次数、重试次数和费用；不得用估算值冒充实测值。
 
 完成后汇报修改文件、迁移方式、测试结果、真实 Token 统计和未解决问题。未经用户明确授权，不要把新分支合并到 main。

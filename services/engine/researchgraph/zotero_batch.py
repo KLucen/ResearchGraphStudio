@@ -1,21 +1,17 @@
-"""Selection-based read-only Zotero ingestion into the existing PDF job pipeline."""
+"""Zotero selection and local PDF import routes."""
 
-import asyncio
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from pydantic import Field
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.core import KnowledgeError, StrictModel
 from researchgraph.integrations import ZoteroAdapter
-from researchgraph.knowledge_contracts import StrictModel
-from researchgraph.knowledge_store import KnowledgeError
 from researchgraph.models import Job, Project, now
 from researchgraph.schemas import JobView
 
@@ -37,9 +33,6 @@ class BatchImport(StrictModel):
     collection_key: str = Field(pattern=r"^[A-Z0-9]{8}$")
     selections: list[AttachmentChoice] = Field(min_length=1, max_length=50)
     mode: Literal["reference", "managed"] = "reference"
-    extract_after_parse: bool = False
-    provider: Literal["mock", "project"] = "project"
-    allow_network: bool = False
 
 
 class PdfChoice(StrictModel):
@@ -61,6 +54,11 @@ class CollectionPage(StrictModel):
     next_start: int | None
 
 
+class ZoteroStatus(StrictModel):
+    connected: bool
+    error: str | None = None
+
+
 class ImportStatus(StrictModel):
     job: JobView
     item_key: str
@@ -72,98 +70,91 @@ class ImportStatus(StrictModel):
 def read_collection(body: CollectionBrowse) -> CollectionPage:
     adapter = ZoteroAdapter()
     prefix = "/" + adapter.library(body.library)
-    route = f"{prefix}/collections/{body.collection_key}/items/top?" + urlencode(
-        {"limit": 10, "start": body.start, "q": body.search, "qmode": "titleCreatorYear"}
+    items = adapter.get(
+        f"{prefix}/collections/{body.collection_key}/items/top?"
+        + urlencode(
+            {"limit": 10, "start": body.start, "q": body.search, "qmode": "titleCreatorYear"}
+        )
     )
-    items = adapter.get(route)
     if not isinstance(items, list):
         raise KnowledgeError("ZOTERO_INVALID_RESPONSE", "Zotero 分类响应无效")
-
-    def paper(item: dict[str, Any]) -> ZoteroPaper:
-        key, data = adapter.key(item["key"]), item.get("data", {})
+    papers = []
+    for item in items:
+        key = adapter.key(str(item.get("key", "")))
+        data = item.get("data", {})
         children = adapter.get(f"{prefix}/items/{key}/children?limit=100")
-        choices = []
-        for child in children:
+        attachments = []
+        for child in children if isinstance(children, list) else []:
             value = child.get("data", {})
             if (
                 value.get("itemType") != "attachment"
                 or value.get("contentType") != "application/pdf"
             ):
                 continue
-            attachment_key = adapter.key(child["key"])
+            akey = adapter.key(str(child.get("key", "")))
             try:
-                available = adapter.attachment_path(body.library, attachment_key).is_file()
+                available = adapter.attachment_path(body.library, akey).is_file()
             except KnowledgeError:
                 available = False
-            choices.append(
+            attachments.append(
                 PdfChoice(
-                    key=attachment_key,
+                    key=akey,
                     title=value.get("title", "PDF"),
                     filename=value.get("filename", ""),
                     available=available,
                 )
             )
-        return ZoteroPaper(
-            key=key,
-            title=data.get("title", key),
-            item_type=data.get("itemType", "unknown"),
-            attachments=choices,
-        )
-
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        papers = list(
-            pool.map(
-                paper,
-                [
-                    item
-                    for item in items
-                    if item.get("data", {}).get("itemType")
-                    not in {"note", "annotation", "attachment"}
-                ],
+        papers.append(
+            ZoteroPaper(
+                key=key,
+                title=data.get("title", key),
+                item_type=data.get("itemType", "unknown"),
+                attachments=attachments,
             )
         )
-    return CollectionPage(items=papers, next_start=body.start + 10 if len(items) == 10 else None)
-
-
-async def prepare_import(
-    engine: Engine, job_id: str
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    with Session(engine) as session:
-        job = session.get(Job, job_id)
-        assert job and job.payload
-        payload = dict(job.payload)
-    adapter = ZoteroAdapter()
-    metadata, annotations, path = await asyncio.to_thread(
-        adapter.read_annotations, payload["library"], payload["item_key"], payload["attachment_key"]
+    return CollectionPage(
+        items=papers, next_start=body.start + len(papers) if len(papers) == 10 else None
     )
-    if payload["collection_key"] not in metadata.get("data", {}).get("collections", []):
-        raise KnowledgeError("ZOTERO_COLLECTION_MISMATCH", "条目不属于所选分类，请刷新后重新选择")
-    attachment = await asyncio.to_thread(
-        adapter.get,
-        f"/{adapter.library(payload['library'])}/items/{adapter.key(payload['attachment_key'])}",
-    )
-    if attachment.get("data", {}).get("contentType") != "application/pdf":
-        raise KnowledgeError("ZOTERO_NOT_PDF", "所选附件不是 PDF")
-    if not path.is_file():
-        raise KnowledgeError("ZOTERO_FILE_UNAVAILABLE", "PDF 未下载到本机或无法读取")
-    with Session(engine) as session, session.begin():
-        current = session.get(Job, job_id)
-        if current is None or current.status != "running":
-            raise KnowledgeError("JOB_CANCELLED", "任务已取消")
-        current.payload = {**payload, "path": str(path)}
-    return metadata, annotations
 
 
 def status(job: Job) -> ImportStatus:
     payload = job.payload or {}
     return ImportStatus(
         job=JobView.model_validate(job),
-        **{k: payload[k] for k in ("item_key", "attachment_key", "collection_key", "library")},
+        item_key=payload.get("item_key", ""),
+        attachment_key=payload.get("attachment_key", ""),
+        collection_key=payload.get("collection_key", ""),
+        library=payload.get("library", "users/0"),
     )
 
 
 def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     from researchgraph.app import Key, remember, remembered
+
+    @app.get("/api/v1/integrations/zotero/status", response_model=ZoteroStatus)
+    def zotero_status(library: str = Query(default="users/0")) -> ZoteroStatus:
+        """Probe the read-only local API without transmitting an API key."""
+        adapter = ZoteroAdapter()
+        value = adapter.library(library)
+        try:
+            response = adapter.get(f"/{value}/collections?limit=1")
+            if not isinstance(response, list):
+                raise KnowledgeError("ZOTERO_INVALID_RESPONSE", "Zotero 列表响应无效")
+        except KnowledgeError as error:
+            return ZoteroStatus(connected=False, error=str(error))
+        return ZoteroStatus(connected=True)
+
+    @app.get("/api/v1/integrations/zotero/collections", response_model=list[dict[str, Any]])
+    def collections(
+        library: str = Query(default="users/0"),
+        start: int = Query(default=0, ge=0, le=10000),
+    ) -> list[dict[str, Any]]:
+        """Return raw collection records used by the desktop picker."""
+        adapter = ZoteroAdapter()
+        records = adapter.browse(library, "collections", start)
+        if not all(isinstance(record, dict) for record in records):
+            raise KnowledgeError("ZOTERO_INVALID_RESPONSE", "Zotero 分类响应无效")
+        return records
 
     @app.post("/api/v1/integrations/zotero/browse", response_model=CollectionPage)
     def browse(body: CollectionBrowse) -> CollectionPage:
@@ -176,51 +167,23 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
     )
     def submit(project_id: str, body: BatchImport, idempotency_key: Key) -> list[ImportStatus]:
         ZoteroAdapter.library(body.library)
-        request_body = body.model_dump()
-        with Session(engine()) as session:
-            project = session.get(Project, project_id)
-            if project is None:
-                raise KnowledgeError("PROJECT_NOT_FOUND", "项目不存在")
-            # Lite selection is deliberately local-only.  Keep the request
-            # idempotent after normalizing a client that still sends the old
-            # ``extract_after_parse=true`` flag.
-            lite_mode = getattr(project, "experience_mode", "legacy") == "lite"
-        extract_after_parse = body.extract_after_parse and not lite_mode
-        request_body["extract_after_parse"] = extract_after_parse
-        if not extract_after_parse:
-            for field in ("extract_after_parse", "provider", "allow_network"):
-                request_body.pop(field, None)
-        request = {"project_id": project_id, **request_body}
+        request = {"project_id": project_id, **body.model_dump()}
         with Session(engine()) as session, session.begin():
+            if session.get(Project, project_id) is None:
+                raise KnowledgeError("PROJECT_NOT_FOUND", "项目不存在")
             previous = remembered(session, "zotero-batch:" + idempotency_key, request)
             if previous:
-                return [ImportStatus.model_validate(j) for j in previous["items"]]
-            extraction_options: dict[str, Any] = {}
-            if extract_after_parse:
-                extraction_options = {
-                    "provider": body.provider,
-                    "allow_network": body.allow_network,
-                    "pipeline": "paper-reading-v1",
-                }
-                if body.provider == "project":
-                    from researchgraph.model_settings import from_snapshot, snapshot_for
-
-                    profile = snapshot_for(session, project_id, "extraction")
-                    from_snapshot(
-                        profile, Path(str(engine().url.database)).parent, body.allow_network
-                    )
-                    extraction_options["model_snapshot"] = profile
-            jobs: list[ImportStatus] = []
-            pending = session.scalars(
-                select(Job).where(
-                    Job.project_id == project_id,
-                    Job.kind == "zotero_import",
-                    Job.status.in_(["queued", "running"]),
-                )
-            ).all()
+                return [ImportStatus.model_validate(x) for x in previous["items"]]
+            jobs = []
             seen = set()
             for choice in body.selections:
-                identity = (choice.item_key, choice.attachment_key)
+                identity = (
+                    body.library,
+                    body.collection_key,
+                    body.mode,
+                    choice.item_key,
+                    choice.attachment_key,
+                )
                 if identity in seen:
                     continue
                 seen.add(identity)
@@ -229,21 +192,20 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                     "collection_key": body.collection_key,
                     "mode": body.mode,
                     **choice.model_dump(),
-                    **({"extraction_options": extraction_options} if extract_after_parse else {}),
-                    **({"lite_mode": True} if lite_mode else {}),
                 }
-                existing = next(
-                    (
-                        j
-                        for j in pending
-                        if j.payload and all(j.payload.get(k) == v for k, v in payload.items())
-                    ),
-                    None,
+                existing = session.scalar(
+                    select(Job).where(
+                        Job.project_id == project_id,
+                        Job.kind == "zotero_import",
+                        Job.status.in_(["queued", "running"]),
+                        Job.payload["library"].as_string() == body.library,
+                        Job.payload["collection_key"].as_string() == body.collection_key,
+                        Job.payload["mode"].as_string() == body.mode,
+                        Job.payload["item_key"].as_string() == choice.item_key,
+                        Job.payload["attachment_key"].as_string() == choice.attachment_key,
+                    )
                 )
-                if existing:
-                    jobs.append(status(existing))
-                    continue
-                job = Job(
+                job = existing or Job(
                     id=str(uuid4()),
                     project_id=project_id,
                     kind="zotero_import",
@@ -253,15 +215,12 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                     created_at=now(),
                     updated_at=now(),
                 )
-                session.add(job)
-                session.flush()
+                if existing is None:
+                    session.add(job)
+                    session.flush()
                 jobs.append(status(job))
-            remember(
-                session,
-                "zotero-batch:" + idempotency_key,
-                request,
-                {"items": [j.model_dump() for j in jobs]},
-            )
+            response = {"items": [x.model_dump() for x in jobs]}
+            remember(session, "zotero-batch:" + idempotency_key, request, response)
             return jobs
 
     @app.get("/api/v1/projects/{project_id}/zotero-imports", response_model=list[ImportStatus])

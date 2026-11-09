@@ -87,11 +87,11 @@ jobs:
         with:
           name: researchgraph-phase0-windows
           path: installer
-      - name: Verify installed application using Windows PowerShell only
+      - name: Verify installed Lite engine using Windows PowerShell only
         shell: powershell
         run: |
           $setup = Get-ChildItem installer/*.exe | Select-Object -First 1
-          ./scripts/verify-windows-install.ps1 -Installer $setup.FullName -VerifyDesktop -PdfFixture tests/fixtures/pdf/two-pages.pdf -OutputRoot (Join-Path $env:RUNNER_TEMP 'rgs-installed-verification')
+          ./scripts/verify-windows-install.ps1 -Installer $setup.FullName -PdfFixture tests/fixtures/pdf/two-pages.pdf -OutputRoot (Join-Path $env:RUNNER_TEMP 'rgs-installed-verification')
       - uses: actions/upload-artifact@v4
         if: always()
         with:

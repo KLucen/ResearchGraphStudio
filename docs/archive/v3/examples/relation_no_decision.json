@@ -1,9 +1,0 @@
-{
-  "left_claim_id": "claim-a",
-  "right_claim_id": "claim-b",
-  "decision": "NO_DECISION",
-  "relation_type": null,
-  "rationale": "Task type and reported evaluation metrics differ; the provided evidence is insufficient for a direct contradiction claim.",
-  "evidence_ids": ["ev-a", "ev-b"],
-  "unresolved_questions": ["Can the outcomes be compared under a common protocol?"]
-}
