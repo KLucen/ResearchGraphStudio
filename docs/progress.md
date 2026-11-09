@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-本地工作区已完成 Lite 工程清理、Lite P0 和 B（PaperCard + LightGraph）联合概览基础实现。完整旧工程可从 `backup/pre-lite-refactor` 回退；当前清理提交尚未合并到 `main`，也未推送 Lite 分支。
+本地工作区已完成 Lite 工程清理、Lite P0 和 B（PaperCard + LightGraph）联合概览基础实现。完整旧工程可从 `backup/pre-lite-refactor` 回退；清理提交 `e3354b2` 已通过 `679f480` 合并到本地 `main`，文档边界修订为 `f9b53cc`，未推送远端。
 
 | 能力 | 实际状态 |
 | --- | --- |
@@ -39,4 +39,4 @@
 
 ## 下一步
 
-先把本地清理改动显式提交并合并到 `main`，完成合并后的同一套安全扫描和回归。之后进入 Lite P2 的 A 章节导读设计与实现；D 证据问答另行排期。真实 Provider Token/费用、复杂表格/公式、OCR、跨平台和用户原生安装体验仍需独立验收。
+本轮清理、提交、合并和合并后 Lite 专项回归已完成。下一阶段进入 Lite P2 的 A 章节导读设计与实现；D 证据问答另行排期。真实 Provider Token/费用、复杂表格/公式、OCR、跨平台和用户原生安装体验仍需独立验收。

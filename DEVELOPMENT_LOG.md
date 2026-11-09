@@ -1515,4 +1515,8 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 
 **临时文件与安全**：清除活跃源码中的 Python 缓存和前端 `tsbuildinfo`；未发现构建目录、Node/Rust 依赖目录、SQLite/日志/安装包或私人 PDF进入工作区。项目外 Gitleaks 8.24.3 官方压缩包 SHA-256 已核对，暂存内容 73 个可扫描文件、工作区源码 223 个候选文件和 Git 历史 29 个提交均通过 Gitleaks；路径规则、`git diff --cached --check` 和 OpenAPI 36 路由/Schema 一致性复核通过。
 
-**验证边界**：沿用本轮最终回归：后端 143 passed/1 skipped、前端 Vitest 30 passed、真实浏览器 LightGraph 2/2、Rust 7 passed/1 ignored；本轮没有访问正式用户数据库、真实 Zotero 库、私人 PDF/批注、真实 Provider 或 API Key，Lite 本地解析实际模型调用和 Token 均为 0。等待显式提交并在本地合并 `main`，不推送远端。A 章节导读、D 证据问答、真实 Provider 科学质量/价格、复杂表格/公式/OCR、跨平台和用户原生安装仍待后续验收。
+**验证边界**：沿用本轮最终回归：后端 143 passed/1 skipped、前端 Vitest 30 passed、真实浏览器 LightGraph 2/2、Rust 7 passed/1 ignored；本轮没有访问正式用户数据库、真实 Zotero 库、私人 PDF/批注、真实 Provider 或 API Key，Lite 本地解析实际模型调用和 Token 均为 0。清理提交 `e3354b2` 已在本地以 `679f480` 合并 `main`，后续文档边界修订为 `f9b53cc`；不推送远端。A 章节导读、D 证据问答、真实 Provider 科学质量/价格、复杂表格/公式/OCR、跨平台和用户原生安装仍待后续验收。
+
+## DEV-0067 — 2026-11-09 21:50（Asia/Shanghai）：Lite 清理本地合并完成
+
+清理提交 `e3354b2` 已用无快进方式合并到本地 `main`，形成合并提交 `679f480`；随后补充 Lite 规范边界修订提交 `f9b53cc`，明确活跃工程使用 `lite0001` 空库，旧 Graph/Query/Lint/Wiki/Reading/Reasoning 代码、旧数据库和旧入口仅由 `backup/pre-lite-refactor` 回退。合并后 `test_lite_clean.py` 与 `test_paper_overview_contract.py` 共 **29 passed / 1 warning**；工作区无运行数据库、日志、安装包、依赖目录或 Python/前端构建缓存。Gitleaks 8.24.3 工作区和 30 个提交历史扫描均通过；`main` 当前领先 `origin/main` 4 个提交，本轮按要求不推送。下一阶段是 Lite P2 A 章节导读，D 证据问答另行排期。
