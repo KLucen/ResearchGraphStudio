@@ -35,7 +35,7 @@
 - 前端：TypeScript、ESLint、Prettier、Vitest（5 个文件、30 个测试）和生产构建通过；真实浏览器 LightGraph 测试 2 项通过。
 - Rust/Tauri：`cargo test` 为 **7 passed / 1 ignored**，格式检查通过；源引擎和打包引擎 Lite smoke 均通过。白名单已覆盖项目、论文、Zotero、PDF、用量、概览和布局接口。
 - Lite 专项：匿名 PDF 两份、章节结构、Chunk/EvidenceSpan、FTS5 正文检索、重启读取和 Provider 哨兵均通过；解析阶段实际调用数、输入 Token、输出 Token、总 Token、重试和增量费用均为 0。
-- 本轮未读取正式用户数据库、Zotero 正式库、私人 PDF/批注或真实 API Key，未调用真实 Provider，未执行安装器安装验收。提交前使用项目外的 Gitleaks 8.24.3（官方发布压缩包 SHA-256 已核对）扫描暂存内容和工作区源码；合并后再次扫描当前工作区及 **31 个 Git 历史提交**，均通过，同时完成路径规则和 `git diff --cached --check`。
+- 本轮未读取正式用户数据库、Zotero 正式库、私人 PDF/批注或真实 API Key，未调用真实 Provider，未执行安装器安装验收。提交前使用项目外的 Gitleaks 8.24.3（官方发布压缩包 SHA-256 已核对）扫描暂存内容和工作区源码；最终再次扫描当前工作区及 **32 个 Git 历史提交**，均通过，同时完成路径规则和 `git diff --cached --check`。
 
 ## 下一步
 
