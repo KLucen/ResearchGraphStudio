@@ -1,0 +1,9 @@
+{
+  "research_question": {"text_zh": "共享记忆是否能在合作任务中提高团队成功率？", "evidence_span_ids": ["sp-1"], "status": "supported"},
+  "motivation": {"text_zh": "研究团队希望改善多主体协作中的信息利用。", "evidence_span_ids": ["sp-1"], "status": "supported"},
+  "method": {"text_zh": "采用共享记忆模块与没有共享记忆的基线比较。", "evidence_span_ids": ["sp-2"], "status": "supported"},
+  "contributions": [{"text_zh": "构建可复现实验比较流程。", "evidence_span_ids": ["sp-2"], "status": "supported"}],
+  "results": [{"text_zh": "作者报告在其合作设置下任务表现有所改善。", "evidence_span_ids": ["sp-3"], "status": "supported"}],
+  "limitations": [{"text_zh": "", "evidence_span_ids": [], "status": "not_found"}],
+  "overall_note": "虚构的契约示例，并未分析任何真实论文。"
+}

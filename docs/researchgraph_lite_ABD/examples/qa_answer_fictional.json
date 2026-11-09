@@ -1,0 +1,7 @@
+{
+  "answer_zh": "根据所给原文，本节将共享记忆用作主体间信息交换的一部分。",
+  "evidence_citations": [{"span_id": "sp-2", "reason_zh": "说明模块结构及信息共享"}],
+  "insufficient_evidence": false,
+  "uncertainty_zh": "仅代表给定片段中的定义，无法推断其他实验设置。",
+  "suggest_expand_scope": false
+}

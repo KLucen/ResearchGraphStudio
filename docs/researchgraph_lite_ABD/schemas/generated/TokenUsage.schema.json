@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "task_run_id": {
+      "title": "Task Run Id",
+      "type": "string"
+    },
+    "model_id": {
+      "title": "Model Id",
+      "type": "string"
+    },
+    "input_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input Tokens"
+    },
+    "output_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Tokens"
+    },
+    "usage_source": {
+      "enum": [
+        "provider",
+        "estimated",
+        "unknown"
+      ],
+      "title": "Usage Source",
+      "type": "string"
+    },
+    "retry_attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retry Attempts",
+      "type": "integer"
+    },
+    "cache_hit": {
+      "default": false,
+      "title": "Cache Hit",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "task_run_id",
+    "model_id",
+    "usage_source"
+  ],
+  "title": "TokenUsage",
+  "type": "object"
+}

@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "english_queries": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "English Queries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "english_queries"
+  ],
+  "title": "SearchKeywordsDraft",
+  "type": "object"
+}
