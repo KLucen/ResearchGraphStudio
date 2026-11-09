@@ -60,7 +60,7 @@ export function ModelSettings({ connected }: { connected: boolean }) {
       }>("POST", path, body);
       setNotice(
         result.connected
-          ? `真实模型连接成功；固定测试 JSON 校验${result.valid_json ? "通过" : "未通过"}。连接成功不代表论文结构化抽取通过。`
+          ? `真实模型连接成功；固定测试 JSON 校验${result.valid_json ? "通过" : "未通过"}。连接成功不代表论文概览质量已验证。`
           : "设置已保存",
       );
       await client.invalidateQueries({
@@ -79,15 +79,13 @@ export function ModelSettings({ connected }: { connected: boolean }) {
       <h2>全局模型设置</h2>
       <p>
         API Key 保存在 Windows
-        凭据管理器，所有项目共用这里的配置和默认模型。测试连接只发送固定测试文本；抽取和推理另行确认论文传输。
+        凭据管理器，所有项目共用这里的配置和默认模型。测试连接只发送固定测试文本；生成概览时再确认论文传输。
       </p>
       {settings.error && <p role="alert">无法读取模型配置，请重试。</p>}
       <div className="import-controls">
         {(["extraction", "reasoning"] as const).map((role) => (
           <label key={role}>
-            {role === "extraction"
-              ? "Extraction 抽取模型"
-              : "Reasoning 推理模型"}
+            {role === "extraction" ? "论文概览模型" : "阅读辅助模型"}
             <select
               value={settings.data?.roles[role] ?? ""}
               disabled={!connected || busy}
@@ -145,7 +143,7 @@ export function ModelSettings({ connected }: { connected: boolean }) {
               onClick={() => {
                 if (
                   window.confirm(
-                    `删除 ${p.name} 及其保存的密钥？已有知识和模型记录会保留。`,
+                    `删除 ${p.name} 及其保存的密钥？已有概览和用量记录会保留。`,
                   )
                 )
                   void action(`${route}/models/${p.id}/delete`);

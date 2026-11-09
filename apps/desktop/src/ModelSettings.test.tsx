@@ -77,14 +77,14 @@ test("role selection preserves the other role and connection test uses the selec
     </QueryClientProvider>,
   );
   await screen.findByText("Model · compatible · fixture");
-  await user.selectOptions(screen.getByLabelText("Extraction 抽取模型"), "m");
+  await user.selectOptions(screen.getByLabelText("论文概览模型"), "m");
   expect(request).toHaveBeenCalledWith("POST", "/api/v1/settings/model-roles", {
     extraction: "m",
     reasoning: "m",
   });
   await user.click(screen.getByRole("button", { name: "测试连接 Model" }));
   await screen.findByText(
-    "真实模型连接成功；固定测试 JSON 校验通过。连接成功不代表论文结构化抽取通过。",
+    "真实模型连接成功；固定测试 JSON 校验通过。连接成功不代表论文概览质量已验证。",
   );
 });
 

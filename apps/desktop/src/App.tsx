@@ -8,7 +8,6 @@ import {
 import {
   ArrowDown,
   ArrowRight,
-  Check,
   CircleDot,
   FolderOpen,
   Layers3,
@@ -24,12 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { api, type Project } from "./api";
-import { Papers } from "./Papers";
-import { SourceIntegrations } from "./SourceIntegrations";
 import { ModelSettings } from "./ModelSettings";
-import { GraphWorkspace } from "./GraphWorkspace";
-import { QueryPanel } from "./QueryPanel";
-import { P5Workspace } from "./P5Workspace";
+import { Papers } from "./Papers";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -39,22 +34,13 @@ function date(value: string): string {
 }
 
 export default function App() {
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("rgs.sidebar.collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("rgs.sidebar.collapsed") === "true",
+  );
   const [page, setPage] = useState<"projects" | "settings">("projects");
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Project | null>(null);
   const [search, setSearch] = useState("");
-  const [graphFocus, setGraphFocus] = useState("");
-  const [wikiFocus, setWikiFocus] = useState("");
-  const [projectView, setProjectView] = useState<
-    "papers" | "graph" | "query" | "lint" | "wiki" | "notes"
-  >("papers");
   const client = useQueryClient();
   const host = useQuery({
     queryKey: ["host"],
@@ -78,6 +64,10 @@ export default function App() {
     `${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase()),
   );
   const connected = health.isSuccess && !health.isError;
+  const restart = useMutation({
+    mutationFn: api.restart,
+    onSuccess: () => void client.invalidateQueries(),
+  });
 
   return (
     <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`}>
@@ -88,13 +78,9 @@ export default function App() {
           title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
           aria-expanded={!collapsed}
           onClick={() => {
-            const value = !collapsed;
-            setCollapsed(value);
-            try {
-              localStorage.setItem("rgs.sidebar.collapsed", String(value));
-            } catch {
-              /* storage unavailable */
-            }
+            const next = !collapsed;
+            setCollapsed(next);
+            localStorage.setItem("rgs.sidebar.collapsed", String(next));
           }}
         >
           {collapsed ? (
@@ -108,7 +94,7 @@ export default function App() {
             <Network size={24} />
           </div>
           <div className="brand-title">
-            ResearchGraph<span>STUDIO</span>
+            ResearchGraph<span>LITE</span>
           </div>
         </div>
         <div className="workspace-label">个人研究空间</div>
@@ -157,7 +143,7 @@ export default function App() {
           <span className="nav-label">设置与诊断</span>
         </button>
         <div className="version">
-          PHASE 5 <span>0.0.1</span>
+          LITE <span>0.1.0</span>
         </div>
       </aside>
       <main>
@@ -171,8 +157,7 @@ export default function App() {
                 : "研究项目"}
           </span>
           <span className="local-tag">
-            <CircleDot size={13} />
-            LOCAL WORKSPACE
+            <CircleDot size={13} /> LOCAL WORKSPACE
           </span>
         </header>
         <div
@@ -186,8 +171,7 @@ export default function App() {
                 className="button secondary"
                 onClick={() => setPage("settings")}
               >
-                打开连接诊断
-                <ArrowRight size={15} />
+                打开连接诊断 <ArrowRight size={15} />
               </button>
             </div>
           )}
@@ -195,7 +179,8 @@ export default function App() {
             <Settings
               connected={connected}
               directory={host.data?.data_dir}
-              health={connected ? health.data : undefined}
+              health={health.data}
+              restart={restart}
             />
           ) : selected ? (
             <section>
@@ -206,234 +191,39 @@ export default function App() {
               {selected.description && (
                 <p className="quiet-note">{selected.description}</p>
               )}
-              <div className="project-tabs" aria-label="项目工作区">
-                <button
-                  className={
-                    projectView === "papers"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("papers")}
-                >
-                  文献与阅读
-                </button>
-                <button
-                  className={
-                    projectView === "graph"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("graph")}
-                >
-                  图谱与比较
-                </button>
-                <button
-                  className={
-                    projectView === "query"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("query")}
-                >
-                  问答与阅读知识
-                </button>
-                <button
-                  className={
-                    projectView === "lint"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("lint")}
-                >
-                  Lint 诊断
-                </button>
-                <button
-                  className={
-                    projectView === "wiki"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("wiki")}
-                >
-                  Wiki 阅读整理
-                </button>
-                <button
-                  className={
-                    projectView === "notes"
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  onClick={() => setProjectView("notes")}
-                >
-                  笔记来源
-                </button>
-              </div>
-              {projectView === "graph" ? (
-                <GraphWorkspace
-                  key={selected.id}
-                  projectId={selected.id}
-                  connected={connected}
-                  initialFocus={graphFocus}
-                />
-              ) : projectView === "query" ? (
-                <QueryPanel
-                  key={selected.id}
-                  projectId={selected.id}
-                  connected={connected}
-                  onGraphNode={(id) => {
-                    setGraphFocus(id);
-                    setProjectView("graph");
-                  }}
-                  onSettings={() => setPage("settings")}
-                />
-              ) : projectView === "lint" || projectView === "wiki" ? (
-                <P5Workspace
-                  key={`${selected.id}-${projectView}-${wikiFocus}`}
-                  projectId={selected.id}
-                  connected={connected}
-                  mode={projectView}
-                  initialPageId={wikiFocus}
-                  onGraphNode={(id) => {
-                    setGraphFocus(id);
-                    setProjectView("graph");
-                  }}
-                  onWikiPage={(id) => {
-                    setWikiFocus(id);
-                    setProjectView("wiki");
-                  }}
-                />
-              ) : projectView === "notes" ? (
-                <SourceIntegrations
-                  key={selected.id}
-                  projectId={selected.id}
-                  connected={connected}
-                />
-              ) : (
-                <Papers
-                  key={selected.id}
-                  projectId={selected.id}
-                  connected={connected}
-                />
-              )}
+              <p className="quality-note">
+                Lite 阅读模式：选择论文后只进行本地 PDF
+                解析、章节建立和全文索引。PaperCard 与 LightGraph
+                仅在你主动请求时生成。
+              </p>
+              <Papers
+                key={selected.id}
+                projectId={selected.id}
+                connected={connected}
+                experienceMode="lite"
+              />
             </section>
           ) : (
-            <>
-              <div className="heading-row">
-                <div>
-                  <h1>研究项目</h1>
-                </div>
-                <button
-                  className="button primary"
-                  disabled={!connected}
-                  onClick={() => setCreating(true)}
-                >
-                  <Plus size={18} />
-                  新建研究项目
-                </button>
-              </div>
-              <div className="section-toolbar">
-                <h2>
-                  我的项目 <span>{allProjects.length}</span>
-                </h2>
-                <label className="search">
-                  <Search size={16} />
-                  <input
-                    aria-label="搜索已加载的项目"
-                    placeholder="搜索已加载的项目"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
-              </div>
-              {projects.isError ? (
-                <div role="alert" className="error-banner">
-                  {message(projects.error)}
-                  <button
-                    className="text-button"
-                    onClick={() => void projects.refetch()}
-                  >
-                    重试加载
-                  </button>
-                </div>
-              ) : projects.isPending ? (
-                <div className="empty">
-                  <LoaderCircle className="spin" />
-                  <p>{connected ? "正在读取项目…" : "等待本地引擎就绪…"}</p>
-                </div>
-              ) : visible.length ? (
-                <div className="project-grid">
-                  {visible.map((p) => (
-                    <button
-                      className="project-card"
-                      key={p.id}
-                      onClick={() => {
-                        setGraphFocus("");
-                        setWikiFocus("");
-                        setProjectView("papers");
-                        setSelected(p);
-                      }}
-                    >
-                      <div className="card-top">
-                        <FolderOpen size={22} />
-                        <ArrowRight size={16} />
-                      </div>
-                      <h3>{p.name}</h3>
-                      {p.description && <p>{p.description}</p>}
-                      <footer>
-                        <i />
-                        本地项目<span>{date(p.created_at)}</span>
-                      </footer>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="empty">
-                  <div className="empty-art">
-                    <FolderOpen size={34} />
-                    <span>
-                      <Plus size={12} />
-                    </span>
-                  </div>
-                  <h3>
-                    {search ? "没有找到匹配的项目" : "你的第一个研究项目"}
-                  </h3>
-                  {search && <p>试试其他关键词，或继续加载更多项目。</p>}
-                  {!search && (
-                    <button
-                      className="button secondary"
-                      disabled={!connected}
-                      onClick={() => setCreating(true)}
-                    >
-                      创建项目
-                      <ArrowRight size={16} />
-                    </button>
-                  )}
-                </div>
-              )}
-              {projects.hasNextPage && (
-                <button
-                  className="button secondary load-more"
-                  disabled={projects.isFetchingNextPage}
-                  onClick={() => void projects.fetchNextPage()}
-                >
-                  <ArrowDown size={16} />
-                  加载更多
-                </button>
-              )}
-            </>
+            <Projects
+              connected={connected}
+              projects={projects}
+              visible={visible}
+              search={search}
+              setSearch={setSearch}
+              onSelect={setSelected}
+              onCreate={() => setCreating(true)}
+            />
           )}
         </div>
       </main>
       {creating && (
         <CreateProject
+          connected={connected}
           onClose={() => setCreating(false)}
-          onCreated={(p) => {
+          onCreated={(project) => {
             setCreating(false);
-            setGraphFocus("");
-            setWikiFocus("");
-            setProjectView("papers");
-            setSelected(p);
             void client.invalidateQueries({ queryKey: ["projects"] });
+            setSelected(project);
           }}
         />
       )}
@@ -441,10 +231,135 @@ export default function App() {
   );
 }
 
+function Projects({
+  connected,
+  projects,
+  visible,
+  search,
+  setSearch,
+  onSelect,
+  onCreate,
+}: {
+  connected: boolean;
+  projects: {
+    isError: boolean;
+    error: Error | null;
+    isPending: boolean;
+    refetch: () => Promise<unknown>;
+    hasNextPage?: boolean;
+    isFetchingNextPage: boolean;
+    fetchNextPage: () => Promise<unknown>;
+  };
+  visible: Project[];
+  search: string;
+  setSearch: (value: string) => void;
+  onSelect: (project: Project) => void;
+  onCreate: () => void;
+}) {
+  return (
+    <>
+      <div className="heading-row">
+        <div>
+          <h1>研究项目</h1>
+          <p className="lead">用最少的步骤读懂一篇论文。</p>
+        </div>
+        <button
+          className="button primary"
+          disabled={!connected}
+          onClick={onCreate}
+        >
+          <Plus size={18} /> 新建研究项目
+        </button>
+      </div>
+      <div className="section-toolbar">
+        <h2>
+          我的项目 <span>{visible.length}</span>
+        </h2>
+        <label className="search">
+          <Search size={16} />
+          <input
+            aria-label="搜索已加载的项目"
+            placeholder="搜索已加载的项目"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+      </div>
+      {projects.isError ? (
+        <div role="alert" className="error-banner">
+          {message(projects.error)}
+          <button
+            className="text-button"
+            onClick={() => void projects.refetch()}
+          >
+            重试加载
+          </button>
+        </div>
+      ) : projects.isPending ? (
+        <div className="empty">
+          <LoaderCircle className="spin" />
+          <p>{connected ? "正在读取项目…" : "等待本地引擎就绪…"}</p>
+        </div>
+      ) : visible.length ? (
+        <div className="project-grid">
+          {visible.map((p) => (
+            <button
+              className="project-card"
+              key={p.id}
+              onClick={() => onSelect(p)}
+            >
+              <div className="card-top">
+                <FolderOpen size={22} />
+                <ArrowRight size={16} />
+              </div>
+              <h3>{p.name}</h3>
+              {p.description && <p>{p.description}</p>}
+              <footer>
+                <i />
+                本地 Lite 项目<span>{date(p.created_at)}</span>
+              </footer>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="empty">
+          <div className="empty-art">
+            <FolderOpen size={34} />
+            <span>
+              <Plus size={12} />
+            </span>
+          </div>
+          <h3>{search ? "没有找到匹配的项目" : "你的第一个研究项目"}</h3>
+          {!search && (
+            <button
+              className="button secondary"
+              disabled={!connected}
+              onClick={onCreate}
+            >
+              创建项目 <ArrowRight size={16} />
+            </button>
+          )}
+        </div>
+      )}
+      {projects.hasNextPage && (
+        <button
+          className="button secondary load-more"
+          disabled={projects.isFetchingNextPage}
+          onClick={() => void projects.fetchNextPage()}
+        >
+          <ArrowDown size={16} /> 加载更多
+        </button>
+      )}
+    </>
+  );
+}
+
 function CreateProject({
+  connected,
   onClose,
   onCreated,
 }: {
+  connected: boolean;
   onClose: () => void;
   onCreated: (project: Project) => void;
 }) {
@@ -456,20 +371,8 @@ function CreateProject({
       api.createProject({ name: name.trim(), description }, key.current),
     onSuccess: onCreated,
   });
-  const dialog = useRef<HTMLDialogElement>(null);
   return (
-    <dialog
-      className="dialog"
-      aria-labelledby="create-project-title"
-      ref={(node) => {
-        dialog.current = node;
-        if (node && !node.open) node.showModal();
-      }}
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!mutation.isPending) onClose();
-      }}
-    >
+    <dialog className="dialog" open aria-labelledby="create-project-title">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -477,19 +380,18 @@ function CreateProject({
         }}
       >
         <div className="dialog-header">
-          <div className="eyebrow">NEW PROJECT</div>
+          <div className="eyebrow">NEW LITE PROJECT</div>
           <button
             type="button"
             className="icon-button"
             aria-label="关闭新建项目"
-            disabled={mutation.isPending}
             onClick={onClose}
           >
             <X size={20} />
           </button>
         </div>
         <h2 id="create-project-title">新建研究项目</h2>
-        <p className="lead">给研究一个名字，留下一条清晰的问题线索。</p>
+        <p className="lead">给研究一个名字，留下清晰的问题线索。</p>
         <label className="field">
           项目名称
           <input
@@ -497,8 +399,7 @@ function CreateProject({
             required
             maxLength={120}
             value={name}
-            placeholder="例如：多智能体的共享记忆"
-            disabled={mutation.isPending}
+            disabled={!connected || mutation.isPending}
             onChange={(e) => {
               setName(e.target.value);
               key.current = crypto.randomUUID();
@@ -511,8 +412,7 @@ function CreateProject({
             maxLength={4000}
             rows={4}
             value={description}
-            disabled={mutation.isPending}
-            placeholder="你希望通过这项研究弄清楚什么？"
+            disabled={!connected || mutation.isPending}
             onChange={(e) => {
               setDescription(e.target.value);
               key.current = crypto.randomUUID();
@@ -525,19 +425,14 @@ function CreateProject({
           </p>
         )}
         <div className="dialog-actions">
-          <button
-            type="button"
-            className="button secondary"
-            disabled={mutation.isPending}
-            onClick={onClose}
-          >
+          <button type="button" className="button secondary" onClick={onClose}>
             取消
           </button>
           <button
             className="button primary"
-            disabled={!name.trim() || mutation.isPending}
+            disabled={!connected || !name.trim() || mutation.isPending}
           >
-            {mutation.isPending ? "正在保存…" : "创建项目"}
+            {mutation.isPending ? "正在保存…" : "创建 Lite 项目"}
             <ArrowRight size={16} />
           </button>
         </div>
@@ -550,54 +445,33 @@ function Settings({
   connected,
   directory,
   health,
+  restart,
 }: {
   connected: boolean;
   directory?: string;
   health?: Awaited<ReturnType<typeof api.health>>;
+  restart: ReturnType<
+    typeof useMutation<Awaited<ReturnType<typeof api.restart>>, Error, void>
+  >;
 }) {
   const client = useQueryClient();
+  const diagnose = useMutation({
+    mutationFn: () => api.diagnose(crypto.randomUUID()),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["jobs"] }),
+  });
   const jobs = useQuery({
     queryKey: ["jobs"],
     queryFn: api.jobs,
     enabled: connected,
-    refetchInterval: 2000,
+    refetchInterval: 3000,
   });
-  const restart = useMutation({
-    mutationFn: api.restart,
-    onSuccess: () => {
-      void client.invalidateQueries();
-    },
-  });
-  const diagnose = useMutation({
-    mutationFn: () => api.diagnose(crypto.randomUUID()),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
-  const action = useMutation({
-    mutationFn: ({ id, kind }: { id: string; kind: "cancel" | "retry" }) =>
-      api.jobAction(id, kind, crypto.randomUUID()),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["jobs"] });
-    },
-  });
-  const names: Record<string, string> = {
-    queued: "等待执行",
-    running: "执行中",
-    succeeded: "检查通过",
-    failed: "失败",
-    cancelled: "已取消",
-    interrupted: "已中断",
-  };
   return (
     <>
       <div className="eyebrow">LOCAL ENVIRONMENT</div>
       <h1>设置与诊断</h1>
-      <p className="lead">查看本地运行状态，检查项目存储是否正常。</p>
-      <ModelSettings connected={connected} />
+      <p className="lead">管理本地数据、模型配置和连接状态。</p>
       <section className="settings-card">
         <div className="settings-title">
-          <ShieldCheck size={22} />
           <h2>本地引擎</h2>
           <span className="pill">{connected ? "已连接" : "未连接"}</span>
         </div>
@@ -605,30 +479,12 @@ function Settings({
           <dt>引擎版本</dt>
           <dd>{health?.version ?? "等待连接"}</dd>
           <dt>数据库版本</dt>
-          <dd>{health?.schema_version ?? "等待连接"}</dd>
+          <dd>{health?.schema_version ?? "等待检查"}</dd>
           <dt>全文检索</dt>
           <dd>{health?.fts5 ? "FTS5 可用" : "等待检查"}</dd>
-          {health?.temporary_files && (
-            <>
-              <dt>启动时临时文件回收</dt>
-              <dd>
-                已回收 {health.temporary_files.removed} 组；占用{" "}
-                {health.temporary_files.busy} 组；未识别保留{" "}
-                {health.temporary_files.retained} 组；失败{" "}
-                {health.temporary_files.errors} 组
-              </dd>
-            </>
-          )}
           <dt>项目数据位置</dt>
           <dd className="mono">{directory ?? "等待宿主信息"}</dd>
         </dl>
-        {health?.temporary_files &&
-          (health.temporary_files.busy > 0 ||
-            health.temporary_files.errors > 0) && (
-            <p className="muted">
-              部分临时文件本次未能回收，下次启动时会重试。项目和历史附件保留。
-            </p>
-          )}
         <button
           className="button secondary"
           disabled={restart.isPending}
@@ -643,6 +499,7 @@ function Settings({
           </p>
         )}
       </section>
+      <ModelSettings connected={connected} />
       <section className="settings-card">
         <div className="settings-title">
           <h2>存储诊断</h2>
@@ -654,65 +511,28 @@ function Settings({
             运行检查
           </button>
         </div>
-        <p>检查 SQLite 完整性、外键和全文检索，不读取论文或个人笔记。</p>
-        {(diagnose.isError || action.isError || jobs.isError) && (
+        <p>检查 SQLite 完整性、外键和全文检索，不读取论文正文。</p>
+        {(diagnose.isError || jobs.isError) && (
           <p role="alert" className="error-text">
-            {message(diagnose.error || action.error || jobs.error)}
+            {message(diagnose.error || jobs.error)}
           </p>
         )}
-        <div className="job-list">
-          {jobs.data?.length ? (
-            jobs.data
-              .filter((job) => job.kind === "diagnostics")
-              .map((job) => (
-                <div className="job" key={job.id}>
-                  <div className="job-symbol">
-                    {job.status === "succeeded" ? (
-                      <Check size={18} />
-                    ) : (
-                      <CircleDot size={18} />
-                    )}
-                  </div>
-                  <div>
-                    <strong>存储诊断 · {names[job.status]}</strong>
-                    <small>
-                      {date(job.created_at)} · 第 {job.attempt} 次执行
-                    </small>
-                    {job.error && <p className="error-text">{job.error}</p>}
-                  </div>
-                  {["queued", "running"].includes(job.status) ? (
-                    <button
-                      className="text-button"
-                      disabled={action.isPending}
-                      onClick={() =>
-                        action.mutate({ id: job.id, kind: "cancel" })
-                      }
-                    >
-                      取消
-                    </button>
-                  ) : ["failed", "interrupted", "cancelled"].includes(
-                      job.status,
-                    ) && job.attempt < 3 ? (
-                    <button
-                      className="text-button"
-                      disabled={action.isPending}
-                      onClick={() =>
-                        action.mutate({ id: job.id, kind: "retry" })
-                      }
-                    >
-                      重试
-                    </button>
-                  ) : null}
-                </div>
-              ))
-          ) : (
-            <p className="muted">尚未运行诊断。</p>
-          )}
-        </div>
+        {jobs.data
+          ?.filter((job) => job.kind === "diagnostics")
+          .map((job) => (
+            <div className="job" key={job.id}>
+              <strong>
+                {job.status === "succeeded"
+                  ? "存储诊断通过"
+                  : `存储诊断 · ${job.status}`}
+              </strong>
+              <small>
+                {date(job.created_at)} · 第 {job.attempt} 次执行
+              </small>
+              {job.error && <p className="error-text">{job.error}</p>}
+            </div>
+          ))}
       </section>
-      <p className="quiet-note">
-        模型配置与默认角色供所有项目共用；各项目论文和知识记录独立保存。
-      </p>
     </>
   );
 }

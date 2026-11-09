@@ -15,8 +15,18 @@ from uuid import uuid4
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from researchgraph.knowledge_store import KnowledgeStore
-from researchgraph.models import AttachmentRevision, Chunk, Event, Job, Paper, PaperSource, now
+from researchgraph.document_structure import apply_structure
+from researchgraph.local_index import index_document
+from researchgraph.models import (
+    AttachmentRevision,
+    Chunk,
+    Event,
+    Job,
+    Paper,
+    PaperSource,
+    ZoteroLink,
+    now,
+)
 from researchgraph.source_files import MAX_BYTES, publish_source_check
 from researchgraph.workspaces import clean_workspace, create_workspace, read_stage, report_stage
 
@@ -112,8 +122,6 @@ def publish_pdf(
     )
     paper_id = source.paper_id if source else revision.paper_id if revision else None
     if paper_id is None and job.kind == "zotero_import":
-        from researchgraph.knowledge_models import ZoteroLink
-
         paper_id = session.scalar(
             select(ZoteroLink.paper_id)
             .join(Paper)
@@ -171,12 +179,9 @@ def publish_pdf(
     source.generation = (source.generation or 0) + 1
     source.last_check = None
     session.flush()
-    store = KnowledgeStore(session)
     if result.get("structure"):
-        store.apply_document_structure(revision.id, result["sha256"], result["structure"])
-    store.ensure_document(revision.id)
-    if not reused:
-        KnowledgeStore(session).source_version_added(paper.id, revision.id)
+        apply_structure(session, revision.id, result["sha256"], result["structure"])
+    index_document(session, revision.id)
     session.add(
         Event(
             event_id=str(uuid4()),
@@ -194,98 +199,41 @@ def publish_pdf(
     return {"paper_id": paper.id, "revision_id": revision.id, "reused": reused}
 
 
-async def ensure_structured_source(
-    engine: Engine, job_id: str, version_id: str, data: Path
-) -> None:
-    """Reparse unchanged source in a cancellable child; retain all old anchor rows."""
-    from researchgraph.document_structure import current_structure
-    from researchgraph.knowledge_store import KnowledgeError
-
-    with Session(engine) as session:
-        if current_structure(session, version_id):
-            return
-        version = session.get(AttachmentRevision, version_id)
-        if not version:
-            raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
-        source_hash = version.sha256
-        paths = [
-            path
-            for source in session.scalars(
-                select(PaperSource).where(PaperSource.paper_id == version.paper_id)
-            )
-            for path in (source.managed_path, source.path)
-            if path
-        ]
-    work = create_workspace(data)
-    process = None
-    try:
-        for path in dict.fromkeys(paths):
-            command = [sys.executable]
-            child_environment = os.environ.copy()
-            if not getattr(sys, "frozen", False):
-                command += ["-m", "researchgraph"]
-                child_environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
-            command += ["--parse-pdf", path, "--output-dir", str(work)]
-            for name in ("result.json", "error.txt"):
-                (work / name).unlink(missing_ok=True)
-            process = subprocess.Popen(
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                env=child_environment,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-            )
-            deadline = time.monotonic() + 120
-            while process.poll() is None:
-                with Session(engine) as session:
-                    job = session.get(Job, job_id)
-                    if not job or job.status != "running":
-                        raise ValueError("任务已取消，不再建立结构解析")
-                if time.monotonic() > deadline:
-                    raise KnowledgeError("PARSE_TIMEOUT", "结构解析超时（120 秒），请检查原文件")
-                await asyncio.sleep(0.1)
-            if process.returncode or not (work / "result.json").exists():
-                continue
-            result = json.loads((work / "result.json").read_text(encoding="utf-8"))
-            if result["sha256"] != source_hash:
-                continue
-            with Session(engine) as session, session.begin():
-                job = session.get(Job, job_id)
-                if not job or job.status != "running":
-                    raise ValueError("任务已取消，不再写入结构解析")
-                KnowledgeStore(session).apply_document_structure(
-                    version_id, source_hash, result["structure"]
-                )
-            return
-        raise KnowledgeError(
-            "SOURCE_UNAVAILABLE", "原版本 PDF 不可用或已变化，请重新定位来源后建立章节结构"
-        )
-    finally:
-        if process is not None and process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-        clean_workspace(work)
-
-
 async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
     metadata: dict[str, Any] | None = None
-    annotations: list[dict[str, Any]] = []
     with Session(engine) as session:
         initial = session.get(Job, job_id)
         zotero = initial is not None and initial.kind == "zotero_import"
+        assert initial and initial.payload
+        payload, kind = dict(initial.payload), initial.kind
     if zotero:
-        from researchgraph.zotero_batch import prepare_import
+        from researchgraph.integrations import ZoteroAdapter
 
-        metadata, annotations = await prepare_import(engine, job_id)
-    with Session(engine) as session:
-        job = session.get(Job, job_id)
-        assert job and job.payload
-        payload, kind = job.payload, job.kind
+        adapter = ZoteroAdapter()
+        prefix = f"/{adapter.library(payload['library'])}/items/"
+        metadata = await asyncio.to_thread(adapter.get, prefix + adapter.key(payload["item_key"]))
+        attachment = await asyncio.to_thread(
+            adapter.get, prefix + adapter.key(payload["attachment_key"])
+        )
+        assert metadata is not None
+        if payload["collection_key"] not in metadata.get("data", {}).get("collections", []):
+            raise ValueError("条目不属于所选分类，请刷新后重新选择")
+        if (
+            attachment.get("data", {}).get("parentItem") != payload["item_key"]
+            or attachment.get("data", {}).get("contentType") != "application/pdf"
+        ):
+            raise ValueError("所选 PDF 附件不属于当前论文")
+        path = await asyncio.to_thread(
+            adapter.attachment_path, payload["library"], payload["attachment_key"]
+        )
+        if not path.is_file():
+            raise ValueError("PDF 未下载到本机或无法读取")
+        payload = {**payload, "path": str(path)}
+        with Session(engine) as session, session.begin():
+            current = session.get(Job, job_id)
+            if current is None or current.status != "running":
+                return
+            current.payload = payload
     work = create_workspace(data)
     command = [sys.executable]
     child_environment = os.environ.copy()
@@ -344,41 +292,34 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
                 )
                 if metadata is not None:
                     result_id = str(current.result["revision_id"])
-                    KnowledgeStore(session).import_annotations(
-                        result_id,
-                        payload["library"],
-                        payload["item_key"],
-                        payload["attachment_key"],
-                        metadata,
-                        annotations,
-                        Path(payload["path"]),
+                    paper_id = str(current.result["paper_id"])
+                    link = session.scalar(
+                        select(ZoteroLink).where(
+                            ZoteroLink.paper_id == paper_id,
+                            ZoteroLink.library_id == payload["library"],
+                            ZoteroLink.item_key == payload["item_key"],
+                            ZoteroLink.attachment_key == payload["attachment_key"],
+                        )
                     )
+                    if link is None:
+                        session.add(
+                            ZoteroLink(
+                                id=str(uuid4()),
+                                paper_id=paper_id,
+                                document_version_id=result_id,
+                                library_id=payload["library"],
+                                item_key=payload["item_key"],
+                                attachment_key=payload["attachment_key"],
+                                metadata_snapshot=metadata,
+                            )
+                        )
+                    else:
+                        link.document_version_id, link.metadata_snapshot = result_id, metadata
                     paper = session.get(Paper, str(current.result["paper_id"]))
                     assert paper
                     # Preserve an existing title when merely deduplicating another source.
                     if paper.title == Path(payload["path"]).stem:
                         paper.title = str(metadata.get("data", {}).get("title") or paper.title)
-                if payload.get("extraction_options"):
-                    from researchgraph.knowledge_store import stable_id
-
-                    child_id = stable_id("zotero-extraction", job_id)
-                    if session.get(Job, child_id) is None:
-                        session.add(
-                            Job(
-                                id=child_id,
-                                project_id=current.project_id,
-                                kind="knowledge_extract",
-                                payload={
-                                    **payload["extraction_options"],
-                                    "document_version_id": str(current.result["revision_id"]),
-                                },
-                                status="queued",
-                                attempt=0,
-                                created_at=now(),
-                                updated_at=now(),
-                            )
-                        )
-                    current.result = {**current.result, "extraction_job_id": child_id}
                 current.status, current.updated_at = "succeeded", now()
     finally:
         if process is not None and process.poll() is None:

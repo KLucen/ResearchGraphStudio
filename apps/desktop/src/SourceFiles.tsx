@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, type Source } from "./api";
 
-const fileStates = {
+const fileStates: Record<string, string> = {
   available: "内容一致",
   changed: "内容已变化",
   missing: "文件丢失",

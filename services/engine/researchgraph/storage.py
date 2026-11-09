@@ -8,14 +8,18 @@ from alembic.config import Config
 from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import NullPool
 
-SCHEMA_HEAD = "0020"
+SCHEMA_HEAD = "lite0001"
+DATABASE_NAME = "researchgraph-lite.sqlite3"
 
 
 def make_engine(data_dir: Path) -> Engine:
     data_dir.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
-        f"sqlite:///{(data_dir / 'researchgraph.sqlite3').as_posix()}", hide_parameters=True
+        f"sqlite:///{(data_dir / DATABASE_NAME).as_posix()}",
+        hide_parameters=True,
+        poolclass=NullPool,
     )
 
     @event.listens_for(engine, "connect")
@@ -55,20 +59,26 @@ def database_busy(exc: OperationalError) -> bool:
 
 
 def migrate(engine: Engine, data_dir: Path, script_location: Path | None = None) -> None:
-    database = data_dir / "researchgraph.sqlite3"
-    # A consistent SQLite backup precedes any schema mutation, including failed upgrades.
+    database = data_dir / DATABASE_NAME
+    # This is a separate database family. Never stamp/upgrade a full-system
+    # database (even if it has been renamed to the Lite filename).
     if database.exists() and database.stat().st_size:
-        with engine.connect() as connection:
-            tables = connection.exec_driver_sql(
-                "SELECT name FROM sqlite_master WHERE name='alembic_version'"
-            ).fetchall()
+        with sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True) as existing:
+            tables = {
+                row[0]
+                for row in existing.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            }
             current = (
-                connection.scalar(text("SELECT version_num FROM alembic_version"))
-                if tables
+                existing.execute("SELECT version_num FROM alembic_version").fetchone()
+                if "alembic_version" in tables
                 else None
             )
-        if current == SCHEMA_HEAD and script_location is None:
-            return
+            if current and current[0] == SCHEMA_HEAD and script_location is None:
+                return
+            if tables and (not current or not str(current[0]).startswith("lite")):
+                raise RuntimeError(
+                    "该数据库不是 Lite 数据库；请使用新的 Lite 数据目录，旧数据不会迁移"
+                )
         backups = data_dir / "backups"
         backups.mkdir(exist_ok=True)
         with (

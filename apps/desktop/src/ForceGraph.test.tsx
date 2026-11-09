@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { components } from "../../../packages/contracts/generated";
+import type { GraphData, GraphLayout } from "./graphTypes";
 import { ForceGraph } from "./ForceGraph";
 
 const renderer = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
@@ -16,14 +16,14 @@ const graph = {
   graph_revision: 1,
   nodes: [{ id: "paper", kind: "Paper", label_zh: "论文", label_en: "Paper" }],
   edges: [],
-} as unknown as components["schemas"]["GraphProjection"];
+} as GraphData;
 const layout = {
   version: 5,
   zoom: 0.6,
   pan_x: -450,
   pan_y: 250,
   positions: [{ node_id: "paper", x: 200, y: 300, pinned: true }],
-} as components["schemas"]["LayoutView"];
+} as GraphLayout;
 const positions = vi.fn();
 const viewport = vi.fn();
 const fitView = vi.fn().mockResolvedValue(true);

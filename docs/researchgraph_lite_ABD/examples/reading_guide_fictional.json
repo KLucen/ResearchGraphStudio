@@ -1,0 +1,10 @@
+{
+  "section_id": "sec-03",
+  "overview_zh": "本节介绍共享记忆模块在多主体合作中的使用方式。",
+  "key_points": ["模块接收哪些输入", "共享信息如何更新", "与基线相比的变化"],
+  "reading_questions": ["什么情况下会访问共享记忆？", "作者如何隔离记忆机制带来的影响？"],
+  "difficult_terms": [{"term_en": "shared memory", "hint_zh": "这里指主体之间可访问的共同记忆表示"}],
+  "evidence_span_ids": ["sp-2"],
+  "needs_more_context": false,
+  "caveats": []
+}

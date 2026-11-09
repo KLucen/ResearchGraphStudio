@@ -1,4 +1,4 @@
-"""Explicit, read-only source observations; relocation never replaces parsed history."""
+"""Local source checks; no knowledge graph or private-note behavior."""
 
 import hashlib
 import json
@@ -10,6 +10,7 @@ from uuid import uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from researchgraph.core import KnowledgeError
 from researchgraph.models import Event, Job, Paper, PaperSource, now
 from researchgraph.schemas import FileCheck, SourceCheck
 from researchgraph.workspaces import report_stage
@@ -25,14 +26,11 @@ def inspect_file(path: str, expected_hash: str) -> FileCheck:
             after = os.fstat(stream.fileno())
         if len(content) > MAX_BYTES:
             return FileCheck(state="too_large", observed_sha256=None)
-        try:
-            current = Path(path).stat()
-        except OSError:
-            return FileCheck(state="unstable", observed_sha256=None)
+        current = Path(path).stat()
         if any(
-            (item.st_dev, item.st_ino, item.st_size, item.st_mtime_ns)
+            (x.st_dev, x.st_ino, x.st_size, x.st_mtime_ns)
             != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-            for item in (after, current)
+            for x in (after, current)
         ):
             return FileCheck(state="unstable", observed_sha256=None)
         digest = hashlib.sha256(content).hexdigest()
@@ -51,11 +49,9 @@ def check_source_file(request_file: Path, directory: Path) -> None:
     result = SourceCheck(
         checked_at=now(),
         original=inspect_file(request["path"], request["sha256"]),
-        managed=(
-            inspect_file(request["managed_path"], request["sha256"])
-            if request["managed_path"]
-            else None
-        ),
+        managed=inspect_file(request["managed_path"], request["sha256"])
+        if request.get("managed_path")
+        else None,
     )
     (directory / "result.json").write_text(result.model_dump_json(), encoding="utf-8")
 
@@ -66,14 +62,12 @@ def publish_source_check(
     assert job.payload and job.project_id
     source = session.get(PaperSource, job.payload["source_id"])
     if source is None or source.generation != job.payload["generation"]:
-        raise ValueError("来源已更新，本次结果未应用；请刷新后重新操作")
+        raise KnowledgeError("SOURCE_CHANGED", "来源已更新，请刷新后重试")
     checked = SourceCheck.model_validate(result)
-    event_type = "SOURCE_CHECKED"
-    event_payload: dict[str, Any] = {"source_id": source.id, "job_id": job.id}
     if job.kind == "source_relocate":
         if checked.original.state != "available":
-            raise ValueError("所选文件不可用或内容不同，不能重定位；原来源和历史保持不变")
-        # A path may already belong to another paper, or to this paper in the same mode.
+            raise KnowledgeError("SOURCE_UNAVAILABLE", "所选文件不可用或内容不同")
+        old_path = source.path
         conflict = session.scalar(
             select(PaperSource)
             .join(Paper)
@@ -85,18 +79,24 @@ def publish_source_check(
             )
         )
         if conflict:
-            raise ValueError("所选路径已登记到其他来源，请选择未冲突的文件")
-        event_type = "SOURCE_RELOCATED"
-        event_payload.update(old_path=source.path, new_path=job.payload["path"])
+            raise KnowledgeError("SOURCE_CONFLICT", "路径冲突：所选路径已登记到其他来源")
         source.path = job.payload["path"]
         source.generation += 1
+    else:
+        old_path = source.path
     source.last_check = checked.model_dump()
-    event_payload.update(revision_id=source.revision_id, check=source.last_check)
+    event_payload = {
+        "source_id": source.id,
+        "revision_id": source.revision_id,
+        "check": source.last_check,
+    }
+    if job.kind == "source_relocate":
+        event_payload.update({"old_path": old_path, "new_path": source.path})
     session.add(
         Event(
             event_id=str(uuid4()),
             project_id=job.project_id,
-            event_type=event_type,
+            event_type="SOURCE_CHECKED" if job.kind == "source_check" else "SOURCE_RELOCATED",
             payload=event_payload,
             created_at=now(),
         )

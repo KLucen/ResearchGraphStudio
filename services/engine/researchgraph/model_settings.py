@@ -9,9 +9,8 @@ from pydantic import Field, SecretStr, model_validator
 from sqlalchemy import JSON, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
+from researchgraph.core import KnowledgeError, StrictModel
 from researchgraph.credentials import SecretStore
-from researchgraph.knowledge_contracts import StrictModel
-from researchgraph.knowledge_store import KnowledgeError
 from researchgraph.model_capabilities import ModelCapabilities
 from researchgraph.models import Base, Project, now
 from researchgraph.providers import ConfiguredProvider, MockProvider, Provider
@@ -35,7 +34,7 @@ class ModelParameters(StrictModel):
 
 class ProfileInput(StrictModel):
     name: str = Field(min_length=1, max_length=80)
-    provider: Literal["openai", "compatible", "local", "mock"]
+    provider: Literal["openai", "compatible", "local"]
     base_url: str = Field(default="", max_length=1000)
     model: str = Field(min_length=1, max_length=150)
     parameters: ModelParameters = Field(default_factory=ModelParameters)
@@ -45,10 +44,6 @@ class ProfileInput(StrictModel):
     @model_validator(mode="after")
     def validate_endpoint(self) -> "ProfileInput":
         self.base_url = self.base_url.strip().rstrip("/")
-        if self.provider == "mock":
-            if self.api_key or self.base_url:
-                raise ValueError("Mock 不接受 URL 或密钥")
-            return self
         parsed = urlsplit(self.base_url)
         loopback = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
         if (
@@ -80,13 +75,6 @@ class ModelProfile(Base):
     secret_refs: Mapped[list[str]] = mapped_column(JSON)
     active: Mapped[bool] = mapped_column(default=True)
     updated_at: Mapped[str] = mapped_column(String(40))
-
-
-class ModelRole(Base):
-    __tablename__ = "project_model_roles"
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
-    role: Mapped[str] = mapped_column(String(24), primary_key=True)
-    profile_id: Mapped[str] = mapped_column(ForeignKey("model_profiles.id"))
 
 
 class GlobalModelRole(Base):

@@ -1,60 +1,23 @@
 # 文档导航
 
-更新：2026-11-07（Asia/Shanghai）。当前为 **P5 — Lint / Wiki**，Alembic head `0020`。软件主流程、扫描阶段反馈及依赖性能优化已接入；真实 P09/P10/P11 科学质量、新包原生反馈及跨平台/干净机/strict 验收仍待完成。当前状态集中维护在[实施进度](progress.md)，本页提供文档入口。
+更新：2026-11-09（Asia/Shanghai）。活跃文档只维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。完整 v3/P4/P5 文档已从活跃目录清理，旧工程仍可从 `backup/pre-lite-refactor` 回退。
 
-## 先读哪些文档
+## 先读
 
-| 目的 | 入口 |
-| --- | --- |
-| 了解产品和实际进度 | [根 README](../README.md) · [实施进度](progress.md) |
-| 接续当前开发 | [根协作规则](../AGENTS.md) · [下一轮续接](CODEX_NEXT_TURN.md) · [开发日志](../DEVELOPMENT_LOG.md) |
-| 查看最新 P5 验证和操作步骤 | [Lint 性能与进度报告](p5-lint-performance-verification-20261107.md) · [P5 实施报告](p5-verification-20261105.md) · [扫描反馈修复](p5-scan-feedback-verification-20261105.md) |
-| 查阅历史结果 | [历史报告索引](archive/reports/README.md) · [完整旧进度](archive/reports/progress-through-20261105.md) · [历史设计索引](archive/README.md) |
+- [根 README](../README.md)
+- [Lite A+B+D 规范](researchgraph_lite_ABD/README.md)
+- [LightGraph 补充规范](ResearchGraph_Lite_LightGraph_Addendum/README_ADDENDUM.md)
+- [当前项目基线](current_project_baseline.md)
+- [Lite 迁移评估](migration/lite_from_v3_assessment.md)
+- [清理盘点](lite_cleanup_inventory.md)
+- [实际进度](progress.md)
+- [模型配置](model-configuration.md)
+- [安全检查](security-checks.md)
+- [Lite P0 决策](adr/0031-researchgraph-lite-p0.md)
+- [Lite 清理与联合论文概览决策](adr/0032-lite-clean-engine-and-paper-overview.md)
 
-产品辅助科研论文阅读，不预设研究方向，统一称知识图谱。默认“论文→核心结论→有据支撑”，候选、原文、表格、证据和模型原输出保留；当前自动流程没有人工审核、待审或接受/驳回环节。Query 沿完整合法知识及根证据检索，不受画布分页/折叠影响；明确保存才形成衍生阅读知识。Wiki 是有版本和逐段依赖的阅读文档，Lint 检查来源/支撑/依赖/文件状态；Markdown 导出需要独立写入授权。
+## 文档规则
 
-## 当前设计与运行说明
+Lite 文档只描述当前活跃工程和可复现实验。历史完整图谱、跨论文 Query、Lint/Wiki、旧安装包、数据库、日志和原始模型响应不进入活跃目录。真实模型调用、价格和科学质量必须按实际账本记录；没有可用实验条件时继续保留 `unknown`。
 
-| 内容 | 文档 |
-| --- | --- |
-| 决策与产品 | [00 范围](00_decisions_and_scope.md) · [01 产品](01_product_design.md) |
-| 统一引擎与数据 | [02 架构](02_architecture_and_workflows.md) · [03 Schema](03_schema_design.md) |
-| 图谱与阅读交互 | [04 交互](04_graph_interaction_spec.md) |
-| 模型任务与协议 | [05 Prompt](05_prompt_engineering.md) · [模型配置](model-configuration.md) |
-| 阶段任务与退出条件 | [06 实施计划](06_development_migration_plan.md) |
-| API/事件 | [07 设计与实现差异](07_api_and_events.md) · [运行 API](api.md) · [生成 OpenAPI](../packages/contracts/openapi.json) |
-| 验证、安全与工程 | [08 验证](08_validation_and_security.md) · [09 实施注记](09_reference_implementation_notes.md) · [敏感内容检查](security-checks.md) |
-| 文档生命周期与依赖诊断 | [ADR0018](adr/0018-query-wiki-and-obsidian-lifecycle.md) · [P5 ADR0029](adr/0029-lint-wiki-workflows-and-managed-publication.md) · [Lint 性能 ADR0030](adr/0030-lint-performance-and-progress.md) |
-
-设计 `v3.3`、应用 `0.0.1`、数据库迁移号、领域/传输/Prompt 版本分别管理。当前设计描述产品和实现边界；实际运行请求以 Pydantic、[OpenAPI](../packages/contracts/openapi.json) 和 [api.md](api.md) 为准。
-
-## 参考资产与决策
-
-| 资产 | 用途 |
-| --- | --- |
-| [参考 Pydantic](schemas/contracts.py) / [JSON Schema](schemas/generated/) / [SQL](schemas/sqlite_reference.sql) | 可执行设计参考，不能直接代替运行 DTO 或在用户库执行 SQL |
-| [参考 Prompt](prompts/) / [运行 Prompt](../services/engine/researchgraph/prompts/) | 设计模板与版本化运行模板分开；不覆盖历史 Prompt/hash |
-| [合成示例](examples/README.md) / [参考测试](tests/test_contracts.py) | 结构与边界验证，不等于真实科学质量 |
-| [ADR](adr/) / [旧 decisions](decisions/) | 记录决策采用时间、适用范围及后续替代；不能把旧阶段限制当当前指令 |
-| [v3→v3.3 变化](CHANGELOG_FROM_V3.md) / [兼容映射](migration/v3_to_reading_assessment.md) | 设计和旧实现的对应 |
-| [MANIFEST](MANIFEST.md) / [SHA256SUMS](SHA256SUMS.txt) | 当前规范资产的 LF 字节与哈希清单，不是所有报告或软件发布清单 |
-
-Query 决策沿 [ADR0022](adr/0022-query-foundation-and-versioned-context.md)～[ADR0028](adr/0028-query-scientific-guidance-and-citation-closure.md) 演进；阅读流程沿 [ADR0008](adr/0008-reading-knowledge-graph.md)、[ADR0014](adr/0014-structured-pdf-and-support-graph.md)、[ADR0017](adr/0017-semantic-protocol-and-stage-recovery.md) 和 [ADR0021](adr/0021-keyed-ranking-and-bounded-correction.md) 维护。历史失败和成绩从报告索引进入，不在多份当前文档中重复叠加。
-
-参考资产需要变更时，使用 Conda 项目环境分进程检查：
-
-```powershell
-conda run -n researchgraph-studio python docs/schemas/contracts.py
-conda run -n researchgraph-studio python -m pytest docs/tests -q
-conda run -n researchgraph-studio python -m pytest docs/archive/v3/tests -q
-conda run -n researchgraph-studio python -m pytest docs/archive/v2/tests -q
-```
-
-## 归档和维护规则
-
-- 当前 00–09、运行说明、进度和续接文件维护最新状态；测试分母、包 hash 和未测项以对应报告为准。
-- 已结束轮次的报告放在 [archive/reports](archive/reports/README.md)，保留失败、调用预算、授权和未知结果。旧报告里的“当前/head/未进入 P5”只适用于报告日期。
-- [v2](archive/v2/README.md)、[原 v3](archive/v3/README.md)、[迁移评估](migration/)与[环境快照](environment/)保留追溯；历史来源登记和 [QA 原件](../QA.md)不因整理改写。
-- 冗余的 `AGENTS.template.md` 已由根 [AGENTS.md](../AGENTS.md)替代；`CHANGELOG_FROM_V2.md` 的跳转页已移除，直接访问[历史变化原文](archive/v3/CHANGELOG_FROM_V2.md)。
-- Zotero、私人笔记和用户原文默认只读；读取、模型用途与发布目录授权分开。密钥仅存 OS 凭据，私人材料、运行库、模型 raw、日志和安装器不进入源码。
-- 真实 strict、复杂版面/无 OCR、跨平台/干净机和 S1–S4 外部原文仍按报告保留限制，[来源登记](design/source-register.md)不能冒充已核验结果。
+设计 Schema、Prompt 和契约测试以 `docs/researchgraph_lite_ABD` 与 `docs/ResearchGraph_Lite_LightGraph_Addendum` 为准。`docs/researchgraph_lite_ABD/schemas/sqlite_reference.sql` 之类参考文件不直接执行，运行数据库由代码初始化和版本检查负责。

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -18,6 +18,7 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     description: Mapped[str] = mapped_column(Text)
+    experience_mode: Mapped[str] = mapped_column(String(16), default="lite")
     created_at: Mapped[str] = mapped_column(String(40))
 
 
@@ -36,28 +37,15 @@ class Job(Base):
     created_at: Mapped[str] = mapped_column(String(40))
     updated_at: Mapped[str] = mapped_column(String(40))
 
-    @property
-    def resume_adapter_available(self) -> bool:
-        from researchgraph.reading_finish_upgrade import available as ranking_upgrade_available
-        from researchgraph.reading_resume import adapter_available
-        from researchgraph.reading_upgrade import upgrade_available
-
-        return ranking_upgrade_available(self) or adapter_available(self) or upgrade_available(self)
-
 
 class Event(Base):
-    __tablename__ = "knowledge_events"
+    __tablename__ = "events"
     sequence: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(String(36), unique=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"))
     event_type: Mapped[str] = mapped_column(String(40))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[str] = mapped_column(String(40))
-    actor: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    model_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    before_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    after_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    trigger: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class Idempotency(Base):
@@ -110,3 +98,50 @@ class Chunk(Base):
     block_index: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     bbox: Mapped[list[float]] = mapped_column(JSON)
+
+
+class Section(Base):
+    __tablename__ = "sections"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_version_id: Mapped[str] = mapped_column(
+        ForeignKey("attachment_revisions.id"), index=True
+    )
+    title: Mapped[str] = mapped_column(Text)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(24))
+    parser: Mapped[str] = mapped_column(String(40))
+    parent_id: Mapped[str | None] = mapped_column(ForeignKey("sections.id"), nullable=True)
+    level: Mapped[int] = mapped_column(Integer, default=0)
+    start_page: Mapped[int] = mapped_column(Integer, default=0)
+    end_page: Mapped[int] = mapped_column(Integer, default=0)
+    excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class EvidenceSpan(Base):
+    __tablename__ = "evidence_spans"
+    __table_args__ = (UniqueConstraint("paragraph_id", "start_offset", "end_offset"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_version_id: Mapped[str] = mapped_column(
+        ForeignKey("attachment_revisions.id"), index=True
+    )
+    section_id: Mapped[str] = mapped_column(ForeignKey("sections.id"))
+    paragraph_id: Mapped[str] = mapped_column(ForeignKey("chunks.id"))
+    page_index: Mapped[int] = mapped_column(Integer)
+    start_offset: Mapped[int] = mapped_column(Integer)
+    end_offset: Mapped[int] = mapped_column(Integer)
+    quote: Mapped[str] = mapped_column(Text)
+    text_sha256: Mapped[str] = mapped_column(String(64))
+    normalization: Mapped[str] = mapped_column(String(40))
+    bbox_list: Mapped[list[list[float]]] = mapped_column(JSON)
+
+
+class ZoteroLink(Base):
+    __tablename__ = "zotero_links"
+    __table_args__ = (UniqueConstraint("paper_id", "library_id", "item_key", "attachment_key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    paper_id: Mapped[str] = mapped_column(ForeignKey("papers.id"), index=True)
+    document_version_id: Mapped[str] = mapped_column(ForeignKey("attachment_revisions.id"))
+    library_id: Mapped[str] = mapped_column(String(80))
+    item_key: Mapped[str] = mapped_column(String(8))
+    attachment_key: Mapped[str] = mapped_column(String(8))
+    metadata_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON)

@@ -1,24 +1,24 @@
-import type { components } from "../../../packages/contracts/generated";
 import "./graphAppearance.css";
 
-export type VisualKind = components["schemas"]["ProjectionNode"]["kind"];
+export type VisualKind =
+  | "RESEARCH_QUESTION"
+  | "CONCEPT"
+  | "METHOD"
+  | "CONTRIBUTION"
+  | "FINDING"
+  | "UNKNOWN";
 
 /** One palette for the rendered nodes, filters, details and explanatory legend. */
 export const graphNodeKinds: Record<
   VisualKind,
   { label: string; color: string }
 > = {
-  Paper: { label: "论文", color: "#537b98" },
-  Concept: { label: "概念", color: "#927fba" },
-  Method: { label: "方法", color: "#508e80" },
-  Claim: { label: "主张", color: "#b38e54" },
-  ResearchQuestion: { label: "研究问题", color: "#ad7c91" },
-  Experiment: { label: "实验", color: "#6f8f9c" },
-  Condition: { label: "条件", color: "#8c9966" },
-  Finding: { label: "结果", color: "#ba8265" },
-  Metric: { label: "指标", color: "#708cae" },
-  Argument: { label: "论证", color: "#9c8880" },
-  Limitation: { label: "限制", color: "#a47575" },
+  RESEARCH_QUESTION: { label: "研究问题", color: "#ad7c91" },
+  CONCEPT: { label: "概念", color: "#927fba" },
+  METHOD: { label: "方法", color: "#508e80" },
+  CONTRIBUTION: { label: "贡献", color: "#b38e54" },
+  FINDING: { label: "结果", color: "#ba8265" },
+  UNKNOWN: { label: "其他", color: "#74847b" },
 };
 
 export const graphKindLabels = Object.fromEntries(
@@ -39,16 +39,18 @@ export function GraphLegend() {
     <aside className="graph-legend" aria-label="图谱节点类型说明">
       <h3>节点类型</h3>
       <ul>
-        {Object.entries(graphNodeKinds).map(([kind, appearance]) => (
-          <li key={kind} data-kind={kind}>
-            <span
-              className="graph-legend-swatch"
-              style={{ backgroundColor: appearance.color }}
-              aria-hidden="true"
-            />
-            <span>{appearance.label}</span>
-          </li>
-        ))}
+        {Object.entries(graphNodeKinds)
+          .filter(([kind]) => kind !== "UNKNOWN")
+          .map(([kind, appearance]) => (
+            <li key={kind} data-kind={kind}>
+              <span
+                className="graph-legend-swatch"
+                style={{ backgroundColor: appearance.color }}
+                aria-hidden="true"
+              />
+              <span>{appearance.label}</span>
+            </li>
+          ))}
       </ul>
     </aside>
   );

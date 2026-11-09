@@ -1,43 +1,211 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { components } from "../../../packages/contracts/generated";
 
-export type Project = components["schemas"]["ProjectView"];
-export type Job = components["schemas"]["JobView"];
-export type JobList = components["schemas"]["JobList"];
-export type Health = components["schemas"]["Health"];
-export type ProjectList = components["schemas"]["ProjectList"];
-export type PaperList = components["schemas"]["PaperList"];
-export type PaperDetail = components["schemas"]["PaperDetail"];
-export type ChunkList = components["schemas"]["ChunkList"];
-export type Source = components["schemas"]["SourceView"];
-export type Structure = components["schemas"]["DocumentStructure"];
-export type KnowledgeList = components["schemas"]["KnowledgeList"];
-export type KnowledgeNode = components["schemas"]["NodeView"];
-export type NodeDetail = components["schemas"]["NodeDetail"];
-export type Evidence = components["schemas"]["EvidenceView"];
-export type ModelRun = components["schemas"]["ModelRunView"];
-export type ReviewRequest = components["schemas"]["ReviewRequest"];
-export type NoteRoot = {
+export type Project = {
   id: string;
+  name: string;
+  description: string;
+  experience_mode: "lite";
+  created_at: string;
+};
+export type ProjectList = { items: Project[]; next_cursor: number | null };
+export type Paper = {
+  id: string;
+  project_id: string;
+  title: string;
+  created_at: string;
+};
+export type PaperList = { items: Paper[]; next_cursor: number | null };
+export type Revision = {
+  id: string;
+  paper_id: string;
+  sha256: string;
+  parser_version: string;
+  page_count: number;
+  warnings: string[];
+  created_at: string;
+};
+export type SourceCheck = {
+  original: { state: string };
+  managed: { state: string } | null;
+  checked_at: string;
+};
+export type Source = {
+  id: string;
+  revision_id: string;
   path: string;
-  active: boolean;
-  query_permissions?: { allow_local: boolean; allow_model: boolean };
+  mode: "reference" | "managed";
+  generation: number;
+  last_check: SourceCheck | null;
 };
-export type Annotation = {
+export type PaperDetail = {
+  paper: Paper;
+  revisions: Revision[];
+  sources: Source[];
+  zotero_links?: { url?: string; item_key?: string; attachment_key?: string }[];
+};
+export type Chunk = {
   id: string;
+  revision_id: string;
+  page_index: number;
+  page_label: string;
+  block_index: number;
   text: string;
-  comment: string;
-  anchor_status: string;
-  source_item_key: string;
-  annotation_key: string;
-  evidence_id: string | null;
+  bbox: number[];
 };
-
-export interface HostStatus {
+export type ChunkList = { items: Chunk[]; next_cursor: number | null };
+export type Section = {
+  id: string;
+  title: string;
+  ordinal: number;
+  role: string;
+  parent_id: string | null;
+  level: number;
+  start_page: number | null;
+  end_page: number | null;
+  excluded: boolean;
+  text: string;
+  chunk_ids: string[];
+};
+export type Structure = { document_version_id: string; sections: Section[] };
+export type SearchHit = {
+  chunk_id: string;
+  section_id: string | null;
+  document_version_id: string;
+  paper_id: string;
+  text: string;
+  page_index: number;
+  page_label: string;
+  score: number;
+};
+export type SearchResult = { items: SearchHit[]; query: string };
+export type Job = {
+  id: string;
+  kind: string;
+  project_id: string | null;
+  status:
+    "queued" | "running" | "succeeded" | "failed" | "cancelled" | "interrupted";
+  stage: string | null;
+  attempt: number;
+  error: string | null;
+  result: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+export type JobList = { items: Job[]; next_cursor: string | null };
+export type Health = {
+  status: "ok";
+  version: string;
+  protocol_version: number;
+  schema_version: string;
+  database: "ready";
+  fts5: boolean;
+};
+export type LiteUsage = {
+  project_id: string;
+  paper_id: string | null;
+  calls: number;
+  retry_count: number;
+  cache_hits: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  unknown_usage_calls: number;
+  calls_known: boolean;
+  unrecorded_runs: number;
+  unattributed_runs: number;
+  estimated_usage_calls: number;
+  cost_estimate: number | null;
+  cost_known: boolean;
+  by_kind: {
+    task_kind: string;
+    calls: number;
+    retry_count: number;
+    cache_hits: number;
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    unknown_usage_calls: number;
+    calls_known: boolean;
+    unrecorded_runs: number;
+    unattributed_runs: number;
+    estimated_usage_calls: number;
+    cost_estimate: number | null;
+    cost_known: boolean;
+  }[];
+};
+export type HostStatus = {
   running: boolean;
   data_dir: string;
   error: string | null;
-}
+};
+
+export type OverviewNode = {
+  id: string;
+  type: "RESEARCH_QUESTION" | "CONCEPT" | "METHOD" | "CONTRIBUTION" | "FINDING";
+  label_zh: string;
+  label_en: string | null;
+  description_zh: string;
+  basis: "EXPLICIT" | "INFERRED";
+};
+export type OverviewEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type:
+    | "INVESTIGATES"
+    | "USES"
+    | "ANALYZES"
+    | "YIELDS"
+    | "CONTRIBUTES_TO"
+    | "RELATED_TO";
+  basis: "EXPLICIT" | "INFERRED";
+};
+export type PaperOverview = {
+  schema_version: "paper_overview_graph.v1";
+  paper_card: {
+    research_question: string;
+    motivation: string;
+    method_summary: string;
+    contributions: string[];
+    main_findings: string[];
+    limitations: string[];
+  };
+  graph: { nodes: OverviewNode[]; edges: OverviewEdge[] };
+};
+export type OverviewView = {
+  id: string | null;
+  paper_id: string;
+  document_version_id: string;
+  status: "PENDING" | "COMPLETED" | "FAILED" | null;
+  pdf_hash: string | null;
+  input_hash: string | null;
+  schema_version: string | null;
+  prompt_version: string | null;
+  provider_id: string | null;
+  model_id: string | null;
+  generated_at: string | null;
+  cache_hit: boolean;
+  graph_status: string | null;
+  paper_card: PaperOverview["paper_card"] | null;
+  graph: PaperOverview["graph"] | null;
+  usage: {
+    input_tokens: number | null;
+    output_tokens: number | null;
+    total_tokens: number | null;
+    calls: number;
+    retry_count: number;
+    cost: number | null;
+    usage_source: "provider" | "unknown";
+  } | null;
+  job_id: string | null;
+  error_code: string | null;
+  error: string | null;
+};
+export type OverviewLayout = {
+  overview_result_id: string;
+  positions: { node_id: string; x: number; y: number; pinned: boolean }[];
+  viewport?: { x: number; y: number; zoom: number } | null;
+};
 
 export async function request<T>(
   method: string,
@@ -60,112 +228,30 @@ export async function request<T>(
     );
   }
 }
+
 export const api = {
   structure: (id: string) =>
-    request<Structure>("GET", `/api/v1/revisions/${id}/structure`),
-  knowledge: (id: string) =>
-    request<KnowledgeList>(
+    request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
+  sections: (id: string) =>
+    request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
+  search: (
+    paperId: string,
+    query: string,
+    revisionId?: string,
+    sectionId?: string,
+  ) => {
+    const params = new URLSearchParams({ q: query, limit: "5" });
+    if (revisionId) params.set("revision_id", revisionId);
+    if (sectionId) params.set("section_id", sectionId);
+    return request<SearchResult>(
       "GET",
-      `/api/v1/revisions/${id}/knowledge?include_test_data=false&current_schema_only=true`,
-    ),
-  node: (id: string) =>
-    request<NodeDetail>("GET", `/api/v1/knowledge/nodes/${id}`),
-  preview: (id: string) =>
-    request<components["schemas"]["Preview"]>(
-      "GET",
-      `/api/v1/evidence/${id}/preview`,
-    ),
-  extract: (
-    id: string,
-    provider: "mock" | "configured" | "project",
-    allowNetwork: boolean,
-    pipeline:
-      "paper-reading-v1" | "unified-v3" | "legacy-v2" = "paper-reading-v1",
-  ) =>
-    request<Job>(
-      "POST",
-      "/api/v1/knowledge/extract",
-      {
-        document_version_id: id,
-        provider,
-        allow_network: allowNetwork,
-        pipeline,
-      },
-      crypto.randomUUID(),
-    ),
-  review: (body: ReviewRequest) =>
-    request<KnowledgeNode>(
-      "POST",
-      "/api/v1/knowledge/reviews",
-      body,
-      crypto.randomUUID(),
-    ),
-  runs: (id: string) =>
-    request<ModelRun[]>("GET", `/api/v1/revisions/${id}/runs`),
-  providers: () =>
-    request<{
-      configured: boolean;
-      model: string | null;
-      mock: string;
-      transmitted_data: string;
-    }>("GET", "/api/v1/providers"),
-  noteRoots: (id: string) =>
-    request<NoteRoot[]>("GET", `/api/v1/projects/${id}/note-roots`),
-  authorizeNotes: (projectId: string) =>
-    invoke<NoteRoot | null>("authorize_notes_directory", {
-      projectId,
-      idempotencyKey: crypto.randomUUID(),
-    }),
-  noteAction: (id: string, action: "scan" | "revoke") =>
-    request<{ added?: number; skipped?: number; active?: boolean }>(
-      "POST",
-      `/api/v1/integrations/obsidian/${id}/${action}`,
-      null,
-      crypto.randomUUID(),
-    ),
-  notePermissions: (
-    id: string,
-    permissions: { allow_local: boolean; allow_model: boolean },
-  ) =>
-    request<{ root_id: string; allow_local: boolean; allow_model: boolean }>(
-      "PUT",
-      `/api/v1/integrations/obsidian/${id}/query-permissions`,
-      permissions,
-      crypto.randomUUID(),
-    ),
-  notes: (id: string) =>
-    request<
-      {
-        id: string;
-        relative_path: string;
-        sha256: string;
-        text: string;
-        authorship: string;
-      }[]
-    >("GET", `/api/v1/integrations/obsidian/${id}/notes`),
+      `/api/v1/papers/${paperId}/search?${params.toString()}`,
+    );
+  },
   zoteroStatus: () =>
     request<{ connected: boolean; error?: string }>(
       "GET",
       "/api/v1/integrations/zotero/status",
-    ),
-  zoteroItems: (start = 0) =>
-    request<{ key: string; data: { title?: string; itemType?: string } }[]>(
-      "GET",
-      `/api/v1/integrations/zotero/items?library=users/0&start=${start}`,
-    ),
-  annotations: (id: string) =>
-    request<Annotation[]>("GET", `/api/v1/revisions/${id}/annotations`),
-  importAnnotations: (id: string, itemKey: string, attachmentKey: string) =>
-    request<{ added: number; unresolved: number }>(
-      "POST",
-      "/api/v1/integrations/zotero/annotations",
-      {
-        document_version_id: id,
-        library: "users/0",
-        item_key: itemKey,
-        attachment_key: attachmentKey,
-      },
-      crypto.randomUUID(),
     ),
   checkSource: (source: Source) =>
     request<Job>(
@@ -196,6 +282,11 @@ export const api = {
       "GET",
       `/api/v1/projects/${projectId}/papers?cursor=${cursor}&limit=50`,
     ),
+  liteUsage: (projectId: string, paperId?: string) =>
+    request<LiteUsage>(
+      "GET",
+      `/api/v1/projects/${projectId}/lite/usage${paperId ? `?paper_id=${encodeURIComponent(paperId)}` : ""}`,
+    ),
   paper: (paperId: string) =>
     request<PaperDetail>("GET", `/api/v1/papers/${paperId}`),
   chunks: (revisionId: string, cursor = 0) =>
@@ -209,11 +300,58 @@ export const api = {
   projects: (cursor = 0) =>
     request<ProjectList>("GET", `/api/v1/projects?cursor=${cursor}&limit=50`),
   createProject: (body: { name: string; description: string }, key: string) =>
-    request<Project>("POST", "/api/v1/projects", body, key),
+    request<Project>(
+      "POST",
+      "/api/v1/projects",
+      { ...body, experience_mode: "lite" },
+      key,
+    ),
   jobs: () => request<Job[]>("GET", "/api/v1/jobs"),
   job: (id: string) => request<Job>("GET", `/api/v1/jobs/${id}`),
   diagnose: (key: string) =>
     request<Job>("POST", "/api/v1/jobs", { kind: "diagnostics" }, key),
   jobAction: (id: string, action: "cancel" | "retry", key: string) =>
     request<Job>("POST", `/api/v1/jobs/${id}/${action}`, null, key),
+  overview: (paperId: string, revisionId?: string) =>
+    request<OverviewView>(
+      "GET",
+      `/api/v1/papers/${paperId}/overview${revisionId ? `?document_version_id=${encodeURIComponent(revisionId)}` : ""}`,
+    ),
+  generateOverview: (
+    paperId: string,
+    revisionId: string,
+    allowNetwork: boolean,
+    retryFailed = false,
+    forceRegenerate = false,
+  ) =>
+    request<OverviewView>(
+      "POST",
+      `/api/v1/papers/${paperId}/overview/generate`,
+      {
+        document_version_id: revisionId,
+        allow_network: allowNetwork,
+        retry_failed: retryFailed,
+        force_regenerate: forceRegenerate,
+      },
+      crypto.randomUUID(),
+    ),
+  overviewLayout: (paperId: string, resultId: string) =>
+    request<OverviewLayout>(
+      "GET",
+      `/api/v1/papers/${paperId}/overview/graph/layout?overview_result_id=${encodeURIComponent(resultId)}`,
+    ),
+  saveOverviewLayout: (paperId: string, layout: OverviewLayout) =>
+    request<OverviewLayout>(
+      "PUT",
+      `/api/v1/papers/${paperId}/overview/graph/layout`,
+      layout,
+      crypto.randomUUID(),
+    ),
+  resetOverviewLayout: (paperId: string, resultId: string) =>
+    request<OverviewLayout>(
+      "POST",
+      `/api/v1/papers/${paperId}/overview/graph/layout/reset`,
+      { overview_result_id: resultId },
+      crypto.randomUUID(),
+    ),
 };

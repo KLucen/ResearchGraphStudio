@@ -21,7 +21,7 @@ dev = ["pytest>=8,<10", "ruff>=0.9,<1", "mypy>=2,<3", "pyinstaller>=6,<7", "pip-
 where = ["services/engine"]
 
 [tool.setuptools.package-data]
-researchgraph = ["migrations/*.py", "migrations/versions/*.py", "prompts/*.md"]
+researchgraph = ["migrations/*.py", "migrations/versions/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/engine"]

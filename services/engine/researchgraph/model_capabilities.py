@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import Field
 
-from researchgraph.knowledge_contracts import StrictModel
+from researchgraph.core import StrictModel
 
 
 class ModelCapabilities(StrictModel):

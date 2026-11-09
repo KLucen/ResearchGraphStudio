@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "CardField": {
+      "additionalProperties": false,
+      "properties": {
+        "text_zh": {
+          "maxLength": 250,
+          "title": "Text Zh",
+          "type": "string"
+        },
+        "evidence_span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Evidence Span Ids",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/SupportState"
+        }
+      },
+      "required": [
+        "text_zh",
+        "status"
+      ],
+      "title": "CardField",
+      "type": "object"
+    },
+    "SupportState": {
+      "enum": [
+        "supported",
+        "not_found",
+        "ambiguous"
+      ],
+      "title": "SupportState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "research_question": {
+      "$ref": "#/$defs/CardField"
+    },
+    "motivation": {
+      "$ref": "#/$defs/CardField"
+    },
+    "method": {
+      "$ref": "#/$defs/CardField"
+    },
+    "contributions": {
+      "items": {
+        "$ref": "#/$defs/CardField"
+      },
+      "maxItems": 3,
+      "title": "Contributions",
+      "type": "array"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/CardField"
+      },
+      "maxItems": 3,
+      "title": "Results",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "$ref": "#/$defs/CardField"
+      },
+      "maxItems": 3,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "overall_note": {
+      "default": "",
+      "maxLength": 100,
+      "title": "Overall Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "research_question",
+    "motivation",
+    "method",
+    "contributions",
+    "results",
+    "limitations"
+  ],
+  "title": "PaperCardDraft",
+  "type": "object"
+}

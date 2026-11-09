@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "paper_overview_graph.v1",
+  "title": "Paper Overview with Lightweight Graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "paper_card",
+    "graph"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "paper_overview_graph.v1"
+    },
+    "paper_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "research_question",
+        "motivation",
+        "method_summary",
+        "contributions",
+        "main_findings",
+        "limitations"
+      ],
+      "properties": {
+        "research_question": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "motivation": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "method_summary": {
+          "type": "string",
+          "maxLength": 360
+        },
+        "contributions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "maxLength": 180
+          }
+        },
+        "main_findings": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "maxLength": 180
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "maxLength": 180
+          }
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "type",
+              "label_zh",
+              "label_en",
+              "description_zh",
+              "basis"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^n[1-9][0-9]*$"
+              },
+              "type": {
+                "enum": [
+                  "RESEARCH_QUESTION",
+                  "CONCEPT",
+                  "METHOD",
+                  "CONTRIBUTION",
+                  "FINDING"
+                ]
+              },
+              "label_zh": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 48
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 80
+              },
+              "description_zh": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 180
+              },
+              "basis": {
+                "enum": [
+                  "EXPLICIT",
+                  "INFERRED"
+                ]
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "source",
+              "target",
+              "type",
+              "basis"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^e[1-9][0-9]*$"
+              },
+              "source": {
+                "type": "string",
+                "pattern": "^n[1-9][0-9]*$"
+              },
+              "target": {
+                "type": "string",
+                "pattern": "^n[1-9][0-9]*$"
+              },
+              "type": {
+                "enum": [
+                  "INVESTIGATES",
+                  "USES",
+                  "ANALYZES",
+                  "YIELDS",
+                  "CONTRIBUTES_TO",
+                  "RELATED_TO"
+                ]
+              },
+              "basis": {
+                "enum": [
+                  "EXPLICIT",
+                  "INFERRED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

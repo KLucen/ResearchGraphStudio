@@ -1,5 +1,7 @@
 # 项目协作约定
 
+- 2026-11-09 Lite P0：用户要求先总结/安全检查并将完整工程推送 `backup/pre-lite-refactor`，再从备份创建 `refactor/researchgraph-lite-p0`，本轮只实现 P0、完成后停止。备份 `7b45f0d` 已成功推送，Lite 分支尚未提交/推送；不继承备份上传授权继续推送 Lite。当前 head0022：0021 项目模式（旧项目 legacy，新项目默认 lite），0022 用量/缓存基础；本地 Zotero/PDF/章节/FTS5 保留，Lite 默认阻断全量抽取/跨论文推理/Lint/Wiki，旧图谱和数据可读。B 卡片/A 导读/D 问答尚未实现，真实模型0、正式库实验0；实际结果读 docs/progress.md、docs/migration/lite_from_v3_assessment.md 与 ADR0031。以下 P5/不进入后续阶段等条目只用于各自历史轮次，不覆盖本轮用户明确范围。
+
 - 2026-11-07 Lint性能：新head0020仅增phase/timings与三索引，旧科学列/targets/input_hash/raw不改；catalog列投影/批量预取仍逐调用完整验源和逐link终验，无跨调用缓存。依赖边批量重建、CTE双向完整闭包先完成再当前权限过滤分页，隐藏中间节点不剪断传播。末批对象满数先提交rebuilding_dependencies，下一advance重验再建索引；桌面/自动幂等key含phase，GET不推进不记新计时。固定同字节harness本轮before/after为856.662931→469.026664秒、依赖重建13.185584→3.217814秒、反向P95 1.027968→0.030090秒、峰RSS300.695→247.469MiB；旧430秒不作本轮before，不宣称通用SLA。阶段计时不含所有事务/网络开销、不进P09冻结输入。实际全量回归/包及未测项以docs/p5-lint-performance-verification-20261107.md、progress和DEV-0062最新记录为准；unknown仍info/不补条件，真实调用0/正式库实验0，未Commit/Push。
 
 - 2026-11-07 Lint处理方案：用户确认扫描可以继续，要求为诊断准备处理内容。26条规则按对象归属/生命周期派生只读repair_plan，SOURCE_UNCHECKED指向文献页“检查文件”，CONDITION_UNKNOWN保持info/unknown，有据时才受控重建，不直接改旧条件；外部材料只读新版本不走Wiki发布。模型需求false/true/null分开展示，方案不执行动作、不进入P09/P10/P11冻结输入/hash/问题指纹，无迁移。最终234后端专项/1符号链接权限跳过、159React、4Edge、冻结P5/旧smoke及PS5.1隔离5项通过；213运行源/312资源配对，新包7c08d3b8见docs/progress.md和DEV-0061。真实模型0、正式库实验0、未Commit/Push/替用户安装；新包原生及真实科学未验收，旧1124/430秒/17项不冒充本轮重跑。

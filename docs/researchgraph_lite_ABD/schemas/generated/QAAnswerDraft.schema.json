@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "EvidenceCitation": {
+      "additionalProperties": false,
+      "properties": {
+        "span_id": {
+          "minLength": 1,
+          "title": "Span Id",
+          "type": "string"
+        },
+        "reason_zh": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Reason Zh",
+          "type": "string"
+        }
+      },
+      "required": [
+        "span_id",
+        "reason_zh"
+      ],
+      "title": "EvidenceCitation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "answer_zh": {
+      "maxLength": 1800,
+      "minLength": 1,
+      "title": "Answer Zh",
+      "type": "string"
+    },
+    "evidence_citations": {
+      "items": {
+        "$ref": "#/$defs/EvidenceCitation"
+      },
+      "maxItems": 5,
+      "title": "Evidence Citations",
+      "type": "array"
+    },
+    "insufficient_evidence": {
+      "title": "Insufficient Evidence",
+      "type": "boolean"
+    },
+    "uncertainty_zh": {
+      "default": "",
+      "maxLength": 400,
+      "title": "Uncertainty Zh",
+      "type": "string"
+    },
+    "suggest_expand_scope": {
+      "default": false,
+      "title": "Suggest Expand Scope",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "answer_zh",
+    "insufficient_evidence"
+  ],
+  "title": "QAAnswerDraft",
+  "type": "object"
+}

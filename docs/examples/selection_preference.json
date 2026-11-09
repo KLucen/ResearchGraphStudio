@@ -1,7 +1,0 @@
-{
-  "document_version_id": "dv-demo",
-  "candidate_id": "claim-a",
-  "expected_selection_revision": 1,
-  "action": "exclude_core",
-  "reason": "Display preference only."
-}

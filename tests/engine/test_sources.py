@@ -1,13 +1,9 @@
 import shutil
-import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
-from alembic import command
-from alembic.config import Config
 from researchgraph import source_files
 from researchgraph.models import Event, PaperSource
-from researchgraph.storage import make_engine, migrate
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -165,35 +161,6 @@ def test_cancelled_source_check_can_retry_after_restart(tmp_path):
             ]
             == "available"
         )
-
-
-def test_upgrade_0002_preserves_source_and_starts_unchecked(tmp_path):
-    engine = make_engine(tmp_path)
-    config = Config()
-    config.set_main_option(
-        "script_location",
-        str(Path(__file__).parents[2] / "services/engine/researchgraph/migrations"),
-    )
-    with engine.begin() as connection:
-        config.attributes["connection"] = connection
-        command.upgrade(config, "0002")
-        connection.exec_driver_sql("INSERT INTO projects VALUES ('p','Project','','now')")
-        connection.exec_driver_sql("INSERT INTO papers VALUES ('paper','p','Title','now')")
-        connection.exec_driver_sql(
-            "INSERT INTO attachment_revisions VALUES ('r','paper','hash','parser',2,'[]','now')"
-        )
-        connection.exec_driver_sql(
-            "INSERT INTO paper_sources VALUES ('s','paper','r','C:/source.pdf','reference',NULL)"
-        )
-    migrate(engine, tmp_path)
-    with Session(engine) as session:
-        source = session.get(PaperSource, "s")
-        assert source.generation == 0 and source.last_check is None
-        assert source.revision_id == "r" and source.path == "C:/source.pdf"
-    (backup,) = (tmp_path / "backups").glob("*.sqlite3")
-    with sqlite3.connect(backup) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0002"
-    engine.dispose()
 
 
 def test_read_limits_and_permission_errors_have_explicit_states(tmp_path, monkeypatch):

@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import json
 
 import httpx
@@ -7,8 +6,6 @@ import pytest
 from researchgraph.model_adapters import new_task_parameters
 from researchgraph.model_settings import from_snapshot, snapshot_for
 from researchgraph.providers import ConfiguredProvider, ProviderError
-from researchgraph.reading_contracts import CoreSelectionProposal, PaperIntegrationProposal
-from researchgraph.reading_wire import current_output_schema
 from researchgraph.structured_output import (
     OPENAI_ENDPOINT,
     OPENAI_SOURCE,
@@ -127,53 +124,6 @@ def test_thinking_conflict_does_not_silently_remove_native_format():
     assert caught.value.category == "structured_output_unsupported"
     provider = configured(reasoning_effort="none")
     assert "reasoning_effort" not in provider._build_body("JSON", {}, model_schema())
-
-
-@pytest.mark.parametrize(
-    "schema",
-    [
-        current_output_schema(),
-        PaperIntegrationProposal.model_json_schema(),
-        CoreSelectionProposal.model_json_schema(),
-    ],
-)
-def test_runtime_reading_schemas_convert_without_dropping_validation_constraints(schema):
-    original = copy.deepcopy(schema)
-    converted, rules = strict_schema(schema)
-    assert schema == original and converted["additionalProperties"] is False
-
-    def verify(before, after):
-        for key in (
-            "minLength",
-            "maxLength",
-            "minimum",
-            "maximum",
-            "exclusiveMinimum",
-            "exclusiveMaximum",
-            "minItems",
-            "maxItems",
-            "pattern",
-            "format",
-            "additionalProperties",
-            "$ref",
-            "type",
-        ):
-            if key in before:
-                assert before[key] == after[key]
-        if "const" in before:
-            assert after["enum"] == [before["const"]]
-        if before.get("type") == "object":
-            assert set(after["required"]) == set(before["properties"])
-        for field in ("properties", "$defs"):
-            for name, child in before.get(field, {}).items():
-                verify(child, after[field][name])
-        for index, child in enumerate(before.get("oneOf", before.get("anyOf", []))):
-            verify(child, after["anyOf"][index])
-        if "items" in before:
-            verify(before["items"], after["items"])
-
-    verify(schema, converted)
-    assert rules["optional_presence_required_without_adding_null"] > 0
 
 
 @pytest.mark.parametrize("keyword", ["allOf", "not", "if", "patternProperties", "unknownKeyword"])

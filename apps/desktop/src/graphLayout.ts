@@ -1,9 +1,10 @@
-import type { components } from "../../../packages/contracts/generated";
-type Graph = components["schemas"]["GraphProjection"];
-type Position = components["schemas"]["LayoutPosition"];
+import type { GraphData, GraphPosition } from "./graphTypes";
 
 // Deterministic seeds only; the live simulation owns transient coordinates.
-export function placeNodes(graph: Graph, saved: Position[]): Position[] {
+export function placeNodes(
+  graph: GraphData,
+  saved: GraphPosition[],
+): GraphPosition[] {
   const known = new Map(
     saved
       .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))

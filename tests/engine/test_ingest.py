@@ -1,18 +1,14 @@
 import hashlib
 import shutil
-import sqlite3
 import subprocess
 import time
 from pathlib import Path
 
 import pymupdf
 import pytest
-from alembic import command
-from alembic.config import Config
 from researchgraph import ingest
 from researchgraph.models import AttachmentRevision, Chunk, Event, Paper, PaperSource
-from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from test_engine import client, post
 
@@ -60,6 +56,12 @@ def test_import_dedup_revisions_and_immutable_text(tmp_path):
         assert blocks[0]["page_label"] == "S-1"
         assert "72%" in "".join(b["text"] for b in blocks)
         assert all(len(b["bbox"]) == 4 and b["bbox"][2] > b["bbox"][0] for b in blocks)
+        sections = api.get(f"/api/v1/revisions/{revision_id}/sections")
+        assert sections.status_code == 200
+        assert sections.json()["sections"]
+        search = api.get(f"/api/v1/papers/{paper_id}/search", params={"q": "72"})
+        assert search.status_code == 200
+        assert any("72%" in item["text"] for item in search.json()["items"])
         page = api.get(f"/api/v1/revisions/{revision_id}/chunks?limit=1").json()
         assert page["next_cursor"] == 1
         duplicate = tmp_path / "moved.pdf"
@@ -131,33 +133,6 @@ def test_queued_pdf_survives_restart_cancel_and_retry(tmp_path):
                 len(session.scalars(select(Event).where(Event.event_type == "PDF_IMPORTED")).all())
                 == 1
             )
-
-
-def test_upgrade_0001_preserves_project_and_backup(tmp_path):
-    engine = make_engine(tmp_path)
-    config = Config()
-    config.set_main_option(
-        "script_location",
-        str(Path(__file__).parents[2] / "services/engine/researchgraph/migrations"),
-    )
-    with engine.begin() as connection:
-        config.attributes["connection"] = connection
-        command.upgrade(config, "0001")
-        connection.exec_driver_sql(
-            "INSERT INTO projects VALUES ('p','Keep project','question','now')"
-        )
-        connection.exec_driver_sql(
-            "INSERT INTO jobs VALUES ('j','diagnostics','succeeded',1,NULL,NULL,'now','now')"
-        )
-    migrate(engine, tmp_path)
-    with engine.connect() as connection:
-        assert connection.scalar(text("SELECT name FROM projects")) == "Keep project"
-        assert connection.scalar(text("SELECT status FROM jobs")) == "succeeded"
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == SCHEMA_HEAD
-    (backup,) = (tmp_path / "backups").glob("*.sqlite3")
-    with sqlite3.connect(backup) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0001"
-    engine.dispose()
 
 
 @pytest.mark.parametrize("action", ["cancel", "shutdown"])
