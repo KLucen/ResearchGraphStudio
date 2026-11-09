@@ -1,10 +1,10 @@
 # 02 精简 Schema、证据来源与 API 契约
 
-> 这是基于现有 ResearchGraph v2/v3 的**增量 Lite 业务模型**。数据库结构与 API 均为目标契约，Codex必须先对照现有仓库字段进行映射；不可据此删除既有 Graph/Claim/RelationAssertion 等表。
+> 这是基于现有 ResearchGraph v2/v3 的**Lite 设计参考**。当前干净工程以 `lite0001` 空 Schema 为运行事实，不加载或迁移既有 Graph/Claim/RelationAssertion 等旧业务表；历史工程通过 `backup/pre-lite-refactor` 回退。
 
 ## 1. 模型分层
 
-1. **Source（现有代码复用）**：Paper、DocumentVersion、Section、EvidenceSpan、Zotero attachment。负责来源身份与定位，保留旧完整图谱锚点。PDF正文来源仍由Zotero持有。
+1. **Source（现有代码复用）**：Paper、DocumentVersion、Section、EvidenceSpan、Zotero attachment。负责 Lite 来源身份与定位；PDF正文来源仍由 Zotero 持有，旧完整图谱锚点不进入 Lite 数据库。
 2. **Lite Artifacts（新增）**：PaperCard、ReadingGuide、QARecord。负责面向用户阅读的派生内容；不是科学论证图谱，不要求每字段实体建边。
 3. **Operation Metadata（复用/扩展）**：ModelRun、TokenUsage、CacheEntry、TaskJob，记录预算、缓存、来源版本、错误与费用。
 

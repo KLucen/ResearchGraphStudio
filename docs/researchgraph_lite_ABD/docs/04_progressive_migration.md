@@ -1,14 +1,14 @@
 # 04 Codex渐进式迁移计划（基于已施工的P0–P3工程）
 
-> **不是创建新仓库**。请Codex首先以当前代码和测试为事实，检查现有P2/P3到底完成了什么；不要因文档名称不同认定它不存在。旧项目、Zotero来源、缓存、图谱和人工修改不得丢失。
+> 这是历史迁移计划与验收参考，不是当前施工顺序。当前工程沿用 Tauri/React/FastAPI 基础结构，但活跃运行集已清理为 Lite；旧项目、旧缓存和旧图谱通过 `backup/pre-lite-refactor` 回退，不加载或迁移到 Lite 数据库。
 
 ## 0. 迁移策略与风险控制
 
-- 使用 feature flag / project setting 切换 `experience_mode = lite`，不改名覆盖旧 Graph 模式。
-- 采用新增 `lite_*` 表与已存在 `Paper/Section/EvidenceSpan/ModelRun` 的外键或映射关系，不重建论文库。
+- Lite 项目使用独立 `researchgraph-lite.sqlite3` 和 `lite0001` 空 Schema；来源解析、章节和索引表按 Lite 结构初始化，不把旧 Graph 模式放入活跃运行集。
+- 复用 Paper/DocumentVersion/Section/EvidenceSpan 的本地解析能力和稳定来源身份，但不迁移旧业务表、旧缓存或旧模型响应。
 - **Lite 干净工程不携带旧完整 Schema、P02/P12/P13 等实现**；旧工程在 `backup/pre-lite-refactor` 保留回退点，Lite 数据库不迁移旧数据。
 - `read/parse/index` 不产生LLM任务；通过服务端能力边界和测试强制落实。
-- 在数据库迁移前备份（包括文件及schema版本），做Alembic/现有迁移工具升级和回退演练；不要用破坏性`DROP TABLE`。
+- 建立 Lite 数据库前保留旧工程备份和 schema 版本记录；Lite 初始化拒绝把旧数据库升级成 Lite 数据库，不在用户旧数据上做实验。
 - 不改动Zotero条目、原始PDF、Obsidian私人笔记；沿用现有安全密钥与Sidecar生命周期处理。
 - 每步使用可运行、可演示的纵向闭环；Mock测试与真实API测试分离。
 
