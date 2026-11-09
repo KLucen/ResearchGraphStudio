@@ -1519,4 +1519,4 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 
 ## DEV-0067 — 2026-11-09 21:50（Asia/Shanghai）：Lite 清理本地合并完成
 
-清理提交 `e3354b2` 已用无快进方式合并到本地 `main`，形成合并提交 `679f480`；随后补充 Lite 规范边界修订提交 `f9b53cc`，明确活跃工程使用 `lite0001` 空库，旧 Graph/Query/Lint/Wiki/Reading/Reasoning 代码、旧数据库和旧入口仅由 `backup/pre-lite-refactor` 回退。合并后 `test_lite_clean.py` 与 `test_paper_overview_contract.py` 共 **29 passed / 1 warning**；工作区无运行数据库、日志、安装包、依赖目录或 Python/前端构建缓存。Gitleaks 8.24.3 工作区和最终 **32 个提交**历史扫描均通过；文档收尾后 `main` 领先 `origin/main` 7 个提交，本轮按要求不推送。下一阶段是 Lite P2 A 章节导读，D 证据问答另行排期。
+清理提交 `e3354b2` 已用无快进方式合并到本地 `main`，形成合并提交 `679f480`；随后补充 Lite 规范边界修订提交 `f9b53cc`，明确活跃工程使用 `lite0001` 空库，旧 Graph/Query/Lint/Wiki/Reading/Reasoning 代码、旧数据库和旧入口仅由 `backup/pre-lite-refactor` 回退。合并后 `test_lite_clean.py` 与 `test_paper_overview_contract.py` 共 **29 passed / 1 warning**；工作区无运行数据库、日志、安装包、依赖目录或 Python/前端构建缓存。Gitleaks 8.24.3 工作区和完整 Git 历史扫描均通过；本轮按要求不推送。下一阶段是 Lite P2 A 章节导读，D 证据问答另行排期。
