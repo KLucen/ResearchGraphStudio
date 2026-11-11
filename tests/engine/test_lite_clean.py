@@ -24,7 +24,7 @@ def test_fresh_database_is_lite_only():
     with TemporaryDirectory() as raw:
         data = Path(raw)
         with client(data) as api:
-            assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD == "lite0001"
+            assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD == "lite0008"
             response = api.post(
                 "/api/v1/projects",
                 json={"name": "Lite"},
@@ -39,7 +39,11 @@ def test_fresh_database_is_lite_only():
                     text("select name from sqlite_master where type='table'")
                 )
             }
-            assert "knowledge_nodes" not in names and "paper_overview_results" in names
+            assert (
+                "knowledge_nodes" not in names
+                and "paper_overview_results" in names
+                and "lite_section_guides" in names
+            )
 
 
 def test_legacy_database_name_is_not_opened_or_upgraded(tmp_path):

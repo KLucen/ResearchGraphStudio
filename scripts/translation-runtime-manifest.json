@@ -1,0 +1,199 @@
+{
+  "format": 1,
+  "engine_version": "2.10.2",
+  "babeldoc_version": "0.7.1",
+  "binary": {
+    "file": "pdf2zh-v2.10.2-BabelDOC-v0.7.1-with-assets-win64.zip",
+    "url": "https://github.com/PDFMathTranslate-next/PDFMathTranslate-next/releases/download/v2.10.2/pdf2zh-v2.10.2-BabelDOC-v0.7.1-with-assets-win64.zip",
+    "sha256": "7ac1811b0f82078a86bcce88e185efff75fc55a3752c7f9c015186e5214b3c0b",
+    "size_bytes": 607049119,
+    "archive_root": "pdf2zh"
+  },
+  "sources": [
+    {
+      "url": "https://codeload.github.com/PDFMathTranslate-next/PDFMathTranslate-next/tar.gz/refs/tags/v2.10.2",
+      "file": "PDFMathTranslate-next-v2.10.2.tar.gz",
+      "size_bytes": 9235591,
+      "sha256": "c32b2155e604a6d5f693120034d771d892c8673e04567e8e35cb644d843a99c0",
+      "name": "PDFMathTranslate-next"
+    },
+    {
+      "url": "https://codeload.github.com/funstory-ai/BabelDOC/tar.gz/refs/tags/v0.7.1",
+      "file": "BabelDOC-v0.7.1.tar.gz",
+      "size_bytes": 24219726,
+      "sha256": "48e041242cde1228d94fcce0d853c6e20116a14bf599915c82e25c23d772f5a2",
+      "name": "BabelDOC"
+    },
+    {
+      "sha256": "5e0be7908a715aa20333caddd73f1d6f01e4cd0c26e869fa2dd0b7f344da2249",
+      "file": "pymupdf-1.28.2.tar.gz",
+      "name": "pymupdf/1.28.2",
+      "size_bytes": 87903557,
+      "url": "https://files.pythonhosted.org/packages/a3/fb/b6761fa2d5266f2cdb24c3b91f4023070ab7848381417678e7a289a1d52a/pymupdf-1.28.2.tar.gz"
+    },
+    {
+      "sha256": "22021caf5867a46fae5ab927bbdcb430599d7e5ee3898449cbbe430ff07b7d08",
+      "file": "levenshtein-0.27.5.tar.gz",
+      "name": "Levenshtein/0.27.5",
+      "size_bytes": 402914,
+      "url": "https://files.pythonhosted.org/packages/81/ab/d55fdebfdee7605df174913708d44f75dfec0ec5e4e5fd8e978bb88897eb/levenshtein-0.27.5.tar.gz"
+    },
+    {
+      "sha256": "44ce3bdbeb7c950d463e460184fc3e18702df9ef0edb826bac672fd789fb1d20",
+      "file": "marisa_trie-1.4.1.tar.gz",
+      "name": "marisa-trie/1.4.1",
+      "size_bytes": 261581,
+      "url": "https://files.pythonhosted.org/packages/77/5d/e235921b5b74818cb65b557fa05cc6201c2c1612d4866ff75c835bcf808d/marisa_trie-1.4.1.tar.gz"
+    },
+    {
+      "sha256": "52c4b7422442aba924d03ad4019852b08a92e64ea187b933135687bfe2747307",
+      "file": "scipy-1.18.1.tar.gz",
+      "name": "scipy/1.18.1",
+      "size_bytes": 30781235,
+      "url": "https://files.pythonhosted.org/packages/7e/74/66de6258867beb2ef08f35f9f2ac017a52cacd5081714d239ff1a442d458/scipy-1.18.1.tar.gz"
+    },
+    {
+      "name": "mupdf-1.28.2-source.tar.gz",
+      "file": "mupdf-1.28.2-source.tar.gz",
+      "url": "https://mupdf.com/downloads/archive/mupdf-1.28.2-source.tar.gz",
+      "sha256": "44075a84e329db55b9bef5f342a70fd26d69e48ad1d33cb89d9664581c641156",
+      "size_bytes": 68898646
+    },
+    {
+      "name": "PDFMathTranslate-next-LICENSE.txt",
+      "file": "PDFMathTranslate-next-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/PDFMathTranslate-next/PDFMathTranslate-next/v2.10.2/LICENSE",
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "size_bytes": 34523
+    },
+    {
+      "name": "BabelDOC-LICENSE.txt",
+      "file": "BabelDOC-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/funstory-ai/BabelDOC/v0.7.1/LICENSE",
+      "sha256": "afca41723b45e26069f68d485bf906a202f892f90c801d3052f8e6296bb41454",
+      "size_bytes": 34519
+    },
+    {
+      "name": "PyStand-LICENSE.txt",
+      "file": "PyStand-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/skywind3000/PyStand/1.1.4/LICENSE",
+      "sha256": "5a67e8ca3f851fc7b6a780239b6bda57c856906c7d513c83b8ff3d3e9abbe9b9",
+      "size_bytes": 1063
+    },
+    {
+      "name": "GoNoto-UNLICENSE.txt",
+      "file": "GoNoto-UNLICENSE.txt",
+      "url": "https://raw.githubusercontent.com/satbyy/go-noto-universal/master/UNLICENSE.txt",
+      "sha256": "93b59296492209e4b1a1e573d302eef2f85ac830644c1482f9f80a7c75b0a8ec",
+      "size_bytes": 6285
+    },
+    {
+      "name": "Klee-OFL.txt",
+      "file": "Klee-OFL.txt",
+      "url": "https://raw.githubusercontent.com/fontworks-fonts/Klee/master/OFL.txt",
+      "sha256": "e376b0df8e8a2345a9533db6f0a5333a1107975569ad9d1973a7ee557161ca38",
+      "size_bytes": 4479
+    },
+    {
+      "name": "Noto-OFL.txt",
+      "file": "Noto-OFL.txt",
+      "url": "https://raw.githubusercontent.com/notofonts/noto-fonts/main/LICENSE",
+      "sha256": "0dab92d0544f7b233403f14b84a663bdbfa746982eda629e7f4f9ffe1b036feb",
+      "size_bytes": 4377
+    },
+    {
+      "name": "MaruBuri-README-and-license.md",
+      "file": "MaruBuri-README-and-license.md",
+      "url": "https://raw.githubusercontent.com/fonts-archive/MaruBuri/main/README.md",
+      "sha256": "78b42df05fd35a433c7cec825591fac5608491f164e679802b02be7200facdc8",
+      "size_bytes": 5695
+    },
+    {
+      "name": "DocLayout-YOLO-model-card.md",
+      "file": "DocLayout-YOLO-model-card.md",
+      "url": "https://huggingface.co/wybxc/DocLayout-YOLO-DocStructBench-onnx/raw/main/README.md",
+      "sha256": "ef30e30b57e315278703ddd7baf813df88f1594e2f4c0a8b2696a326a9ce8ad8",
+      "size_bytes": 202
+    },
+    {
+      "name": "DocLayout-YOLO-original-model-card.md",
+      "file": "DocLayout-YOLO-original-model-card.md",
+      "url": "https://huggingface.co/juliozhao/DocLayout-YOLO-DocStructBench/raw/main/README.md",
+      "sha256": "fdd08bd98db905274bb216d72f66154cb1bd5e586232e81228ce3269ebb58534",
+      "size_bytes": 68
+    },
+    {
+      "name": "BabelDOC-Assets-fonts_LXGWWenKaiGBOFL.txt",
+      "file": "BabelDOC-Assets-fonts_LXGWWenKaiGBOFL.txt",
+      "url": "https://raw.githubusercontent.com/funstory-ai/BabelDOC-Assets/1eeeec2a63b05fe6fe7a1f45f0955a8fa98793c4/fonts/LXGWWenKaiGBOFL.txt",
+      "sha256": "c94bd77679a51e99722b6824984ef17ec122a97e1c4427f86760f8400c917f95",
+      "size_bytes": 4450
+    },
+    {
+      "name": "BabelDOC-Assets-fonts_LxgwWenkaiTCOFL.txt",
+      "file": "BabelDOC-Assets-fonts_LxgwWenkaiTCOFL.txt",
+      "url": "https://raw.githubusercontent.com/funstory-ai/BabelDOC-Assets/1eeeec2a63b05fe6fe7a1f45f0955a8fa98793c4/fonts/LxgwWenkaiTCOFL.txt",
+      "sha256": "acccfc285a82dffe9d2983d92ed0f5f2ce20fb0845d4c7d34f3cb85f966b3d56",
+      "size_bytes": 4395
+    },
+    {
+      "name": "BabelDOC-Assets-fonts_SourceHanTrueTypeLICENSE.txt",
+      "file": "BabelDOC-Assets-fonts_SourceHanTrueTypeLICENSE.txt",
+      "url": "https://raw.githubusercontent.com/funstory-ai/BabelDOC-Assets/1eeeec2a63b05fe6fe7a1f45f0955a8fa98793c4/fonts/SourceHanTrueTypeLICENSE.txt",
+      "sha256": "dbaa78e2fdeef95b4f94cfb86bc53cb07b2abb4bb104cf361dde00724243dc35",
+      "size_bytes": 4430
+    },
+    {
+      "name": "BabelDOC-Assets-README.md",
+      "file": "BabelDOC-Assets-README.md",
+      "url": "https://raw.githubusercontent.com/funstory-ai/BabelDOC-Assets/1eeeec2a63b05fe6fe7a1f45f0955a8fa98793c4/README.md",
+      "sha256": "20b847a06b7d16057f214a3ab1c93f6996b5285e508ded3f60da32ff74d6a8a8",
+      "size_bytes": 1666
+    }
+  ],
+  "engine_id": "pdf2zh-next-2.10.2-babeldoc-0.7.1-rgs-1",
+  "pdf2zh_next": "2.10.2",
+  "babeldoc": "0.7.1",
+  "required_files": [
+    {
+      "path": "pdf2zh.exe",
+      "sha256": "63b84263de0e27f193c057a8049d0f4820bb8845312077ff8b7ce1c8456ce50f",
+      "size_bytes": 149504
+    },
+    {
+      "path": "runtime/python.exe",
+      "sha256": "d87063e5597f257004c731b66c59c56c91038861c6877b1a3dca6b8c4e919125",
+      "size_bytes": 105832
+    },
+    {
+      "path": "runtime/python313.dll",
+      "sha256": "69fd86ea29370697c203f7e12830084f920f490766a8e3045af52c036a9ad529",
+      "size_bytes": 6099960
+    },
+    {
+      "path": "runtime/LICENSE.txt",
+      "sha256": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
+      "size_bytes": 33861
+    },
+    {
+      "path": "_pystand_static.int",
+      "sha256": "5891703a30ef485965b70ee4c2878b722d5ba1eeb972b7d5e5dd3d99bd437acc",
+      "size_bytes": 1055
+    },
+    {
+      "path": "site-packages/pdf2zh_next/__init__.py",
+      "sha256": "7f6377d44b11d2160ca2b92dc471cf81483434e9b025ef3fc443267ed0555dc8",
+      "size_bytes": 2438
+    },
+    {
+      "path": "site-packages/babeldoc/__init__.py",
+      "sha256": "6911919ab4afb07bbd390ed26dc602563219d9a9af7297337e67aa9fef868227",
+      "size_bytes": 23
+    },
+    {
+      "path": "offline_assets_b485a82328a20d1e4b5c37bb9c6472e7af9943333bdffd39a05b1f57d6d7a1da.zip",
+      "sha256": "257cb70a4188359adb446d50f34a79473869e4a8672c24ab85f4d933c746173c",
+      "size_bytes": 223571497
+    }
+  ]
+}

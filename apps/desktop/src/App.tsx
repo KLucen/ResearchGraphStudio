@@ -1,14 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowRight,
+  ClipboardList,
   CircleDot,
+  FileText,
   FolderOpen,
   Layers3,
   LoaderCircle,
@@ -20,11 +23,15 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Upload,
   X,
 } from "lucide-react";
 import { api, type Project } from "./api";
 import { ModelSettings } from "./ModelSettings";
-import { Papers } from "./Papers";
+import { PaperImport, Papers } from "./Papers";
+import { JobHistory } from "./JobHistory";
+import { LiteUsageSummary } from "./LiteUsageSummary";
+import { TranslationSettings } from "./TranslationSettings";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -37,9 +44,13 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("rgs.sidebar.collapsed") === "true",
   );
-  const [page, setPage] = useState<"projects" | "settings">("projects");
+  const [page, setPage] = useState<"projects" | "tasks" | "settings">(
+    "projects",
+  );
   const [creating, setCreating] = useState(false);
+  const [importProjectId, setImportProjectId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Project | null>(null);
+  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const client = useQueryClient();
   const host = useQuery({
@@ -64,6 +75,18 @@ export default function App() {
     `${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase()),
   );
   const connected = health.isSuccess && !health.isError;
+  const globalJobs = useQuery({
+    queryKey: ["jobs", "global"],
+    queryFn: api.jobs,
+    enabled: connected,
+    refetchInterval: 3000,
+  });
+  const activeTaskCount =
+    globalJobs.data?.filter((job) => ["queued", "running"].includes(job.status))
+      .length ?? 0;
+  const projectNames = Object.fromEntries(
+    allProjects.map((project) => [project.id, project.name]),
+  );
   const restart = useMutation({
     mutationFn: api.restart,
     onSuccess: () => void client.invalidateQueries(),
@@ -97,7 +120,47 @@ export default function App() {
             ResearchGraph<span>LITE</span>
           </div>
         </div>
-        <div className="workspace-label">个人研究空间</div>
+        <div className="workspace-heading">
+          <div className="workspace-label">个人研究空间</div>
+          <button
+            type="button"
+            className="sidebar-add"
+            aria-label="新建研究项目"
+            title="新建研究项目"
+            disabled={!connected}
+            onClick={() => setCreating(true)}
+          >
+            <Plus size={15} />
+          </button>
+        </div>
+        <ProjectSidebar
+          connected={connected}
+          projects={allProjects}
+          selectedProjectId={selected?.id ?? null}
+          selectedPaperId={selectedPaperId}
+          onCreate={() => setCreating(true)}
+          onImport={(projectId) => setImportProjectId(projectId)}
+          onSelect={(project, paperId) => {
+            setPage("projects");
+            setSelected(project);
+            setSelectedPaperId(paperId);
+          }}
+        />
+        <div className="sidebar-project-actions">
+          <button
+            type="button"
+            className="sidebar-action"
+            disabled={!connected || !selected}
+            onClick={() => selected && setImportProjectId(selected.id)}
+            title={
+              selected ? `向${selected.name}导入论文` : "先选择一个研究项目"
+            }
+          >
+            <Upload size={14} />
+            <span>导入论文</span>
+          </button>
+          {!selected && <small>选择项目后导入 PDF 或 Zotero</small>}
+        </div>
         <nav aria-label="主导航">
           <button
             aria-label="研究项目"
@@ -106,11 +169,24 @@ export default function App() {
             onClick={() => {
               setPage("projects");
               setSelected(null);
+              setSelectedPaperId(null);
             }}
           >
             <Layers3 size={18} />
             <span className="nav-label">研究项目</span>
             <span className="nav-count">{allProjects.length}</span>
+          </button>
+          <button
+            aria-label="任务记录"
+            title="任务记录"
+            className={page === "tasks" ? "nav active" : "nav"}
+            onClick={() => setPage("tasks")}
+          >
+            <ClipboardList size={18} />
+            <span className="nav-label">任务记录</span>
+            {activeTaskCount > 0 && (
+              <span className="nav-count">{activeTaskCount}</span>
+            )}
           </button>
         </nav>
         <div className="sidebar-spacer" />
@@ -152,9 +228,11 @@ export default function App() {
             工作空间 <span className="slash">/</span>{" "}
             {page === "settings"
               ? "设置与诊断"
-              : selected
-                ? selected.name
-                : "研究项目"}
+              : page === "tasks"
+                ? "任务记录"
+                : selected
+                  ? selected.name
+                  : "研究项目"}
           </span>
           <span className="local-tag">
             <CircleDot size={13} /> LOCAL WORKSPACE
@@ -182,25 +260,21 @@ export default function App() {
               health={health.data}
               restart={restart}
             />
+          ) : page === "tasks" ? (
+            <TaskCenter
+              connected={connected}
+              projects={projectNames}
+              activeCount={activeTaskCount}
+            />
           ) : selected ? (
             <section>
-              <button className="text-button" onClick={() => setSelected(null)}>
-                ← 返回研究项目
-              </button>
-              <h2 className="project-title">{selected.name}</h2>
-              {selected.description && (
-                <p className="quiet-note">{selected.description}</p>
-              )}
-              <p className="quality-note">
-                Lite 阅读模式：选择论文后只进行本地 PDF
-                解析、章节建立和全文索引。PaperCard 与 LightGraph
-                仅在你主动请求时生成。
-              </p>
               <Papers
-                key={selected.id}
+                key={`${selected.id}:${selectedPaperId ?? "none"}`}
                 projectId={selected.id}
+                projectName={selected.name}
                 connected={connected}
-                experienceMode="lite"
+                initialPaperId={selectedPaperId}
+                onOpenTasks={() => setPage("tasks")}
               />
             </section>
           ) : (
@@ -227,7 +301,200 @@ export default function App() {
           }}
         />
       )}
+      {importProjectId && (
+        <dialog
+          className="dialog import-dialog"
+          open
+          aria-labelledby="import-paper-title"
+        >
+          <div className="dialog-header">
+            <div className="eyebrow">ADD TO PROJECT</div>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="关闭导入论文"
+              onClick={() => setImportProjectId(null)}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <h2 id="import-paper-title">导入论文</h2>
+          <p className="lead">
+            论文会出现在左侧项目文件夹中；解析和索引默认只在本机执行。
+          </p>
+          <PaperImport projectId={importProjectId} connected={connected} />
+        </dialog>
+      )}
     </div>
+  );
+}
+
+function ProjectSidebar({
+  connected,
+  projects,
+  selectedProjectId,
+  selectedPaperId,
+  onCreate,
+  onImport,
+  onSelect,
+}: {
+  connected: boolean;
+  projects: Project[];
+  selectedProjectId: string | null;
+  selectedPaperId: string | null;
+  onCreate: () => void;
+  onImport: (projectId: string) => void;
+  onSelect: (project: Project, paperId: string | null) => void;
+}) {
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("rgs.sidebar.projects") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  const paperQueries = useQueries({
+    queries: projects.map((project) => ({
+      queryKey: ["sidebar-papers", project.id],
+      queryFn: () => api.papers(project.id),
+      enabled: connected,
+      staleTime: 30_000,
+    })),
+  });
+
+  useEffect(() => {
+    localStorage.setItem("rgs.sidebar.projects", JSON.stringify(expanded));
+  }, [expanded]);
+
+  return (
+    <div className="project-tree" aria-label="个人研究项目">
+      {projects.length === 0 ? (
+        <button
+          type="button"
+          className="project-tree-empty"
+          disabled={!connected}
+          onClick={onCreate}
+        >
+          <Plus size={14} />
+          新建研究项目
+        </button>
+      ) : (
+        projects.map((project, index) => {
+          const query = paperQueries[index];
+          const papers = query.data?.items ?? [];
+          const isOpen = expanded[project.id] ?? index === 0;
+          const isSelected = selectedProjectId === project.id;
+          return (
+            <div className="project-tree-group" key={project.id}>
+              <div
+                className={
+                  isSelected ? "project-tree-row selected" : "project-tree-row"
+                }
+              >
+                <button
+                  type="button"
+                  className="project-tree-toggle"
+                  aria-label={
+                    isOpen ? `收起${project.name}` : `展开${project.name}`
+                  }
+                  aria-expanded={isOpen}
+                  onClick={() =>
+                    setExpanded((current) => ({
+                      ...current,
+                      [project.id]: !isOpen,
+                    }))
+                  }
+                >
+                  {isOpen ? <ArrowDown size={13} /> : <ArrowRight size={13} />}
+                </button>
+                <button
+                  type="button"
+                  className="project-tree-project"
+                  title={project.name}
+                  onClick={() => onSelect(project, null)}
+                >
+                  <FolderOpen size={14} />
+                  <span>{project.name}</span>
+                </button>
+                {selectedProjectId === project.id && (
+                  <button
+                    type="button"
+                    className="project-tree-import"
+                    aria-label={`向${project.name}导入论文`}
+                    title={`向${project.name}导入论文`}
+                    onClick={() => onImport(project.id)}
+                  >
+                    <Upload size={12} />
+                  </button>
+                )}
+                <span className="project-tree-count">{papers.length}</span>
+              </div>
+              {isOpen && (
+                <div className="project-tree-papers">
+                  {query.isPending && (
+                    <span className="project-tree-muted">读取论文…</span>
+                  )}
+                  {!query.isPending && !papers.length && (
+                    <span className="project-tree-muted">暂无论文</span>
+                  )}
+                  {papers.map((paper) => (
+                    <button
+                      type="button"
+                      className={
+                        selectedProjectId === project.id &&
+                        selectedPaperId === paper.id
+                          ? "project-tree-paper selected"
+                          : "project-tree-paper"
+                      }
+                      key={paper.id}
+                      title={paper.title}
+                      onClick={() => onSelect(project, paper.id)}
+                    >
+                      <FileText size={13} />
+                      <span>{paper.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function TaskCenter({
+  connected,
+  projects,
+  activeCount,
+}: {
+  connected: boolean;
+  projects: Record<string, string>;
+  activeCount: number;
+}) {
+  return (
+    <>
+      <div className="heading-row">
+        <div>
+          <div className="eyebrow">WORKSPACE ACTIVITY</div>
+          <h1>任务记录</h1>
+          <p className="lead">
+            查看所有研究项目的导入、解析、索引和按需生成任务。
+          </p>
+        </div>
+        <span className="task-status-pill">
+          {activeCount ? `${activeCount} 项正在处理` : "当前没有进行中的任务"}
+        </span>
+      </div>
+      <section className="settings-card task-center-card">
+        <JobHistory
+          connected={connected}
+          projectNames={projects}
+          title="全部项目任务"
+        />
+      </section>
+    </>
   );
 }
 
@@ -499,7 +766,9 @@ function Settings({
           </p>
         )}
       </section>
+      <LiteUsageSummary connected={connected} />
       <ModelSettings connected={connected} />
+      <TranslationSettings connected={connected} />
       <section className="settings-card">
         <div className="settings-title">
           <h2>存储诊断</h2>

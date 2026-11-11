@@ -21,13 +21,29 @@ def request(base: str, token: str, method: str, path: str, body=None, key: str =
         return json.loads(response.read())
 
 
-def run(executable: Path | None, source_python: Path | None = None) -> dict[str, object]:
+def run(
+    executable: Path | None,
+    source_python: Path | None = None,
+    *,
+    after_import=None,
+    fixture: Path | None = None,
+) -> dict[str, object]:
     if (executable is None) == (source_python is None):
         raise ValueError("choose exactly one packaged executable or source Python")
     root = Path(__file__).resolve().parents[1]
     token = secrets.token_urlsafe(48)
     env = {
-        key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP") if key in os.environ
+        key: os.environ[key]
+        for key in (
+            "SYSTEMROOT",
+            "WINDIR",
+            "TEMP",
+            "TMP",
+            "USERPROFILE",
+            "LOCALAPPDATA",
+            "APPDATA",
+        )
+        if key in os.environ
     }
     env["PATH"] = str(Path(os.environ.get("SYSTEMROOT", "C:/Windows")) / "System32")
     if source_python:
@@ -50,15 +66,22 @@ def run(executable: Path | None, source_python: Path | None = None) -> dict[str,
             child.stdin.write(json.dumps({"token": token}) + "\n")
             child.stdin.flush()
             line = child.stdout.readline().strip()
-            assert line.startswith("RGS_READY "), line
+            if not line.startswith("RGS_READY "):
+                if child.poll() is None:
+                    child.kill()
+                    child.wait(timeout=5)
+                stderr = child.stderr.read(4000) if child.stderr else ""
+                raise AssertionError(f"engine readiness failed: stdout={line!r}; stderr={stderr!r}")
             ready = json.loads(line[10:])
             base = f"http://127.0.0.1:{ready['port']}/api/v1"
             health = request(base, token, "GET", "/health")
             assert (
-                health["schema_version"] == "lite0001"
+                health["schema_version"] == "lite0008"
                 and health["database"] == "ready"
                 and health["fts5"]
             )
+            translation = request(base, token, "GET", "/settings/translation")
+            assert translation["enabled"] is True and translation["launch_mode"] == "bundled"
             project = request(
                 base,
                 token,
@@ -67,7 +90,7 @@ def run(executable: Path | None, source_python: Path | None = None) -> dict[str,
                 {"name": "Lite smoke", "description": "synthetic"},
                 "project-1",
             )
-            fixture = root / "tests" / "fixtures" / "pdf" / "two-pages.pdf"
+            fixture = fixture or root / "tests" / "fixtures" / "pdf" / "two-pages.pdf"
             job = request(
                 base,
                 token,
@@ -89,13 +112,17 @@ def run(executable: Path | None, source_python: Path | None = None) -> dict[str,
                 usage["calls"] == 0 and usage["input_tokens"] == 0 and usage["output_tokens"] == 0
             )
             request(base, token, "GET", f"/projects/{project['id']}/papers")
-            return {
+            report = {
                 "schema_version": health["schema_version"],
                 "project": project["id"],
                 "pdf_job": job["id"],
                 "model_calls": usage["calls"],
+                "translation_enabled": translation["enabled"],
                 "status": "passed",
             }
+            if after_import is not None:
+                report["translation"] = after_import(base, token, project["id"], fixture)
+            return report
         finally:
             if child.stdin and not child.stdin.closed:
                 child.stdin.close()

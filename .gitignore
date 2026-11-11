@@ -12,6 +12,8 @@ test-results/
 target/
 apps/desktop/src-tauri/binaries/
 apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/translation-runtime/
+apps/desktop/src-tauri/.translation-staging-*/
 *.tsbuildinfo
 
 # Python

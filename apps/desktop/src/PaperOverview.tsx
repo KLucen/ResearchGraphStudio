@@ -272,7 +272,7 @@ function PaperOverviewSession({
           <div className="graph-layout">
             <div className="graph-canvas">
               <div className="section-toolbar">
-                <h4>LightGraph</h4>
+                <h4>轻量图谱 · LightGraph</h4>
                 <button
                   className="text-button"
                   disabled={resetLayout.isPending}
@@ -388,7 +388,7 @@ function Card({
   return (
     <article className="paper-card">
       <div className="settings-title">
-        <h4>PaperCard</h4>
+        <h4>知识卡片 · PaperCard</h4>
         {cacheHit && <span className="pill">缓存命中</span>}
       </div>
       <dl>

@@ -4,7 +4,7 @@
 
 ## 0. 迁移策略与风险控制
 
-- Lite 项目使用独立 `researchgraph-lite.sqlite3` 和 `lite0001` 空 Schema；来源解析、章节和索引表按 Lite 结构初始化，不把旧 Graph 模式放入活跃运行集。
+- Lite 项目使用独立 `researchgraph-lite.sqlite3`；`lite0001` 是空基线，当前活跃 head 为 `lite0007`，在基线上增加章节导读、D01 局部问答、D02 英文关键词、全局模型连接、可选翻译以及服务自动启停配置。已有 Lite 数据通过加性迁移保留，升级前自动备份。已有翻译设置保留 `manual`；无设置行的新安装推荐 `managed`，仍须先独立安装 Server 4.1.8 与完整翻译环境并选择路径。自动启停按 [ADR0037](../../adr/0037-managed-translation-server.md) 管理自建进程树，不接管手动服务。来源解析、章节和索引表按 Lite 结构初始化，不把旧 Graph 模式放入活跃运行集。
 - 复用 Paper/DocumentVersion/Section/EvidenceSpan 的本地解析能力和稳定来源身份，但不迁移旧业务表、旧缓存或旧模型响应。
 - **Lite 干净工程不携带旧完整 Schema、P02/P12/P13 等实现**；旧工程在 `backup/pre-lite-refactor` 保留回退点，Lite 数据库不迁移旧数据。
 - `read/parse/index` 不产生LLM任务；通过服务端能力边界和测试强制落实。
@@ -120,3 +120,11 @@ apps/desktop/src/features/lite/
 ## 9. 交给同一Codex会话的执行方式
 
 迁移阶段接续指令已移除。当前工作以 `docs/progress.md` 和 Lite ADR 为准；不凭空声称真 API、Windows 安装或学术结论已经通过测试。
+
+## 2026-11-11 增量：已有 Lite 库升级与随包翻译
+
+本轮 `lite0008` 在既有 Lite 库上加性增加翻译输出格式，并将未来明确任务的默认设置切换为 `bundled`；升级前自动备份，论文、章节、成果、布局、旧译文和任务保留。历史运行快照不改，无快照旧任务按 `manual` 兼容；外部 Python/Server 路径留在高级设置。不能套用早期“干净工程初始化”删除本轮用户数据。
+
+默认安装包携带官方固定版本翻译运行时与离线字体/模型资源，构建准备脚本执行 SHA256 校验并附对应源码与原许可，第三方大文件不入 Git。输出 `dual/mono/both` 进入预检和缓存边界，新 UI 默认 `dual`、旧缺字段保持 `both`。阅读工作区置顶，论文信息默认折叠。详见 [ADR0038](../../adr/0038-bundled-translation-and-reading-layout.md)。
+
+真实模型调用为 0；资源准备、实际引擎合成联调、隔离安装与真实文献质量分开报告，最终验证读 [进度](../../progress.md)。本设计文本不提前认定安装或科学质量通过。

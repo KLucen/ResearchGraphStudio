@@ -1,7 +1,7 @@
 # A01 · 按小节阅读导读 / ReadingGuideDraft
 
 **触发**：用户选中某一小节并点击“生成导读”。
-**输入**：`paper_title`, `section_id`, `section_heading`, `parent_heading`, `depth=quick|standard|deep`, `allowed_spans`（以当前小节为主，必要时极短相邻上下文）。
+**输入**：`paper_title`, `section_id`, `section_heading`, `depth=quick|standard|deep`, `allowed_spans`（以当前小节为主，必要时极短相邻上下文）。输入字段严格以 `schemas/generated/GuideInput.schema.json` 为准。
 **输出**：`ReadingGuideDraft` JSON，非全篇摘要。
 
 ## System message

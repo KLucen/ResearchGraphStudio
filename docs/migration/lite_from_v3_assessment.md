@@ -1,6 +1,6 @@
 # ResearchGraph Lite 工程映射与清理结果
 
-更新：2026-11-09（Asia/Shanghai）。
+更新：2026-11-11（Asia/Shanghai）。
 
 ## 决策顺序与回退点
 
@@ -27,7 +27,7 @@
 
 ## 数据库与数据边界
 
-Lite 文件名为 researchgraph-lite.sqlite3，Alembic head 为 lite0001。新库只含项目、论文、附件/来源版本、章节/文本块/原文 Span、结构解析、FTS5、Zotero 关联、任务、模型配置、Lite 用量/缓存、PaperCard/LightGraph 结果与布局。原文 Span 用于本地阅读及后续 D；LightGraph 本身不生成 Evidence 节点或段落级证据链。
+Lite 文件名为 researchgraph-lite.sqlite3。设计包的 `lite0001` 是空基线；当前活跃 Alembic head 为 `lite0008`。在现有阅读与翻译能力上增加输出格式，未来任务默认使用随安装包提供的 bundled 翻译核心，不再需要外部环境路径。已有 Lite 数据通过加性迁移保留，升级前自动备份，不重新初始化数据库；旧外部路径和任务运行快照保留，缺少快照的旧任务按 manual 解释。旧译文默认 both，新界面明确选择 dual 或 mono，格式与引擎身份进入缓存键。译文 PDF 与源修订/哈希绑定，独立保存，不进入原文 Span、FTS5 证据或 LightGraph。完整旧系统的业务数据仍不迁移。详见 [ADR0038](../adr/0038-bundled-translation-and-reading-layout.md)。
 
 旧 0001–0022 迁移不再属于活跃 Lite 迁移链。程序不打开或升级旧 researchgraph.sqlite3；在 Lite 路径遇到旧结构时拒绝启动迁移。旧数据库、私人论文、Zotero 正式库和项目目录以外的用户文件未被处理。回退时须使用备份分支与用户保存的旧数据，Git 分支本身不包含私人数据。
 
@@ -39,8 +39,10 @@ Lite 文件名为 researchgraph-lite.sqlite3，Alembic head 为 lite0001。新�
 4. 用户主动允许模型后生成一次联合论文概览，得到 PaperCard + LightGraph。
 5. 程序校验结构、端点和数量上限，生成稳定节点/边 ID，记录用量与版本化缓存。
 6. 图谱拖动/缩放/固定只更新独立布局和相机；缓存命中无新增模型请求，失败不自动重发。
+7. 用户选定单一小节并显式选择 `quick`、`standard` 或 `deep` 后生成 A01 章节导读；结果按论文、文献版本、章节和深度缓存，源版本变化标记 `STALE`，模型只能引用本次允许的 Span，并支持复制导读。
+8. 可选文献翻译单独预检并授权，复用模型配置；自动模式只在新任务需要时无窗口启动专用 Server，下载并验证译文后回收自建进程树，再发布完成结果。GET、预检与缓存读取不启动外部进程；手动模式继续由用户负责服务启停。详见 [ADR0037](../adr/0037-managed-translation-server.md)。
 
-A 章节导读、D 证据问答尚未开发。本轮没有真实模型质量、单篇论文真实 Token/费用或通用节省比例结论。
+A 章节导读 A01 已实现：用户显式选择单节后可按 quick/standard/deep 生成，使用版本化缓存、STALE 识别、证据 Span 白名单和复制展示；GET、章节切换和本地解析不会调用模型。D01 局部证据问答已实现：默认 section、可选 paper/selection、FTS5 Top-K Span、显式授权、引用白名单、证据不足结果、缓存及失败/取消/重启记录；D02 关键词辅助已实现：服务端确认本地无命中后，用户明确授权才发送标题/章节标题/问题，返回 1–5 个关键词并重新执行本地检索。本轮没有真实模型质量、单篇论文真实 Token/费用或通用节省比例结论。
 
 ## 验证与剩余
 

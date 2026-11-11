@@ -3,7 +3,7 @@
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
     sync::{mpsc, Arc, Mutex},
@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "lite0001";
+const ENGINE_SCHEMA_VERSION: &str = "lite0008";
 
 #[derive(Default)]
 struct Host {
@@ -211,6 +211,8 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
                         .is_some_and(|v| !v.is_empty() && v.chars().all(|c| c.is_ascii_digit()))
             }
             "q" => !value.is_empty() && value.chars().count() <= 500,
+            "depth" => matches!(value.as_ref(), "quick" | "standard" | "deep"),
+            "scope" => matches!(value.as_ref(), "selection" | "section" | "paper"),
             _ => false,
         }
     })
@@ -258,7 +260,13 @@ fn allowed(method: &str, path: &str) -> bool {
             valid_id(project) && query_allowed(query, &["paper_id"])
         }
         ("GET" | "POST", ["settings", "models"]) => plain,
+        ("POST", ["settings", "connections"]) => plain,
         ("POST", ["settings", "model-roles"]) => plain,
+        ("GET" | "PUT", ["settings", "translation"]) => plain,
+        ("POST", ["settings", "translation", "check"]) => plain,
+        ("POST", ["settings", "connections", connection, "update" | "delete" | "test"]) => {
+            plain && valid_id(connection)
+        }
         ("POST", ["settings", "models", profile, "update" | "delete" | "test"]) => {
             plain && valid_id(profile)
         }
@@ -272,7 +280,41 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["papers", paper, "overview"]) => {
             valid_id(paper) && query_allowed(query, &["document_version_id"])
         }
+        ("GET", ["papers", paper, "section-guides"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id", "section_id", "depth"])
+        }
+        ("GET", ["papers", paper, "qa"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id", "section_id", "scope"])
+        }
+        ("GET", ["papers", paper, "qa", "keywords"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id", "section_id"])
+        }
+        ("GET", ["papers", paper, "qa", "keywords", keyword_id]) => {
+            plain && valid_id(paper) && valid_id(keyword_id)
+        }
+        ("POST", ["papers", paper, "qa", "keywords"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "qa", qa_id]) => plain && valid_id(paper) && valid_id(qa_id),
+        ("POST", ["papers", paper, "qa", "ask"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "sections", section, "guide"]) => {
+            valid_id(paper)
+                && valid_id(section)
+                && query_allowed(query, &["document_version_id", "depth"])
+        }
+        ("POST", ["papers", paper, "sections", section, "guide", "generate"]) => {
+            plain && valid_id(paper) && valid_id(section)
+        }
         ("POST", ["papers", paper, "overview", "generate"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "translations"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id"])
+        }
+        ("POST", ["papers", paper, "translations"]) => plain && valid_id(paper),
+        ("POST", ["papers", paper, "translations", "prepare"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "translations", translation]) => {
+            plain && valid_id(paper) && valid_id(translation)
+        }
+        ("POST", ["papers", paper, "translations", translation, "cancel"]) => {
+            plain && valid_id(paper) && valid_id(translation)
+        }
         ("GET", ["papers", paper, "overview", "graph", "layout"]) => {
             valid_id(paper) && query_allowed(query, &["overview_result_id"])
         }
@@ -342,6 +384,116 @@ fn open_zotero(url: String) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
         Err("当前平台尚未接入 Zotero 链接处理".into())
+    }
+}
+
+fn checked_translation_path(
+    data_dir: &std::path::Path,
+    translation_id: &str,
+    kind: &str,
+    path: &std::path::Path,
+) -> Result<PathBuf, String> {
+    if !valid_id(translation_id) || !matches!(kind, "mono" | "dual") {
+        return Err("无效译文标识".into());
+    }
+    let base = data_dir.canonicalize().map_err(|_| "译文目录不可用")?;
+    let expected = base
+        .join("translations")
+        .join(translation_id)
+        .join(format!("{kind}.pdf"));
+    let actual = path.canonicalize().map_err(|_| "译文文件不可用")?;
+    // Compare with the literal managed location: links outside it cannot be opened.
+    if actual != expected || !actual.is_file() {
+        return Err("译文文件不在受管目录中".into());
+    }
+    let mut signature = [0_u8; 5];
+    std::fs::File::open(&actual)
+        .and_then(|mut file| file.read_exact(&mut signature))
+        .map_err(|_| "译文文件不可读")?;
+    if &signature != b"%PDF-" {
+        return Err("译文文件不是 PDF".into());
+    }
+    Ok(actual)
+}
+
+#[tauri::command]
+async fn open_translation_artifact(
+    state: State<'_, Shared>,
+    translation_id: String,
+    kind: String,
+) -> Result<(), String> {
+    if !valid_id(&translation_id) || !matches!(kind.as_str(), "mono" | "dual") {
+        return Err("无效译文标识".into());
+    }
+    let (port, token, data_dir) = {
+        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+        (
+            host.port.ok_or("引擎尚未就绪")?,
+            host.token.clone(),
+            host.data_dir.clone(),
+        )
+    };
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|_| "无法读取译文")?
+        .get(format!(
+            "http://127.0.0.1:{port}/api/v1/translations/{translation_id}/artifacts/{kind}"
+        ))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| "本地引擎连接中断")?;
+    let status = response.status();
+    let bytes = response.bytes().await.map_err(|_| "译文信息读取失败")?;
+    let value = decode_engine_response(status, &bytes)?;
+    if value["translation_id"].as_str() != Some(&translation_id)
+        || value["kind"].as_str() != Some(&kind)
+    {
+        return Err("译文信息不匹配".into());
+    }
+    let path = checked_translation_path(
+        &data_dir,
+        &translation_id,
+        &kind,
+        std::path::Path::new(value["path"].as_str().ok_or("译文路径不可用")?),
+    )?;
+    #[cfg(target_os = "windows")]
+    {
+        #[link(name = "shell32")]
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut std::ffi::c_void,
+                op: *const u16,
+                file: *const u16,
+                params: *const u16,
+                dir: *const u16,
+                show: i32,
+            ) -> isize;
+        }
+        use std::os::windows::ffi::OsStrExt;
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                wide.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1,
+            )
+        };
+        if result <= 32 {
+            return Err("无法打开译文，请确认已安装 PDF 阅读器".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = path;
+        Err("当前平台尚未接入 PDF 文件打开".into())
     }
 }
 
@@ -423,6 +575,30 @@ async fn picked_pdf_request(
             .into());
     }
     Ok(Some(value))
+}
+
+#[tauri::command]
+async fn choose_translation_runtime_file(kind: String) -> Result<Option<String>, String> {
+    if !matches!(kind.as_str(), "python" | "server") {
+        return Err("无效的翻译启动文件类型".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let dialog = rfd::FileDialog::new();
+        let dialog = if kind == "python" {
+            dialog
+                .set_title("选择翻译环境的 Python 解释器")
+                .add_filter("Python", &["exe"])
+        } else {
+            dialog
+                .set_title("选择专用翻译服务 server.py")
+                .add_filter("Python", &["py"])
+        };
+        Ok(dialog
+            .pick_file()
+            .map(|path| path.to_string_lossy().into_owned()))
+    })
+    .await
+    .map_err(|_| "无法打开文件选择窗口".to_string())?
 }
 
 #[tauri::command]
@@ -572,6 +748,8 @@ fn main() {
             import_pdf_file,
             relocate_source_file,
             engine_request,
+            open_translation_artifact,
+            choose_translation_runtime_file,
             open_zotero
         ])
         .build(tauri::generate_context!())
@@ -597,9 +775,26 @@ mod tests {
             ("GET", format!("/api/v1/projects/{paper}/search?q=sample&paper_id={paper}&revision_id={version}")),
             ("GET", format!("/api/v1/papers/{paper}/overview?document_version_id={version}")),
             ("POST", format!("/api/v1/papers/{paper}/overview/generate")),
+            ("GET", format!("/api/v1/papers/{paper}/section-guides?document_version_id={version}&section_id={version}&depth=standard")),
+            ("GET", format!("/api/v1/papers/{paper}/qa?document_version_id={version}&section_id={version}&scope=section")),
+            ("GET", format!("/api/v1/papers/{paper}/qa/{result}")),
+            ("POST", format!("/api/v1/papers/{paper}/qa/ask")),
+            ("GET", format!("/api/v1/papers/{paper}/qa/keywords?document_version_id={version}&section_id={version}")),
+            ("GET", format!("/api/v1/papers/{paper}/qa/keywords/{result}")),
+            ("POST", format!("/api/v1/papers/{paper}/qa/keywords")),
+            ("GET", format!("/api/v1/papers/{paper}/sections/{version}/guide?document_version_id={version}&depth=quick")),
+            ("POST", format!("/api/v1/papers/{paper}/sections/{version}/guide/generate")),
             ("GET", format!("/api/v1/papers/{paper}/overview/graph/layout?overview_result_id={result}")),
             ("PUT", format!("/api/v1/papers/{paper}/overview/graph/layout")),
             ("POST", format!("/api/v1/papers/{paper}/overview/graph/layout/reset")),
+            ("GET", "/api/v1/settings/translation".into()),
+            ("PUT", "/api/v1/settings/translation".into()),
+            ("POST", "/api/v1/settings/translation/check".into()),
+            ("GET", format!("/api/v1/papers/{paper}/translations?document_version_id={version}")),
+            ("POST", format!("/api/v1/papers/{paper}/translations/prepare")),
+            ("POST", format!("/api/v1/papers/{paper}/translations")),
+            ("GET", format!("/api/v1/papers/{paper}/translations/{result}")),
+            ("POST", format!("/api/v1/papers/{paper}/translations/{result}/cancel")),
             ("GET", "/api/v1/integrations/zotero/collections?library=users%2F0&start=0".into()),
         ] {
             assert!(super::allowed(method, &path), "route rejected: {method} {path}");
@@ -610,9 +805,31 @@ mod tests {
             format!("/api/v1/projects/{paper}/query/search"),
             format!("/api/v1/projects/{paper}/lint/runs"),
             format!("/api/v1/projects/{paper}/wiki"),
+            format!("/api/v1/translations/{result}/artifacts/mono"),
+            format!("/api/v1/papers/{paper}/translations?document_version_id=invalid"),
+            "/api/v1/settings/translation?url=http://evil.test".into(),
         ] {
             assert!(!super::allowed("GET", &path));
         }
+    }
+
+    #[test]
+    fn translation_open_is_limited_to_the_managed_pdf() {
+        let root = std::env::temp_dir().join(format!("rgs-translation-{}", uuid::Uuid::new_v4()));
+        let id = "11111111-1111-4111-8111-111111111111";
+        let directory = root.join("translations").join(id);
+        std::fs::create_dir_all(&directory).unwrap();
+        let pdf = directory.join("mono.pdf");
+        std::fs::write(&pdf, b"%PDF-synthetic").unwrap();
+        assert!(super::checked_translation_path(&root, id, "mono", &pdf).is_ok());
+        let other = root.join("private.pdf");
+        std::fs::write(&other, b"%PDF-private").unwrap();
+        assert!(super::checked_translation_path(&root, id, "mono", &other).is_err());
+        assert!(super::checked_translation_path(&root, id, "../private", &other).is_err());
+        assert!(super::checked_translation_path(&root, "../escape", "mono", &pdf).is_err());
+        std::fs::write(&pdf, b"not a PDF").unwrap();
+        assert!(super::checked_translation_path(&root, id, "mono", &pdf).is_err());
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
@@ -696,7 +913,7 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0001",
+            "schema_version": "lite0008",
             "database": "ready",
             "fts5": true
         })));
@@ -708,14 +925,14 @@ mod tests {
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "lite0001",
+            "schema_version": "lite0008",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"lite0001"}),
-            super::json!({"protocol_version":1,"schema_version":"lite0001","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"lite0001","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"lite0008"}),
+            super::json!({"protocol_version":1,"schema_version":"lite0008","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"lite0008","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

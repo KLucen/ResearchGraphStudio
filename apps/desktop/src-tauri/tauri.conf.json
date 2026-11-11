@@ -17,7 +17,7 @@
     "active": true,
     "targets": ["nsis"],
     "externalBin": ["binaries/researchgraph-engine"],
-    "resources": {"binaries/_internal/":"_internal/"},
+    "resources": {"binaries/_internal/":"_internal/", "translation-runtime/":"translation-runtime/"},
     "icon": ["icons/32x32.png","icons/128x128.png","icons/icon.ico"],
     "windows": {
       "webviewInstallMode": {"type":"downloadBootstrapper","silent":true},

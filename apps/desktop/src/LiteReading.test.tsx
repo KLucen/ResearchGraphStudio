@@ -4,7 +4,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
-import { api, request, type OverviewView, type LiteUsage } from "./api";
+import {
+  api,
+  request,
+  type OverviewView,
+  type LiteUsage,
+  type KeywordView,
+  type QAView,
+  type SectionGuide,
+  type PaperDetail,
+} from "./api";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
 import { Papers } from "./Papers";
@@ -49,7 +58,14 @@ vi.mock("./api", () => ({
     jobs: vi.fn(),
     jobAction: vi.fn(),
     sections: vi.fn(),
+    sectionGuide: vi.fn(),
+    sectionGuides: vi.fn(),
+    generateSectionGuide: vi.fn(),
+    qa: vi.fn(),
+    askQA: vi.fn(),
     search: vi.fn(),
+    expandSearchKeywords: vi.fn(),
+    keyword: vi.fn(),
     overview: vi.fn(),
     overviewLayout: vi.fn(),
     generateOverview: vi.fn(),
@@ -181,7 +197,7 @@ beforeEach(() => {
     status: "ok",
     version: "0.1.0",
     protocol_version: 1,
-    schema_version: "lite0001",
+    schema_version: "lite0002",
     database: "ready",
     fts5: true,
   });
@@ -231,22 +247,122 @@ beforeEach(() => {
       },
     ],
   });
+  vi.mocked(api.sectionGuide).mockResolvedValue(null);
+  vi.mocked(api.qa).mockResolvedValue([]);
+  vi.mocked(api.askQA).mockResolvedValue({
+    id: "qa-1",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    scope: "section",
+    question: "What is the method?",
+    status: "PENDING",
+    answer: null,
+    usage: {
+      input_tokens: null,
+      output_tokens: null,
+      total_tokens: null,
+      calls: 0,
+      retry_count: 0,
+      cost: null,
+      usage_source: "unknown",
+    },
+    source_hash: "source",
+    input_hash: "input",
+    prompt_version: "d01_grounded_qa_v1",
+    schema_version: "qa_answer.v1",
+    provider_id: "configured",
+    model_id: "model",
+    job_id: "job-qa",
+    error_code: null,
+    error: null,
+    retrieval_spans: [],
+    cache_hit: false,
+  } satisfies QAView);
+  vi.mocked(api.generateSectionGuide).mockResolvedValue({
+    id: "guide",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    depth: "standard",
+    source_hash: "source",
+    input_hash: "input",
+    schema_version: "reading_guide.v1",
+    prompt_version: "a01_section_guide_v1",
+    provider_id: "configured",
+    model_id: "model",
+    status: "COMPLETED",
+    guide: {
+      section_id: "s",
+      overview_zh: "本节概览",
+      key_points: ["重点"],
+      reading_questions: ["问题一", "问题二"],
+      difficult_terms: [],
+      evidence_span_ids: ["sp-1"],
+      needs_more_context: false,
+      caveats: [],
+    },
+    usage: {
+      input_tokens: 20,
+      output_tokens: 10,
+      total_tokens: 30,
+      calls: 1,
+      retry_count: 0,
+      cost: null,
+      usage_source: "provider",
+    },
+    generated_at: "2026-11-09T00:00:00Z",
+    cache_hit: false,
+    job_id: null,
+    error_code: null,
+    error: null,
+    stale_reason: null,
+    evidence: [],
+  });
   vi.mocked(request).mockResolvedValue([]);
 });
 
-test("Lite app has only projects, reading and settings routes", async () => {
+test("Lite app separates projects, tasks and reading workspace", async () => {
   const user = userEvent.setup();
   mount(<App />);
-  await user.click(await screen.findByRole("button", { name: /Lite project/ }));
+  const projectButtons = await screen.findAllByRole("button", {
+    name: "Lite project",
+  });
+  await user.click(projectButtons[0]);
   expect(
-    await screen.findByRole("region", { name: "文献与阅读" }),
+    await screen.findByRole("region", { name: "论文阅读工作区" }),
   ).toBeVisible();
+  expect(screen.getByRole("button", { name: "任务记录" })).toBeVisible();
   expect(
     screen.queryByRole("button", {
       name: /Lint|Wiki|图谱与比较|笔记来源|问答与阅读知识/,
     }),
   ).not.toBeInTheDocument();
   expect(api.generateOverview).not.toHaveBeenCalled();
+});
+test("workspace task route shows jobs across projects", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.jobs).mockResolvedValue([
+    {
+      id: "job-global",
+      kind: "pdf_import",
+      project_id: "p",
+      status: "running",
+      stage: "parsing",
+      attempt: 1,
+      error: null,
+      result: null,
+      created_at: "2026-11-09T00:00:00Z",
+      updated_at: "2026-11-09T00:00:00Z",
+    },
+  ]);
+  mount(<App />);
+  await user.click(await screen.findByRole("button", { name: "任务记录" }));
+  expect(
+    await screen.findByRole("heading", { name: "任务记录" }),
+  ).toBeVisible();
+  expect(screen.getAllByText(/Lite project/).length).toBeGreaterThanOrEqual(2);
+  expect(screen.getByRole("article")).toHaveTextContent("正在处理");
 });
 test("local sections and explicit keyword search cause no model request", async () => {
   const user = userEvent.setup();
@@ -276,6 +392,172 @@ test("local sections and explicit keyword search cause no model request", async 
   );
   expect(api.search).toHaveBeenCalledWith("paper", "result", "v", "s");
   expect(api.generateOverview).not.toHaveBeenCalled();
+});
+test("D02 keyword helper requires consent and reruns local search", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.search)
+    .mockResolvedValueOnce({ query: "memory sharing", items: [] })
+    .mockResolvedValueOnce({
+      query: "shared memory",
+      items: [
+        {
+          chunk_id: "c2",
+          section_id: "s",
+          document_version_id: "v",
+          paper_id: "paper",
+          text: "Shared memory improves coordination.",
+          page_index: 2,
+          page_label: "S-3",
+          score: 1,
+        },
+      ],
+    });
+  vi.mocked(api.expandSearchKeywords).mockResolvedValue({
+    id: "kw-1",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    question: "memory sharing",
+    local_hit_count: 0,
+    source_hash: "source",
+    input_hash: "input",
+    schema_version: "search_keywords.v1",
+    prompt_version: "d02_search_keywords_v1",
+    provider_id: "synthetic",
+    model_id: "synthetic",
+    status: "COMPLETED",
+    keywords: { english_queries: ["shared memory"] },
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      calls: 0,
+      retry_count: 0,
+      cost: null,
+      usage_source: "unknown",
+    },
+    generated_at: null,
+    cache_hit: false,
+    job_id: null,
+    error_code: null,
+    error: null,
+    stale_reason: null,
+  } satisfies KeywordView);
+  mount(<KnowledgeReading versionId="v" paperId="paper" connected />);
+  await user.click(await screen.findByRole("button", { name: "Results" }));
+  await user.type(screen.getByLabelText("搜索论文原文"), "memory sharing");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const helper = await screen.findByRole("region", {
+    name: "英文关键词辅助",
+  });
+  const expand = within(helper).getByRole("button", {
+    name: "使用英文关键词辅助",
+  });
+  expect(expand).toBeDisabled();
+  await user.click(
+    within(helper).getByRole("checkbox", {
+      name: "允许本次生成英文关键词",
+    }),
+  );
+  await user.click(expand);
+  expect(api.expandSearchKeywords).toHaveBeenCalledExactlyOnceWith("paper", {
+    document_version_id: "v",
+    section_id: "s",
+    question: "memory sharing",
+    allow_network: true,
+  });
+  expect(
+    await screen.findByRole("region", { name: "英文关键词检索结果" }),
+  ).toHaveTextContent("Shared memory improves coordination.");
+});
+test("section guide requires an explicit click and keeps depth-specific status", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.sectionGuide).mockResolvedValue(null);
+  const guide: SectionGuide = {
+    id: "guide",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    depth: "standard",
+    source_hash: "source",
+    input_hash: "input",
+    schema_version: "reading_guide.v1",
+    prompt_version: "a01_section_guide_v1",
+    provider_id: "configured",
+    model_id: "model",
+    status: "COMPLETED",
+    guide: {
+      section_id: "s",
+      overview_zh: "本节概览",
+      key_points: ["重点"],
+      reading_questions: ["问题一", "问题二"],
+      difficult_terms: [],
+      evidence_span_ids: ["sp-1"],
+      needs_more_context: false,
+      caveats: [],
+    },
+    usage: {
+      input_tokens: 20,
+      output_tokens: 10,
+      total_tokens: 30,
+      calls: 1,
+      retry_count: 0,
+      cost: null,
+      usage_source: "provider",
+    },
+    generated_at: "2026-11-09T00:00:00Z",
+    cache_hit: false,
+    job_id: null,
+    error_code: null,
+    error: null,
+    stale_reason: null,
+    evidence: [],
+  };
+  vi.mocked(api.generateSectionGuide).mockResolvedValue(guide);
+  mount(<KnowledgeReading versionId="v" paperId="paper" connected />);
+  expect(await screen.findByText("本地索引已就绪：1 个章节。")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Results" }));
+  expect(await screen.findByRole("region", { name: "章节导读" })).toBeVisible();
+  expect(api.generateSectionGuide).not.toHaveBeenCalled();
+  expect(api.sectionGuide).toHaveBeenCalledWith("paper", "s", "v", "standard");
+  await user.click(screen.getByRole("checkbox"));
+  await user.click(screen.getByRole("button", { name: "生成导读" }));
+  expect(api.generateSectionGuide).toHaveBeenCalledWith(
+    "paper",
+    "s",
+    "v",
+    "standard",
+    true,
+    false,
+    false,
+  );
+});
+test("local QA requires a question and explicit model consent", async () => {
+  const user = userEvent.setup();
+  mount(<KnowledgeReading versionId="v" paperId="paper" connected />);
+  await user.click(await screen.findByRole("button", { name: "Results" }));
+  const panel = await screen.findByRole("region", { name: "局部证据问答" });
+  const submit = within(panel).getByRole("button", { name: "提交问题" });
+  expect(submit).toBeDisabled();
+  await user.type(
+    within(panel).getByLabelText("你的问题"),
+    "What is the method?",
+  );
+  expect(submit).toBeDisabled();
+  await user.click(
+    within(panel).getByRole("checkbox", {
+      name: "允许本次把检索片段发送给已配置模型",
+    }),
+  );
+  await user.click(submit);
+  expect(api.askQA).toHaveBeenCalledExactlyOnceWith("paper", {
+    document_version_id: "v",
+    section_id: "s",
+    scope: "section",
+    question: "What is the method?",
+    allow_network: true,
+  });
+  expect(api.qa).toHaveBeenCalledWith("paper", "v", "s", "section");
 });
 test("offline local reader does not read or search", () => {
   mount(<KnowledgeReading versionId="v" paperId="paper" connected={false} />);
@@ -551,6 +833,41 @@ test("PDF selection remains an explicit native local action", async () => {
   expect(api.importPdf).toHaveBeenCalledExactlyOnceWith("p", "managed");
   expect(api.generateOverview).not.toHaveBeenCalled();
 });
+test("paper classification is a local project preference", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.papers).mockResolvedValue({
+    items: [
+      {
+        id: "paper",
+        project_id: "p",
+        title: "Synthetic paper",
+        created_at: "2026-11-09T00:00:00Z",
+      },
+    ],
+    next_cursor: null,
+  });
+  vi.mocked(api.paper).mockResolvedValue({
+    paper: {
+      id: "paper",
+      project_id: "p",
+      title: "Synthetic paper",
+      created_at: "2026-11-09T00:00:00Z",
+    },
+    revisions: [],
+    sources: [],
+  });
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+  await user.click(
+    await screen.findByText("论文信息", { selector: "summary strong" }),
+  );
+  const category = await screen.findByRole("combobox", {
+    name: "论文分类",
+  });
+  await user.selectOptions(category, "important");
+  expect(localStorage.getItem("rgs.paper-categories.p")).toContain(
+    '"paper":"important"',
+  );
+});
 test("paper Zotero link uses the validated native command", async () => {
   const user = userEvent.setup();
   vi.mocked(api.papers).mockResolvedValue({
@@ -581,9 +898,9 @@ test("paper Zotero link uses the validated native command", async () => {
       },
     ],
   });
-  mount(<Papers projectId="p" connected />);
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
   await user.click(
-    await screen.findByRole("button", { name: "Synthetic paper" }),
+    await screen.findByText("论文信息", { selector: "summary strong" }),
   );
   await user.click(
     await screen.findByRole("button", { name: "在 Zotero 中打开" }),
@@ -591,6 +908,170 @@ test("paper Zotero link uses the validated native command", async () => {
   expect(invoke).toHaveBeenCalledExactlyOnceWith("open_zotero", {
     url: "zotero://select/library/items/PAPER001",
   });
+  expect(api.generateOverview).not.toHaveBeenCalled();
+});
+
+function metadataPaper(id = "paper", revisionId = "v"): PaperDetail {
+  return {
+    paper: {
+      id,
+      project_id: "p",
+      title:
+        id === "paper" ? "Synthetic reading paper" : "Second reading paper",
+      created_at: "2026-11-09T00:00:00Z",
+    },
+    revisions: [
+      {
+        id: revisionId,
+        paper_id: id,
+        sha256: "abcdef0123456789",
+        parser_version: "fixture-parser",
+        page_count: 4,
+        warnings: ["Synthetic parsing warning"],
+        created_at: "2026-11-09T00:00:00Z",
+      },
+      {
+        id: `${revisionId}-old`,
+        paper_id: id,
+        sha256: "0123456789abcdef",
+        parser_version: "fixture-parser",
+        page_count: 3,
+        warnings: [],
+        created_at: "2026-11-08T00:00:00Z",
+      },
+    ],
+    sources: [
+      {
+        id: `source-${id}`,
+        revision_id: revisionId,
+        path: "fixture/source.pdf",
+        mode: "reference",
+        generation: 1,
+        last_check: null,
+      },
+    ],
+    zotero_links: [
+      {
+        url: "zotero://select/library/items/PAPER001",
+        item_key: "PAPER001",
+        attachment_key: "ATTACH01",
+      },
+    ],
+  };
+}
+
+test("reading workspace starts with all four actions and ends with collapsed paper metadata", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  mount(
+    <Papers
+      projectId="p"
+      projectName="Fixture project"
+      connected
+      initialPaperId="paper"
+    />,
+  );
+  const title = await screen.findByRole("heading", { name: "论文阅读工作区" });
+  const reading = title.closest(".paper-reading")!;
+  const header = title.closest("header")!;
+  const metadata = screen
+    .getByText("论文信息", { selector: "summary strong" })
+    .closest("details")!;
+  expect(reading.firstElementChild).toBe(header);
+  expect(reading.lastElementChild).toBe(metadata);
+  expect(metadata).not.toHaveAttribute("open");
+  expect(within(header).getByText("Synthetic reading paper")).toBeVisible();
+  expect(
+    within(header).getByRole("navigation", { name: "论文阅读板块" }),
+  ).toBeVisible();
+  for (const name of ["论文概览", "章节精读", "论文问答", "文献翻译"])
+    expect(within(header).getByRole("button", { name })).toBeEnabled();
+  expect(screen.getByText("Synthetic parsing warning")).not.toBeVisible();
+  expect(screen.queryByText("CURRENT PROJECT")).not.toBeInTheDocument();
+  expect(api.chunks).not.toHaveBeenCalled();
+  await user.click(
+    within(metadata).getByText("论文信息", { selector: "summary strong" }),
+  );
+  expect(screen.getByRole("combobox", { name: "论文分类" })).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "在 Zotero 中打开" }),
+  ).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "附件修订" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "检查文件" })).toBeVisible();
+  expect(screen.getByText("Synthetic parsing warning")).toBeVisible();
+  expect(api.generateOverview).not.toHaveBeenCalled();
+});
+
+test("revision selection still drives reading and switching papers resets the collapsed metadata", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.paper).mockImplementation(async (id) =>
+    metadataPaper(id, id === "paper" ? "v" : "v-second"),
+  );
+  const { client, rerender } = mount(
+    <Papers projectId="p" connected initialPaperId="paper" />,
+  );
+  await user.click(
+    await screen.findByText("论文信息", { selector: "summary strong" }),
+  );
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "附件修订" }),
+    "v-old",
+  );
+  await waitFor(() =>
+    expect(api.overview).toHaveBeenCalledWith("paper", "v-old"),
+  );
+  await user.click(screen.getByRole("button", { name: "章节精读" }));
+  await waitFor(() => expect(api.sections).toHaveBeenCalledWith("v-old"));
+  rerender(
+    <QueryClientProvider client={client}>
+      <Papers projectId="p" connected initialPaperId="second" />
+    </QueryClientProvider>,
+  );
+  await screen.findByText("Second reading paper", {
+    selector: ".paper-workspace-paper",
+  });
+  expect(
+    screen
+      .getByText("论文信息", { selector: "summary strong" })
+      .closest("details"),
+  ).not.toHaveAttribute("open");
+  expect(screen.getByRole("button", { name: "论文概览" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await waitFor(() =>
+    expect(api.overview).toHaveBeenCalledWith("second", "v-second"),
+  );
+  expect(api.generateOverview).not.toHaveBeenCalled();
+});
+
+test("parsed original text stays local and loads only after opening both metadata and text", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  vi.mocked(api.chunks).mockResolvedValue({
+    items: [
+      {
+        id: "fixture-chunk",
+        revision_id: "v",
+        page_index: 0,
+        page_label: "1",
+        block_index: 0,
+        text: "Synthetic original text",
+        bbox: [],
+      },
+    ],
+    next_cursor: null,
+  });
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+  await user.click(
+    await screen.findByText("论文信息", { selector: "summary strong" }),
+  );
+  expect(api.chunks).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByText("解析原文（按需查看）", { selector: "summary" }),
+  );
+  expect(await screen.findByText("Synthetic original text")).toBeVisible();
+  expect(api.chunks).toHaveBeenCalledWith("v", 0);
   expect(api.generateOverview).not.toHaveBeenCalled();
 });
 test("local task retry keeps failed overview out of automatic model actions", async () => {

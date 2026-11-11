@@ -55,12 +55,12 @@
 
 ### 未解决项与影响
 
-| 编号 | 问题 | 影响与处理 |
-| --- | --- | --- |
-| B01 | 详细原设计与最后的集成分工回答尚未读到 | 产品细节和技术选型仍是建议；下一轮优先补齐，不能宣称已完整按原方案实施 |
-| B02 | Zotero 未在常见路径发现 | 不推断未安装；接入阶段确认位置或以直接 PDF 导入起步 |
-| B03 | 具体模型供应商、配置、实验文献和预算未确定 | 可做骨架；真实 AI 效果与费用评估尚不能完成 |
-| B04 | 项目依赖、原生构建工具和干净机安装未验证 | M1 必须先做最小安装探针，不能仅依据版本号宣称兼容 |
+| 编号 | 问题                                       | 影响与处理                                                             |
+| ---- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| B01  | 详细原设计与最后的集成分工回答尚未读到     | 产品细节和技术选型仍是建议；下一轮优先补齐，不能宣称已完整按原方案实施 |
+| B02  | Zotero 未在常见路径发现                    | 不推断未安装；接入阶段确认位置或以直接 PDF 导入起步                    |
+| B03  | 具体模型供应商、配置、实验文献和预算未确定 | 可做骨架；真实 AI 效果与费用评估尚不能完成                             |
+| B04  | 项目依赖、原生构建工具和干净机安装未验证   | M1 必须先做最小安装探针，不能仅依据版本号宣称兼容                      |
 
 ### 下一步
 
@@ -609,39 +609,47 @@
 ## 2026-11-01 19:16 · DEV-0021 · P3 启动、抽取与论文入口增量复核
 
 ### 目标
+
 - 修复正式桌面启动时的控制台窗口风险，复核真实模型抽取超时边界，并精简论文/Zotero交互；不进入 P4。
 
 ### 实际改动
+
 - `main.rs` 的 Windows GUI 子系统与 Sidecar `CREATE_NO_WINDOW` 保持一致；stderr 仍写入 `engine-startup.log`，未删除调试入口。
 - `ConfiguredProvider` 使用可取消的异步 `httpx` 流式请求，限制 2 MiB 响应并区分超时、网络、限流、服务端、客户端、重定向和输出截断；保留 `_request` 兼容入口，避免旧集成测试失效。
 - 首页空状态和项目卡片的宣传占位语句、页脚口号及 Zotero 重复说明已移除；论文区改为知识概览导向。Zotero 批量导入成功项增加显式“解析并抽取知识”入口，不绕过用户传输授权。
 
 ### 验证
+
 - `conda run -n researchgraph-studio pytest -q`：104 passed、2 skipped。
 - `pnpm --dir apps/desktop test -- --run`：28 passed；`pnpm --dir apps/desktop build`：通过。
 - Provider 测试 8 passed；Ruff check/format 通过；敏感扫描 248 个候选源码文件通过；`git diff --check` 通过。
 - 7 批次失败续跑专项测试通过。真实 Zotero/真实模型中途失败场景、本轮原生窗口及安装器未重新实测，不能以自动化结果替代。
 
 ### 问题与下一步
+
 - 需要在隔离安装包中确认 GUI 子系统实际无 PowerShell 窗口且关闭窗口只退出 Sidecar；当前环境找不到 `cargo`，Rust 检查沿用上轮结果。
 - 真实模型仍只验证过既有兼容供应商；用户论文的 7 批次中途失败续跑待在设置页授权后复测。保持 P3，下一步为真实关系候选的证据锚定与人工审核。
 
 ## 2026-11-01 19:26 · DEV-0022 · 最新 Windows 安装器构建
 
 ### 目标
+
 - 卸载旧版 ResearchGraph Studio，并构建当前工作区最新安装器；保留用户数据和源码改动。
 
 ### 实际改动
+
 - 旧版用户级卸载目录已不存在，清理残留卸载注册项；未删除项目数据库、模型凭据、论文、笔记或 AppData 数据。
 - 使用 `scripts/build-engine.ps1` 重建无控制台 Sidecar，再运行 `pnpm --dir apps/desktop tauri build` 构建 NSIS 安装器。
 
 ### 验证
+
 - 新安装器：`apps/desktop/src-tauri/target/release/bundle/nsis/ResearchGraph Studio_0.0.1_x64-setup.exe`
 - 文件大小：38,371,834 bytes；SHA-256：`A2B179B1D05864EC1961A399AC4D91A055B57B8D94431D3949316297F9E94F63`。
 - 旧版卸载注册项查询不到；构建后没有 ResearchGraph 进程残留。
 - Gitleaks/敏感路径扫描 248 个候选源码文件通过；`git diff --check` 通过。
 
 ### 问题与下一步
+
 - 安装器已构建但尚未自动安装；用户可手动运行并反馈启动窗口、数据迁移和真实 Zotero/模型行为。
 - 构建阶段有 PyInstaller 的 `tzdata` 缺失警告和前端 chunk 体积提示，未阻断构建；需在安装后重点观察时区与启动日志。
 
@@ -845,7 +853,6 @@
 - 真实响应超时仍 6/17、真实科学关系边和安装/干净机仍有未验收项；参考 Schema 不等于科学准确或真实 Provider 兼容。模型预算/输出体积需在 R2/R3 真实验证。
 - 四份外部补充原文登记路径仍不可用，历史来源/QA 保留。用户现有知识、原始资料和安装版本未改。
 
-
 ## 2026-11-02 17:36 · DEV-0030 · 安全推送基线与 R1–R5 阅读图谱实现
 
 ### 目标
@@ -992,19 +999,23 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 ## YYYY-MM-DD HH:mm · DEV-XXXX · 本轮标题
 
 ### 目标
+
 - 对应需求/阶段：
 - 本轮完成条件：
 
 ### 实际改动
+
 - 改了什么、原因、关键文件：
 - 设计/数据迁移决定（链接 ADR）：
 
 ### 验证
+
 - 执行的命令/场景：
 - 实际结果及证据路径：
 - 未执行的检查与原因：
 
 ### 问题与下一步
+
 - 已知问题、影响和解决方向：
 - 下一项可执行任务：
 - Git 提交/版本（确实存在时填写）：
@@ -1015,6 +1026,7 @@ R1–R4代码已实施；R5部分通过，完整真实论文超时/贡献覆盖�
 **目标**：解决waiver校验及拆分后超时，统一新版阅读Schema，检查整条抽取—整合—图谱链路，保留原数据。
 
 **实际改动**：
+
 - reading_scope/store/api/projection/selection及knowledge_api把新版候选与旧图谱历史分开；reasoning_api/context/contracts和GraphExplorer补齐比较来源/召回过滤。领域1.0/head0010不变，无数据库迁移。
 - reading_upgrade、unified_extraction、app/models为旧失败任务创建独立续接；成功批引用旧操作，合法已收响应复制并记录零调用，保留原Job/ModelRun。新计划升级Prompt/模型传输策略，未无限加timeout。
 - reading_wire/validation与新P02_compact_v2/P12_v2/P13_v3修正说明字段矛盾；严格科学/来源校验仍保留。整合根优先、非法建议隔离、异条件重复不折叠，所有raw保持。
@@ -1137,7 +1149,6 @@ reading_store/selection由程序沿所有合法支撑路径形成单元，P12只
 
 **17:39收尾（Asia/Shanghai）**：Conda解释器执行文档refresh、17项任务及P4 Wiki消费一致性、源码路径/内容Gitleaks核验通过；157 Markdown/573本地链接/88资产LF哈希、538源码候选文件通过，四份外部原文不可用如实保留。独立审阅补明Q07内部登记已验段落与P5主题生成/增量重写/渲染/发布分工。git diff --check、暂存区检查完成后收尾；没有应用功能变更，因此不重跑应用测试，不将本轮文档检查算作Query/Wiki实测。
 
-
 ## DEV-0045 — 2026-11-03 21:32（Asia/Shanghai）：图谱驱动的阅读生命周期与开发计划重写
 
 **目标与范围**：按用户确认的论文→知识图谱→Query→显式保存综合→Wiki→授权MD/Obsidian、Lint横向诊断流程，重写计划并同步项目介绍。只调整文档，不开始P4/P5实现，保留全部原未提交工程成果。
@@ -1148,9 +1159,7 @@ reading_store/selection由程序沿所有合法支撑路径形成单元，P12只
 
 **验证与下一步**：本轮仅做文档/一致性、资产哈希、源码保持及敏感检查，实际命令/结果收尾补记；不运行应用测试、读用户库/私人论文、调用模型或构建安装器，不把历史成绩当本轮验收。四份外部原文路径不可用，不能复核。实际阶段仍P3/R5；先完成新包原生反馈、全文质量/失败继续等剩余验收，后续明确开发P4时从Q01开始。无暂存、Commit或Push。
 
-
 **21:44收尾（Asia/Shanghai）**：Conda环境绝对解释器执行`.local/lifecycle-plan-20261103/check_docs.py --refresh`与`check_plan.py`，17项唯一有序任务/非空实现验收列、流程图围栏与介绍锚点、284个非文档文件逐字节保持、暂存区及git diff --check通过；157 Markdown/591本地链接/88资产LF哈希通过。首次源文件保持检查因Windows反斜杠误把docs计入源码范围而报变化，规范化路径后通过，没有实际源码变化。`scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.30.1/gitleaks.exe`对538源码候选内容/路径扫描通过。独立复核后补明无结论单元的合法原文/候选仍可Query/Wiki，Zotero评论使用独立note/annotation快照来源，外部MD明确登记不继承系统证据或写权。图形仅作Mermaid源文本/基本结构检查，未执行渲染器或应用回归；四份外部原文不可用。无API调用、迁移、打包、暂存、Commit或Push。
-
 
 ## DEV-0046 — 2026-11-03 23:42（Asia/Shanghai）：R5路径与证据感知选择、真实质量失败及本轮交付
 
@@ -1166,9 +1175,7 @@ reading_store/selection由程序沿所有合法支撑路径形成单元，P12只
 
 **交付/未完成**：.local/releases/r5-final-20261103/ResearchGraph Studio_0.0.1_x64-setup.exe，38674011字节，SHA256 dc5a1ab1c8961947dc51a5a4acf31fc812a6f4c22f244a82ce62579b4d84d6bc，与最终源匹配；新包原生待反馈。真实strict/干净机/四份不可用外部原文未验收，R5仍待换模型后P13终验、已知语义错误过滤/同义代表/必要条件与支撑质量复核。未经新授权未Commit/Push、远端CI未执行。最后安全/文档/暂存区核验收尾另记。
 
-
 **2026-11-03 23:45（Asia/Shanghai）收尾：161 Markdown/613本地链接/88资产LF哈希通过，四份登记外部原文仍不可用；544源码候选内容/路径及Gitleaks通过，git diff --check通过、暂存区为空。最终安装器副本与构建源长度/hash一致，离线日志与匿名结果封存；未Commit/Push，真实P13未过且用户选择稍后换模型，不进入下一Phase。**
-
 
 ## DEV-0047 — 2026-11-04 10:31（Asia/Shanghai）：程序绑定贡献评估槽位与有界恢复
 
@@ -1392,7 +1399,7 @@ README/导航和docs00～09的当前状态、批注/外部来源及真实运行�
 
 **归档与删除**：30 份已结束轮次的报告（含环境报告）移至 docs/archive/reports，新增分类索引；整理前的完整 progress 保存在 progress-through-20261105.md。报告正文只修改链接目标，31 份历史正文逐一对照本轮备份，失败、科学分母、调用预算、授权和包指纹保持。删除 docs/AGENTS.template.md 重复协作模板、docs/CHANGELOG_FROM_V2.md 纯跳转页；归档规范中的同名原文保留。同步根协作规则、ADR、旧设计与交接引用，迁移映射标明历史语境；不保留第二套同内容跳转页。本轮前完整文档、路径映射及检查凭据仅存忽略目录 .local/docs-cleanup-20261107，不进入源码交付。
 
-**实际验证**：使用 Conda researchgraph-studio 的绝对解释器执行 .local/docs-cleanup-20261107/check_docs.py --refresh 后再只读复核。189 份 Markdown、804 个本地链接目标通过，仓库内断链 0；四份已登记外部原文仍不可用，单列为既有限制，未假称已核验。当前 86 项规范资产及归档 v3 的 52 项资产 LF 字节/大小/哈希一致；归档清单明确标注链接调整后的字节，不冒充原包指纹。366 个非文档文件对照整理前 SHA256 和路径集合，无修改/新增/删除；32 个原路径删除对应 30 个已核对归档及 2 个重复入口，没有意外删除。git diff --check 与空暂存区检查通过。首次本地校验脚本以 __file__ 定位时遭遇 Windows 路径编码错误，改用实际工作目录后通过；该失败未改写文档或触及运行数据。
+**实际验证**：使用 Conda researchgraph-studio 的绝对解释器执行 .local/docs-cleanup-20261107/check_docs.py --refresh 后再只读复核。189 份 Markdown、804 个本地链接目标通过，仓库内断链 0；四份已登记外部原文仍不可用，单列为既有限制，未假称已核验。当前 86 项规范资产及归档 v3 的 52 项资产 LF 字节/大小/哈希一致；归档清单明确标注链接调整后的字节，不冒充原包指纹。366 个非文档文件对照整理前 SHA256 和路径集合，无修改/新增/删除；32 个原路径删除对应 30 个已核对归档及 2 个重复入口，没有意外删除。git diff --check 与空暂存区检查通过。首次本地校验脚本以 **file** 定位时遭遇 Windows 路径编码错误，改用实际工作目录后通过；该失败未改写文档或触及运行数据。
 
 **结果与下一步**：文档整理完成，应用仍是已有 P5 实现；本轮未执行应用回归、性能重跑、模型调用、数据库实验、安装器重建、原生操作或 Commit/Push。真实 P09/P10/P11 科学质量、最新包用户原生反馈、Lint 完整 catalog 复验/重建性能、strict/跨模型/平台/干净机/无 OCR 等限制保留，不标 P5 全部退出通过。后续按当前 progress 和用户新指令继续。
 
@@ -1520,3 +1527,271 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 ## DEV-0067 — 2026-11-09 21:50（Asia/Shanghai）：Lite 清理本地合并完成
 
 清理提交 `e3354b2` 已用无快进方式合并到本地 `main`，形成合并提交 `679f480`；随后补充 Lite 规范边界修订提交 `f9b53cc`，明确活跃工程使用 `lite0001` 空库，旧 Graph/Query/Lint/Wiki/Reading/Reasoning 代码、旧数据库和旧入口仅由 `backup/pre-lite-refactor` 回退。合并后 `test_lite_clean.py` 与 `test_paper_overview_contract.py` 共 **29 passed / 1 warning**；工作区无运行数据库、日志、安装包、依赖目录或 Python/前端构建缓存。Gitleaks 8.24.3 工作区和完整 Git 历史扫描均通过；本轮按要求不推送。下一阶段是 Lite P2 A 章节导读，D 证据问答另行排期。
+
+## DEV-0068 — 2026-11-09 22:59（Asia/Shanghai）：力导向引擎设计契约与可复用 Skill
+
+**目标**：把此前知识图谱力导向引擎、交互、布局持久化和 Lite 语义边界整理为一个可执行测试文件，并沉淀为可复用的 `researchgraph-force-graph` Skill。未修改图谱产品运行代码，未恢复旧 Graph/Query/Lint/Wiki 业务，也未推送远端。
+
+**测试契约**：新增 `apps/desktop/src/ForceGraph.design.test.tsx`，覆盖稳定 node ID 布局恢复和过期位置过滤、确定性初始布局、有限坐标保护、局部斥力/连边响应、固定节点与冷却停止、双语标签、关系类型与 `INFERRED` 虚线、保存相机、拖动/固定/viewport 持久化回调。该文件作为后续修改 ForceGraph、ForceSimulation 或布局策略前的设计门槛；旧实现的更完整浏览器交互仍由 `apps/desktop/e2e/graph.spec.ts` 覆盖。
+
+**Skill**：在 `C:\Users\KLucen\.codex\skills\researchgraph-force-graph` 建立 `SKILL.md` 与 `references/engine-design.md`，记录真实力学参数、RAF/减少动态效果、fitView 与 viewport 规则、React Flow 交互、布局版本隔离、颜色/未知回退、`EXPLICIT`/`INFERRED` 语义和“不生成 Evidence/坐标/正式 ID”的 Lite 边界。Skill 只指导复用单篇 LightGraph，不恢复完整图谱、Query、Lint、Wiki 或跨论文推理。
+
+**验证与未解决**：设计契约测试当前为 **6 passed**；完整前端 Vitest 为 **36 passed / 6 files**，TypeScript/ESLint、Prettier、真实 LightGraph 浏览器测试 **2/2** 和 Skill validator 均通过。未执行真实模型调用，Token 为 0；未访问正式数据库、私人文献或凭据。跨版本布局隔离仍由上层 PaperOverview/layout API 负责，契约测试只验证渲染器不读取模型坐标。
+
+## DEV-0069 — 2026-11-09 23:29（Asia/Shanghai）：上传力导向图谱 Skill
+
+用户明确授权将 `researchgraph-force-graph` 上传到独立 GitHub 仓库 [KLucen/ForcerGraphSkills](https://github.com/KLucen/ForcerGraphSkills)。目标仓库原为空仓库；使用 SSH over 443 完成认证、先执行 push dry-run，再将 `SKILL.md`、`agents/openai.yaml` 和 `references/engine-design.md` 以提交 `db03dcea281e9b3d8b53d02f8a6a3614cecf4ee1` 推送到 `main`。暂存文件逐项核对、内容模式扫描和 `git diff --cached --check` 通过；未包含项目源码、数据库、日志、凭据或测试生成物。远端 `refs/heads/main` 已核对为同一提交，临时上传目录已清理。
+
+## DEV-0070 — 2026-11-10 08:05（Asia/Shanghai）：通用化力导向图谱 Skill 并重新推送
+
+用户要求 Skill 只指导通用力导向图谱渲染器，不绑定具体产品、论文或跨对象业务。已重写 `SKILL.md`、`agents/openai.yaml` 和 `references/engine-design.md`：移除产品名、单篇论文、跨论文、PaperCard、LightGraph 及领域工作流描述，保留数据投影、确定性布局种子、斥力/弹簧模拟、拖动/固定/缩放、RAF 与减少动态效果、语义与布局分离、视口持久化、未知类型回退和测试方法。
+
+通过 Skill validator、内容扫描和暂存 diff 检查后，以提交 `f09e16c0c0f0c0093db769c35977f5068c074f98` 推送到 [KLucen/ForcerGraphSkills](https://github.com/KLucen/ForcerGraphSkills) 的 `main`；远端 SHA 已复核一致，临时上传目录已清理。当前项目源码未因此提交或推送。
+
+## DEV-0071 — 2026-11-10 11:00（Asia/Shanghai）：Lite P2 A01 章节导读收尾与边界修复
+
+**目标与实现**：继续 Lite 开发计划的 P2 A01，只实现当前选定小节的章节导读，不进入 D 证据问答。新增 `lite0002` 章节导读结果迁移、严格 `ReadingGuideDraft`/`GuideInput` 契约、`quick`/`standard`/`deep` 深度、版本化缓存、显式网络授权、证据 Span 白名单、页码与引用片段展示、失败/取消/重启恢复和用量记录。前端保留章节目录与原文阅读，切换章节或深度只读状态；点击并勾选授权后才排队模型调用，支持复制导读和显式重新生成。
+
+**边界修复**：Provider 请求投影为 Schema 声明的五类输入字段，内部 `parent_heading`/`source_truncated` 不外发；超出单次章节范围时返回 409，要求用户选择更小范围，不自动拆批。发布前重新验证章节归属、排除状态、参考文献状态、文献版本和输入 hash；缓存命中重新验证 section、证据 Span 白名单和 quick 上限，失效缓存不会直接发布；取消后的异常响应保留 raw/partial，并维持 usage 的 `cancelled`/`interrupted` 终态。同步修正 `lite0002` smoke/Windows 验证脚本、列表深度参数校验和 A01 规范文档。
+
+**实际验证**：后端全量 `169 passed / 1 skipped / 1 warning`，P2 A01 专项 **26 passed**；Ruff、mypy、compileall、契约导出通过。前端 TypeScript、ESLint、Prettier、Vitest **37 passed / 6 files**，生产构建通过并保留既有 >500KB chunk 提示；真实 LightGraph 浏览器测试 **2 passed**。Tauri `cargo fmt --check` 与打包引擎测试 **8 passed / 0 ignored**；`scripts/smoke-engine.py` 和 `verify-windows-install.ps1` 均以 `lite0002` 通过，匿名 PDF 导入模型调用为 0。
+
+**安全与未完成**：本轮未读取正式用户数据库、真实 Zotero 库、私人 PDF/批注、真实 API Key 或真实 Provider；实际模型调用、输入/输出 Token、重试和增量费用均为 **0**。构建产生的引擎、数据库、日志和前端输出仅用于隔离验证，收尾时清理，不提交或推送。本轮未 Commit/Push；D 证据问答、真实 Provider 科学质量/价格、复杂表格/公式、OCR、跨平台和用户原生安装仍待后续阶段。
+
+## DEV-0072 — 2026-11-10 12:00（Asia/Shanghai）：Lite P3 D01 局部证据问答
+
+**目标与边界**：继续 Lite A+B+D 开发计划，先实现 D01 最小闭环；D02 英文关键词扩展、预算控件和真实 Provider 验收不在本轮。默认作用域为当前 `section`，支持 `paper` 和服务端校验的 `selection`；问答只保存阅读记录，不写入 KnowledgeStore、Claim 或 Relation。
+
+**后端实现**：新增 `services/engine/researchgraph/qa_contracts.py`、`qa_models.py`、`qa_api.py` 与 `migrations/versions/lite0003_grounded_qa.py`。D01 在 FTS5 上检索最多 5 个短片段，并将 Chunk 映射为当前文献版本的真实 `EvidenceSpan`；上下文总字符数限制为 12,000。新增 `QAAnswerDraft` 严格 JSON、重复键、非有限数字和引用白名单校验，支持证据不足结果；无本地命中时直接保存 `insufficient_evidence=true`，不请求模型。模型调用沿用 Lite usage/cache/Job 生命周期，缓存键包含作用域、问题/检索输入、Prompt、Schema、Provider、模型、配置和源哈希；支持失败、取消、重启恢复和 raw 保留。
+
+**接口与桌面端**：新增 `GET /api/v1/papers/{paper_id}/qa`、`GET /api/v1/papers/{paper_id}/qa/{qa_id}` 和 `POST /api/v1/papers/{paper_id}/qa/ask`；worker、恢复逻辑和 Tauri 白名单已接入。`KnowledgeReading` 增加默认 section 的局部证据问答区，可切换 paper，要求用户明确允许本次模型调用，显示处理/失败/缓存状态、页码与 Span 引用以及证据不足提示，不自动扩大范围。`packages/contracts/openapi.json` 与 `generated.ts` 已重新导出。
+
+**迁移与验证**：Alembic head 从 `lite0002` 升级到 `lite0003`，新增 `lite_qa_records` 及索引；同步 `storage.py`、README、Lite 规范状态、`docs/progress.md`、ADR0033、smoke/Windows 脚本和 Tauri schema 常量。D01 专项 **8 passed / 1 warning**；与既有引擎、Lite 清理、章节导读测试合计 **49 passed / 1 warning**。Ruff、mypy、compileall、前端 TypeScript/ESLint、Vitest **38 passed / 6 files**、OpenAPI/TypeScript 契约导出通过。当前环境未提供 `cargo` 命令，本轮未重跑 Rust；上一轮 Rust 结果保留。测试使用匿名/合成数据和合成 Provider，真实模型调用、输入 Token、输出 Token、重试和增量费用均为 **0**。
+
+**未解决问题与下一步**：D02 关键词扩展、selection 的桌面 Span 选择器、预算守卫、真实 Provider 科学质量/价格、复杂表格/公式/OCR、跨平台、Windows 安装器和用户原生反馈仍待后续；本轮未 Commit/Push。
+
+## DEV-0073 — 2026-11-10 12:55（Asia/Shanghai）：Lite P3 D02 英文关键词辅助
+
+**目标与边界**：根据 Lite A+B+D 计划继续 P3。D02 只处理中文问题与英文 PDF 的本地检索无命中场景；不回答科学问题、不读取 PDF 正文、不扩大问答作用域，也不写入 KnowledgeStore、Claim 或 Relation。真实 Provider、真实 Token/费用和用户正式数据库仍未访问，本轮不 Commit/Push。
+
+**后端实现**：新增 `keyword_contracts.py`、`keyword_models.py`、`keyword_api.py` 和 `lite0004_search_keywords.py`。`SearchKeywordsDraft` 严格限制为 1–5 个去重短语，拒绝重复 JSON key、未知字段、空值、超长值和非有限 JSON。服务端在入队前重新执行当前论文/章节 FTS5 检索；已有命中返回 `KEYWORDS_NOT_NEEDED`，不信任客户端伪造的命中计数。无命中且 `allow_network=true` 才创建 `search_keywords` Job。Provider 只接收问题、论文标题和章节标题，结果通过 `KeywordView` 持久化并支持失败、取消、重启恢复、raw 保留、独立缓存和 Lite TokenUsage 记录。
+
+**桌面与契约**：`KnowledgeReading` 在本地搜索无命中时显示英文关键词辅助，必须勾选一次性授权；任务完成后只用返回关键词重新运行本地搜索并展示片段，不自动生成回答。新增 POST/GET 关键词路由、轮询接口和 Tauri 白名单；schema head 更新为 `lite0004`，OpenAPI/TypeScript 契约已重新导出。
+
+**实际验证**：D02 合约/API 专项 **5 passed**；后端全量 **182 passed / 1 skipped / 1 warning**。前端 TypeScript、ESLint 通过，Vitest **39 passed / 6 files**，包含显式授权、关键词展示和本地重检索。后端 Ruff、mypy、compileall、迁移和 Lite 清理专项通过；Tauri 路由测试已更新，若本机缺少 `cargo` 不把上一轮 Rust 结果冒充本轮重跑。测试只使用匿名/合成数据和合成 Provider，真实模型调用、输入 Token、输出 Token、重试和增量费用均为 **0**。
+
+**未解决问题与下一步**：D02 仍需获准的真实 Provider 低预算验证、预算守卫、selection Span 选择器、复杂表格/公式、OCR、跨平台和用户原生安装反馈。下一批按计划进入 Lite P4 的预算与真实验证工作；`unknown` 继续只表示信息缺口。
+
+## DEV-0074 — 2026-11-10 15:16（Asia/Shanghai）：P3-D02 Windows 可交付构建与路由修复
+
+**目标**：落实用户新增的交付约定：每个完成批次都提供可启动的 Windows EXE 或安装包。本轮只补齐 P3-D02 的可交付构建与发现的 Tauri 白名单问题，不新增模型能力。
+
+**修复**：Rust Tauri 路由把 `GET /papers/{paper}/qa/{qa_id}` 放在关键词列表路由之前，导致带查询参数的 `GET /papers/{paper}/qa/keywords` 提前命中后被拒绝；已调整匹配顺序，并允许问答列表的 `scope=selection|section|paper`。`cargo fmt --check` 和 Rust 单元测试 **7 passed / 1 ignored**。
+
+**构建与验证**：使用 `pwsh -File scripts/build-windows.ps1` 生成 PyInstaller sidecar 和 Tauri NSIS 安装包。sidecar 离线 smoke 通过：schema `lite0004`、匿名 PDF 导入成功、`model_calls=0`。使用 `scripts/verify-windows-install.ps1 -Installer` 在隔离目录静默安装并完成同一引擎/PDF/用量验证，结果通过。产物已复制到被忽略目录 `.local/releases/lite-p3-d02-20261110/`：安装包 `ResearchGraph-Studio-Lite-P3-D02-0.0.1-x64-setup.exe`，38,381,839 bytes，SHA-256 `12fb14862babf8913da5ef0d14285b3eb6e5865ffd0070d3e0bb84773144c0e9`；sidecar `researchgraph-engine.exe`，15,070,617 bytes，SHA-256 `6f2638eaac7852e8afe1a4c54c166612e51ea9706ca020797b6abfd172754d6b`。
+
+**安全与边界**：未读取正式数据库、Zotero 库、私人 PDF/批注、API Key 或真实 Provider；真实调用、Token、重试和费用均为 0。构建产物位于 `.local`/`target` 忽略路径，不进入 Git。当前验证覆盖 sidecar、静默安装和 Lite 本地解析，不等同于干净机 WebView2/桌面窗口及用户原生验收。本轮未 Commit/Push。
+
+**下一步**：进入 Lite P4 的预算守卫、用量展示和获准的真实 Provider 低预算验证；继续保持每个完成批次提供可启动 Windows 产物，并记录安装包与 sidecar 的 SHA-256。
+
+## DEV-0075 — 2026-11-10 15:44（Asia/Shanghai）：修复选中论文后的功能入口不可见
+
+**问题**：用户反馈已经在项目内选中论文，但看不到 PaperCard、LightGraph、章节导读和证据问答。检查确认这些组件已经存在，但 `Papers.tsx` 只有在 `api.paper()` 返回完成的 `revisionId` 后才挂载它们；解析任务完成前没有等待提示，详情查询也不会刷新，因此论文列表先出现时页面会像没有功能。
+
+**修复**：`PaperText` 对没有解析版本的论文详情启用 1.5 秒轮询；增加明确状态提示，说明本地 PDF 解析和章节索引完成后会出现四项功能，并提示到“任务记录”查看失败状态。解析版本写入后轮询自动停止，`KnowledgeReading` 和 `PaperOverview` 自动挂载。该修复不改变默认本地处理、模型授权和 Token 边界。
+
+**验证与交付**：前端 `LiteReading.test.tsx` **19 passed**，TypeScript/Vite production build 通过；重新生成的安装包已覆盖到 `.local/releases/lite-p3-d02-20261110/ResearchGraph-Studio-Lite-P3-D02-0.0.1-x64-setup.exe`，38,389,106 bytes，SHA-256 `380d8a17ba0876907fd9d075207990ce09855e56f93220f25b3cff1c360d488e`。sidecar smoke 与静默安装隔离验证再次通过，schema `lite0004`、匿名 PDF 导入成功、`model_calls=0`。
+
+**使用路径**：安装最新包后，进入项目 → 导入 PDF 或 Zotero → 在“项目文献”选择论文 → 等待“正在准备论文阅读功能”消失；随后即可看到章节目录、章节导读、局部证据问答和论文概览。概览中的 PaperCard + LightGraph 仍需勾选明确的模型发送授权并点击“生成论文概览”。
+
+**未解决问题**：selection Span 选择器仍未开放；真实 Provider 科学质量、干净机 WebView2/桌面原生验收和下一阶段 P4 仍待后续。本轮未 Commit/Push。
+
+## DEV-0076 — 2026-11-10 17:59（Asia/Shanghai）：全局模型连接与配置复用基础
+
+**目标与实现**：为设置页的全局 Base URL/API Key 复用增加 `model_connections` 数据表和 Lite `lite0005` 迁移；模型 Profile 通过可选 `connection_id` 引用连接，旧 Profile 的 provider/base_url/credential_ref 仍可回退读取。新增连接创建、更新、删除 API，设置响应只返回连接元数据与 `has_api_key`，API Key 继续只存 Windows Credential Manager 的 opaque reference。模型快照在任务创建时解析当前连接，历史快照仍保留冻结的 URL、模型和 credential reference。
+
+**兼容与安全**：旧 `/models` 请求仍可用，并会复用同 provider/base_url 的连接；新 Profile 可以只提交 `connection_id`、模型和参数。连接更新会生成新的 credential reference，不覆盖旧快照所需的凭据；Profile/连接删除会清理不再被活跃配置使用的秘密引用。SQLite、响应体、日志和 OpenAPI 均不写入 API Key。
+
+**验证**：`tests/engine/test_model_settings.py` **8 passed**，其中包含两个 Profile 共享一个连接、连接更新后新快照读取新 Key 且旧快照仍读取旧 Key、响应不泄露凭据；`tests/engine/test_engine.py` 与 `test_lite_clean.py` 合计 **34 passed**；后端 `tests/engine` 全量 **185 passed / 1 skipped / 1 warning**。本轮真实模型调用、Token、费用、正式数据库、私人论文和真实 API Key 均为 **0**；未 Commit/Push。
+
+随后补充了连接测试路由的动态 Profile 模型解析、共享连接删除时的凭据保护、Tauri `settings/connections` 路由白名单，以及 OpenAPI/TypeScript 契约重导出。最终专项为 **8 passed**，后端引擎全量 **185 passed / 1 skipped / 1 warning**，前端检查和 Vitest **39 passed**；本机没有 `cargo`，Rust 格式/单元测试未重跑。
+
+**未解决问题与下一步**：设置页前端需继续使用 `connections` 与 `connection_id` 字段完成交互改造；需由父任务在合并本轮 Lite UI 后重新生成 Windows 安装包并完成桌面原生反馈。
+
+## DEV-0077 — 2026-11-10 18:40（Asia/Shanghai）：Lite 设置、阅读板块与可交付包修复
+
+**目标与实现**：按用户反馈调整 Lite 信息架构。Lite 用量从项目文献工作台移到“设置与诊断”，新增全局聚合接口 `/api/v1/lite/usage`；论文工作区拆成论文概览、章节精读和论文问答三个板块，PaperCard + LightGraph 只在论文概览加载，章节导读、本地检索/英文关键词辅助和局部证据问答按板块显示。`KnowledgeReading` 增加 `guide`/`qa`/`all` 面板兼容层。
+
+**模型设置**：新增 `model_connections` 和 `lite0005_model_connections` 加性迁移。全局连接保存 Provider、Base URL 和凭据引用；模型配置只保存 Model ID、reasoning effort、Temperature、Top P、超时和 JSON 模式，并通过 `connection_id` 复用连接。新增连接创建/更新/删除/测试 API、Tauri 白名单、OpenAPI/TypeScript 契约；API Key 仍只存 Windows Credential Manager opaque reference，不写入 SQLite、日志、前端缓存或返回体。历史 Profile 和任务快照继续兼容。
+
+**验证**：后端 `tests/engine` **185 passed / 1 skipped / 1 warning**；Ruff、mypy、compileall 通过。前端 Vitest **39 passed / 6 files**，本轮 ModelSettings 3 项和 LiteReading 19 项通过；TypeScript、ESLint、生产构建通过。OpenAPI/TypeScript 契约重新导出，包含连接层路由。cargo 当前环境不可用，本轮未重复运行 Rust 测试。
+
+**Windows 交付**：使用 `researchgraph-studio` Conda 环境构建 NSIS 包。安装包为 `.local/releases/lite-settings-20261110/ResearchGraph-Studio-Lite-Settings-0.0.1-x64-setup.exe`（38,396,216 bytes，SHA-256 `0f353b850e94291e1f46272c158b01300d02322df7619f3183d932467d9185cd`）；sidecar 为同目录 `researchgraph-engine.exe`（15,076,836 bytes，SHA-256 `8d5b4648fb724f55f99d1f79c7e776da8a29d20e4cc48af37c5e7182997e68db`）及 `_internal/` 依赖目录。sidecar smoke、直接 sidecar 隔离验证和静默安装验证均通过：schema `lite0005`、匿名 PDF 导入成功、`model_calls=0`。此前只复制 EXE 导致 Python DLL 弹窗，已补齐完整 `_internal/` 目录并重新验证。
+
+**安全与未解决**：本轮未读取正式用户数据库、正式 Zotero 库、私人 PDF/批注或真实 API Key；真实模型调用、输入/输出 Token、重试和费用均为 0。Gitleaks 未安装，已完成手工敏感模式扫描、工作区状态检查和 `git diff --check`；未发现密钥、数据库或私人材料进入修改集。当前未 Commit/Push。复杂表格/公式、OCR、真实 Provider 科学质量、干净机 WebView2 和用户原生桌面验收仍待后续；普通用户应优先运行 NSIS 安装包，独立 sidecar 必须与 `_internal/` 同目录。
+
+## DEV-0078 — 2026-11-10 22:15（Asia/Shanghai）：恢复中断并完成项目侧栏与布局优化
+
+**中断原因**：本轮中断来自上游模型工具协议错误：`gpt-6.1-sol requires Responses for tool calls; this account only supports Chat Completions`。该错误发生在工具调用通道，不是 ResearchGraph 运行时、数据库、PDF 解析或 Windows 构建错误。已在同一共享工作区继续执行，未重置或覆盖已有修改。
+
+**界面调整**：在左侧“个人研究空间”标题旁增加“新建研究项目”按钮；侧栏直接展示本地项目树，支持项目展开/收起、项目选择和项目下论文选择；展开状态写入本地 `localStorage`。点击论文后直接进入对应论文阅读界面，等待本地解析与章节索引完成时显示明确状态，并自动轮询详情。论文列表增加本地分类偏好（未分类、待读、阅读中、已读、重点），分类仅存于本机项目偏好，不上传模型、不改变 Lite 数据库 Schema。同步放宽主内容、项目卡片、设置卡片、阅读工作区和图谱区域间距，并补充窄屏布局，减少模块拥挤。
+
+**实际修改**：`apps/desktop/src/App.tsx`、`Papers.tsx`、`style.css`、`LiteReading.test.tsx` 以及本轮已更新的设置/阅读板块和契约文档。当前工作区还保留此前 Lite P3、模型连接和 PaperCard + LightGraph 的未提交改动；未进行盲目全量暂存。
+
+**验证与交付**：前端 Vitest **6 files / 40 passed**，TypeScript、ESLint 和生产构建通过；构建保留既有 Vite 大 chunk 提示。Windows NSIS 安装包为 `.local/releases/lite-sidebar-layout-20261110/ResearchGraph-Studio-Lite-Sidebar-0.0.1-x64-setup.exe`，38,384,797 bytes，SHA-256 `071b7d621cc05c9487069cebf34a5bc3aaa5367fc48b5a07b6844ea3a5efdb44`；sidecar 为同目录 `researchgraph-engine.exe`，15,076,947 bytes，SHA-256 `1a460fb53316c22817efcacc93cea921ec6993ee7a6b9c13d42cfeacafc72a3d`，必须与 `_internal/` 一起使用。sidecar smoke、静默安装隔离验证和匿名 PDF 本地解析均通过，schema 为 `lite0005`，模型调用、输入/输出 Token、重试和费用均为 **0**。
+
+**安全与未完成**：未读取正式 API Key、正式数据库、正式 Zotero 库、私人 PDF/批注；未 Commit/Push。`git diff --check` 通过；Gitleaks 当前环境未安装，已完成手工敏感模式扫描。尚未完成干净机 WebView2/桌面原生用户验收；论文分类当前为本地偏好，若需要跨设备同步，后续再设计数据库表和迁移。
+
+## DEV-0079 — 2026-11-10 22:24（Asia/Shanghai）：Lite 信息架构重排与任务中心
+
+**设计判断**：原项目页把项目动作（导入论文）、系统活动（任务记录）和论文内容（项目文献）放在同一组折叠区，造成重复导航和阅读区拥挤。本轮按 ADR0035 重新分层：左侧项目树负责项目/论文定位，一级导航负责研究项目/任务记录/设置，右侧只负责当前论文阅读。
+
+**实际修改**：`apps/desktop/src/App.tsx` 增加全局任务中心、当前项目导入入口和导入对话框；`Papers.tsx` 移除右侧“项目文献”和嵌套“任务记录”列表，保留项目空状态、导入操作和当前论文阅读工作区；`JobHistory.tsx` 支持跨项目任务汇总并显示项目名称；`style.css` 增加项目操作、任务中心、阅读空状态和窄屏布局；`LiteReading.test.tsx` 更新旧入口断言并新增跨项目任务中心测试；新增 `docs/adr/0035-lite-information-architecture.md`。
+
+**验证与交付**：前端 Vitest **6 files / 41 passed**，TypeScript、ESLint、Vite 生产构建通过；构建保留既有约 526KB JS chunk 提示。最终 Windows 安装包为 `.local/releases/lite-navigation-layout-20261110/ResearchGraph-Studio-Lite-Navigation-0.0.1-x64-setup.exe`，38,380,988 bytes，SHA-256 `55719fb81c48eaa6c1c4776d293f2667fed8e1b16b6416ce901606191482905d`；sidecar 为同目录 `researchgraph-engine.exe`，15,076,947 bytes，SHA-256 `1a460fb53316c22817efcacc93cea921ec6993ee7a6b9c13d42cfeacafc72a3d`，须与 `_internal/` 同目录。安装器静默验证、sidecar smoke 和匿名 PDF 本地解析均通过，schema 为 `lite0005`，模型调用、Token、重试和费用均为 0。
+
+**边界**：论文分类仍为本地项目偏好；没有新增数据库迁移。未读取正式 API Key、正式数据库、正式 Zotero 库、私人 PDF/批注；本轮未 Commit/Push，用户原生桌面窗口验收仍待。
+
+## DEV-0080 — 2026-11-10 23:29（Asia/Shanghai）：模型提供商设置重排与兼容预设
+
+**目标与范围**：按用户提供的界面参考，将 Lite 设置中的模型添加流程重排为提供商卡片、第三方预设和自定义模型 API 两个入口；保留现有全局连接与模型 profile 分层，不增加真实模型调用，不读取正式数据库、私人论文或 API Key。
+
+**实际修改**：
+
+- apps/desktop/src/ModelSettings.tsx 改为提供商卡片列表，显示预设/自定义标记、连接状态、Base URL、模型目录和安全凭据状态。
+- 新增 DeepSeek、OpenAI、OpenRouter、SiliconFlow、智谱 AI、通义千问和本机 Ollama 兼容接口预设；预设仍使用当前后端已支持的 OpenAI Chat Completions 兼容路径。
+- 新增“自定义模型 API”入口，支持 Provider ID、本地显示名称、API 地址、协议选择、API Key 和多个模型 ID/显示名称。
+- 模型目录通过现有 /settings/connections 与 /settings/models 路由保存，不自动请求供应商 /models；API Key 仍只进入系统凭据存储，Provider ID 仅作为本地界面标识保存。
+- 保留论文概览模型和章节精读/问答模型的角色选择，以及单模型连接测试。
+- apps/desktop/src/style.css 增加提供商卡片、预设选择、模型目录、模态编辑器和窄屏布局。
+- apps/desktop/src/ModelSettings.test.tsx 更新并新增常见预设、自定义 API、模型目录编辑、角色选择和连接测试覆盖。
+
+**验证结果**：
+
+- pnpm format:check：通过。
+- pnpm --dir apps/desktop check：TypeScript 与 ESLint 通过。
+- Vitest：6 files / 42 passed。
+- pnpm --dir apps/desktop build：通过；保留既有 >500KB chunk 提示。
+- PyInstaller sidecar 构建：通过。
+- Windows NSIS 安装包构建：通过；wrapper scripts/build-windows.ps1 在当前 PowerShell 运行时因脚本中文编码解析失败，因此按同一顺序手动完成 build-engine.ps1 与 Tauri NSIS 构建。
+- 新安装包：.local/releases/model-provider-settings-20261110/ResearchGraph-Studio-Model-Providers-0.0.1-x64-setup.exe，SHA-256 6A09DAA7AE992F02F5278BD7B91F08249B9E562E08FE56F8A456643635F553DB。
+- sidecar：同目录 researchgraph-engine/researchgraph-engine.exe 与 _internal/，EXE SHA-256 1A460FB53316C22817EFCACC93CEA921EC6993EE7A6B9C13D42CFEACAFC72A3D。
+- sidecar smoke 和静默安装隔离验证：通过；schema lite0005，匿名 PDF 导入成功，model_calls=0。
+- git diff --check：通过。Gitleaks 未安装，本轮未执行提交或推送。
+
+**未解决问题**：
+
+- 当前运行引擎仍只支持 OpenAI Chat Completions 兼容路径，原生 Anthropic 等协议未接入。
+- Provider ID 尚未进入数据库 Schema；当前只作为本地界面标识保存，若要跨设备同步需后续增加字段和迁移。
+- 真实 Provider、真实 Token/费用、用户正式 Zotero 和原生桌面体验仍待独立验收。
+
+
+
+**23:58 最终重建补记（Asia/Shanghai）**：模型设置代码修订后重新执行 PyInstaller、Tauri NSIS、sidecar smoke 和静默安装隔离验证。最终安装器 SHA-256 为 6A09DAA7AE992F02F5278BD7B91F08249B9E562E08FE56F8A456643635F553DB，sidecar EXE SHA-256 为 1A460FB53316C22817EFCACC93CEA921EC6993EE7A6B9C13D42CFEACAFC72A3D；安装验证 result=passed，schema=lite0005，model_calls=0。
+
+## DEV-0081 — 2026-11-11 17:13（Asia/Shanghai）：可选版式 PDF 翻译桥接
+
+**目标与边界**：按用户要求借用 zotero-pdf2zh 的版式翻译能力，并复用软件中的模型 API。本轮实现独立翻译板块与原创 HTTP 适配层，不捆绑外部 AGPL-3.0 源码、Server 或引擎。审查上游提交 `e783bb9ffd5cf3caf0efbb2cfd4d19f8d9f8a09e`，Server 自报 4.1.8；另核对 PDFMathTranslate-next 的 OpenAITranslator 请求源码。真实模型调用预算 0，不访问正式库、私人论文、真实密钥或正式 Zotero，不 Commit/Push。
+
+**修改模块**：
+
+- 新增 `translation_contracts.py`、`translation_models.py`、`translation_bridge.py`、`translation_proxy.py`、`translation_api.py` 和 `lite0006_pdf_translations.py`，提供设置/检查、预检、创建、列表/详情、取消和受管产物元数据接口。首版仅全文英文到简体中文，输出中文和左右双语 PDF。
+- `app.py` 接入 pdf_translation worker、重启恢复、取消与通用重试阻断；`storage.py`、烟测和 Windows 校验脚本同步 lite0006。迁移沿用自动备份，仅加表，保留已有 Lite 数据。
+- 每任务一次性 loopback 模型代理冻结模型与参数，真实 Key 只在内存读取；外部配置只接收临时票据。严格拒绝非文本/工具/流式/浏览器 Origin 请求，按发送前账本计量，成功请求可复用，失败撤票阻断重发。补充响应正文凭据回显拒绝，失败仍保留已返回 usage。
+- 源实际字节哈希、预检指纹、预算、终态与模型账本再次验证；关闭外部缓存，译文只存受管路径并在打开前检查 PDF/大小/哈希。译文不注册为作者证据，不覆盖原 PDF，不回写 Zotero。
+- 新增 `PaperTranslation.tsx`、`TranslationSettings.tsx` 和前端专项；`Papers.tsx`、`App.tsx`、`JobHistory.tsx`、`api.ts`、`style.css` 接入第四阅读板块、服务配置、双授权、预算、进度、取消和受控打开。最后修复前端向 create 传递 expected_fingerprint，并将预算标签明确为输入字节估算。
+- `main.rs` 增加精确路由和 `open_translation_artifact`，仅打开引擎验证且位于 canonical 受管目录内的 mono/dual PDF。更新 OpenAPI/TypeScript 导出契约，新增合成 HTTP 翻译烟测 `scripts/smoke-translation.py`。
+- 新增 ADR0036 和 `docs/pdf-translation.md`；同步 README、模型配置、Lite 设计/迁移及 progress，区分外部安装前置与真实质量待验。
+
+**最终验证**：
+
+- 后端全量 `python -m pytest tests/engine -q`：**230 passed / 1 skipped / 1 warning，61.17 秒**；最后代理专项 **24 passed**。覆盖预算、取消/在途连接、重启不重发、凭据保护、去重缓存、真实 loopback 监听器、发布终验、下载路径和迁移保留。警告为既有 TestClient/httpx 弃用提示。
+- TypeScript、ESLint、Prettier 通过；前端 **7 files / 49 passed**，生产构建通过。Ruff、mypy **50 source files**、Rust fmt 通过。
+- Rust 全量含通常忽略的 Host 集成 **9 passed / 0 ignored**；安装后最终引擎再跑 Host 启动/重启 **1 passed**。
+- 最终 PyInstaller sidecar 和安装后的引擎均通过合成 HTTP 翻译烟测：导入阶段 model_calls=0、translation_enabled=false；每个 smoke 的合成 Provider 1次，17输入/7输出/24总Token，2次缓存命中、费用unknown。模拟 PDF 复用匿名 fixture，不能算真实翻译或真实 Token。
+- `lite0005 → lite0006` 自动备份、来源/账本保留、完整性/FK/FTS5 验证通过。隔离静默安装通过，schema lite0006，本地 PDF 解析 0 次模型调用。
+- Gitleaks 8.24.3 官方二进制已校验 release SHA-256；`scripts/check-sensitive.py` 对 **262文件**的内容和敏感路径扫描通过，`git diff --check` 通过；无暂存、提交或上传。
+
+**Windows 交付**：`.local/releases/pdf-translation-20261111/ResearchGraph-Studio-PDF-Translation-0.0.1-x64-setup.exe`，38,452,244 bytes，SHA-256 `25983BFC1F5BC182B02CE71A0AAA3A7897652BF25974A3879FEE96BF0B5084A1`。完整 sidecar 为同目录 `researchgraph-engine/`（EXE 与 `_internal/`），EXE 15,126,340 bytes，SHA-256 `D7321D2DA5096260BC9D25634A03B03789936453F1B41004143871BCBEC61365`，与安装后的 EXE 一致。最终包包含预检指纹与凭据回显保护修补，不交付之前的中间构建。
+
+**实际用量与未解决项**：本轮真实调用、真实输入/输出 Token、真实重试和增量费用均为 0。外部 Server 4.1.8 与排版引擎没有实际安装运行，真实 PDF 排版/中文翻译质量、复杂公式/表格、OCR/字体、真实 Provider 费用、干净机和用户原生桌面仍待验收。外部服务共享配置且会保留文件副本，必须独立安装专用实例；取消只能阻断后续模型请求，无法保证停止外部子进程或免除已发请求费用。请求数/输入估算和输出限额不是金额硬上限。下一步在用户明确预算与样例后，进行单篇公开论文的低预算实际联调，不自动追加收费。
+
+## DEV-0082 — 2026-11-11 18:35（Asia/Shanghai）：翻译 Server 按需自动启停
+
+**目标与范围**：实现用户要求的翻译开始自动后台启用 Server、结束自动关闭。保留手动模式兼容；首次外部完整环境安装与路径选择仍由用户完成。复用上一轮模型代理、用量、缓存和产物校验；真实模型调用预算 0，不读取正式 Key、数据库、私人 PDF 或 Zotero 正式库，不 Commit/Push。
+
+**修改模块**：
+
+- 新增 `translation_runtime.py` 与 `test_translation_runtime.py`。只读校验本机解释器/脚本路径、AST 版本与专用端口；Windows 使用原子 Job List、kill-on-close、隐藏窗口和最小句柄继承，按自建进程树清理；路径 resolve 后再次拒绝 UNC。专属 Job 活动进程数归零才确认停止。
+- `translation_api.py` 在用户授权的非缓存任务中启动 Runtime，持久冻结 `runtime_snapshot`，增加 starting_service / stopping_service 阶段；译文验证后先停止再发布成功，失败、取消和退出 finally 清理。取消后确认关闭更新说明，清理失败保留警告。`translation_bridge.py` 每次实际 HTTP 前检查进程/监听归属，覆盖 health、提交、poll/history 和下载，拒绝替代服务。
+- `translation_contracts.py`、`translation_models.py`、`lite0007_translation_runtime.py`、`storage.py` 增加自动/手动模式、Python/脚本路径和任务快照；已有设置迁移默认 manual、无记录的新安装推荐 managed。已有 Lite 数据加性保留，升级前自动备份。同步 OpenAPI/TypeScript 契约、schema smoke 和 Windows 安装验证。
+- `TranslationSettings.tsx`、`PaperTranslation.tsx`、`PaperTranslation.test.tsx`、`api.ts`、`style.css` 增加模式、路径浏览、只读检查、预检失效和任务阶段提示；`JobHistory.tsx` 同步阶段，`main.rs` 提供受限 Python/server 文件选择命令。
+- 新增 `scripts/smoke-managed-translation.py`，复用 `smoke-translation.py` 的完整 HTTP/代理/下载验证，实际启动原创合成 Server 进程，确认完成前端口释放；手动 smoke 保持。统一 Python 现有未格式化段落，仅调整格式。
+- 新增 ADR0037，更新 README、docs 导航、模型/翻译使用说明、Lite Schema/迁移说明与进度；原 ADR0036 和历史成绩保留。
+
+**实际验证**：
+
+- 后端全量 **258 passed / 1 skipped / 1 warning，67.27 秒**；最后取消清理提示改动后 API 专项 **19 passed**。跳过是本机符号链接权限条件，警告是既有 TestClient/httpx 弃用提示。第一次 `-q` 运行退出码 1、没有完整结果，未计通过；随后 `-v` 写隔离日志的全量完成。
+- Runtime **16** 项与 Bridge **12** 项已包含于全量；覆盖真实合成三层进程、预检不启动、端口占用/替代、失败/超时/取消、owner 强制终止回收、逐请求拒绝和停止未确认不发布。`lite0006 → lite0007` 自动备份、数据保留、数据库完整性与 FTS5 迁移测试通过。
+- 前端 **7 files / 54 passed**；TypeScript、ESLint、Prettier、Ruff、Python 格式 **83 files**、mypy **52 source files**、Rust fmt 通过。打包 Host 全量 **9 passed / 0 ignored**，安装后引擎 Host 重启专项 **1 passed**。
+- `scripts/build-windows.ps1` 完整成功，PyInstaller 与 Tauri NSIS 均完成。既有前端 chunk 警告本轮约 546.51KB，非构建失败。
+- 源码/封存 sidecar 的自动与手动合成 HTTP smoke 均通过，安装后 sidecar 自动 smoke 再次通过。每个独立 smoke：合成 Provider 1次、输入17/输出7/总24 Token、缓存命中2；实际启动合成服务、完成前确认端口释放。返回匿名原 PDF 模拟产物，不能当真实翻译或真实用量。
+- 隔离静默安装、schema lite0007、默认翻译关闭、匿名 PDF 本地解析/章节索引通过，导入模型调用 0；安装后引擎哈希与封存侧载一致。验证材料在忽略目录 `.local/verify/managed-translation-20261111/`。
+- Gitleaks 8.24.3 内容与敏感路径扫描 **267文件通过**；`git diff --check` 通过，无暂存、提交或上传。
+
+**Windows 交付**：`.local/releases/managed-translation-20261111/ResearchGraph-Studio-Managed-Translation-0.0.1-x64-setup.exe`，38,482,111 bytes，SHA-256 `8BFB67708455E45BB87CE6202AE5763E5818A92A9A773175ED48A19AD24E598C`。同目录完整 `researchgraph-engine/` 的 EXE 为15,149,511 bytes，SHA-256 `F4C9806BFFBC60BF135AAD429A7966C6DEE7E22834AA3EEC05A114A3C794BA66`，必须带 `_internal/`；安装器未签名，未替换用户日常安装。
+
+**用量、未解决项与下一步**：真实模型调用/输入/输出/重试/增量费用均0。外部 Server 与完整排版引擎未实际安装运行，真实译文、复杂版式、公式/表格、OCR/字体、费用和用户桌面体验尚待验收；合成协议不替代真实质量。首次环境安装、专用目录与两个路径配置仍必要。通知检查与首次资源下载可能联网，关闭源码更新/环境创建不等于完全离线。取消后前端停止活动轮询，稍后清理警告可能需刷新显示，当前只提示请求关闭、不冒充清理完成。下一步在有明确样例及调用预算后做单篇公开论文实际联调，不自动收费。
+
+## DEV-0083 — 2026-11-11 20:16（Asia/Shanghai）：内置翻译运行时、输出格式与阅读布局
+
+**目标与范围**：按用户四项要求把翻译环境纳入 Windows 安装，提供双语/仅中文选择，将阅读工作区与功能入口置顶，论文详细信息收进底部独立默认折叠卡片。继续保持真实模型调用0，不读取正式凭据、用户库、Zotero正式库或私人PDF，不Commit/Push。前轮“外部环境用户独立安装”的默认入口约定由ADR0038覆盖，高级外部模式仍保留。
+
+**实际修改**：
+
+- 新增 `translation_bundled.py` 原创私有loopback adapter，调用固定PDFMathTranslate-next 2.10.2/BabelDOC 0.7.1官方独立CLI，不要求Zotero Server。72MiB请求/50MiB源文件/200MiB单产物限制，严格UUID、JSON、输出、loopback proxy及Bearer校验，拒Origin和任意命令/路径；模型参数写受管任务TOML，仅含临时代理票据，真实Key不离开原模型代理。CLI固定OpenAI、关闭旧缓存、自动术语提取和配置保存；隔离HOME/环境、无窗口、丢弃原始输出。退出清临时文件，父Runtime控制全进程树。
+- `translation_runtime.py`、`__main__.py` 和 `translation_api.py` 接入bundled进程入口、随机端口、服务票据、运行版号、资源只读预检、引擎身份冻结及旧快照manual兼容；复用Windows原子Job和归属校验。没有进程的启动失败同样清临时目录；完成前确认进程树停止。
+- `translation_contracts.py`、`translation_models.py`、`translation_bridge.py`、`lite0008_translation_outputs.py`、`storage.py` 增加dual/mono/both、格式缓存分离和单产物校验。新UI显式dual，旧API缺字段及历史both；迁移备份保留Lite数据、旧任务快照及外部路径，未来设置enabled/bundled。Bridge增加Bearer/expected_version/noMono/noDual。更新导出OpenAPI/TS契约和Rust schema握手。
+- `PaperTranslation.tsx`、`TranslationSettings.tsx`、`api.ts` 提供内置默认、外部高级选项、双语/中文选择、预检/授权失效和按实际产物打开。`Papers.tsx`、新增 `PaperMetadata.tsx` 及限定CSS将四阅读功能置顶，完整信息在底部默认折叠；原文按需读取，切论文重置折叠。
+- `prepare-translation-runtime.ps1`、固定manifest及notices负责下载/校验/准备未修改官方运行时、离线字体/模型/分词/CMap和来源许可材料；源包含匹配next/BabelDOC/PyMuPDF/MuPDF/Levenshtein/marisa/SciPy来源，保留原始许可。Tauri资源、build-windows与CI接入，二进制和来源归档都被忽略，不入Git。现资源25,263文件/1,457,616,856字节。准备脚本支持精确匹配复用，坏缓存拒绝不覆盖。
+- 新增实际核心合成smoke和adapter/runtime专项；更新旧manual/managed smoke、安装验证脚本、README、翻译/模型说明、Schema/迁移文档与ADR0038。
+
+**最终验证**：
+
+- 后端全量330 passed/1 skipped/1 warning，95.16秒；跳过为符号链接权限，警告为既有TestClient弃用。新增adapter35、bundled runtime19及bundled API5包含在全量中。
+- 前端7 files/61 passed（阅读24、翻译16），TypeScript/ESLint/Prettier及生产构建通过。Python Ruff/格式88文件、mypy54源通过；Rust fmt/clippy通过。原生Host全量9 passed/0 ignored，安装后Host重启专项另1 passed。
+- 实际官方CLI的源码、封存sidecar和安装后sidecar分别连接本地合成Provider，匿名两页正文mono/dual及缓存均通过。每个独立双模式smoke合成26次（格式各13）、模拟input442/output182/total624；不是实测真实Token或翻译质量。封存和安装版本还验证中文文字及左右双语页宽。安装后mono44.500秒/175012字节/2页，dual38.281秒/177747字节/2页；不存在另一格式冒充成功。
+- 最初旧稀疏fixture被上游判定为扫描件，失败时未发布译文，诊断保留；随后改用匿名正文密度样例。独立调试也仅用合成Provider，不掩盖最初失败。
+- 封存sidecar的manual/managed协议smoke分别通过，各合成1次、17/7/24模拟Token和2次缓存命中；managed完成前端口释放。
+- PowerShell5.1准备、幂等复核与坏缓存负向通过；`build-windows.ps1`完整PyInstaller/NSIS通过。隔离静默安装schema lite0008、内置默认资源及安装后资源哈希检查通过，PDF解析/章节索引0模型调用。安装后的引擎哈希与封存一致。
+- Gitleaks与内容/路径检查277文件通过，diff检查通过；无暂存/Commit/Push或远端CI运行。报告在忽略目录`.local/pdf2zh-audit/`与`.local/verify/bundled-translation-20261111/`。
+
+**Windows交付**：`.local/releases/bundled-translation-20261111/ResearchGraph-Studio-Bundled-Translation-0.0.1-x64-setup.exe`，753,899,166字节/718.97MiB，SHA256 `EAD2191E9E3F95494A935D32FDC472FEDB0658D63D292AC7D9E5C4422CBA1C06`。同目录完整`researchgraph-engine/`含`_internal/`及`translation-runtime/`；EXE 15,171,417字节，SHA256 `D98728D461E61A2646BB89B48AB8D30E4F24CC45B540B1596A538FE9D9AAF9E8`。包未签名，不覆盖前轮封存包，未替换用户日常安装。
+
+**用量、限制与下一步**：真实调用、真实输入/输出Token、真实重试、增量费用全部0。实际排版与模型代理连通已测，真实论文翻译科学质量、复杂公式/表格、扫描件和用户桌面反馈未测。没有运行随包VC++安装器或改系统依赖，本机隔离安装不是干净机验收；不宣称网络隔离沙箱。后续可在用户明确样例和预算后做真实文献质量验收，不能自动收费。当前不扩展到其他开发phase。
+
+## DEV-0084 — 2026-11-11 23:24（Asia/Shanghai）：翻译代理兼容修复与具体错误提示
+
+**目标与事实边界**：继续修复翻译时“模型代理预算或请求校验失败”。用户补充历史码为 `TRANSLATION_PROVIDER_FAILED`；旧码与通用文案不足以还原准确 HTTP 或响应根因，本轮不能证明该用户一定遇到 HTTP400、思考参数或SDK字段错误。不读取正式凭据/库/私人PDF，不调用真实模型，不Commit/Push，保留共享工作区原有改动。
+
+**实际修改**：
+
+- `translation_proxy.py` 增加有限SDK兼容字段类型/值域检查，按冻结模型和程序输出上限重建请求；非法请求撤销代理。新最小策略不转发阅读采样/思考/适配参数，仍拒绝流式、工具、结构化输出、图像、非空extra_body与未知字段。用量extra只增实际出站字段名，不持久化请求正文、票据、Key或上游错误正文。
+- `translation_api.py` 为新bundled任务冻结 `translation_request_policy=text-chat-minimal-1`，有字段才加入身份；旧无字段任务保留原身份、快照、参数转发及缓存键。按冻结策略执行，不修改阅读Profile，无迁移，head仍lite0008。HTTP鉴权/限流/其他4xx、截断与非法响应分别显示具体代码/中文，未知结束状态不补stop；失败撤权、无自动重发，已返回usage保留。
+- `test_translation_proxy.py`、`test_translation_api.py` 增加SDK安全字段、最小请求、新旧快照/缓存身份、预算/HTTP400/401/429、截断/未知finish、脱敏及用量/不发布/SDK和worker和GET不重发回归。
+- 增强 `smoke-bundled-translation.py`：含阅读可选参数的Profile遇到严格合成Provider仍能完成mono/dual；独立模型身份的HTTP400必须只外发1次、失败无产物、具体提示、不回显诊断。使用实际随包CLI，不以假PDF冒充排版结果。
+- 新增ADR0039，更新文献翻译、模型配置、文档导航与实际进度。
+
+**实际验证**：
+
+- 项目Conda解释器执行代理/API专项81 passed/1 warning、9.09秒；最终全量 `python -m pytest tests/engine -v`：355 passed/1 skipped/1 warning、65.18秒。跳过为本机符号链接权限，警告为既有Starlette/httpx弃用。Ruff/格式91文件、mypy54源通过；源manifest54文件与最终封存时一致。
+- 前端本修复未改；本轮早先TypeScript/ESLint/Prettier与7 files/61 passed通过，最终生产构建再次通过。549.60KB chunk提示保留。
+- PowerShell7执行完整 `scripts/build-windows.ps1`：资源复核、PyInstaller、Tauri、NSIS成功，不冒充本轮完整PS5.1构建验收。最终安装器隔离安装、schema lite0008、默认bundled与资源、匿名PDF解析/章节索引通过，本地处理0模型调用。安装后引擎哈希与封存一致。
+- 安装后实际引擎的原生Host全量9 passed/0 ignored，含启动/重启。实际随包CLI安装后增强smoke通过：mono42.922秒/175012字节/2页，dual47.969秒/177747字节/2页；中文、双语页宽及两种整篇缓存通过。出站仅max_tokens/messages/model，阅读temperature/top_p/reasoning_effort均未注入。
+- 安装smoke独立合成27次（13+13+HTTP400负向1），400约7.828秒FAILED/TRANSLATION_PROVIDER_REQUEST_REJECTED，重试0、无产物、无上游私密诊断回显，GET不重发。成功两格式固定模拟442输入/182输出/624总Token；负向无usage仍未知。源码增强smoke另行通过，不能把这些夹具值算作真实用量。
+- 封存最终sidecar manual/managed smoke分别通过，各合成1次、17/7/24模拟Token、2次缓存命中；managed完成前端口释放。首次managed命令缺必填runtime-python，参数解析即退出未验证；补齐后通过，不掩盖该尝试。
+- 源码内容/私人路径规则及Gitleaks 278文件通过，29个本地文档链接及git diff --check通过；暂存区为空，无Commit/Push。
+
+**Windows交付**：`.local/releases/translation-proxy-fix-final-20261111/ResearchGraph-Studio-Translation-Proxy-Fix-0.0.1-x64-setup.exe`，754646101字节/719.69MiB，SHA256 `11D9F2ADAFC639DC334D9FE15AB383864C5875AC1173C4CF99F2ACB8C6FE944F`。同目录完整sidecar EXE15174112字节，SHA256 `1B71C55505DD4A849776F212AEF6E9D3E61377381E6D5CAE02196CE02C5BAB31`，须带_internal和translation-runtime。包未签名，不覆盖前轮封存包，不替换用户日常安装目录；隔离安装资料在`.local/verify/translation-proxy-fix-final-20261111/`，测试构建报告在`.local/pdf2zh-audit/proxy-final-*`，均忽略不入Git。
+
+**用量、未解决项与下一步**：本轮真实模型调用、真实输入/输出Token、真实重试、增量费用均0。旧失败记录与其实际/未知用量保留；用户Provider准确根因、真实文献质量、复杂版式、干净机和用户原生界面体验尚未验收。引导用户安装最终包，重新预检并显式提交新任务；不自动重试、不自动收费，不扩展phase。

@@ -175,6 +175,26 @@ async def worker(engine: Engine, data_dir: Path) -> None:
 
                 await execute_overview(engine, job_id, data_dir)
                 continue
+            if kind == "section_guide":
+                from researchgraph.section_guide_api import execute_section_guide
+
+                await execute_section_guide(engine, job_id, data_dir)
+                continue
+            if kind == "grounded_qa":
+                from researchgraph.qa_api import execute_qa
+
+                await execute_qa(engine, job_id, data_dir)
+                continue
+            if kind == "search_keywords":
+                from researchgraph.keyword_api import execute_keyword_expansion
+
+                await execute_keyword_expansion(engine, job_id, data_dir)
+                continue
+            if kind == "pdf_translation":
+                from researchgraph.translation_api import execute_translation
+
+                await execute_translation(engine, job_id, data_dir)
+                continue
             if kind in {"pdf_import", "source_check", "source_relocate", "zotero_import"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
@@ -216,9 +236,17 @@ def create_app(
                 app.state.workspace_cleanup = recover_workspaces(data_dir)
                 # Overview requests persist their own PENDING result and must be
                 # marked interrupted on restart without being sent again.
+                from researchgraph.keyword_api import recover_keywords
                 from researchgraph.paper_overview_api import recover_overviews
+                from researchgraph.qa_api import recover_qa
+                from researchgraph.section_guide_api import recover_section_guides
+                from researchgraph.translation_api import recover_translations
 
                 recover_overviews(engine)
+                recover_section_guides(engine)
+                recover_qa(engine)
+                recover_keywords(engine)
+                recover_translations(engine)
                 with Session(engine) as session, session.begin():
                     session.execute(
                         update(Job)
@@ -318,13 +346,21 @@ def create_app(
 
     register_settings_api(app, engine, data_dir)
     register_zotero_batch_api(app, engine)
+    from researchgraph.keyword_api import register_keyword_api
     from researchgraph.lite_usage import register_lite_usage_api
     from researchgraph.local_index import register_local_index_api
     from researchgraph.paper_overview_api import register_paper_overview_api
+    from researchgraph.qa_api import register_qa_api
+    from researchgraph.section_guide_api import register_section_guide_api
+    from researchgraph.translation_api import register_translation_api
 
     register_lite_usage_api(app, engine)
     register_local_index_api(app, engine)
     register_paper_overview_api(app, engine, data_dir)
+    register_section_guide_api(app, engine, data_dir)
+    register_qa_api(app, engine, data_dir)
+    register_keyword_api(app, engine, data_dir)
+    register_translation_api(app, engine, data_dir)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -475,15 +511,25 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
-            if action == "retry" and job.kind == "paper_overview":
+            if action == "retry" and job.kind in {
+                "paper_overview",
+                "section_guide",
+                "grounded_qa",
+                "search_keywords",
+                "pdf_translation",
+            }:
                 raise failure(
                     409,
                     "EXPLICIT_GENERATION_REQUIRED",
-                    "请在论文概览中手动重新生成；模型任务不会自动重发",
+                    "请在对应阅读模块中手动重新生成；模型任务不会自动重发",
                 )
             if action == "cancel" and job.status in {"queued", "running"}:
                 job.status = "cancelled"
-                if job.kind == "paper_overview":
+                if job.kind == "pdf_translation":
+                    from researchgraph.translation_api import cancel_translation_job
+
+                    cancel_translation_job(session, job)
+                elif job.kind == "paper_overview":
                     from researchgraph.paper_overview_models import PaperOverviewResult
 
                     overview = session.scalar(
@@ -497,6 +543,48 @@ def create_app(
                         overview.error_code = "CANCELLED"
                         overview.error = "概览任务已取消，未自动重发"
                         overview.updated_at = now()
+                elif job.kind == "section_guide":
+                    from researchgraph.section_guide_models import SectionGuideResult
+
+                    guide = session.scalar(
+                        select(SectionGuideResult).where(
+                            SectionGuideResult.job_id == job.id,
+                            SectionGuideResult.status == "PENDING",
+                        )
+                    )
+                    if guide is not None:
+                        guide.status = "FAILED"
+                        guide.error_code = "CANCELLED"
+                        guide.error = "章节导读任务已取消，未自动重发"
+                        guide.updated_at = now()
+                elif job.kind == "grounded_qa":
+                    from researchgraph.qa_models import LiteQARecord
+
+                    record = session.scalar(
+                        select(LiteQARecord).where(
+                            LiteQARecord.job_id == job.id,
+                            LiteQARecord.status == "PENDING",
+                        )
+                    )
+                    if record is not None:
+                        record.status = "FAILED"
+                        record.error_code = "CANCELLED"
+                        record.error = "证据问答任务已取消，未自动重发"
+                        record.updated_at = now()
+                elif job.kind == "search_keywords":
+                    from researchgraph.keyword_models import LiteKeywordRecord
+
+                    keyword_record = session.scalar(
+                        select(LiteKeywordRecord).where(
+                            LiteKeywordRecord.job_id == job.id,
+                            LiteKeywordRecord.status == "PENDING",
+                        )
+                    )
+                    if keyword_record is not None:
+                        keyword_record.status = "FAILED"
+                        keyword_record.error_code = "CANCELLED"
+                        keyword_record.error = "关键词任务已取消，未自动重发"
+                        keyword_record.updated_at = now()
             elif (
                 action == "retry"
                 and job.status in {"failed", "interrupted", "cancelled"}

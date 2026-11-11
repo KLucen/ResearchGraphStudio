@@ -205,6 +205,480 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/connections": {
+      "post": {
+        "summary": "Create Connection",
+        "operationId": "create_connection_api_v1_projects__project_id__connections_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/connections": {
+      "post": {
+        "summary": "Create Connection",
+        "operationId": "create_connection_api_v1_settings_connections_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/connections/{connection_id}/update": {
+      "post": {
+        "summary": "Update Connection",
+        "operationId": "update_connection_api_v1_projects__project_id__connections__connection_id__update_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/connections/{connection_id}/update": {
+      "post": {
+        "summary": "Update Connection",
+        "operationId": "update_connection_api_v1_settings_connections__connection_id__update_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/connections/{connection_id}/delete": {
+      "post": {
+        "summary": "Remove Connection",
+        "operationId": "remove_connection_api_v1_projects__project_id__connections__connection_id__delete_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Remove Connection Api V1 Projects  Project Id  Connections  Connection Id  Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/connections/{connection_id}/delete": {
+      "post": {
+        "summary": "Remove Connection",
+        "operationId": "remove_connection_api_v1_settings_connections__connection_id__delete_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Remove Connection Api V1 Settings Connections  Connection Id  Delete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/connections/{connection_id}/test": {
+      "post": {
+        "summary": "Test Model Connection",
+        "operationId": "test_model_connection_api_v1_projects__project_id__connections__connection_id__test_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Model Connection Api V1 Projects  Project Id  Connections  Connection Id  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/connections/{connection_id}/test": {
+      "post": {
+        "summary": "Test Model Connection",
+        "operationId": "test_model_connection_api_v1_settings_connections__connection_id__test_post",
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Connection Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Model Connection Api V1 Settings Connections  Connection Id  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/models/{profile_id}/update": {
       "post": {
         "summary": "Update",
@@ -921,6 +1395,24 @@
         }
       }
     },
+    "/api/v1/lite/usage": {
+      "get": {
+        "summary": "Global Usage",
+        "operationId": "global_usage_api_v1_lite_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiteUsageView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/lite/usage": {
       "get": {
         "summary": "Usage",
@@ -1560,6 +2052,1071 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/section-guides": {
+      "get": {
+        "summary": "List Guides",
+        "operationId": "list_guides_api_v1_papers__paper_id__section_guides_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(quick|standard|deep)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuideView"
+                  },
+                  "title": "Response List Guides Api V1 Papers  Paper Id  Section Guides Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/guide": {
+      "get": {
+        "summary": "Get Guide",
+        "operationId": "get_guide_api_v1_papers__paper_id__sections__section_id__guide_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(quick|standard|deep)$",
+              "default": "standard",
+              "title": "Depth"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/GuideView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Guide Api V1 Papers  Paper Id  Sections  Section Id  Guide Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/guide/generate": {
+      "post": {
+        "summary": "Generate",
+        "operationId": "generate_api_v1_papers__paper_id__sections__section_id__guide_generate_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa": {
+      "get": {
+        "summary": "List Qa",
+        "operationId": "list_qa_api_v1_papers__paper_id__qa_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "selection",
+                    "section",
+                    "paper"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QAView"
+                  },
+                  "title": "Response List Qa Api V1 Papers  Paper Id  Qa Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa/{qa_id}": {
+      "get": {
+        "summary": "Get Qa",
+        "operationId": "get_qa_api_v1_papers__paper_id__qa__qa_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "qa_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Qa Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QAView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa/ask": {
+      "post": {
+        "summary": "Ask",
+        "operationId": "ask_api_v1_papers__paper_id__qa_ask_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QAGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QAView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa/keywords": {
+      "get": {
+        "summary": "List Keywords",
+        "operationId": "list_keywords_api_v1_papers__paper_id__qa_keywords_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KeywordView"
+                  },
+                  "title": "Response List Keywords Api V1 Papers  Paper Id  Qa Keywords Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Ask Keywords",
+        "operationId": "ask_keywords_api_v1_papers__paper_id__qa_keywords_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa/keywords/{keyword_id}": {
+      "get": {
+        "summary": "Get Keywords",
+        "operationId": "get_keywords_api_v1_papers__paper_id__qa_keywords__keyword_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "keyword_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Keyword Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/translation": {
+      "get": {
+        "summary": "Settings",
+        "operationId": "settings_api_v1_settings_translation_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationSettings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save Settings",
+        "operationId": "save_settings_api_v1_settings_translation_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationSettings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/translation/check": {
+      "post": {
+        "summary": "Check",
+        "operationId": "check_api_v1_settings_translation_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/translations/prepare": {
+      "post": {
+        "summary": "Prepare",
+        "operationId": "prepare_api_v1_papers__paper_id__translations_prepare_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationPrepare"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/translations": {
+      "post": {
+        "summary": "Create",
+        "operationId": "create_api_v1_papers__paper_id__translations_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 8,
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranslationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Translations",
+        "operationId": "list_translations_api_v1_papers__paper_id__translations_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TranslationView"
+                  },
+                  "title": "Response List Translations Api V1 Papers  Paper Id  Translations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/translations/{translation_id}": {
+      "get": {
+        "summary": "Get Translation",
+        "operationId": "get_translation_api_v1_papers__paper_id__translations__translation_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "translation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Translation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/translations/{translation_id}/cancel": {
+      "post": {
+        "summary": "Cancel",
+        "operationId": "cancel_api_v1_papers__paper_id__translations__translation_id__cancel_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "translation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Translation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/translations/{translation_id}/artifacts/{kind}": {
+      "get": {
+        "summary": "Artifact",
+        "operationId": "artifact_api_v1_translations__translation_id__artifacts__kind__get",
+        "parameters": [
+          {
+            "name": "translation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Translation Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "paper_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationArtifactPath"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/translations/{translation_id}/artifacts/{kind}": {
+      "get": {
+        "summary": "Artifact",
+        "operationId": "artifact_api_v1_papers__paper_id__translations__translation_id__artifacts__kind__get",
+        "parameters": [
+          {
+            "name": "translation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Translation Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranslationArtifactPath"
                 }
               }
             }
@@ -2478,6 +4035,131 @@
         ],
         "title": "CollectionPage"
       },
+      "ConnectionInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "openai",
+              "compatible",
+              "local"
+            ],
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Base Url",
+            "default": ""
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2400,
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "clear_key": {
+            "type": "boolean",
+            "title": "Clear Key",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "provider"
+        ],
+        "title": "ConnectionInput"
+      },
+      "ConnectionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "title": "Has Api Key"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "provider",
+          "base_url",
+          "has_api_key",
+          "updated_at"
+        ],
+        "title": "ConnectionView"
+      },
+      "DifficultTerm": {
+        "properties": {
+          "term_en": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Term En"
+          },
+          "hint_zh": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Hint Zh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "term_en",
+          "hint_zh"
+        ],
+        "title": "DifficultTerm"
+      },
       "DocumentStructure": {
         "properties": {
           "document_version_id": {
@@ -2517,6 +4199,29 @@
           "sections"
         ],
         "title": "DocumentStructure"
+      },
+      "EvidenceCitation": {
+        "properties": {
+          "span_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Span Id"
+          },
+          "reason_zh": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Reason Zh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "span_id",
+          "reason_zh"
+        ],
+        "title": "EvidenceCitation"
       },
       "EvidenceView": {
         "properties": {
@@ -2682,6 +4387,338 @@
           "zoom"
         ],
         "title": "GraphViewport"
+      },
+      "GuideEvidence": {
+        "properties": {
+          "span_id": {
+            "type": "string",
+            "title": "Span Id"
+          },
+          "page_start": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page End"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Quote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "span_id",
+          "page_start",
+          "page_end",
+          "quote"
+        ],
+        "title": "GuideEvidence"
+      },
+      "GuideGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Section Id"
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "quick",
+              "standard",
+              "deep"
+            ],
+            "title": "Depth",
+            "default": "standard"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "section_id"
+        ],
+        "title": "GuideGenerate"
+      },
+      "GuideUsage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "usage_source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "unknown"
+            ],
+            "title": "Usage Source",
+            "default": "unknown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "GuideUsage"
+      },
+      "GuideView": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "quick",
+              "standard",
+              "deep"
+            ],
+            "title": "Depth"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "COMPLETED",
+                  "FAILED",
+                  "STALE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "guide": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReadingGuideDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/GuideUsage"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/GuideEvidence"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "section_id",
+          "depth",
+          "source_hash",
+          "input_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "usage",
+          "generated_at"
+        ],
+        "title": "GuideView"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2932,6 +4969,306 @@
           "updated_at"
         ],
         "title": "JobView"
+      },
+      "KeywordGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 3000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "local_hit_count": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Local Hit Count",
+            "default": 0
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "KeywordGenerate"
+      },
+      "KeywordUsage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "usage_source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "estimated",
+              "unknown"
+            ],
+            "title": "Usage Source",
+            "default": "unknown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "KeywordUsage"
+      },
+      "KeywordView": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "local_hit_count": {
+            "type": "integer",
+            "title": "Local Hit Count"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "keywords": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchKeywordsDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/KeywordUsage"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "question",
+          "local_hit_count",
+          "source_hash",
+          "input_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "usage",
+          "generated_at"
+        ],
+        "title": "KeywordView"
       },
       "LayoutInput": {
         "properties": {
@@ -3917,20 +6254,46 @@
             "minLength": 1,
             "title": "Name"
           },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
           "provider": {
-            "type": "string",
-            "enum": [
-              "openai",
-              "compatible",
-              "local"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "openai",
+                  "compatible",
+                  "local"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "Provider"
           },
           "base_url": {
-            "type": "string",
-            "maxLength": 1000,
-            "title": "Base Url",
-            "default": ""
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
           },
           "model": {
             "type": "string",
@@ -3965,7 +6328,6 @@
         "type": "object",
         "required": [
           "name",
-          "provider",
           "model"
         ],
         "title": "ProfileInput"
@@ -3990,6 +6352,28 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "connection_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Id"
+          },
+          "connection_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Name"
           },
           "provider": {
             "type": "string",
@@ -4021,6 +6405,8 @@
           "id",
           "project_id",
           "name",
+          "connection_id",
+          "connection_name",
           "provider",
           "base_url",
           "model",
@@ -4123,6 +6509,498 @@
           "created_at"
         ],
         "title": "ProjectView"
+      },
+      "QAAnswerDraft": {
+        "properties": {
+          "answer_zh": {
+            "type": "string",
+            "maxLength": 1800,
+            "minLength": 1,
+            "title": "Answer Zh"
+          },
+          "evidence_citations": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceCitation"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Evidence Citations"
+          },
+          "insufficient_evidence": {
+            "type": "boolean",
+            "title": "Insufficient Evidence"
+          },
+          "uncertainty_zh": {
+            "type": "string",
+            "maxLength": 400,
+            "title": "Uncertainty Zh",
+            "default": ""
+          },
+          "suggest_expand_scope": {
+            "type": "boolean",
+            "title": "Suggest Expand Scope",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "answer_zh",
+          "insufficient_evidence"
+        ],
+        "title": "QAAnswerDraft"
+      },
+      "QAEvidence": {
+        "properties": {
+          "span_id": {
+            "type": "string",
+            "title": "Span Id"
+          },
+          "page_start": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page End"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Quote"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "span_id",
+          "page_start",
+          "page_end",
+          "quote",
+          "section_id"
+        ],
+        "title": "QAEvidence"
+      },
+      "QAGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "selection",
+              "section",
+              "paper"
+            ],
+            "title": "Scope",
+            "default": "section"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 3000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "selection_span_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Selection Span Ids"
+          },
+          "optional_short_card": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optional Short Card"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "retry_failed": {
+            "type": "boolean",
+            "title": "Retry Failed",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "QAGenerate"
+      },
+      "QAUsage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          },
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "usage_source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "estimated",
+              "unknown"
+            ],
+            "title": "Usage Source",
+            "default": "unknown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "QAUsage"
+      },
+      "QAView": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Id"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "selection",
+              "section",
+              "paper"
+            ],
+            "title": "Scope"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "COMPLETED",
+                  "FAILED",
+                  "STALE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QAAnswerDraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/QAUsage"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "retrieval_spans": {
+            "items": {
+              "$ref": "#/components/schemas/QAEvidence"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Retrieval Spans"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "scope",
+          "question",
+          "source_hash",
+          "input_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "usage",
+          "generated_at"
+        ],
+        "title": "QAView"
+      },
+      "ReadingGuideDraft": {
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Section Id"
+          },
+          "overview_zh": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Overview Zh"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Key Points"
+          },
+          "reading_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 2,
+            "title": "Reading Questions"
+          },
+          "difficult_terms": {
+            "items": {
+              "$ref": "#/components/schemas/DifficultTerm"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Difficult Terms"
+          },
+          "evidence_span_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Span Ids"
+          },
+          "needs_more_context": {
+            "type": "boolean",
+            "title": "Needs More Context",
+            "default": false
+          },
+          "caveats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "title": "Caveats"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "section_id",
+          "overview_zh",
+          "key_points",
+          "reading_questions"
+        ],
+        "title": "ReadingGuideDraft"
       },
       "RevisionView": {
         "properties": {
@@ -4247,6 +7125,26 @@
         ],
         "title": "SearchHit"
       },
+      "SearchKeywordsDraft": {
+        "properties": {
+          "english_queries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "English Queries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "english_queries"
+        ],
+        "title": "SearchKeywordsDraft",
+        "description": "Only short English terms are allowed; this is not a QA response."
+      },
       "SearchResults": {
         "properties": {
           "query": {
@@ -4368,6 +7266,13 @@
       },
       "SettingsView": {
         "properties": {
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionView"
+            },
+            "type": "array",
+            "title": "Connections"
+          },
           "profiles": {
             "items": {
               "$ref": "#/components/schemas/ProfileView"
@@ -4387,6 +7292,7 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "connections",
           "profiles",
           "roles"
         ],
@@ -4504,6 +7410,714 @@
           "last_check"
         ],
         "title": "SourceView"
+      },
+      "TranslationArtifact": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mono",
+              "dual"
+            ],
+            "title": "Kind"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "sha256",
+          "size_bytes",
+          "page_count"
+        ],
+        "title": "TranslationArtifact"
+      },
+      "TranslationArtifactPath": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mono",
+              "dual"
+            ],
+            "title": "Kind"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "translation_id": {
+            "type": "string",
+            "title": "Translation Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "sha256",
+          "size_bytes",
+          "page_count",
+          "translation_id",
+          "path"
+        ],
+        "title": "TranslationArtifactPath"
+      },
+      "TranslationCreate": {
+        "properties": {
+          "document_version_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Document Version Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Profile Id"
+          },
+          "output_mode": {
+            "type": "string",
+            "enum": [
+              "dual",
+              "mono",
+              "both"
+            ],
+            "title": "Output Mode",
+            "default": "both"
+          },
+          "page_start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Start"
+          },
+          "page_end": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page End"
+          },
+          "max_calls": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Max Calls",
+            "default": 100
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "maximum": 5000000.0,
+            "minimum": 1000.0,
+            "title": "Max Input Tokens",
+            "default": 200000
+          },
+          "expected_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Fingerprint"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "exclusive_service": {
+            "type": "boolean",
+            "title": "Exclusive Service",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_version_id",
+          "profile_id",
+          "expected_fingerprint"
+        ],
+        "title": "TranslationCreate"
+      },
+      "TranslationHealth": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "active_tasks": {
+            "type": "integer",
+            "title": "Active Tasks",
+            "default": 0
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "available",
+          "status",
+          "message"
+        ],
+        "title": "TranslationHealth"
+      },
+      "TranslationPrepare": {
+        "properties": {
+          "launch_mode": {
+            "type": "string",
+            "enum": [
+              "bundled",
+              "managed",
+              "manual"
+            ],
+            "title": "Launch Mode",
+            "default": "manual"
+          },
+          "output_mode": {
+            "type": "string",
+            "enum": [
+              "dual",
+              "mono",
+              "both"
+            ],
+            "title": "Output Mode",
+            "default": "both"
+          },
+          "prepare_fingerprint": {
+            "type": "string",
+            "title": "Prepare Fingerprint"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "page_start": {
+            "type": "integer",
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "title": "Page End"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "source_characters": {
+            "type": "integer",
+            "title": "Source Characters"
+          },
+          "estimated_input_tokens": {
+            "type": "integer",
+            "title": "Estimated Input Tokens"
+          },
+          "estimate_is_limit": {
+            "type": "boolean",
+            "const": false,
+            "title": "Estimate Is Limit",
+            "default": false
+          },
+          "estimate_note": {
+            "type": "string",
+            "title": "Estimate Note",
+            "default": "按当前 PDF 文本 UTF-8 字节保守估算，外部引擎的提示和分段会影响实际用量；这不是收费上限。请求次数和累计输入字节估算上限由本机代理独立执行，真实 Token 以模型返回值统计；每次输出另有 8192 Token 上限或模型已知的更低上限。"
+          },
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit"
+          },
+          "cached_translation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Translation Id"
+          },
+          "service_ready": {
+            "type": "boolean",
+            "title": "Service Ready"
+          },
+          "active_tasks": {
+            "type": "integer",
+            "title": "Active Tasks"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "prepare_fingerprint",
+          "paper_id",
+          "document_version_id",
+          "source_hash",
+          "page_start",
+          "page_end",
+          "page_count",
+          "source_characters",
+          "estimated_input_tokens",
+          "profile_id",
+          "model_id",
+          "cache_hit",
+          "service_ready",
+          "active_tasks",
+          "warnings"
+        ],
+        "title": "TranslationPrepare"
+      },
+      "TranslationRequest": {
+        "properties": {
+          "document_version_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Document Version Id"
+          },
+          "profile_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Profile Id"
+          },
+          "output_mode": {
+            "type": "string",
+            "enum": [
+              "dual",
+              "mono",
+              "both"
+            ],
+            "title": "Output Mode",
+            "default": "both"
+          },
+          "page_start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Start"
+          },
+          "page_end": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 300.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page End"
+          },
+          "max_calls": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Max Calls",
+            "default": 100
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "maximum": 5000000.0,
+            "minimum": 1000.0,
+            "title": "Max Input Tokens",
+            "default": 200000
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_version_id",
+          "profile_id"
+        ],
+        "title": "TranslationRequest"
+      },
+      "TranslationSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "service_url": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Service Url",
+            "default": "http://127.0.0.1:8890"
+          },
+          "launch_mode": {
+            "type": "string",
+            "enum": [
+              "bundled",
+              "managed",
+              "manual"
+            ],
+            "title": "Launch Mode",
+            "default": "bundled"
+          },
+          "python_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Python Path"
+          },
+          "server_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TranslationSettings"
+      },
+      "TranslationUsage": {
+        "properties": {
+          "calls": {
+            "type": "integer",
+            "title": "Calls",
+            "default": 0
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "unknown_usage_calls": {
+            "type": "integer",
+            "title": "Unknown Usage Calls",
+            "default": 0
+          },
+          "cost_estimate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Estimate",
+            "default": 0
+          },
+          "cost_known": {
+            "type": "boolean",
+            "title": "Cost Known",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TranslationUsage"
+      },
+      "TranslationView": {
+        "properties": {
+          "launch_mode": {
+            "type": "string",
+            "enum": [
+              "bundled",
+              "managed",
+              "manual"
+            ],
+            "title": "Launch Mode",
+            "default": "manual"
+          },
+          "output_mode": {
+            "type": "string",
+            "enum": [
+              "dual",
+              "mono",
+              "both"
+            ],
+            "title": "Output Mode",
+            "default": "both"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "profile_id": {
+            "type": "string",
+            "title": "Profile Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "INTERRUPTED"
+            ],
+            "title": "Status"
+          },
+          "page_start": {
+            "type": "integer",
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "title": "Page End"
+          },
+          "page_count": {
+            "type": "integer",
+            "title": "Page Count"
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "external_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Task Id"
+          },
+          "external_state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "active",
+              "completed",
+              "failed",
+              "unknown"
+            ],
+            "title": "External State"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/TranslationArtifact"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/TranslationUsage"
+          },
+          "max_calls": {
+            "type": "integer",
+            "title": "Max Calls"
+          },
+          "max_input_tokens": {
+            "type": "integer",
+            "title": "Max Input Tokens"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "source_hash",
+          "profile_id",
+          "model_id",
+          "status",
+          "page_start",
+          "page_end",
+          "page_count",
+          "progress",
+          "stage",
+          "job_id",
+          "external_task_id",
+          "external_state",
+          "cache_hit",
+          "error_code",
+          "error",
+          "warnings",
+          "artifacts",
+          "usage",
+          "max_calls",
+          "max_input_tokens",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TranslationView"
       },
       "UsageKindView": {
         "properties": {

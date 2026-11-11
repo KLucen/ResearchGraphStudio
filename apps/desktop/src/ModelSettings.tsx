@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "./api";
 
@@ -16,26 +16,166 @@ export type ModelParameters = {
   timeout_seconds: number;
   json_mode: boolean;
 };
+
+export type ModelConnection = {
+  id: string;
+  name: string;
+  provider: "openai" | "compatible" | "local";
+  base_url: string;
+  has_api_key: boolean;
+  updated_at?: string;
+};
+
 export type ModelProfile = {
   id: string;
   name: string;
+  connection_id: string | null;
+  connection_name?: string | null;
   provider: "openai" | "compatible" | "local" | "mock";
   base_url: string;
   model: string;
   parameters: ModelParameters;
   has_api_key: boolean;
 };
+
 export type GlobalModels = {
+  connections: ModelConnection[];
   profiles: ModelProfile[];
   roles: { extraction: string | null; reasoning: string | null };
 };
+
+type ProviderKind = ModelConnection["provider"];
+type ProviderTab = "common" | "custom";
+type ModelDraft = { id?: string; model: string; name: string };
+
+type ProviderPreset = {
+  id: string;
+  name: string;
+  description: string;
+  provider: ProviderKind;
+  baseUrl: string;
+  model: string;
+  badge?: string;
+};
+
+const PROVIDER_PRESETS: ProviderPreset[] = [
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    description: "DeepSeek 官方兼容接口",
+    provider: "compatible",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-chat",
+  },
+  {
+    id: "openai",
+    name: "OpenAI",
+    description: "OpenAI 官方接口",
+    provider: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    description: "聚合多家模型的兼容接口",
+    provider: "compatible",
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "openai/gpt-4o-mini",
+  },
+  {
+    id: "siliconflow",
+    name: "SiliconFlow",
+    description: "硅基流动兼容接口",
+    provider: "compatible",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    model: "deepseek-ai/DeepSeek-V3",
+  },
+  {
+    id: "zhipu",
+    name: "智谱 AI",
+    description: "GLM 系列兼容接口",
+    provider: "compatible",
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-4-flash",
+  },
+  {
+    id: "dashscope",
+    name: "通义千问",
+    description: "DashScope 兼容接口",
+    provider: "compatible",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen-plus",
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    description: "本机 Ollama 兼容接口",
+    provider: "local",
+    baseUrl: "http://127.0.0.1:11434/v1",
+    model: "llama3.2",
+    badge: "本地",
+  },
+];
+
 const defaults: ModelParameters = {
   temperature: null,
   top_p: null,
-
   reasoning_effort: null,
   timeout_seconds: 90,
   json_mode: true,
+};
+
+function providerLabel(provider: ProviderKind) {
+  if (provider === "openai") return "官方接口";
+  if (provider === "local") return "本地接口";
+  return "兼容接口";
+}
+
+function presetForConnection(connection: ModelConnection) {
+  return PROVIDER_PRESETS.find(
+    (preset) =>
+      preset.baseUrl === connection.base_url ||
+      connection.name.toLowerCase().includes(preset.name.toLowerCase()),
+  );
+}
+
+const providerIdStorageKey = "researchgraph.model-provider-ids";
+
+function providerIdsFromStorage(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(providerIdStorageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function providerIdForConnection(
+  connection: ModelConnection,
+  preset?: ProviderPreset,
+) {
+  if (preset) return preset.id;
+  return (
+    providerIdsFromStorage()[connection.id] ??
+    connection.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+  );
+}
+
+type ProviderPayload = {
+  connection: {
+    name: string;
+    provider: ProviderKind;
+    base_url: string;
+    clear_key: boolean;
+    api_key?: string;
+    provider_id?: string;
+  };
+  models: ModelDraft[];
 };
 
 export function ModelSettings({ connected }: { connected: boolean }) {
@@ -43,369 +183,675 @@ export function ModelSettings({ connected }: { connected: boolean }) {
   const route = "/api/v1/settings";
   const settings = useQuery({
     queryKey: ["model-settings"],
-    queryFn: () => request<GlobalModels>("GET", `${route}/models`),
+    queryFn: () => request<GlobalModels>("GET", route + "/models"),
     enabled: connected,
   });
-  const [editing, setEditing] = useState<ModelProfile | null>(null);
+  const [editingConnection, setEditingConnection] =
+    useState<ModelConnection | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  async function action(path: string, body?: unknown) {
+  const [error, setError] = useState("");
+  const connections = settings.data?.connections ?? [];
+  const profiles = settings.data?.profiles ?? [];
+
+  async function refresh() {
+    await client.invalidateQueries({ queryKey: ["model-settings"] });
+  }
+
+  async function saveProvider(payload: ProviderPayload) {
     setBusy(true);
     setNotice("");
+    setError("");
     try {
-      const result = await request<{
-        connected?: boolean;
-        valid_json?: boolean;
-        mock?: boolean;
-      }>("POST", path, body);
-      setNotice(
-        result.connected
-          ? `真实模型连接成功；固定测试 JSON 校验${result.valid_json ? "通过" : "未通过"}。连接成功不代表论文概览质量已验证。`
-          : "设置已保存",
+      const path = editingConnection
+        ? route + "/connections/" + editingConnection.id + "/update"
+        : route + "/connections";
+      const { provider_id, ...connectionBody } = payload.connection;
+      const saved = await request<ModelConnection>(
+        "POST",
+        path,
+        connectionBody,
       );
-      await client.invalidateQueries({
-        queryKey: ["model-settings"],
-      });
-      return true;
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "操作失败");
-      return false;
+      if (provider_id) {
+        const providerIds = providerIdsFromStorage();
+        providerIds[saved.id] = provider_id;
+        localStorage.setItem(providerIdStorageKey, JSON.stringify(providerIds));
+      }
+      const existing = editingConnection
+        ? profiles.filter(
+            (profile) => profile.connection_id === editingConnection.id,
+          )
+        : [];
+      const nextIds = new Set(
+        payload.models.filter((model) => model.id).map((model) => model.id),
+      );
+      for (const profile of existing) {
+        if (!nextIds.has(profile.id)) {
+          await request("POST", route + "/models/" + profile.id + "/delete");
+        }
+      }
+      for (const model of payload.models) {
+        const modelBody = {
+          name: model.name.trim() || model.model.trim(),
+          connection_id: saved.id,
+          model: model.model.trim(),
+          parameters: defaults,
+        };
+        if (model.id) {
+          await request(
+            "POST",
+            route + "/models/" + model.id + "/update",
+            modelBody,
+          );
+        } else {
+          await request("POST", route + "/models", modelBody);
+        }
+      }
+      await refresh();
+      setNotice(saved.name + " 已保存，模型目录已更新。");
+      setEditorOpen(false);
+      setEditingConnection(null);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "保存模型提供商失败",
+      );
     } finally {
       setBusy(false);
     }
   }
+
+  async function testProfile(profile: ModelProfile) {
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      const result = await request<{
+        connected?: boolean;
+        valid_json?: boolean;
+      }>("POST", route + "/models/" + profile.id + "/test");
+      setNotice(
+        result.connected
+          ? "连接成功，固定 JSON 校验" +
+              (result.valid_json ? "通过" : "未通过") +
+              "。这只验证接口可用性，不代表论文概览质量已验证。"
+          : "连接未通过，请检查配置。",
+      );
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "模型连接测试失败",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteConnection(connection: ModelConnection) {
+    if (
+      !window.confirm(
+        "删除模型提供商“" + connection.name + "”？已有用量和历史记录会保留。",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      await request(
+        "POST",
+        route + "/connections/" + connection.id + "/delete",
+      );
+      await refresh();
+      setNotice(connection.name + " 已删除。");
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "删除模型提供商失败",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="model-settings" aria-label="全局模型设置">
-      <h2>全局模型设置</h2>
-      <p>
-        API Key 保存在 Windows
-        凭据管理器，所有项目共用这里的配置和默认模型。测试连接只发送固定测试文本；生成概览时再确认论文传输。
-      </p>
-      {settings.error && <p role="alert">无法读取模型配置，请重试。</p>}
-      <div className="import-controls">
-        {(["extraction", "reasoning"] as const).map((role) => (
-          <label key={role}>
-            {role === "extraction" ? "论文概览模型" : "阅读辅助模型"}
-            <select
-              value={settings.data?.roles[role] ?? ""}
-              disabled={!connected || busy}
-              onChange={(e) =>
-                void action(`${route}/model-roles`, {
-                  ...settings.data?.roles,
-                  [role]: e.target.value || null,
-                })
-              }
-            >
-              <option value="">未选择</option>
-              {settings.data?.profiles
-                .filter((p) => p.provider !== "mock")
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {p.model}
-                  </option>
-                ))}
-            </select>
-          </label>
-        ))}
+      <div className="model-settings-heading">
+        <div>
+          <h2>模型</h2>
+          <p>
+            填入各提供商的 API
+            密钥即可使用对应模型。连接信息集中保存，模型配置只选择模型与阅读参数。
+          </p>
+        </div>
+        <span className="model-count">{connections.length} 个提供商</span>
       </div>
-      {settings.data?.profiles
-        .filter((p) => p.provider !== "mock")
-        .map((p) => (
-          <article className="text-chunk" key={p.id}>
-            <strong>
-              {p.name} · {p.provider} · {p.model}
-            </strong>
-            <p>
-              {p.base_url} · {p.has_api_key ? "密钥已安全保存" : "未保存密钥"}
-            </p>
-            <small>
-              {p.parameters?.capabilities?.max_output_tokens
-                ? `模型最大输出 ${p.parameters.capabilities.max_output_tokens.toLocaleString()} Tokens（自动）`
-                : "输出上限：接口未提供，使用服务默认值"}
-            </small>
-            <button
-              className="text-button"
-              disabled={busy || !connected}
-              onClick={() => setEditing(p)}
-            >
-              编辑 {p.name}
-            </button>
-            <button
-              className="text-button"
-              disabled={busy || !connected}
-              onClick={() => void action(`${route}/models/${p.id}/test`)}
-            >
-              测试连接 {p.name}
-            </button>
-            <button
-              className="text-button"
-              disabled={busy || !connected}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `删除 ${p.name} 及其保存的密钥？已有概览和用量记录会保留。`,
-                  )
-                )
-                  void action(`${route}/models/${p.id}/delete`);
-              }}
-            >
-              删除 {p.name}
-            </button>
-          </article>
-        ))}
-      <ProfileEditor
-        key={editing?.id ?? "new"}
-        profile={editing}
-        disabled={!connected || busy}
-        onCancel={() => setEditing(null)}
-        onSave={async (body) => {
-          const ok = await action(
-            `${route}/models${editing ? `/${editing.id}/update` : ""}`,
-            body,
+      {settings.error && <p role="alert">无法读取模型配置，请重试。</p>}
+      <div className="provider-list" aria-label="模型提供商列表">
+        {connections.map((connection) => {
+          const connectionProfiles = profiles.filter(
+            (profile) => profile.connection_id === connection.id,
           );
-          if (ok) setEditing(null);
-          return ok;
-        }}
-      />
-      {notice && <p role="status">{notice}</p>}
+          return (
+            <ProviderCard
+              key={connection.id}
+              connection={connection}
+              profiles={connectionProfiles}
+              preset={presetForConnection(connection)}
+              busy={busy || !connected}
+              onEdit={() => {
+                setEditingConnection(connection);
+                setEditorOpen(true);
+              }}
+              onDelete={() => void deleteConnection(connection)}
+              onTest={(profile) => void testProfile(profile)}
+            />
+          );
+        })}
+        <button
+          className="provider-add-card"
+          disabled={!connected || busy}
+          onClick={() => {
+            setEditingConnection(null);
+            setEditorOpen(true);
+          }}
+        >
+          <span className="provider-add-icon">+</span>
+          添加模型提供商
+        </button>
+      </div>
+      <section className="model-role-panel" aria-label="阅读任务模型选择">
+        <div>
+          <h3>阅读任务模型</h3>
+          <p>
+            为论文概览和阅读辅助分别选择已配置的模型。选择不会再次要求 API
+            地址或密钥。
+          </p>
+        </div>
+        <div className="model-role-grid">
+          {(["extraction", "reasoning"] as const).map((role) => (
+            <label key={role}>
+              {role === "extraction" ? "论文概览模型" : "章节精读与问答模型"}
+              <select
+                value={settings.data?.roles[role] ?? ""}
+                disabled={!connected || busy}
+                onChange={async (event) => {
+                  setBusy(true);
+                  setNotice("");
+                  setError("");
+                  try {
+                    await request("POST", route + "/model-roles", {
+                      ...(settings.data?.roles ?? {}),
+                      [role]: event.target.value || null,
+                    });
+                    await refresh();
+                    setNotice("阅读任务模型已更新。");
+                  } catch (requestError) {
+                    setError(
+                      requestError instanceof Error
+                        ? requestError.message
+                        : "保存任务模型失败",
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <option value="">未选择</option>
+                {profiles
+                  .filter((profile) => profile.provider !== "mock")
+                  .map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name} · {profile.model}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </section>
+      {editorOpen && (
+        <ProviderEditor
+          connection={editingConnection}
+          profiles={profiles.filter(
+            (profile) => profile.connection_id === editingConnection?.id,
+          )}
+          disabled={busy || !connected}
+          onCancel={() => {
+            setEditorOpen(false);
+            setEditingConnection(null);
+          }}
+          onSave={saveProvider}
+        />
+      )}
+      {notice && (
+        <p role="status" className="settings-notice">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="error-text">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
 
-function ProfileEditor({
-  profile,
+function ProviderCard({
+  connection,
+  profiles,
+  preset,
+  busy,
+  onEdit,
+  onDelete,
+  onTest,
+}: {
+  connection: ModelConnection;
+  profiles: ModelProfile[];
+  preset?: ProviderPreset;
+  busy: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onTest: (profile: ModelProfile) => void;
+}) {
+  return (
+    <article className="provider-card">
+      <div className="provider-card-main">
+        <div className="provider-card-title">
+          <strong>{connection.name}</strong>
+          {preset ? (
+            <span className="provider-badge">{preset.badge ?? "预设"}</span>
+          ) : (
+            <span className="provider-badge">自定义</span>
+          )}
+          <span
+            className={
+              "provider-status-dot" +
+              (connection.has_api_key || connection.provider === "local"
+                ? " ready"
+                : "")
+            }
+            aria-label={
+              connection.has_api_key || connection.provider === "local"
+                ? "已配置"
+                : "未配置密钥"
+            }
+          />
+        </div>
+        <p>{connection.base_url}</p>
+        <small>
+          {providerLabel(connection.provider)} · {profiles.length} 个模型
+          {connection.has_api_key ? " · 密钥已安全保存" : " · 尚未保存密钥"}
+        </small>
+        {profiles.length > 0 && (
+          <div className="provider-model-summary">
+            {profiles.map((profile) => (
+              <span key={profile.id} title={profile.model}>
+                {profile.name || profile.model}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="provider-card-actions">
+        <button
+          className="button secondary compact"
+          disabled={busy}
+          onClick={onEdit}
+        >
+          编辑
+        </button>
+        {profiles[0] && (
+          <button
+            className="text-button"
+            disabled={busy}
+            onClick={() => onTest(profiles[0])}
+          >
+            测试连接
+          </button>
+        )}
+        <button
+          className="text-button danger"
+          disabled={busy}
+          onClick={onDelete}
+        >
+          删除
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function ProviderEditor({
+  connection,
+  profiles,
   disabled,
   onSave,
   onCancel,
 }: {
-  profile: ModelProfile | null;
+  connection: ModelConnection | null;
+  profiles: ModelProfile[];
   disabled: boolean;
-  onSave: (body: unknown) => Promise<boolean>;
+  onSave: (payload: ProviderPayload) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(profile?.name ?? "");
-  const [provider, setProvider] = useState<ModelProfile["provider"]>(
-    profile?.provider ?? "compatible",
+  const initialPreset = connection
+    ? presetForConnection(connection)
+    : PROVIDER_PRESETS[0];
+  const [tab, setTab] = useState<ProviderTab>(
+    connection && !initialPreset ? "custom" : "common",
   );
-  const [base, setBase] = useState(profile?.base_url ?? "");
-  const [model, setModel] = useState(profile?.model ?? "");
+  const [selectedPreset, setSelectedPreset] = useState(
+    initialPreset?.id ?? "deepseek",
+  );
+  const [providerId, setProviderId] = useState(
+    connection
+      ? providerIdForConnection(connection, initialPreset)
+      : (initialPreset?.id ?? ""),
+  );
+  const [name, setName] = useState(
+    connection?.name ?? initialPreset?.name ?? "",
+  );
+  const [provider, setProvider] = useState<ProviderKind>(
+    connection?.provider ?? initialPreset?.provider ?? "compatible",
+  );
+  const [base, setBase] = useState(
+    connection?.base_url ?? initialPreset?.baseUrl ?? "",
+  );
   const [key, setKey] = useState("");
   const [clear, setClear] = useState(false);
-  const [params, setParams] = useState(profile?.parameters ?? defaults);
+  const [protocol, setProtocol] = useState("openai_chat_completions");
+  const [models, setModels] = useState<ModelDraft[]>(
+    profiles.length > 0
+      ? profiles.map((profile) => ({
+          id: profile.id,
+          model: profile.model,
+          name: profile.name,
+        }))
+      : initialPreset
+        ? [{ model: initialPreset.model, name: initialPreset.model }]
+        : [{ model: "", name: "" }],
+  );
+  const chosenPreset = useMemo(
+    () => PROVIDER_PRESETS.find((preset) => preset.id === selectedPreset),
+    [selectedPreset],
+  );
+
+  function selectPreset(preset: ProviderPreset) {
+    setSelectedPreset(preset.id);
+    setProviderId(preset.id);
+    setName(preset.name);
+    setProvider(preset.provider);
+    setBase(preset.baseUrl);
+    if (!connection) setModels([{ model: preset.model, name: preset.model }]);
+  }
+
+  function addModel() {
+    setModels((current) => [...current, { model: "", name: "" }]);
+  }
+
+  function updateModel(index: number, field: keyof ModelDraft, value: string) {
+    setModels((current) =>
+      current.map((model, currentIndex) =>
+        currentIndex === index ? { ...model, [field]: value } : model,
+      ),
+    );
+  }
+
+  function removeModel(index: number) {
+    setModels((current) =>
+      current.filter((_, currentIndex) => currentIndex !== index),
+    );
+  }
+
   return (
-    <form
-      className="model-form"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const body = {
-          name,
-          provider,
-          base_url: provider === "mock" ? "" : base,
-          model: provider === "mock" ? "offline-extractive-fixture-v1" : model,
-          parameters: {
-            ...params,
-            max_output_tokens: null,
-            capabilities: undefined,
-          },
-          clear_key: clear,
-          ...(key && provider !== "mock" ? { api_key: key } : {}),
-        };
-        // Do not put secrets in query/mutation caches or browser storage.
-        setKey("");
-        const ok = await onSave(body);
-        if (ok && !profile) {
-          setName("");
-          setModel("");
-        }
-      }}
-    >
-      <h3>{profile ? "编辑配置" : "新增模型配置"}</h3>
-      <label>
-        配置名称
-        <input
-          required
-          maxLength={80}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </label>
-      <label>
-        服务类型
-        <select
-          value={provider}
-          onChange={(e) => {
-            const value = e.target.value as ModelProfile["provider"];
-            setProvider(value);
-            setKey("");
-            setBase(
-              value === "openai"
-                ? "https://api.openai.com/v1"
-                : value === "local"
-                  ? "http://127.0.0.1:8000/v1"
-                  : "",
-            );
-          }}
-        >
-          <option value="openai">OpenAI</option>
-          <option value="compatible">OpenAI-compatible API</option>
-          <option value="local">本地模型</option>
-        </select>
-      </label>
-      {provider !== "mock" && (
-        <>
-          <label>
-            Base URL
-            <input
-              required
-              type="url"
-              autoComplete="off"
-              value={base}
-              onChange={(e) => setBase(e.target.value)}
-            />
-          </label>
-          <label>
-            Model ID
-            <input
-              required
-              maxLength={150}
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-            />
-          </label>
-          <label>
-            API Key
-            <input
-              type="password"
-              autoComplete="new-password"
-              spellCheck={false}
-              maxLength={2400}
-              value={key}
-              placeholder={
-                profile?.has_api_key
-                  ? "留空保留；更换端点须重新录入"
-                  : "本地服务可留空"
-              }
-              onChange={(e) => setKey(e.target.value)}
-            />
-          </label>
-          {profile?.has_api_key && (
+    <div className="provider-modal-backdrop" role="presentation">
+      <section
+        className="provider-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={connection ? "编辑模型提供商" : "添加模型提供商"}
+      >
+        <div className="provider-modal-header">
+          <div>
+            <div className="eyebrow">MODEL PROVIDER</div>
+            <h3>{connection ? "编辑模型提供商" : "添加模型提供商"}</h3>
+            <p>连接信息只保存一次，后续可以在同一提供商下管理多个模型。</p>
+          </div>
+          <button className="modal-close" onClick={onCancel} aria-label="关闭">
+            ×
+          </button>
+        </div>
+        <div className="provider-tabs" role="tablist" aria-label="提供商类型">
+          <button
+            role="tab"
+            aria-selected={tab === "common"}
+            className={tab === "common" ? "active" : ""}
+            onClick={() => setTab("common")}
+          >
+            第三方模型提供商
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "custom"}
+            className={tab === "custom" ? "active" : ""}
+            onClick={() => {
+              setTab("custom");
+              setProvider("compatible");
+            }}
+          >
+            自定义模型 API
+          </button>
+        </div>
+        {tab === "common" && (
+          <div className="provider-preset-grid">
+            {PROVIDER_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                className={
+                  "provider-preset" +
+                  (selectedPreset === preset.id ? " selected" : "")
+                }
+                onClick={() => selectPreset(preset)}
+              >
+                <span className="provider-preset-mark">
+                  {preset.name.slice(0, 1)}
+                </span>
+                <span>
+                  <strong>{preset.name}</strong>
+                  <small>{preset.description}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="provider-form-scroll">
+          {tab === "custom" && (
+            <>
+              <label>
+                Provider ID
+                <input
+                  aria-label="Provider ID"
+                  value={providerId}
+                  onChange={(event) => setProviderId(event.target.value)}
+                  placeholder="acme-gateway"
+                  pattern="[a-z][a-z0-9_-]*"
+                  title="使用小写字母开头的标识"
+                  required
+                />
+                <small>用于区分提供商的短标识，不会进入 API Key 或日志。</small>
+              </label>
+              <label>
+                显示名称
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="我的模型网关"
+                  required
+                />
+              </label>
+            </>
+          )}
+          {tab === "common" && (
             <label>
+              显示名称
               <input
-                type="checkbox"
-                checked={clear}
-                onChange={(e) => setClear(e.target.checked)}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
               />
-              清除当前密钥引用
             </label>
           )}
           <label>
-            Temperature（留空使用服务默认）
+            API 地址
             <input
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={params.temperature ?? ""}
-              onChange={(e) =>
-                setParams({
-                  ...params,
-                  temperature:
-                    e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
+              type="url"
+              value={base}
+              onChange={(event) => setBase(event.target.value)}
+              placeholder="https://gateway.example/v1"
+              required
             />
           </label>
           <label>
-            Top P（留空使用默认）
-            <input
-              type="number"
-              min={0.01}
-              max={1}
-              step={0.05}
-              value={params.top_p ?? ""}
-              onChange={(e) =>
-                setParams({
-                  ...params,
-                  top_p: e.target.value === "" ? null : Number(e.target.value),
-                })
-              }
-            />
-          </label>
-          <p className="quiet-note">
-            输出预算由模型能力自动管理。
-            {profile?.parameters.capabilities?.max_output_tokens
-              ? `接口公布的最大输出：${profile.parameters.capabilities.max_output_tokens.toLocaleString()} Tokens。`
-              : "接口未提供输出上限时使用服务默认值；可用测试连接刷新。"}
-          </p>
-          <p className="quiet-note">
-            请求使用模型可用的最大输出额度，并预留输入上下文；不额外限制为
-            32K或64K。额度是允许的上限，实际用量以服务返回为准。
-          </p>
-          <label>
-            无响应超时（秒）
-            <input
-              type="number"
-              min={5}
-              max={180}
-              value={params.timeout_seconds}
-              onChange={(e) =>
-                setParams({
-                  ...params,
-                  timeout_seconds: Number(e.target.value),
-                })
-              }
-            />
-          </label>
-          <p className="quiet-note">
-            流式接收；总等待上限为此值的两倍，最多 300
-            秒，持续输出也不会无限等待。
-          </p>
-          <label>
-            Reasoning effort
+            API 协议
             <select
-              value={params.reasoning_effort ?? ""}
-              onChange={(e) =>
-                setParams({
-                  ...params,
-                  reasoning_effort: (e.target.value ||
-                    null) as ModelParameters["reasoning_effort"],
-                })
-              }
+              value={protocol}
+              onChange={(event) => setProtocol(event.target.value)}
             >
-              <option value="">服务默认</option>
-              {["none", "minimal", "low", "medium", "high", "xhigh", "max"].map(
-                (v) => (
-                  <option key={v}>{v}</option>
-                ),
-              )}
+              <option value="openai_chat_completions">
+                OpenAI Chat Completions
+              </option>
             </select>
+            <small>
+              当前运行引擎使用兼容的 Chat Completions 接口；暂不宣称原生
+              Anthropic 协议支持。
+            </small>
           </label>
           <label>
+            API 密钥
             <input
-              type="checkbox"
-              checked={params.json_mode}
-              onChange={(e) =>
-                setParams({ ...params, json_mode: e.target.checked })
+              aria-label="API 密钥"
+              type="password"
+              autoComplete="new-password"
+              spellCheck={false}
+              value={key}
+              placeholder={
+                connection?.has_api_key
+                  ? "留空保留已有密钥"
+                  : provider === "local"
+                    ? "本地服务可留空"
+                    : "输入 API 密钥"
               }
+              onChange={(event) => setKey(event.target.value)}
             />
-            兼容路径请求 JSON Object 模式（服务需支持）
+            <small>
+              密钥只写入系统凭据存储，不进入 SQLite、浏览器缓存或日志。
+            </small>
           </label>
-          <p className="quiet-note">
-            已登记支持严格 Schema
-            的端点与模型使用原生结构化输出；其他接口仅请求兼容模式，字段与证据仍由本地校验。测试连接通过不代表论文抽取通过。
-          </p>
-        </>
-      )}
-      <div>
-        <button className="button primary" disabled={disabled}>
-          保存模型配置
-        </button>
-        {profile && (
-          <button type="button" className="button secondary" onClick={onCancel}>
-            取消编辑
+          {connection?.has_api_key && (
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={clear}
+                onChange={(event) => setClear(event.target.checked)}
+              />
+              清除当前密钥
+            </label>
+          )}
+          <div className="model-directory-heading">
+            <div>
+              <h4>模型目录</h4>
+              <p>手动维护模型 ID，保存后即可在阅读任务模型中选择。</p>
+            </div>
+            <button type="button" className="text-button" onClick={addModel}>
+              + 添加模型
+            </button>
+          </div>
+          <div className="model-directory" aria-label="模型目录">
+            {models.map((model, index) => (
+              <div
+                className="model-directory-row"
+                key={model.id ?? "new-" + index}
+              >
+                <span className="model-drag-handle" aria-hidden="true">
+                  ≡
+                </span>
+                <input
+                  aria-label={"模型 ID " + (index + 1)}
+                  placeholder="模型 ID"
+                  value={model.model}
+                  onChange={(event) =>
+                    updateModel(index, "model", event.target.value)
+                  }
+                  required
+                />
+                <input
+                  aria-label={"模型显示名称 " + (index + 1)}
+                  placeholder="显示名称"
+                  value={model.name}
+                  onChange={(event) =>
+                    updateModel(index, "name", event.target.value)
+                  }
+                  required
+                />
+                <button
+                  type="button"
+                  className="model-remove"
+                  aria-label={"删除模型 " + (index + 1)}
+                  onClick={() => removeModel(index)}
+                  disabled={models.length === 1}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="provider-modal-footer">
+          <button
+            className="button secondary"
+            disabled={disabled}
+            onClick={onCancel}
+          >
+            取消
           </button>
+          <button
+            className="button primary"
+            disabled={
+              disabled ||
+              !name.trim() ||
+              !base.trim() ||
+              models.some((model) => !model.model.trim())
+            }
+            onClick={() =>
+              void onSave({
+                connection: {
+                  name: name.trim(),
+                  provider,
+                  base_url: base.trim(),
+                  clear_key: clear,
+                  provider_id: providerId.trim() || undefined,
+                  ...(key.trim() ? { api_key: key.trim() } : {}),
+                },
+                models,
+              })
+            }
+          >
+            {connection ? "保存提供商" : "创建提供商"}
+          </button>
+        </div>
+        {tab === "common" && chosenPreset && (
+          <p className="provider-preset-note">
+            已选择 {chosenPreset.name} 预设，可继续修改地址和模型 ID。
+          </p>
         )}
-      </div>
-    </form>
+      </section>
+    </div>
   );
 }

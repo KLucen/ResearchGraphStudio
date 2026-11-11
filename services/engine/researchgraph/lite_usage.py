@@ -121,14 +121,14 @@ class _Usage:
 
 
 def aggregate_usage(
-    session: Session, project_id: str, paper_id: str | None = None
+    session: Session, project_id: str | None, paper_id: str | None = None
 ) -> LiteUsageView:
-    rows = session.scalars(
-        select(LiteTokenUsage).where(
-            LiteTokenUsage.project_id == project_id,
-            *([LiteTokenUsage.paper_id == paper_id] if paper_id else []),
-        )
-    ).all()
+    filters = []
+    if project_id is not None:
+        filters.append(LiteTokenUsage.project_id == project_id)
+    if paper_id is not None:
+        filters.append(LiteTokenUsage.paper_id == paper_id)
+    rows = session.scalars(select(LiteTokenUsage).where(*filters)).all()
     bucket: dict[str, _Usage] = {}
     totals = _Usage("all")
     for row in rows:
@@ -150,7 +150,7 @@ def aggregate_usage(
     }
     values.pop("task_kind")
     return LiteUsageView(
-        project_id=project_id,
+        project_id=project_id or "all",
         paper_id=paper_id,
         **values,
         by_kind=[
@@ -472,6 +472,11 @@ def register_lite_usage_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     ``engine`` is the app's callable engine provider, matching existing API
     registration functions.  GET never increments cache hits or writes usage.
     """
+
+    @app.get("/api/v1/lite/usage", response_model=LiteUsageView)
+    def global_usage() -> LiteUsageView:
+        with Session(engine()) as session:
+            return aggregate_usage(session, None)
 
     @app.get("/api/v1/projects/{project_id}/lite/usage", response_model=LiteUsageView)
     def usage(project_id: str, paper_id: str | None = Query(default=None)) -> LiteUsageView:

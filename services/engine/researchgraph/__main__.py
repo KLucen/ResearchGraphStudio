@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import os
 import socket
 import sys
 from pathlib import Path
@@ -16,7 +17,35 @@ def main() -> None:
     parser.add_argument("--parse-pdf", type=Path)
     parser.add_argument("--check-source", type=Path)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--translation-server", action="store_true")
+    parser.add_argument("--translation-port", type=int)
+    parser.add_argument("--translation-root", type=Path)
     args = parser.parse_args()
+    if args.translation_server:
+        if (
+            not args.output_dir
+            or not args.translation_root
+            or not args.translation_port
+            or args.data_dir
+            or args.parse_pdf
+            or args.check_source
+        ):
+            parser.error("Bundled translation worker requires root, output directory and port")
+        from researchgraph.translation_bundled import create_bundled_app
+
+        app = create_bundled_app(
+            args.translation_root,
+            args.output_dir,
+            os.environ.pop("RGS_TRANSLATION_SERVICE_TOKEN"),
+        )
+        uvicorn.run(
+            app,
+            host="127.0.0.1",
+            port=args.translation_port,
+            access_log=False,
+            log_level="critical",
+        )
+        return
     if args.parse_pdf or args.check_source:
         if not args.output_dir or args.data_dir or (args.parse_pdf and args.check_source):
             parser.error("File worker requires one operation and --output-dir")
