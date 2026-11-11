@@ -1795,3 +1795,13 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 **Windows交付**：`.local/releases/translation-proxy-fix-final-20261111/ResearchGraph-Studio-Translation-Proxy-Fix-0.0.1-x64-setup.exe`，754646101字节/719.69MiB，SHA256 `11D9F2ADAFC639DC334D9FE15AB383864C5875AC1173C4CF99F2ACB8C6FE944F`。同目录完整sidecar EXE15174112字节，SHA256 `1B71C55505DD4A849776F212AEF6E9D3E61377381E6D5CAE02196CE02C5BAB31`，须带_internal和translation-runtime。包未签名，不覆盖前轮封存包，不替换用户日常安装目录；隔离安装资料在`.local/verify/translation-proxy-fix-final-20261111/`，测试构建报告在`.local/pdf2zh-audit/proxy-final-*`，均忽略不入Git。
 
 **用量、未解决项与下一步**：本轮真实模型调用、真实输入/输出Token、真实重试、增量费用均0。旧失败记录与其实际/未知用量保留；用户Provider准确根因、真实文献质量、复杂版式、干净机和用户原生界面体验尚未验收。引导用户安装最终包，重新预检并显式提交新任务；不自动重试、不自动收费，不扩展phase。
+
+## DEV-0085 — 2026-11-11 23:33（Asia/Shanghai）：按新增授权安全提交并推送Lite快照
+
+用户在DEV-0084验证后明确要求“完成后push到github”，覆盖本轮早先不Commit/Push边界；该新增授权用于当前交付。已核对本地main、origin官方仓库及9个未上传祖先提交，它们属于基线、Lite P0、干净工程和文档补记；当前98个文件均属于已验证的Lite阅读/设置/翻译源码、迁移、测试、契约、文档与构建脚本，没有运行数据或无关文件。
+
+源码全量内容/路径及Gitleaks278文件通过，提交前全历史Gitleaks未发现泄露；逐项生成98条显式路径清单，未使用git add .。暂存内容扫描98文件通过。将两处新增个人Skill绝对路径改为环境变量示例，清掉重复gitignore条目；暂存diff检查发现6个新ADR日期行尾空格，修正后再次扫描与diff检查通过。仅文档/忽略规则收尾，无运行源变化，最终安装包不需重建。
+
+运行源码提交 `e399357b36f70881a2eca1f701939bbc43d3454f`（feat: deliver Lite reading workspace and bundled PDF translation）已普通推送 `KLucen/ResearchGraphStudio` 的main；官方ls-remote确认相同SHA。默认HTTPS超时，按github-transfer技能先检验官方SSH443/受信主机密钥，fetch确认可快进，再dry-run和正式push；未改origin或全局网络/Git配置，无force push。安装包、数据库、用户论文、凭据和运行目录未上传。
+
+GitHub Actions run43049353054（Windows build and acceptance）已启动，记录时in_progress、conclusion=null，源码SHA对应e399357；不能记为远端CI通过。本机355后端/61前端/9Host与最终安装、实际随包合成smoke成绩保持DEV-0084，不把CI生成的包与本机包混用。真实模型调用与真实Token仍0。此后仅补本交付记录的文档提交，运行源码与安装包哈希不变。
