@@ -1831,3 +1831,13 @@ GitHub Actions run43049353054（Windows build and acceptance）已启动，记�
 **Windows交付**：`.local/releases/lite-no-translation-20261112/ResearchGraph-Studio-Lite-No-Translation-0.0.1-x64-setup.exe`，38407246字节/36.63MiB，SHA256 `B01F56AF08D2CBB0C2D0E2591D12038430FDC2D2BD3B82D19EAC630E2C652835`。同目录完整sidecar含_internal，EXE15081736字节，SHA256 `33CCF7DE718E8AC9218D2889E749159F607445A06011834348723C9A38571461`；不得只复制引擎EXE。包未签名，旧包不覆盖。隔离安装资料在.local/verify/lite-no-translation-20261112/，构建/源manifest/安全资料在.local/pdf2zh-audit/rollback-*，均忽略不入Git。
 
 **用量、剩余项与下一步**：真实模型调用、真实输入输出Token、真实重试、新增费用全部0；历史实际/未知用量保持。未读取正式库，不能将隔离合成兼容测试写成用户正式库GUI或干净机验收。请用户关闭旧版后安装此包并反馈阅读界面；无需手工删库或重导论文。本轮完成撤下并停止，不再继续翻译参数修复或自动收费。
+
+## DEV-0087 — 2026-11-12 11:56（Asia/Shanghai）：按新增授权推送无翻译功能版本
+
+用户在DEV-0086本地交付后明确要求“push到github”，本轮据此提交并上传翻译撤回版本。核对main、官方origin、远端基线和全部60个改动路径；额外只读审查确认OpenAPI仅删除8个翻译路由/9个翻译DTO，保留API语义不变，迁移与storage没有降级或重建改动。全部路径均为本轮源码、兼容保护、测试、构建/CI、契约和文档，不包含凭据、用户论文、运行库、日志、安装器或翻译二进制。
+
+源码全量内容/私人路径/Gitleaks260文件通过，提交前全部Git历史37个提交扫描通过。逐项列出60条路径后显式git add，未使用git add .；暂存39个新增/修改文件的内容与Gitleaks通过，另21个删除路径已核对，暂存diff检查通过。上轮204后端/51前端/2浏览器/9Host与隔离安装成绩见DEV-0086，本轮没有重复运行完整回归或真实模型，不将历史成绩写成新测试。
+
+默认HTTPS约21秒连接失败。按github-transfer技能核对本机无Git代理/重写设置及代理环境变量，使用StrictHostKeyChecking的GitHub官方SSH443认证成功，fetch确认远端与本地原基线bfe3a0c一致。源码提交 `a2ed78f9db31f7d61dcc79a707bdfaea0d4a210b`（refactor: remove PDF translation and preserve Lite data compatibility）先dry-run后普通推送main成功，官方ls-remote确认同一SHA。未force push、未改origin、全局Git或网络配置。
+
+GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56查询为in_progress、conclusion=null，head SHA对应a2ed78f；不能宣称远端CI通过。本轮仅补本交付记录的文档提交，运行源码与最终安装器保持DEV-0086，安装器SHA256仍为 `B01F56AF08D2CBB0C2D0E2591D12038430FDC2D2BD3B82D19EAC630E2C652835`。真实模型/Token/新增费用仍0，正式数据未操作，用户新版界面反馈与干净机验证仍待。
