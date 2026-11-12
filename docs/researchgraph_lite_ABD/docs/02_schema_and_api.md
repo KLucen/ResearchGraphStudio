@@ -1,6 +1,6 @@
 # 02 精简 Schema、证据来源与 API 契约
 
-> 这是基于现有 ResearchGraph v2/v3 的**Lite 设计参考**。设计包以 `lite0001` 作为空基线；当前干净工程在此基础上已加性升级到 `lite0008`，不加载或迁移既有 Graph/Claim/RelationAssertion 等旧业务表；历史工程通过 `backup/pre-lite-refactor` 回退。可选 PDF 翻译的运行契约以 `translation_contracts.py`、导出的 OpenAPI 和 [ADR0038](../../adr/0038-bundled-translation-and-reading-layout.md) 为准，下面的参考 SQL 不直接升级用户数据库。
+> 这是基于现有 ResearchGraph v2/v3 的**Lite 设计参考**。设计包以 `lite0001` 作为空基线；当前工程保留已部署的 `lite0008` 迁移链，不加载或迁移既有 Graph/Claim/RelationAssertion 等旧业务表；历史工程通过 `backup/pre-lite-refactor` 回退。文献翻译已按 [ADR0040](../../adr/0040-remove-pdf-translation.md) 撤下，保留表结构仅用于已有数据库兼容，不再有翻译业务 API 或运行时。下面的参考 SQL 不直接升级用户数据库。
 
 ## 1. 模型分层
 
@@ -151,9 +151,9 @@ sha256(canonical_json({
 
 新增 `lite_paper_cards`, `lite_section_guides`, `lite_qa_records`, `lite_cache_entries`, `lite_token_usage`（详见 `schemas/sqlite_reference.sql`）。正式迁移应基于现有Alembic历史实现，只新增字段/表和索引。
 
-Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertions / wiki_*` 等旧业务表，也不提供旧 API 入口；运行时使用独立 Lite Schema（当前 head 为 `lite0008`，加性增加章节导读、D01 局部问答、D02 英文关键词、全局模型连接、可选翻译、随包启动配置及输出格式），不读取或迁移旧图谱。旧用户需要访问历史数据时，使用 `backup/pre-lite-refactor` 和原工程数据目录回退，不把旧历史混入 Lite 数据库。
+Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertions / wiki_*` 等旧业务表，也不提供旧 API 入口；运行时使用独立 Lite Schema（head 保持 `lite0008`，包括章节导读、D01 局部问答、D02 英文关键词、全局模型连接及历史翻译兼容结构），不读取或迁移旧图谱。旧用户需要访问历史数据时，使用 `backup/pre-lite-refactor` 和原工程数据目录回退，不把旧历史混入 Lite 数据库。
 
-翻译设置支持 `launch_mode=bundled|managed|manual`，默认启用 `bundled`，无需填写 Python 或 Server 路径；旧外部路径保留在高级设置。`lite0008` 将未来任务设置切换为内置模式，保留历史任务原运行快照，缺少快照的历史按 manual 解释。`pdf_translations.output_mode` 为 dual/mono/both，旧记录及缺字段调用保持 both，新界面显式默认 dual。格式和引擎身份进入缓存及预检指纹；单格式任务只验证和保存所选 PDF。预检只读取本地配置、来源与资源，缓存和 GET 不启动进程；任务创建仍须显式授权，不接管手动实例。
+2026-11-12 撤下翻译时不执行数据库 downgrade、重新初始化或数据删除。既有翻译表、配置、任务快照、用量及生成文件保留，历史实际或未知用量不回写；前端设置、翻译 API、worker、代理和随包资源移除，旧任务不能恢复或重试。`lite0008` 只表达迁移兼容边界，不表示翻译功能仍然启用。
 
 ## 10. 安全与权限不变量
 

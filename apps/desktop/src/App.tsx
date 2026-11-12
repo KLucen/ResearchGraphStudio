@@ -31,7 +31,6 @@ import { ModelSettings } from "./ModelSettings";
 import { PaperImport, Papers } from "./Papers";
 import { JobHistory } from "./JobHistory";
 import { LiteUsageSummary } from "./LiteUsageSummary";
-import { TranslationSettings } from "./TranslationSettings";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -768,7 +767,6 @@ function Settings({
       </section>
       <LiteUsageSummary connected={connected} />
       <ModelSettings connected={connected} />
-      <TranslationSettings connected={connected} />
       <section className="settings-card">
         <div className="settings-title">
           <h2>存储诊断</h2>

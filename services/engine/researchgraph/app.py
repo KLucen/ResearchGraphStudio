@@ -38,6 +38,11 @@ from researchgraph.models import (
     ZoteroLink,
     now,
 )
+from researchgraph.retired_tasks import (
+    TRANSLATION_REMOVED,
+    TRANSLATION_REMOVED_MESSAGE,
+    retire_translation_jobs,
+)
 from researchgraph.schemas import (
     ChunkList,
     ChunkView,
@@ -130,6 +135,9 @@ def claim_queued_job(engine: Engine) -> tuple[str, str] | None:
         job = session.get(Job, candidate)
         if job is None or job.status != "queued":
             return None
+        if job.kind == "pdf_translation":
+            retire_translation_jobs(session, job.id)
+            return None
         job.status, job.updated_at = "running", now()
         job.stage = "diagnostics" if job.kind == "diagnostics" else "starting"
         job.attempt += 1
@@ -190,11 +198,6 @@ async def worker(engine: Engine, data_dir: Path) -> None:
 
                 await execute_keyword_expansion(engine, job_id, data_dir)
                 continue
-            if kind == "pdf_translation":
-                from researchgraph.translation_api import execute_translation
-
-                await execute_translation(engine, job_id, data_dir)
-                continue
             if kind in {"pdf_import", "source_check", "source_relocate", "zotero_import"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
@@ -240,14 +243,13 @@ def create_app(
                 from researchgraph.paper_overview_api import recover_overviews
                 from researchgraph.qa_api import recover_qa
                 from researchgraph.section_guide_api import recover_section_guides
-                from researchgraph.translation_api import recover_translations
 
                 recover_overviews(engine)
                 recover_section_guides(engine)
                 recover_qa(engine)
                 recover_keywords(engine)
-                recover_translations(engine)
                 with Session(engine) as session, session.begin():
+                    retire_translation_jobs(session)
                     session.execute(
                         update(Job)
                         .where(Job.status == "running")
@@ -352,7 +354,6 @@ def create_app(
     from researchgraph.paper_overview_api import register_paper_overview_api
     from researchgraph.qa_api import register_qa_api
     from researchgraph.section_guide_api import register_section_guide_api
-    from researchgraph.translation_api import register_translation_api
 
     register_lite_usage_api(app, engine)
     register_local_index_api(app, engine)
@@ -360,7 +361,6 @@ def create_app(
     register_section_guide_api(app, engine, data_dir)
     register_qa_api(app, engine, data_dir)
     register_keyword_api(app, engine, data_dir)
-    register_translation_api(app, engine, data_dir)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -505,18 +505,21 @@ def create_app(
             raise failure(404, "ACTION_NOT_FOUND", "操作不存在")
         key, payload = f"job-action:{idempotency_key}", {"job_id": job_id, "action": action}
         with Session(engine()) as session, session.begin():
-            previous = remembered(session, key, payload)
-            if previous:
-                return JobView.model_validate(previous)
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            # Reject even a historical idempotency key that once queued a
+            # translation. Removed work can never be resumed by replay.
+            if action == "retry" and job.kind == "pdf_translation":
+                raise failure(409, TRANSLATION_REMOVED, TRANSLATION_REMOVED_MESSAGE)
+            previous = remembered(session, key, payload)
+            if previous:
+                return JobView.model_validate(previous)
             if action == "retry" and job.kind in {
                 "paper_overview",
                 "section_guide",
                 "grounded_qa",
                 "search_keywords",
-                "pdf_translation",
             }:
                 raise failure(
                     409,
@@ -524,11 +527,9 @@ def create_app(
                     "请在对应阅读模块中手动重新生成；模型任务不会自动重发",
                 )
             if action == "cancel" and job.status in {"queued", "running"}:
-                job.status = "cancelled"
                 if job.kind == "pdf_translation":
-                    from researchgraph.translation_api import cancel_translation_job
-
-                    cancel_translation_job(session, job)
+                    # Defensive compatibility for work inserted after startup.
+                    retire_translation_jobs(session, job.id)
                 elif job.kind == "paper_overview":
                     from researchgraph.paper_overview_models import PaperOverviewResult
 
@@ -585,6 +586,7 @@ def create_app(
                         keyword_record.error_code = "CANCELLED"
                         keyword_record.error = "关键词任务已取消，未自动重发"
                         keyword_record.updated_at = now()
+                job.status = "cancelled"
             elif (
                 action == "retry"
                 and job.status in {"failed", "interrupted", "cancelled"}

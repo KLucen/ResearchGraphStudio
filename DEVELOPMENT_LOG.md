@@ -1805,3 +1805,29 @@ PowerShell7.6.9构建PyInstaller/Tauri/NSIS成功，保留649.05KB chunk提示�
 运行源码提交 `e399357b36f70881a2eca1f701939bbc43d3454f`（feat: deliver Lite reading workspace and bundled PDF translation）已普通推送 `KLucen/ResearchGraphStudio` 的main；官方ls-remote确认相同SHA。默认HTTPS超时，按github-transfer技能先检验官方SSH443/受信主机密钥，fetch确认可快进，再dry-run和正式push；未改origin或全局网络/Git配置，无force push。安装包、数据库、用户论文、凭据和运行目录未上传。
 
 GitHub Actions run43049353054（Windows build and acceptance）已启动，记录时in_progress、conclusion=null，源码SHA对应e399357；不能记为远端CI通过。本机355后端/61前端/9Host与最终安装、实际随包合成smoke成绩保持DEV-0084，不把CI生成的包与本机包混用。真实模型调用与真实Token仍0。此后仅补本交付记录的文档提交，运行源码与安装包哈希不变。
+
+## DEV-0086 — 2026-11-12 11:41（Asia/Shanghai）：撤下文献翻译，保留阅读功能和数据兼容
+
+**目标与边界**：用户仍遇到 `TRANSLATION_PROVIDER_TRUNCATED`，明确要求退回没有翻译功能的版本。本轮停止翻译开发并定向撤下模块；翻译与阅读/导航改进曾同批提交，因此不整体 reset/revert。保留 PaperCard + LightGraph、章节精读、证据问答、英文关键词、Zotero/PDF/索引、模型配置、项目树和阅读布局。不读取正式 Key、运行库、私人 PDF 或 Zotero 库，不向真实 Provider 发请求，不删除已有数据和旧本地资源。上一轮上传已经交付，本轮未 Commit/Push。
+
+**实际修改**：
+
+- `apps/desktop/src/` 删除 PaperTranslation、TranslationSettings、翻译专属测试、API/DTO/CSS 和第四阅读入口；App/Papers 保留三阅读板块及底部折叠信息卡。JobHistory 将翻译标为已停用，六种历史状态均无执行/重试入口。
+- `services/engine/researchgraph/` 删除翻译 API、bridge/proxy/bundled/runtime/contracts 和 CLI/server 参数，移除路由及 worker 分支。新增 `retired_tasks.py` 在启动/认领/取消时停止未完成旧任务；通用 retry 在旧幂等重放之前返回 FEATURE_REMOVED。保留 `translation_models.py` 与 lite0006–8 迁移链仅作兼容，head 仍 lite0008，不 downgrade 或重建。`schemas.py` 对旧翻译服务阶段作只读映射，终态历史行不变。
+- `tests/engine/test_translation_retirement.py` 覆盖旧库逐表保持、历史实际/未知 usage、文件、零网络/子进程、任务领取/取消/旧幂等、旧阶段的详情与列表；保留迁移测试，删除退役执行器专项。重新导出 `packages/contracts/`，无翻译路由/DTO。
+- Rust 宿主删除翻译文件选择/打开命令及白名单，新增旧路由阻断测试；Tauri、build-windows 和 CI 移除翻译资源。删除 runtime 准备/manifest/notices 及三个翻译 smoke 脚本。普通 smoke/安装脚本验证翻译404和无运行时；修正安装验证脚本在 PS5.1 参数默认值中的路径求值问题。
+- 浏览器回归暴露 Vite 监听 src-tauri 构建产物导致的加载超时，`vite.config.ts` 排除该目录监听。未改产品图谱、测试断言/超时/等待或全局网络；最终无禁代理参数。
+- 新增 ADR0040，更新 README、引擎说明、模型配置、文档导航、Lite规范和迁移说明；翻译文档改撤下说明，ADR0036–39 标历史，ADR0038 的阅读布局保留。当前状态见 docs/progress.md。
+
+**实际验证**：
+
+- 后端最终全量204 passed/1 skipped/1 warning、73.63秒；回退/迁移专项19 passed、7.22秒。跳过为本机symlink权限，警告为既有Starlette/httpx弃用。Ruff/71文件格式/mypy49源通过；4个Python脚本Ruff/格式及pip check通过。
+- 前端TypeScript/ESLint/Prettier与6 files/51 passed、10.41秒通过。最终生产构建通过，既有531.42KB chunk提示保留。最后开发监听配置变动后再次构建，全部前端产物与打包时逐字节一致，不需要重新制作运行内容相同的安装器。
+- 图谱原生浏览器两项最终2 passed/7.5秒。初始两项load超时、临时禁代理后仍失败等过程完整保留；单独暖服务器曾成功，不能据此认定代理根因。完整构建结束后串行原watch仍1失败/1通过，排除src-tauri监听后原Edge/原断言/原load/原30秒限制2通过。记录在.local/verify/translation-rollback-20261112/frontend-browser/，不宣称所有历史超时均有相同根因。
+- Rust fmt/clippy通过；使用最终安装后引擎的Host全量9 passed/0 ignored，含启动/重启和旧翻译路由拒绝。
+- PowerShell7完整build-windows成功，49个Python源与打包前哈希保持。Windows PowerShell5.1首次验证在默认fixture参数求值退出、未安装；修正默认值位置后隔离静默安装通过，schema lite0008，PDF解析/索引0模型/0输入输出Token、翻译404、无translation-runtime，安装后引擎hash与封存一致。仅隔离安装，未替换日常安装。
+- 内容/私人路径及Gitleaks260文件通过；本轮18个改动文档/93个本地链接均存在，最终git diff --check通过，暂存为空。无远端CI运行，旧CI/翻译测试不作本轮成绩。
+
+**Windows交付**：`.local/releases/lite-no-translation-20261112/ResearchGraph-Studio-Lite-No-Translation-0.0.1-x64-setup.exe`，38407246字节/36.63MiB，SHA256 `B01F56AF08D2CBB0C2D0E2591D12038430FDC2D2BD3B82D19EAC630E2C652835`。同目录完整sidecar含_internal，EXE15081736字节，SHA256 `33CCF7DE718E8AC9218D2889E749159F607445A06011834348723C9A38571461`；不得只复制引擎EXE。包未签名，旧包不覆盖。隔离安装资料在.local/verify/lite-no-translation-20261112/，构建/源manifest/安全资料在.local/pdf2zh-audit/rollback-*，均忽略不入Git。
+
+**用量、剩余项与下一步**：真实模型调用、真实输入输出Token、真实重试、新增费用全部0；历史实际/未知用量保持。未读取正式库，不能将隔离合成兼容测试写成用户正式库GUI或干净机验收。请用户关闭旧版后安装此包并反馈阅读界面；无需手工删库或重导论文。本轮完成撤下并停止，不再继续翻译参数修复或自动收费。

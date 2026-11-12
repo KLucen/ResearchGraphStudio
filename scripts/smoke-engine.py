@@ -7,6 +7,7 @@ import secrets
 import subprocess
 import tempfile
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -25,7 +26,6 @@ def run(
     executable: Path | None,
     source_python: Path | None = None,
     *,
-    after_import=None,
     fixture: Path | None = None,
 ) -> dict[str, object]:
     if (executable is None) == (source_python is None):
@@ -80,8 +80,12 @@ def run(
                 and health["database"] == "ready"
                 and health["fts5"]
             )
-            translation = request(base, token, "GET", "/settings/translation")
-            assert translation["enabled"] is True and translation["launch_mode"] == "bundled"
+            try:
+                request(base, token, "GET", "/settings/translation")
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 404, exc.code
+            else:
+                raise AssertionError("Retired translation API is still available")
             project = request(
                 base,
                 token,
@@ -117,11 +121,9 @@ def run(
                 "project": project["id"],
                 "pdf_job": job["id"],
                 "model_calls": usage["calls"],
-                "translation_enabled": translation["enabled"],
+                "translation_available": False,
                 "status": "passed",
             }
-            if after_import is not None:
-                report["translation"] = after_import(base, token, project["id"], fixture)
             return report
         finally:
             if child.stdin and not child.stdin.closed:

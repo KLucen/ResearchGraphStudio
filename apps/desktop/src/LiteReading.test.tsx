@@ -960,7 +960,7 @@ function metadataPaper(id = "paper", revisionId = "v"): PaperDetail {
   };
 }
 
-test("reading workspace starts with all four actions and ends with collapsed paper metadata", async () => {
+test("reading workspace starts with three reading actions and ends with collapsed paper metadata", async () => {
   const user = userEvent.setup();
   vi.mocked(api.paper).mockResolvedValue(metadataPaper());
   mount(
@@ -984,8 +984,11 @@ test("reading workspace starts with all four actions and ends with collapsed pap
   expect(
     within(header).getByRole("navigation", { name: "论文阅读板块" }),
   ).toBeVisible();
-  for (const name of ["论文概览", "章节精读", "论文问答", "文献翻译"])
+  for (const name of ["论文概览", "章节精读", "论文问答"])
     expect(within(header).getByRole("button", { name })).toBeEnabled();
+  expect(
+    within(header).queryByRole("button", { name: "文献翻译" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByText("Synthetic parsing warning")).not.toBeVisible();
   expect(screen.queryByText("CURRENT PROJECT")).not.toBeInTheDocument();
   expect(api.chunks).not.toHaveBeenCalled();
@@ -1110,6 +1113,44 @@ test("local task retry keeps failed overview out of automatic model actions", as
   ).toHaveLength(1);
   expect(screen.getByText(/概览未自动重发/)).toBeVisible();
 });
+test.each([
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "interrupted",
+] as const)(
+  "retired translation job stays read-only when %s",
+  async (status) => {
+    vi.mocked(api.jobs).mockResolvedValue([
+      {
+        id: "retired-translation",
+        kind: "pdf_translation",
+        project_id: "p",
+        status,
+        stage: "translating",
+        attempt: 1,
+        error: status === "failed" ? "Synthetic translation failure" : null,
+        result: null,
+        created_at: "2026-11-09T00:00:00Z",
+        updated_at: "2026-11-09T00:00:00Z",
+      },
+    ]);
+    mount(<JobHistory connected />);
+    const label = await screen.findByText(/文献翻译（已停用）/);
+    const history = within(label.closest("article")!);
+    expect(
+      history.getByText(
+        "文献翻译功能已移除，此记录仅保留为历史，不会重新执行。",
+      ),
+    ).toBeVisible();
+    expect(history.queryByRole("button")).not.toBeInTheDocument();
+    expect(history.queryByRole("status")).not.toBeInTheDocument();
+    expect(api.jobAction).not.toHaveBeenCalled();
+  },
+);
+
 test("Zotero batch body contains local parsing choices only", async () => {
   const user = userEvent.setup();
   vi.mocked(request).mockImplementation(async (_method, path) =>

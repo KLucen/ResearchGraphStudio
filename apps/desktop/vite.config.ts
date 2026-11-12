@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [react()],
   clearScreen: false,
   envPrefix: ["VITE_"],
+  server: {
+    watch: {
+      ignored: ["**/src-tauri/**"],
+    },
+  },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     environment: "jsdom",

@@ -24,15 +24,13 @@ const kinds: Record<string, string> = {
   section_guide: "章节导读",
   grounded_qa: "局部证据问答",
   search_keywords: "英文关键词辅助",
-  pdf_translation: "文献翻译",
+  pdf_translation: "文献翻译（已停用）",
 };
 const stages: Record<string, string> = {
   starting: "准备任务",
   reading: "读取 PDF",
   parsing: "解析原文",
   checking: "检查文件",
-  starting_service: "后台启动翻译服务",
-  stopping_service: "关闭翻译服务",
   saving: "保存结果",
   indexing: "建立本地索引",
   diagnostics: "检查存储",
@@ -118,18 +116,20 @@ export function JobHistory({
                 {new Date(job.created_at).toLocaleString("zh-CN")} · 第{" "}
                 {job.attempt} 次执行
               </small>
-              {job.status === "running" && job.stage && (
-                <p role="status">
-                  {job.kind === "section_guide" && job.stage === "generating"
-                    ? "生成章节导读"
-                    : job.kind === "grounded_qa" && job.stage === "generating"
-                      ? "生成局部证据问答"
-                      : job.kind === "search_keywords" &&
-                          job.stage === "generating"
-                        ? "生成英文关键词"
-                        : stages[job.stage] || "正在处理"}
-                </p>
-              )}
+              {job.kind !== "pdf_translation" &&
+                job.status === "running" &&
+                job.stage && (
+                  <p role="status">
+                    {job.kind === "section_guide" && job.stage === "generating"
+                      ? "生成章节导读"
+                      : job.kind === "grounded_qa" && job.stage === "generating"
+                        ? "生成局部证据问答"
+                        : job.kind === "search_keywords" &&
+                            job.stage === "generating"
+                          ? "生成英文关键词"
+                          : stages[job.stage] || "正在处理"}
+                  </p>
+                )}
               {typeof job.result?.title === "string" && (
                 <p>{job.result.title}</p>
               )}
@@ -157,14 +157,14 @@ export function JobHistory({
                     英文关键词未自动重发。请回到本地检索区，确认无命中后重新授权。
                   </p>
                 )}
-              {job.kind === "pdf_translation" &&
-                ["failed", "interrupted", "cancelled"].includes(job.status) && (
-                  <p className="muted">
-                    翻译未自动重发。请回到文献翻译板块，重新预检并确认预算。
-                  </p>
-                )}
+              {job.kind === "pdf_translation" && (
+                <p className="muted">
+                  文献翻译功能已移除，此记录仅保留为历史，不会重新执行。
+                </p>
+              )}
             </div>
-            {["queued", "running"].includes(job.status) ? (
+            {job.kind !== "pdf_translation" &&
+            ["queued", "running"].includes(job.status) ? (
               <button
                 className="text-button"
                 disabled={!connected || action.isPending}

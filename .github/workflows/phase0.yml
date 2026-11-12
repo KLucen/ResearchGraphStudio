@@ -15,7 +15,7 @@ concurrency:
 jobs:
   windows:
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,28 +50,11 @@ jobs:
           if (-not ($edge | Where-Object { Test-Path -LiteralPath $_ })) { throw 'Microsoft Edge is required by the graph browser tests.' }
           pnpm --dir apps/desktop test:browser --reporter=line
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Cache verified translation downloads
-        uses: actions/cache@v4
-        with:
-          path: .local/translation-downloads
-          key: windows-translation-${{ hashFiles('scripts/translation-runtime-manifest.json') }}
-      - name: Prepare bundled offline translation runtime
-        shell: pwsh
-        run: |
-          ./scripts/prepare-translation-runtime.ps1
-          if (-not (Test-Path -LiteralPath 'apps/desktop/src-tauri/translation-runtime/runtime-manifest.json')) { throw 'Bundled translation runtime was not prepared.' }
-          if (-not (Get-ChildItem -LiteralPath 'apps/desktop/src-tauri/translation-runtime' -Filter 'offline_assets_*.zip')) { throw 'Bundled offline fonts and models are missing.' }
       - name: Build and verify the packaged engine
         shell: pwsh
         run: |
           ./scripts/build-engine.ps1
           conda run -n researchgraph-studio python scripts/smoke-engine.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          conda run -n researchgraph-studio python scripts/smoke-translation.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          . ./scripts/common.ps1
-          $runtimePython = Get-ProjectPython
-          & $runtimePython scripts/smoke-managed-translation.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe --runtime-python $runtimePython
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Check Rust and build installer
         shell: pwsh

@@ -1,12 +1,12 @@
 # ResearchGraph Lite 工程映射与清理结果
 
-更新：2026-11-11（Asia/Shanghai）。
+更新：2026-11-12（Asia/Shanghai）。
 
 ## 决策顺序与回退点
 
 完整工程基线见 [current_project_baseline.md](../current_project_baseline.md)。先完成总结和安全检查，再将完整旧工程保存并推送为 backup/pre-lite-refactor，提交 7b45f0d；随后建立 refactor/researchgraph-lite-p0，本地 P0 快照为 29e4495。
 
-用户后续明确要求清理旧业务及应用生成数据，并以新 Lite Schema 建立空数据库。因此本次独立空库方案覆盖原 Lite 设计包的旧业务可访问/增量迁移要求；旧完整系统通过备份分支回退，活跃 Lite 工程不提供旧 Query/Lint/Wiki/完整图谱入口。本轮只合并本地 main，不推送 Lite 或 main。
+用户后续明确要求清理旧业务及应用生成数据，并以新 Lite Schema 建立空数据库。因此早期独立空库方案覆盖原 Lite 设计包的旧业务可访问/增量迁移要求；旧完整系统通过备份分支回退，活跃 Lite 工程不提供旧 Query/Lint/Wiki/完整图谱入口。该清理阶段的提交与后续上传记录以 [实际进度](../progress.md) 为准；其空库初始化决定不适用于此后已有 Lite 用户数据的功能撤下。
 
 ## 模块映射
 
@@ -21,13 +21,14 @@
 | 用量/缓存 | 独立 Lite 账本记录每次请求/失败/缓存命中，未知 usage 或费用保持未知 |
 | 图谱组件 | 复用 ForceGraph、forceSimulation、graphLayout 和 graphAppearance，以 Lite 概览 DTO 展示 |
 | 完整旧知识业务 | 移除旧抽取、Query、Lint/Wiki、Reading/Reasoning、旧迁移和对应测试/Prompt/Schema |
+| 文献翻译 | 2026-11-12 撤下界面、API、执行器和随包运行时；仅保留历史迁移及数据兼容，不删除已有译文、记录或用量 |
 | 文档和产物 | 保留 Lite 规范、基线、当前说明、安全/构建脚本和匿名 fixture；旧报告/归档/安装包/运行数据清理 |
 
 完整盘点和删除边界见 [lite_cleanup_inventory.md](../lite_cleanup_inventory.md)。
 
 ## 数据库与数据边界
 
-Lite 文件名为 researchgraph-lite.sqlite3。设计包的 `lite0001` 是空基线；当前活跃 Alembic head 为 `lite0008`。在现有阅读与翻译能力上增加输出格式，未来任务默认使用随安装包提供的 bundled 翻译核心，不再需要外部环境路径。已有 Lite 数据通过加性迁移保留，升级前自动备份，不重新初始化数据库；旧外部路径和任务运行快照保留，缺少快照的旧任务按 manual 解释。旧译文默认 both，新界面明确选择 dual 或 mono，格式与引擎身份进入缓存键。译文 PDF 与源修订/哈希绑定，独立保存，不进入原文 Span、FTS5 证据或 LightGraph。完整旧系统的业务数据仍不迁移。详见 [ADR0038](../adr/0038-bundled-translation-and-reading-layout.md)。
+Lite 文件名为 researchgraph-lite.sqlite3。设计包的 `lite0001` 是空基线；Alembic head 保持 `lite0008`，保留既有迁移链和翻译表结构以兼容已经使用的 Lite 数据库。2026-11-12 按用户要求撤下翻译能力，不执行数据库 downgrade、重新初始化或历史数据迁移；论文、章节、阅读成果、布局、历史翻译行、任务快照、用量与生成文件继续保留。翻译界面、业务 API、执行器和随包资源从活跃工程移除，旧任务不自动续发或重试。保留表结构不表示仍可运行翻译。完整旧系统的业务数据仍不迁移。详见 [ADR0040](../adr/0040-remove-pdf-translation.md)。
 
 旧 0001–0022 迁移不再属于活跃 Lite 迁移链。程序不打开或升级旧 researchgraph.sqlite3；在 Lite 路径遇到旧结构时拒绝启动迁移。旧数据库、私人论文、Zotero 正式库和项目目录以外的用户文件未被处理。回退时须使用备份分支与用户保存的旧数据，Git 分支本身不包含私人数据。
 
@@ -40,7 +41,7 @@ Lite 文件名为 researchgraph-lite.sqlite3。设计包的 `lite0001` 是空基
 5. 程序校验结构、端点和数量上限，生成稳定节点/边 ID，记录用量与版本化缓存。
 6. 图谱拖动/缩放/固定只更新独立布局和相机；缓存命中无新增模型请求，失败不自动重发。
 7. 用户选定单一小节并显式选择 `quick`、`standard` 或 `deep` 后生成 A01 章节导读；结果按论文、文献版本、章节和深度缓存，源版本变化标记 `STALE`，模型只能引用本次允许的 Span，并支持复制导读。
-8. 可选文献翻译单独预检并授权，复用模型配置；自动模式只在新任务需要时无窗口启动专用 Server，下载并验证译文后回收自建进程树，再发布完成结果。GET、预检与缓存读取不启动外部进程；手动模式继续由用户负责服务启停。详见 [ADR0037](../adr/0037-managed-translation-server.md)。
+8. 论文问答先对用户选定的 section/paper/selection 范围进行本地检索，再由用户明确生成 D01 回答；本地无命中时可单独授权 D02 关键词辅助，返回关键词后重新检索，不自动生成回答。
 
 A 章节导读 A01 已实现：用户显式选择单节后可按 quick/standard/deep 生成，使用版本化缓存、STALE 识别、证据 Span 白名单和复制展示；GET、章节切换和本地解析不会调用模型。D01 局部证据问答已实现：默认 section、可选 paper/selection、FTS5 Top-K Span、显式授权、引用白名单、证据不足结果、缓存及失败/取消/重启记录；D02 关键词辅助已实现：服务端确认本地无命中后，用户明确授权才发送标题/章节标题/问题，返回 1–5 个关键词并重新执行本地检索。本轮没有真实模型质量、单篇论文真实 Token/费用或通用节省比例结论。
 

@@ -9,7 +9,6 @@ import { api } from "./api";
 import { PaperMetadata } from "./PaperMetadata";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
-import { PaperTranslation } from "./PaperTranslation";
 import { ZoteroImport } from "./ZoteroImport";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -73,7 +72,7 @@ export function Papers({
             <div>
               <h2>从左侧选择一篇论文</h2>
               <p>
-                选中文献后，这里显示对应的论文阅读工作区：论文概览、章节精读、论文问答和文献翻译。
+                选中文献后，这里显示对应的论文阅读工作区：论文概览、章节精读和论文问答。
               </p>
             </div>
           </div>
@@ -224,13 +223,10 @@ function PaperText({
         : false,
   });
   const [chosen, setChosen] = useState("");
-  const [activePanel, setActivePanel] = useState<
-    "overview" | "guide" | "qa" | "translation"
-  >("overview");
-  const revisionId = chosen || detail.data?.revisions[0]?.id || "";
-  const revision = detail.data?.revisions.find(
-    (item) => item.id === revisionId,
+  const [activePanel, setActivePanel] = useState<"overview" | "guide" | "qa">(
+    "overview",
   );
+  const revisionId = chosen || detail.data?.revisions[0]?.id || "";
   return (
     <div className="paper-reading paper-reading-focused">
       {detail.isError && (
@@ -260,7 +256,6 @@ function PaperText({
                   ["overview", "论文概览"],
                   ["guide", "章节精读"],
                   ["qa", "论文问答"],
-                  ["translation", "文献翻译"],
                 ] as const
               ).map(([value, label]) => (
                 <button
@@ -285,7 +280,7 @@ function PaperText({
               <strong>正在准备论文阅读功能</strong>
               <p>
                 当前论文还没有完成的 PDF
-                解析版本。系统正在等待本地解析和章节索引；完成后会启用论文概览、章节精读、论文问答和文献翻译。
+                解析版本。系统正在等待本地解析和章节索引；完成后会启用论文概览、章节精读和论文问答。
               </p>
               <p className="muted">
                 如果长时间没有变化，请打开左侧“任务记录”查看 PDF 导入是否失败。
@@ -324,16 +319,6 @@ function PaperText({
                     paperId={paperId}
                     connected={connected}
                     panel="qa"
-                  />
-                </section>
-              )}
-              {activePanel === "translation" && (
-                <section className="reading-panel" aria-label="文献翻译工作区">
-                  <PaperTranslation
-                    paperId={paperId}
-                    revisionId={revisionId}
-                    pageCount={revision?.page_count ?? 0}
-                    connected={connected}
                   />
                 </section>
               )}

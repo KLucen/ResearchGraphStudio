@@ -1,4 +1,8 @@
-"""Derived PDF translations are separate from authoritative paper revisions."""
+"""Retired translation schema retained only for installed-database compatibility.
+
+No API, renderer, service launcher, or model request uses these rows. Historical
+artifacts, frozen snapshots, and usage are retained when translation is removed.
+"""
 
 from typing import Any
 

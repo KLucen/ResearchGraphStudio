@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class InputModel(BaseModel):
@@ -66,6 +66,27 @@ class JobView(BaseModel):
     resume_adapter_available: bool = False
     created_at: str
     updated_at: str
+
+    @field_validator("stage", mode="before")
+    @classmethod
+    def retired_translation_stage(cls, value: Any, info: ValidationInfo) -> Any:
+        # Old translation workers persisted service phases that were never in
+        # the public Job DTO. Present them through generic phases without
+        # changing immutable terminal history or adding an active feature.
+        if info.data.get("kind") == "pdf_translation" and value in {
+            "starting_service",
+            "stopping_service",
+        }:
+            return {
+                "succeeded": "completed",
+                "failed": "failed",
+                "cancelled": "interrupted",
+                "interrupted": "interrupted",
+            }.get(
+                str(info.data.get("status", "")),
+                "starting" if value == "starting_service" else "saving",
+            )
+        return value
 
 
 class JobList(BaseModel):

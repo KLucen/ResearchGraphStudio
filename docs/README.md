@@ -1,6 +1,6 @@
 # 文档导航
 
-更新：2026-11-11（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前活跃迁移 head 为 `lite0008`，默认翻译运行时与离线资源随安装分发，新增双语/中文/两种输出选择，并将阅读工作区置顶、论文信息默认折叠；P2 A01 章节导读、P3 D01 局部证据问答、D02 英文关键词辅助和全局模型连接配置已实现。完整 v3/P4/P5 文档已从活跃目录清理，旧工程仍可从 `backup/pre-lite-refactor` 回退。
+更新：2026-11-12（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前保留 PaperCard + LightGraph、A01 章节导读、D01 局部证据问答、D02 英文关键词辅助和全局模型连接配置。按用户要求撤下文献翻译界面、业务 API 和运行时；保留阅读工作区置顶、论文信息默认折叠的布局。Alembic head 继续为 `lite0008`，仅保留历史迁移与数据兼容，不再表示提供翻译功能。完整 v3/P4/P5 文档已从活跃目录清理，旧工程仍可从 `backup/pre-lite-refactor` 回退。
 
 ## 先读
 
@@ -12,14 +12,13 @@
 - [清理盘点](lite_cleanup_inventory.md)
 - [实际进度](progress.md)
 - [模型配置](model-configuration.md)
-- [文献翻译](pdf-translation.md)
-- [翻译桥接决策](adr/0036-optional-pdf-translation-bridge.md)
-- [随包翻译与阅读布局决策](adr/0038-bundled-translation-and-reading-layout.md)
-- [翻译请求策略与错误分类](adr/0039-translation-proxy-request-policy.md)
-- [翻译服务自动启停决策（外部模式历史）](adr/0037-managed-translation-server.md)
+- [撤下文献翻译的决策](adr/0040-remove-pdf-translation.md)
+- [文献翻译撤下说明](pdf-translation.md)
 - [安全检查](security-checks.md)
 - [Lite P0 决策](adr/0031-researchgraph-lite-p0.md)
 - [Lite 清理与联合论文概览决策](adr/0032-lite-clean-engine-and-paper-overview.md)
+
+翻译实现的演进历史保留在 [ADR0036](adr/0036-optional-pdf-translation-bridge.md)、[ADR0037](adr/0037-managed-translation-server.md)、[ADR0038](adr/0038-bundled-translation-and-reading-layout.md) 和 [ADR0039](adr/0039-translation-proxy-request-policy.md)。其翻译相关决策已由 ADR0040 覆盖，不作为当前配置或运行指南；ADR0038 的阅读布局继续保留。
 
 ## 文档规则
 
