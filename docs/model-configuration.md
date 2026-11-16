@@ -1,6 +1,6 @@
 # Lite 模型配置
 
-更新：2026-11-12（Asia/Shanghai）。Lite 默认本地解析，不调用模型。模型只在用户主动生成 PaperCard + LightGraph、章节导读、证据问答或明确启用英文关键词辅助时使用。
+更新：2026-11-14（Asia/Shanghai）。Lite 默认本地解析，不调用模型。模型只在用户主动生成 PaperCard + LightGraph、章节导读、双栏精读、复述理解检查、证据问答或明确启用英文关键词辅助时使用。
 
 模型配置位于“设置与诊断”的“模型”板块。页面按提供商卡片展示连接，添加时可以选择 DeepSeek、OpenAI、OpenRouter、SiliconFlow、智谱 AI、通义千问和本机 Ollama 等兼容预设，也可以打开“自定义模型 API”填写 Provider ID、显示名称、Base URL、协议、API Key 和多个模型。当前运行引擎只实现 OpenAI Chat Completions 兼容路径；原生 Anthropic 等协议不在界面中宣称已支持。
 
@@ -10,6 +10,8 @@
 
 LightGraph 使用补充规范中的 `PAPER_OVERVIEW_WITH_LIGHT_GRAPH_V1`，PaperCard 与概念图只发起一次联合请求。模型不得生成正式 ID、文件路径、数据库语句、Evidence 节点或段落证据引用；本地程序负责 Schema 校验、稳定 ID、缓存和布局保存。
 
+全文精读与理解检查复用全局阅读模型配置及 Provider。A04 对整篇可读正文一次生成常驻译文和中文批注，不分析折叠图表材料，不追加校对或图谱抽取。按实际 Provider 的有效上下文和输出限制预检，容量不足零调用提示；不静默截断、不自动拆批。容量未声明时明确警告估算不能保证容纳。旧 A02 结果保留，A03 仅主动复述时调用。理解状态和 A01 自适应开关不产生请求。费用和译文质量按真实返回记录，不从估算或合成测试推断。见 [ADR0042](adr/0042-paper-reading-document-and-notes.md)。
+
 旧版完整抽取、跨论文推理、Lint/Wiki 和旧 Query 配置已从 Lite 活跃入口移除。旧项目只能从备份分支恢复。
 
-文献翻译已于 2026-11-12 按用户要求撤下，设置中不再提供翻译运行环境或模型代理配置。已有模型连接、Profile、API Key 引用与其他阅读功能继续使用；历史翻译用量记录保留，供应商未返回的 usage 或费用仍为 `unknown`。保留 `lite0008` 迁移链以兼容已有数据库，不执行降级、数据删除或旧翻译任务重放。详见 [ADR0040](adr/0040-remove-pdf-translation.md) 与 [撤下说明](pdf-translation.md)。
+文献翻译已于 2026-11-12 按用户要求撤下，设置中不再提供翻译运行环境或模型代理配置。已有模型连接、Profile、API Key 引用与其他阅读功能继续使用；历史翻译用量记录保留，供应商未返回的 usage 或费用仍为 `unknown`。当前 `lite0010` 在保留 `lite0008` 及此前迁移链的基础上加表，不执行降级、数据删除或旧翻译任务重放。详见 [ADR0040](adr/0040-remove-pdf-translation.md) 与 [撤下说明](pdf-translation.md)。

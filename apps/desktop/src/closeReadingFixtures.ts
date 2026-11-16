@@ -1,0 +1,181 @@
+// Distributable, invented text used only by unit/browser tests. No paper data.
+import type {
+  CloseReadingView,
+  ConceptUnderstanding,
+  ReadingState,
+  SectionParagraphs,
+  UnderstandingCheckView,
+} from "./api";
+export const readingSource: SectionParagraphs = {
+  paper_id: "paper",
+  document_version_id: "v",
+  section_id: "s",
+  section_title: "2. Synthetic Methods",
+  source_hash: "synthetic-source",
+  estimated_source_tokens: 50,
+  suggested_max_source_tokens: 2000,
+  paragraphs: [
+    {
+      paragraph_id: "p1",
+      ordinal: 1,
+      text_en:
+        "We test a bounded method. A bounded method may fail under noise.",
+      text_hash: "synthetic-p1",
+      page_start: 2,
+      page_end: 2,
+      span_ids: ["sp1"],
+    },
+    {
+      paragraph_id: "p2",
+      ordinal: 2,
+      text_en:
+        "The observed result is conditional. We do not claim universal success.",
+      text_hash: "synthetic-p2",
+      page_start: 3,
+      page_end: 3,
+      span_ids: ["sp2"],
+    },
+  ],
+};
+export const readingState: ReadingState = {
+  paper_id: "paper",
+  document_version_id: "v",
+  section_id: "s",
+  progress: "NOT_STARTED",
+  self_assessment: "UNSET",
+  unresolved_concept_ids: [],
+  questions: [],
+  updated_at: null,
+  source_hash: "synthetic-source",
+  source_changed: false,
+  overview_result_id: "overview",
+  unresolved_unlinked_ids: [],
+};
+export const readingConcept: ConceptUnderstanding = {
+  id: null,
+  paper_id: "paper",
+  document_version_id: "v",
+  overview_result_id: "overview",
+  graph_node_id: "n1",
+  node_label_zh: "有界方法",
+  node_label_en: "Bounded Method",
+  self_level: "UNSET",
+  last_check_result: "NOT_CHECKED",
+  note_zh: "",
+  last_check_note_zh: "",
+  updated_at: null,
+  association_status: "CURRENT",
+  has_unresolved_question: false,
+  related_sections: [{ section_id: "s", title: "2. Synthetic Methods" }],
+};
+const budget = {
+  estimated_input_tokens: 650,
+  estimated_output_tokens: 450,
+  estimated_total_tokens: 1100,
+  estimated_source_tokens: 50,
+  estimate_only: true,
+  warning: "合成估算",
+};
+const usage = {
+  input_tokens: 120,
+  output_tokens: 80,
+  total_tokens: 200,
+  calls: 1,
+  retry_count: 0,
+  cost: null,
+  usage_source: "provider" as const,
+};
+export const readingComplete: CloseReadingView = {
+  id: "cr1",
+  paper_id: "paper",
+  document_version_id: "v",
+  section_id: "s",
+  range: {
+    paragraph_ids: ["p1", "p2"],
+    range_label: "第 1–2 段",
+    full_section: true,
+    range_hash: "synthetic-range",
+  },
+  status: "COMPLETED",
+  analysis: {
+    schema_version: "section_reading_analysis.v1",
+    paragraphs: [
+      {
+        paragraph_id: "p1",
+        translation_zh: "我们测试一种有界方法。有界方法可能在噪声下失效。",
+        paragraph_function: "EXPLAIN_METHOD",
+        logic_role_zh: "先介绍方法，再明确适用限制。",
+        critical_note_zh: "噪声条件仍需结合后续结果核查。",
+        reading_question_zh: "方法在什么条件下可能失效？",
+        highlights: [
+          { type: "METHOD", quote_en: "bounded method", occurrence_index: 0 },
+          { type: "THESIS", quote_en: "may fail", occurrence_index: 0 },
+        ],
+        related_graph_node_ids: ["n1"],
+      },
+      {
+        paragraph_id: "p2",
+        translation_zh: "观察到的结果有条件限制。我们并不声称普遍成功。",
+        paragraph_function: "DISCUSS_LIMITATION",
+        logic_role_zh: "限定结果的推广范围。",
+        critical_note_zh: "",
+        reading_question_zh: null,
+        highlights: [
+          {
+            type: "COUNTERARGUMENT",
+            quote_en: "do not claim universal success",
+            occurrence_index: 0,
+          },
+        ],
+        related_graph_node_ids: [],
+      },
+    ],
+    section_argument: {
+      logic_chain_zh: ["介绍有界方法", "说明噪声限制", "限定结论范围"],
+      core_claim_zh: "该方法仅在适用条件下有效。",
+      strong_point_zh: "明确保留适用范围。",
+      question_to_verify_zh: "噪声条件如何定义？",
+    },
+  },
+  missing_paragraph_ids: [],
+  warnings: [],
+  usage,
+  estimated: budget,
+  cache_hit: true,
+  job_id: null,
+  error_code: null,
+  error: null,
+  retry_of: null,
+};
+export const readingPartial: CloseReadingView = {
+  ...readingComplete,
+  status: "INCOMPLETE",
+  analysis: {
+    ...readingComplete.analysis!,
+    paragraphs: [readingComplete.analysis!.paragraphs[0]],
+  },
+  missing_paragraph_ids: ["p2"],
+  cache_hit: false,
+  error_code: "READING_INCOMPLETE",
+  error: "有一段尚未完成",
+};
+export const readingCheck: UnderstandingCheckView = {
+  id: "check1",
+  status: "COMPLETED",
+  range: readingComplete.range,
+  user_explanation: "方法在噪声下可能失败。",
+  check: {
+    check_result: "UNCERTAIN",
+    correct_points_zh: ["保留了不确定性。"],
+    missing_or_mistaken_zh: [],
+    feedback_zh: "当前片段不足以核对更细的噪声条件。",
+    follow_up_question_zh: "需要补读哪些条件？",
+  },
+  graph_node_ids: [],
+  overview_result_id: null,
+  usage,
+  estimated: budget,
+  cache_hit: false,
+  error_code: null,
+  error: null,
+};

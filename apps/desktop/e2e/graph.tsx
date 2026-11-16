@@ -48,6 +48,7 @@ function Harness() {
   const [selected, setSelected] = useState("");
   const [selectedEdge, setSelectedEdge] = useState("");
   const [poll, setPoll] = useState(0);
+  const [reading, setReading] = useState(false);
   function save(next: GraphLayout) {
     setLayout(next);
     localStorage.setItem("lite.graph.layout", JSON.stringify(next));
@@ -55,13 +56,22 @@ function Harness() {
   return (
     <>
       <button onClick={() => setPoll(poll + 1)}>模拟轮询</button>
+      <button onClick={() => setReading(!reading)}>切换阅读困惑标记</button>
       <output data-testid="layout" hidden>
         {JSON.stringify(layout)}
       </output>
       <output data-testid="selection">{selected || selectedEdge}</output>
       <div className="projection-canvas" style={{ height: 650, width: 1000 }}>
         <ForceGraph
-          graph={{ ...graph, render_revision: poll }}
+          graph={{
+            ...graph,
+            nodes: graph.nodes.map((node) =>
+              node.id === "n0" && reading
+                ? { ...node, reading_level: "UNSURE", reading_unresolved: true }
+                : node,
+            ),
+            render_revision: poll,
+          }}
           layout={layout}
           selected={selected}
           language="both"

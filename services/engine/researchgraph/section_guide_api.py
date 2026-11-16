@@ -22,6 +22,7 @@ from researchgraph.core import KnowledgeError
 from researchgraph.lite_usage import cache_key, read_cache, record_usage, write_cache
 from researchgraph.models import AttachmentRevision, EvidenceSpan, Job, Paper, Section, now
 from researchgraph.providers import Provider
+from researchgraph.reading_state_contracts import ReaderContext
 from researchgraph.section_guide_contracts import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -51,6 +52,23 @@ guide, not a whole-paper summary or encyclopedia entry.
 For quick depth use at most two key_points; standard uses two to four; deep may
 use up to four. Keep the overview to two or three concise Chinese sentences.
 """
+
+ADAPTIVE_INSTRUCTIONS = """
+The optional reader_context is a small, locally selected subjective reading
+preference. Adapt emphasis to it without treating it as a scientific fact.
+Use only current source spans for the guide's claims and evidence. Do not infer
+the reader's general knowledge or add prior-section content not provided here.
+"""
+
+
+def _prompt(context: dict[str, Any]) -> str:
+    return SYSTEM_PROMPT + ADAPTIVE_INSTRUCTIONS if context.get("reader_context") else SYSTEM_PROMPT
+
+
+def _frozen_reader_context(context: dict[str, Any], frozen: Any) -> dict[str, Any]:
+    if frozen is not None:
+        context["reader_context"] = ReaderContext.model_validate(frozen, strict=True).model_dump()
+    return context
 
 
 def _clean(value: str) -> str:
@@ -143,7 +161,7 @@ def build_guide_input(
 def _model_context(context: dict[str, Any]) -> dict[str, Any]:
     """Project internal range metadata to the published GuideInput contract."""
 
-    return {
+    result = {
         key: context[key]
         for key in (
             "paper_title",
@@ -153,6 +171,9 @@ def _model_context(context: dict[str, Any]) -> dict[str, Any]:
             "allowed_spans",
         )
     }
+    if context.get("reader_context") is not None:
+        result["reader_context"] = context["reader_context"]
+    return result
 
 
 def _reject_truncated_context(context: dict[str, Any]) -> None:
@@ -180,11 +201,13 @@ def _validate_cached_guide(
     )
 
 
-def _configuration(snapshot: dict[str, Any]) -> dict[str, Any]:
+def _configuration(
+    snapshot: dict[str, Any], context: dict[str, Any] | None = None
+) -> dict[str, Any]:
     return {
         "base_url": snapshot.get("base_url", ""),
         "parameters": snapshot.get("parameters", {}),
-        "system_prompt_hash": _hash(SYSTEM_PROMPT),
+        "system_prompt_hash": _hash(_prompt(context or {})),
         "output_schema_hash": _hash(guide_schema()),
     }
 
@@ -280,6 +303,8 @@ def _view(
         error=row.error,
         stale_reason=row.stale_reason or ("document_version_changed" if stale else None),
         evidence=evidence or [],
+        adaptive=bool((row.request_metadata or {}).get("adaptive")),
+        reader_context=(row.request_metadata or {}).get("reader_context"),
     )
 
 
@@ -294,8 +319,9 @@ def _row_is_stale(session: Session, row: SectionGuideResult) -> bool:
         )
     except KnowledgeError:
         return True
+    context = build_guide_input(session, paper, revision, section, parent, spans, row.depth)
     current_hash = _hash(
-        build_guide_input(session, paper, revision, section, parent, spans, row.depth)
+        _frozen_reader_context(context, (row.request_metadata or {}).get("reader_context"))
     )
     return current_hash != row.input_hash
 
@@ -390,6 +416,7 @@ async def execute_section_guide(
                 session, paper_id, revision_id, section_id
             )
             context = build_guide_input(session, paper, revision, section, parent, spans, depth)
+            _frozen_reader_context(context, job.payload.get("reader_context"))
             _reject_truncated_context(context)
             input_hash = _hash(context)
             if input_hash != job.payload.get("input_hash"):
@@ -401,13 +428,14 @@ async def execute_section_guide(
                     {
                         "base_url": getattr(active_provider, "base_url", ""),
                         "parameters": getattr(active_provider, "parameters", {}),
-                    }
+                    },
+                    context,
                 )
             else:
                 if not isinstance(snapshot, dict):
                     snapshot = snapshot_for(session, project_id, "extraction")
                 provider_id, model_id = str(snapshot["provider"]), str(snapshot["model"])
-                config = _configuration(snapshot)
+                config = _configuration(snapshot, context)
             key, identity = _identity(
                 project_id,
                 paper_id,
@@ -433,6 +461,11 @@ async def execute_section_guide(
                 provider_id,
                 model_id,
             )
+            row.request_metadata = {
+                **(row.request_metadata or {}),
+                "adaptive": bool(job.payload.get("adaptive")),
+                "reader_context": context.get("reader_context"),
+            }
             result_id = row.id
             # Read payload flags before this transaction closes.  ORM instances
             # are detached afterwards, so the completion transaction must use
@@ -514,6 +547,7 @@ async def execute_section_guide(
             session.flush()
             usage_id = usage_row.id
             row.request_metadata = {
+                **row.request_metadata,
                 "task": TASK_NAME,
                 "request_started": True,
                 "usage_id": usage_id,
@@ -521,7 +555,7 @@ async def execute_section_guide(
             }
             job.status, job.stage, job.updated_at = "running", "generating", now()
         raw = await active_provider.complete(
-            SYSTEM_PROMPT,
+            _prompt(context),
             _model_context(context),
             guide_schema(),
         )
@@ -571,6 +605,9 @@ async def execute_section_guide(
                 current_parent,
                 current_spans,
                 depth,
+            )
+            _frozen_reader_context(
+                current_context, (current_row.request_metadata or {}).get("reader_context")
             )
             if _hash(current_context) != current_row.input_hash:
                 raise KnowledgeError("GUIDE_INPUT_CHANGED", "章节原文已变化，导读结果未发布")
@@ -759,6 +796,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         section_id: str,
         document_version_id: str | None = Query(default=None),
         depth: str = Query("standard", pattern="^(quick|standard|deep)$"),
+        adaptive: bool = Query(False),
     ) -> GuideView | None:
         with Session(engine()) as session:
             paper = session.get(Paper, paper_id)
@@ -771,7 +809,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
             )
             if revision is None or revision.paper_id != paper_id:
                 raise HTTPException(409, "论文尚未完成该版本的 PDF 解析")
-            row = session.scalar(
+            rows = session.scalars(
                 select(SectionGuideResult)
                 .where(
                     SectionGuideResult.paper_id == paper_id,
@@ -780,8 +818,25 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
                     SectionGuideResult.depth == depth,
                 )
                 .order_by(SectionGuideResult.updated_at.desc())
-                .limit(1)
+            ).all()
+            row = next(
+                (
+                    candidate
+                    for candidate in rows
+                    if bool((candidate.request_metadata or {}).get("adaptive")) == adaptive
+                ),
+                None,
             )
+            if row is None and adaptive:
+                # Without a reliable mapped state, ordinary A01 remains useful.
+                row = next(
+                    (
+                        candidate
+                        for candidate in rows
+                        if not (candidate.request_metadata or {}).get("adaptive")
+                    ),
+                    None,
+                )
             return _view(
                 row,
                 stale=row is not None and _row_is_stale(session, row),
@@ -815,6 +870,17 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
             context = build_guide_input(
                 session, paper, revision, section, parent, spans, body.depth
             )
+            if body.adaptive:
+                from researchgraph.reading_state_api import build_reader_context
+
+                reader_context = build_reader_context(
+                    session,
+                    paper_id,
+                    revision.id,
+                    section_id,
+                    "\n".join(item["text_en"] for item in context["allowed_spans"]),
+                )
+                _frozen_reader_context(context, reader_context)
             if not context["allowed_spans"]:
                 raise HTTPException(409, "当前章节没有可用原文证据，无法生成导读")
             try:
@@ -833,7 +899,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
                 input_hash,
                 provider,
                 model,
-                _configuration(snapshot),
+                _configuration(snapshot, context),
             )
             current = session.scalar(
                 select(SectionGuideResult)
@@ -931,6 +997,8 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
                     "input_hash": input_hash,
                     "cache_key": key,
                     "force_regenerate": body.force_regenerate,
+                    "adaptive": body.adaptive,
+                    "reader_context": context.get("reader_context"),
                     "retry_of": current.id
                     if current is not None and current.status == "FAILED"
                     else None,
@@ -954,4 +1022,9 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
                 provider,
                 model,
             )
+            row.request_metadata = {
+                **(row.request_metadata or {}),
+                "adaptive": body.adaptive,
+                "reader_context": context.get("reader_context"),
+            }
             return cast(GuideView, _view(row))

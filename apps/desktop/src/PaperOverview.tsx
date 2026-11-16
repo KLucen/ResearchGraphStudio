@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type OverviewLayout, type OverviewView } from "./api";
+import {
+  api,
+  type OverviewLayout,
+  type OverviewView,
+  type ConceptUnderstanding,
+  type ReadingParagraph,
+  type SelfAssessment,
+} from "./api";
 import { ForceGraph } from "./ForceGraph";
 import { GraphLegend } from "./graphAppearance";
 import type { GraphData } from "./graphTypes";
+import { assessmentLabels, checkLabels } from "./SectionCloseReading";
 
 const errorText = (value: unknown) =>
   value instanceof Error ? value.message : String(value);
@@ -13,6 +21,9 @@ type PaperOverviewProps = {
   revisionId: string;
   projectId: string;
   connected: boolean;
+  initialNodeId?: string;
+  onOpenSection?: (sectionId: string, paragraphId?: string) => void;
+  onAskParagraph?: (sectionId: string, paragraph: ReadingParagraph) => void;
 };
 
 export function PaperOverview(props: PaperOverviewProps) {
@@ -29,10 +40,13 @@ function PaperOverviewSession({
   revisionId,
   projectId,
   connected,
+  initialNodeId = "",
+  onOpenSection,
+  onAskParagraph,
 }: PaperOverviewProps) {
   const client = useQueryClient();
   const [allowNetwork, setAllowNetwork] = useState(false);
-  const [selectedNode, setSelectedNode] = useState("");
+  const [selectedNode, setSelectedNode] = useState(initialNodeId);
   const [selectedEdge, setSelectedEdge] = useState("");
   const [layout, setLayout] = useState<OverviewLayout | null>(null);
   const [reset, setReset] = useState(0);
@@ -78,6 +92,12 @@ function PaperOverviewSession({
   const completed =
     data?.status === "COMPLETED" && !!data.paper_card && !!data.graph;
   const resultId = data?.id ?? "";
+  const understanding = useQuery({
+    queryKey: ["concept-understanding", paperId, revisionId, resultId],
+    queryFn: () => api.conceptUnderstanding(paperId, revisionId, resultId),
+    enabled: connected && completed && !!resultId,
+    retry: false,
+  });
   useEffect(() => {
     if (
       previousStatus.current === "PENDING" &&
@@ -162,6 +182,21 @@ function PaperOverviewSession({
               label_en: node.label_en,
               description_zh: node.description_zh,
               basis: node.basis,
+              reading_level: understanding.data?.find(
+                (concept) =>
+                  concept.graph_node_id === node.id &&
+                  concept.association_status === "CURRENT",
+              )?.self_level,
+              reading_check: understanding.data?.find(
+                (concept) =>
+                  concept.graph_node_id === node.id &&
+                  concept.association_status === "CURRENT",
+              )?.last_check_result,
+              reading_unresolved: understanding.data?.find(
+                (concept) =>
+                  concept.graph_node_id === node.id &&
+                  concept.association_status === "CURRENT",
+              )?.has_unresolved_question,
             })),
             edges: data.graph.edges.map((edge) => ({
               id: edge.id,
@@ -173,7 +208,7 @@ function PaperOverviewSession({
             })),
           }
         : null,
-    [data],
+    [data, understanding.data],
   );
   const selected = graph?.nodes.find((node) => node.id === selectedNode);
   const edge = graph?.edges.find((item) => item.id === selectedEdge);
@@ -334,6 +369,11 @@ function PaperOverviewSession({
                 )}
               </div>
               <GraphLegend />
+              <div className="graph-reading-legend" aria-label="阅读状态图例">
+                <span>实线圈：自认为已理解</span>
+                <span>虚线圈：部分理解 / 还不确定</span>
+                <span>外侧光环：待解问题 / 需复查</span>
+              </div>
             </div>
             <aside className="graph-detail" aria-label="图谱详情">
               {selected ? (
@@ -348,6 +388,30 @@ function PaperOverviewSession({
                       ? "原文明确提及"
                       : "模型归纳"}
                   </small>
+                  {understanding.isError && (
+                    <p role="alert" className="error-text">
+                      阅读状态读取失败：{understanding.error.message}
+                    </p>
+                  )}
+                  {understanding.data?.find(
+                    (concept) =>
+                      concept.graph_node_id === selected.id &&
+                      concept.association_status === "CURRENT",
+                  ) && (
+                    <ConceptReadingDetails
+                      key={`${resultId}:${selected.id}`}
+                      concept={understanding.data.find(
+                        (concept) =>
+                          concept.graph_node_id === selected.id &&
+                          concept.association_status === "CURRENT",
+                      )!}
+                      paperId={paperId}
+                      revisionId={revisionId}
+                      resultId={resultId}
+                      onOpenSection={onOpenSection}
+                      onAskParagraph={onAskParagraph}
+                    />
+                  )}
                 </>
               ) : edge ? (
                 <>
@@ -370,9 +434,215 @@ function PaperOverviewSession({
               )}
             </aside>
           </div>
+          {understanding.data?.some(
+            (concept) => concept.association_status === "NEEDS_RELINK",
+          ) && (
+            <details className="reading-warnings">
+              <summary>旧图谱阅读记录待重新关联</summary>
+              <p className="muted">
+                以下概念的版本或语义已变化，原自评与记录保留，不会自动指向当前节点。
+              </p>
+              <ul>
+                {understanding.data
+                  .filter(
+                    (concept) => concept.association_status === "NEEDS_RELINK",
+                  )
+                  .map((concept) => (
+                    <li
+                      key={
+                        concept.id ??
+                        `${concept.overview_result_id}:${concept.graph_node_id}`
+                      }
+                    >
+                      {concept.node_label_zh ||
+                        concept.node_label_en ||
+                        concept.graph_node_id}{" "}
+                      · {assessmentLabels[concept.self_level]}
+                      {concept.note_zh ? ` · ${concept.note_zh}` : ""}
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          )}
         </>
       )}
     </section>
+  );
+}
+
+function ConceptReadingDetails({
+  concept,
+  paperId,
+  revisionId,
+  resultId,
+  onOpenSection,
+  onAskParagraph,
+}: {
+  concept: ConceptUnderstanding;
+  paperId: string;
+  revisionId: string;
+  resultId: string;
+  onOpenSection?: PaperOverviewProps["onOpenSection"];
+  onAskParagraph?: PaperOverviewProps["onAskParagraph"];
+}) {
+  const [level, setLevel] = useState<SelfAssessment>(concept.self_level);
+  const [note, setNote] = useState(concept.note_zh);
+  const client = useQueryClient();
+  const save = useMutation({
+    mutationFn: () =>
+      api.saveConceptUnderstanding(paperId, concept.graph_node_id, {
+        document_version_id: revisionId,
+        overview_result_id: resultId,
+        self_level: level,
+        note_zh: note,
+      }),
+    retry: false,
+    onSuccess: () =>
+      void client.invalidateQueries({
+        queryKey: ["concept-understanding", paperId, revisionId],
+      }),
+  });
+  const related = useQuery({
+    queryKey: [
+      "concept-reading-sections",
+      paperId,
+      revisionId,
+      resultId,
+      concept.graph_node_id,
+      concept.related_sections,
+    ],
+    queryFn: () =>
+      Promise.all(
+        concept.related_sections.map(async (section) => {
+          const [state, source] = await Promise.all([
+            api.readingState(paperId, section.section_id, revisionId),
+            api.sectionParagraphs(paperId, section.section_id, revisionId),
+          ]);
+          return { ...section, state, paragraphs: source.paragraphs };
+        }),
+      ),
+    enabled: concept.related_sections.length > 0,
+    retry: false,
+  });
+  return (
+    <div className="concept-reading-controls">
+      <h5>我的概念理解</h5>
+      <label>
+        概念理解自评
+        <select
+          value={level}
+          onChange={(event) => setLevel(event.target.value as SelfAssessment)}
+        >
+          {Object.entries(assessmentLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">
+        模型理解检查：{checkLabels[concept.last_check_result]}
+      </p>
+      {concept.last_check_note_zh && <p>{concept.last_check_note_zh}</p>}
+      {concept.has_unresolved_question && (
+        <span className="concept-status-badge">关联阅读中有待解问题</span>
+      )}
+      <label>
+        我的概念笔记
+        <textarea
+          value={note}
+          maxLength={1600}
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
+      <button
+        className="button secondary"
+        disabled={save.isPending}
+        onClick={() => save.mutate()}
+      >
+        {save.isPending ? "正在保存…" : "保存理解记录"}
+      </button>
+      {save.isSuccess && (
+        <p role="status" className="muted">
+          阅读记录已保存，本次模型调用 0。
+        </p>
+      )}
+      {save.error && (
+        <p role="alert" className="error-text">
+          {save.error.message}
+        </p>
+      )}
+      <h5>关联章节与待解问题</h5>
+      {related.isError && (
+        <p role="alert" className="error-text">
+          {related.error.message}
+        </p>
+      )}
+      {!concept.related_sections.length && (
+        <p className="muted">
+          尚无已记录的章节关联，可从双栏精读中的关联概念进入。
+        </p>
+      )}
+      {related.data?.map((section) => (
+        <div key={section.section_id}>
+          <button
+            className="text-button"
+            onClick={() => onOpenSection?.(section.section_id)}
+            disabled={!onOpenSection}
+          >
+            {section.title}
+          </button>
+          <small className="muted">
+            {" "}
+            ·{" "}
+            {section.state.progress === "COMPLETED"
+              ? "已读完"
+              : section.state.progress === "READING"
+                ? "阅读中"
+                : "未开始"}{" "}
+            · {assessmentLabels[section.state.self_assessment]}
+          </small>
+          {section.state.questions
+            .filter((question) => !question.resolved)
+            .map((question, index) => {
+              const paragraph = section.paragraphs.find(
+                (p) => p.paragraph_id === question.paragraph_id,
+              );
+              return (
+                <div className="paragraph-question" key={index}>
+                  <p>{question.text}</p>
+                  {paragraph && (
+                    <>
+                      <button
+                        className="text-button"
+                        disabled={!onOpenSection}
+                        onClick={() =>
+                          onOpenSection?.(
+                            section.section_id,
+                            paragraph.paragraph_id,
+                          )
+                        }
+                      >
+                        返回对应段落
+                      </button>
+                      {" · "}
+                      <button
+                        className="text-button"
+                        disabled={!onAskParagraph}
+                        onClick={() =>
+                          onAskParagraph?.(section.section_id, paragraph)
+                        }
+                      >
+                        对该段落提问
+                      </button>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      ))}
+    </div>
   );
 }
 

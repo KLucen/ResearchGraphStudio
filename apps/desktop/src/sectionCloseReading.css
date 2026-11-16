@@ -1,0 +1,526 @@
+.close-reading {
+  min-width: 0;
+  color: #293c35;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+.close-reading-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 0 18px;
+}
+.close-reading-heading h4 {
+  color: #172d4e;
+}
+.reading-mode-tabs .button.primary {
+  background: #203958;
+  color: #f7f4eb;
+}
+.close-reading .eyebrow {
+  color: #607089;
+}
+.reading-old-draft {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px dashed #c8baa1;
+  background: #fcf9f1;
+}
+.reading-old-draft article {
+  margin-top: 20px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.close-reading-heading h4 {
+  margin: 6px 0 8px;
+  font-size: 24px;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+.close-reading-heading p {
+  margin: 0;
+  line-height: 1.7;
+}
+.close-reading-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  padding: 16px 20px;
+  border: 1px solid #dce1d5;
+  border-radius: 10px;
+  background: #fafbf7;
+  box-shadow: 0 3px 12px #223b2c08;
+}
+.reading-range,
+.reading-generation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.reading-range {
+  margin-bottom: 14px;
+}
+.reading-range label,
+.reading-state-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reading-range select,
+.reading-state-controls select,
+.understanding-check select {
+  padding: 7px 9px;
+  min-height: 36px;
+  border: 1px solid #cdd7ca;
+  border-radius: 6px;
+  background: #fff;
+  color: #34553e;
+}
+.reading-generation .consent-inline {
+  flex: 1 1 280px;
+}
+.reading-cost {
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.reading-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 20px 0;
+  font-size: 12px;
+}
+.reading-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.reading-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.reading-legend small {
+  color: #7e867b;
+}
+.reading-warnings {
+  margin: 16px 0;
+}
+.close-reading-columns,
+.bilingual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+.close-reading-columns {
+  padding: 12px 0;
+  border-bottom: 1px solid #dce3d7;
+  color: #7d8876;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.close-reading-columns strong:first-child {
+  padding-right: 30px;
+}
+.close-reading-columns strong:last-child {
+  padding-left: 30px;
+}
+.bilingual-row {
+  scroll-margin-top: 220px;
+  border-bottom: 1px solid #e0e5da;
+}
+.bilingual-source {
+  min-width: 0;
+  padding: 24px 30px 28px 0;
+}
+.paragraph-heading {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  color: #89917f;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.paragraph-english {
+  font-family: Lora, Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.95;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #24352b;
+  margin: 16px 0 20px;
+}
+.argument-mark {
+  padding: 1px 0;
+  border-radius: 2px;
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.mark-thesis {
+  background: #eab30829;
+  border-bottom: 2px solid #eab308;
+}
+.mark-concept {
+  background: #dc26261a;
+  border-bottom: 2px solid #dc2626;
+}
+.mark-evidence {
+  background: #2563eb1a;
+  border-bottom: 2px solid #2563eb;
+}
+.mark-counterargument {
+  background: #16a34a1a;
+  border-bottom: 2px solid #16a34a;
+}
+.mark-method {
+  background: #9333ea1a;
+  border-bottom: 2px solid #9333ea;
+}
+.paragraph-translation {
+  padding: 14px 18px 16px;
+  border-left: 2px solid #c5baa0;
+  border-top: 1px solid #e4dece;
+  background: #f0ece2;
+  color: #4f5949;
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+.translation-label {
+  font-size: 10px;
+  color: #958c75;
+  letter-spacing: 0.08em;
+}
+.paragraph-translation p {
+  margin: 5px 0 0;
+  white-space: pre-wrap;
+}
+.translation-placeholder {
+  color: #8b8e81;
+}
+.paragraph-qa {
+  margin-top: 12px;
+}
+.paragraph-annotation {
+  min-width: 0;
+  align-self: stretch;
+  padding: 26px 0 26px 30px;
+  border-left: 1px solid #e4e8df;
+  font-size: 13px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+.bilingual-row.active .paragraph-annotation {
+  background: linear-gradient(90deg, #f4f7ef, transparent 85%);
+}
+.paragraph-annotation h5 {
+  margin: 17px 0 5px;
+  color: #446047;
+  font-size: 11px;
+  font-weight: 600;
+}
+.paragraph-annotation p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.paragraph-function {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: #edf2e6;
+  color: #6a7c54;
+  font-size: 10px;
+}
+.paragraph-question {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-left: 2px solid #d9bd7d;
+  background: #fbf7ed;
+  color: #78643e;
+}
+.paragraph-question h5 {
+  margin-top: 0;
+  color: #8b7242;
+}
+.paragraph-question .text-button {
+  margin-top: 8px;
+  font-size: 11px;
+}
+.annotation-placeholder {
+  padding-top: 28px;
+  font-size: 12px;
+}
+.concept-link {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  border: 1px solid #d8e1d0;
+  padding: 4px 8px;
+  background: #f8faf4;
+  border-radius: 4px;
+  color: #597449;
+  font-size: 11px;
+}
+.concept-link:hover {
+  background: #edf3e7;
+}
+.reading-argument {
+  margin: 28px 0 16px;
+  padding: 24px 28px;
+  border: 1px solid #dfe5d5;
+  background: #f8faf3;
+  border-radius: 10px;
+}
+.reading-argument h4 {
+  margin: 6px 0 18px;
+  font-size: 18px;
+}
+.reading-argument ol {
+  display: flex;
+  flex-wrap: wrap;
+  counter-reset: logic;
+  list-style: none;
+  padding: 0;
+  gap: 10px 22px;
+}
+.reading-argument li {
+  flex: 1 1 130px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.reading-argument li::before {
+  counter-increment: logic;
+  content: counter(logic, decimal-leading-zero);
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #9caa88;
+}
+.reading-argument dl {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e1e7d8;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.reading-argument dt {
+  color: #72825f;
+}
+.reading-argument dd {
+  margin: 0;
+}
+.reading-usage {
+  font-size: 11px;
+  line-height: 1.8;
+}
+.reading-state-panel {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid #dfe5d9;
+  border-radius: 10px;
+  background: #fff;
+}
+.reading-state-panel h4 {
+  margin: 0;
+  font-size: 16px;
+}
+.reading-state-panel .muted {
+  margin: 6px 0 16px;
+  font-size: 12px;
+}
+.reading-state-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  margin: 8px 0 20px;
+  font-size: 12px;
+}
+.unresolved-concepts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 16px 0;
+  font-size: 12px;
+}
+.unresolved-concepts label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.reading-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-top: 20px;
+}
+.reading-questions > label:first-child {
+  display: grid;
+  flex: 1 1 240px;
+  gap: 8px;
+  font-size: 12px;
+}
+.reading-questions input:not([type="checkbox"]),
+.understanding-check textarea,
+.concept-reading-controls textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d6dfce;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+}
+.reading-question-record {
+  flex: 1 0 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.reading-question-record small {
+  margin-left: auto;
+  flex: none;
+  color: #8b947d;
+}
+.understanding-check {
+  margin-top: 18px;
+  padding: 20px 24px;
+  border: 1px solid #dfe5d9;
+  border-radius: 10px;
+  background: #fafbf7;
+}
+.understanding-check summary {
+  color: #526e43;
+  font-size: 13px;
+}
+.understanding-check section {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+.understanding-check section > label:not(.consent-inline) {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.understanding-check textarea {
+  line-height: 1.8;
+  resize: vertical;
+}
+.understanding-check button {
+  justify-self: start;
+}
+.understanding-feedback {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.reading-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 0;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dfe5d8;
+}
+.concept-reading-controls {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e1e6d9;
+}
+.concept-reading-controls h5 {
+  font-size: 12px;
+  color: #5a734e;
+  margin: 0 0 12px;
+}
+.concept-reading-controls label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.concept-reading-controls select {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #d5ddcc;
+  border-radius: 4px;
+  background: white;
+}
+.concept-reading-controls textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+.concept-status-badge {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #f2eadb;
+  color: #8b6c3b;
+  font-size: 10px;
+}
+.graph-reading-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+  color: #7f8a73;
+  font-size: 10px;
+}
+@media (max-width: 900px) {
+  .close-reading-heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .close-reading-toolbar {
+    position: static;
+    padding: 16px;
+  }
+  .reading-generation {
+    align-items: flex-start;
+  }
+  .reading-generation .consent-inline {
+    flex-basis: 100%;
+  }
+  .close-reading-columns {
+    display: none;
+  }
+  .bilingual-row {
+    display: block;
+    padding: 8px 0 20px;
+    scroll-margin-top: 20px;
+  }
+  .bilingual-source {
+    padding: 20px 0 14px;
+  }
+  .paragraph-english {
+    font-size: 16px;
+  }
+  .paragraph-annotation {
+    padding: 18px 18px 20px;
+    border-left: 2px solid #d4ddc8;
+    background: #f8faf4;
+  }
+  .bilingual-row.active .paragraph-annotation {
+    background: #f4f7ee;
+  }
+  .annotation-placeholder {
+    padding-top: 0;
+  }
+  .reading-argument,
+  .reading-state-panel,
+  .understanding-check {
+    padding: 20px 18px;
+  }
+  .reading-argument dl {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .reading-argument dd {
+    margin-bottom: 10px;
+  }
+}

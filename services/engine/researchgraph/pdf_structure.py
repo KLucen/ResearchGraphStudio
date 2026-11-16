@@ -417,6 +417,43 @@ def _tables(page: Any, blocks: list[dict[str, Any]], warnings: list[str]) -> lis
     return result
 
 
+def figure_regions(
+    page: Any, tables: list[dict[str, Any]], warnings: list[str]
+) -> list[dict[str, Any]]:
+    """Locate raster images and vector clusters, without reading their meaning.
+
+    A vector cluster is deliberately only *suspected* graphical material. Table
+    grids already recovered above are excluded, and no pixels or image bytes
+    are copied into the database. These APIs are present in pinned PyMuPDF 1.26.7.
+    """
+    regions: list[dict[str, Any]] = []
+    try:
+        for image in page.get_image_info():
+            bbox = _rect(image["bbox"])
+            if bbox[2] - bbox[0] >= 16 and bbox[3] - bbox[1] >= 16:
+                regions.append({"bbox": bbox, "kind": "image", "confidence": "high"})
+    except Exception:
+        warnings.append(f"PDF 第 {page.number + 1} 页图片区域识别失败；请对照原页。")
+    try:
+        drawings = page.get_drawings()
+        for region in page.cluster_drawings(drawings=drawings):
+            bbox = _rect(region)
+            area = max(1.0, (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]))
+            if bbox[2] - bbox[0] < 24 or bbox[3] - bbox[1] < 24:
+                continue
+            if any(_overlap(bbox, table["bbox"]) / area >= 0.75 for table in tables):
+                continue
+            if any(_overlap(bbox, image["bbox"]) / area >= 0.75 for image in regions):
+                continue
+            regions.append({"bbox": bbox, "kind": "vector", "confidence": "suspected"})
+    except Exception:
+        warnings.append(f"PDF 第 {page.number + 1} 页矢量区域识别失败；图内标签可能未被分离。")
+    return [
+        {"ref": f"p{page.number}:f{index}", "page_index": page.number, **region}
+        for index, region in enumerate(regions)
+    ]
+
+
 def parse_structure(document: Any) -> dict[str, Any]:
     """Recover cross-page sections and detected table grids without altering source text."""
     import pymupdf
@@ -431,8 +468,11 @@ def parse_structure(document: Any) -> dict[str, Any]:
             warnings.append(f"PDF 第 {page.number + 1} 页无可提取文本，可能需要 OCR。")
         ordered.extend(_reading_order(blocks, float(page.rect.width)))
     tables = []
+    figures = []
     for page, blocks in zip(document, pages, strict=True):
-        tables.extend(_tables(page, blocks, warnings))
+        page_tables = _tables(page, blocks, warnings)
+        tables.extend(page_tables)
+        figures.extend(figure_regions(page, page_tables, warnings))
     sections = _sections(ordered, document)
     by_ref = {block["ref"]: block for block in ordered}
     for table in tables:
@@ -445,5 +485,14 @@ def parse_structure(document: Any) -> dict[str, Any]:
         "sections": sections,
         "blocks": ordered,
         "tables": tables,
+        "figures": figures,
+        "page_geometry": [
+            {
+                "page_index": page.number,
+                "width": float(page.rect.width),
+                "height": float(page.rect.height),
+            }
+            for page in document
+        ],
         "warnings": warnings,
     }

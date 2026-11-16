@@ -1,12 +1,20 @@
 # 文档导航
 
-更新：2026-11-12（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前保留 PaperCard + LightGraph、A01 章节导读、D01 局部证据问答、D02 英文关键词辅助和全局模型连接配置。按用户要求撤下文献翻译界面、业务 API 和运行时；保留阅读工作区置顶、论文信息默认折叠的布局。Alembic head 继续为 `lite0008`，仅保留历史迁移与数据兼容，不再表示提供翻译功能。完整 v3/P4/P5 文档已从活跃目录清理，旧工程仍可从 `backup/pre-lite-refactor` 回退。
+更新：2026-11-16（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前在 PaperCard + LightGraph、A01 导读、D01 局部问答、D02 关键词和全局模型配置基础上，保留本地阅读整理与一次全文精读任务，增加可收起的文章目录侧栏；保留个人状态、A03 按需检查和旧 A02 历史。Alembic head 为 `lite0010`，本轮导航不增加迁移。整篇 PDF 翻译服务器仍已撤下，正文译文作为显式精读笔记生成。公式定位/OCR 为后续方案，尚未实现。测试与交付读 progress，不以规范代替验收。完整 v3/P4/P5 保留在 `backup/pre-lite-refactor`。
 
 ## 先读
 
 - [根 README](../README.md)
 - [Lite A+B+D 规范](researchgraph_lite_ABD/README.md)
 - [LightGraph 补充规范](ResearchGraph_Lite_LightGraph_Addendum/README_ADDENDUM.md)
+- [双栏精读补充规范](researchgraph_lite_ABD/ResearchGraph_Lite_Section_CloseReading_Bilingual_Annotation.md)
+- [双栏精读与状态决策](adr/0041-section-bilingual-close-reading.md)
+- [阅读整理层与全文精读决策](adr/0042-paper-reading-document-and-notes.md)
+- [全文精读与解析整理验证及安装交付](paper-reading-verification-20261114.md)
+- [阅读目录侧栏决策](adr/0043-reading-outline-and-formula-source-boundary.md)
+- [阅读侧栏验证与安装交付](reading-sidebar-verification-20261116.md)
+- [公式解析问题与后续方案](formula-parsing-assessment.md)
+- [双栏精读本轮验证与安装交付](section-close-reading-verification-20261114.md)
 - [当前项目基线](current_project_baseline.md)
 - [Lite 迁移评估](migration/lite_from_v3_assessment.md)
 - [清理盘点](lite_cleanup_inventory.md)

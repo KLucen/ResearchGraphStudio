@@ -12,7 +12,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "lite0008";
+const ENGINE_SCHEMA_VERSION: &str = "lite0010";
 
 #[derive(Default)]
 struct Host {
@@ -203,7 +203,14 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
             | "revision_id"
             | "document_version_id"
             | "section_id"
-            | "overview_result_id" => valid_id(&value),
+            | "overview_result_id"
+            | "result_id" => valid_id(&value),
+            "paragraph_ids" => {
+                !value.is_empty()
+                    && value.split(',').count() <= 100
+                    && value.split(',').all(valid_id)
+            }
+            "adaptive" => matches!(value.as_ref(), "true" | "false"),
             "library" => {
                 value == "users/0"
                     || value
@@ -278,8 +285,20 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["papers", paper, "overview"]) => {
             valid_id(paper) && query_allowed(query, &["document_version_id"])
         }
+        ("GET", ["papers", paper, "reading-document"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id"])
+        }
+        ("POST", ["papers", paper, "reading-document", "refresh"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "reading-notes"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id", "result_id"])
+        }
+        ("POST", ["papers", paper, "reading-notes", "generate"]) => plain && valid_id(paper),
         ("GET", ["papers", paper, "section-guides"]) => {
-            valid_id(paper) && query_allowed(query, &["document_version_id", "section_id", "depth"])
+            valid_id(paper)
+                && query_allowed(
+                    query,
+                    &["document_version_id", "section_id", "depth", "adaptive"],
+                )
         }
         ("GET", ["papers", paper, "qa"]) => {
             valid_id(paper) && query_allowed(query, &["document_version_id", "section_id", "scope"])
@@ -296,10 +315,40 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["papers", paper, "sections", section, "guide"]) => {
             valid_id(paper)
                 && valid_id(section)
-                && query_allowed(query, &["document_version_id", "depth"])
+                && query_allowed(query, &["document_version_id", "depth", "adaptive"])
         }
         ("POST", ["papers", paper, "sections", section, "guide", "generate"]) => {
             plain && valid_id(paper) && valid_id(section)
+        }
+        ("GET", ["papers", paper, "sections", section, "paragraphs" | "reading-state"]) => {
+            valid_id(paper) && valid_id(section) && query_allowed(query, &["document_version_id"])
+        }
+        ("PUT", ["papers", paper, "sections", section, "reading-state"]) => {
+            plain && valid_id(paper) && valid_id(section)
+        }
+        (
+            "GET",
+            ["papers", paper, "sections", section, "close-reading" | "understanding-check"],
+        ) => {
+            valid_id(paper)
+                && valid_id(section)
+                && query_allowed(
+                    query,
+                    &["document_version_id", "paragraph_ids", "result_id"],
+                )
+        }
+        (
+            "POST",
+            ["papers", paper, "sections", section, "close-reading" | "understanding-check", "generate"],
+        ) => plain && valid_id(paper) && valid_id(section),
+        ("POST", ["papers", paper, "sections", section, "understanding-check"]) => {
+            plain && valid_id(paper) && valid_id(section)
+        }
+        ("GET", ["papers", paper, "concept-understanding"]) => {
+            valid_id(paper) && query_allowed(query, &["document_version_id", "overview_result_id"])
+        }
+        ("PUT", ["papers", paper, "concept-understanding", node]) => {
+            plain && valid_id(paper) && valid_id(node)
         }
         ("POST", ["papers", paper, "overview", "generate"]) => plain && valid_id(paper),
         ("GET", ["papers", paper, "overview", "graph", "layout"]) => {
@@ -691,6 +740,113 @@ mod tests {
     }
 
     #[test]
+    fn paper_reading_routes_keep_local_refresh_and_generation_explicit() {
+        let paper = "11111111-1111-4111-8111-111111111111";
+        let revision = "22222222-2222-4222-8222-222222222222";
+        let base = format!("/api/v1/papers/{paper}");
+        for (method, path) in [
+            ("GET", format!("{base}/reading-document")),
+            (
+                "GET",
+                format!("{base}/reading-document?document_version_id={revision}"),
+            ),
+            ("POST", format!("{base}/reading-document/refresh")),
+            ("GET", format!("{base}/reading-notes?result_id={revision}")),
+            ("POST", format!("{base}/reading-notes/generate")),
+        ] {
+            assert!(
+                super::allowed(method, &path),
+                "route rejected: {method} {path}"
+            );
+        }
+        for (method, path) in [
+            ("GET", format!("{base}/reading-document?path=private.pdf")),
+            ("GET", format!("{base}/reading-notes?result_id=foreign")),
+            ("GET", format!("{base}/reading-notes?document_version_id={revision}&document_version_id={revision}")),
+            ("POST", format!("{base}/reading-notes/generate?allow_network=true")),
+            ("GET", format!("{base}/reading-document/refresh")),
+            ("DELETE", format!("{base}/reading-document")),
+            ("POST", "/api/v1/papers/foreign/reading-notes/generate".into()),
+        ] {
+            assert!(!super::allowed(method, &path), "unsafe route accepted: {method} {path}");
+        }
+    }
+
+    #[test]
+    fn section_reading_routes_validate_identifiers_and_queries() {
+        let paper = "11111111-1111-4111-8111-111111111111";
+        let section = "22222222-2222-4222-8222-222222222222";
+        let paragraph = "33333333-3333-4333-8333-333333333333";
+        let base = format!("/api/v1/papers/{paper}/sections/{section}");
+        for (method, path) in [
+            (
+                "GET",
+                format!("{base}/paragraphs?document_version_id={section}"),
+            ),
+            (
+                "GET",
+                format!("{base}/close-reading?paragraph_ids={paragraph}%2C{section}"),
+            ),
+            ("GET", format!("{base}/close-reading?result_id={paragraph}")),
+            ("POST", format!("{base}/close-reading/generate")),
+            ("GET", format!("{base}/reading-state")),
+            ("PUT", format!("{base}/reading-state")),
+            ("POST", format!("{base}/understanding-check/generate")),
+            ("POST", format!("{base}/understanding-check")),
+            (
+                "GET",
+                format!("{base}/understanding-check?document_version_id={section}"),
+            ),
+            ("GET", format!("{base}/guide?adaptive=true")),
+            (
+                "GET",
+                format!(
+                    "/api/v1/papers/{paper}/concept-understanding?overview_result_id={section}"
+                ),
+            ),
+            (
+                "PUT",
+                format!("/api/v1/papers/{paper}/concept-understanding/{paragraph}"),
+            ),
+        ] {
+            assert!(
+                super::allowed(method, &path),
+                "reading route rejected: {method} {path}"
+            );
+        }
+        for (method, path) in [
+            ("GET", format!("{base}/close-reading?paragraph_ids=foreign")),
+            ("GET", format!("{base}/close-reading?paragraph_ids=")),
+            (
+                "GET",
+                format!("{base}/close-reading?paragraph_ids={paragraph}&paragraph_ids={section}"),
+            ),
+            (
+                "GET",
+                format!("{base}/reading-state?paragraph_ids={paragraph}"),
+            ),
+            ("GET", format!("{base}/guide?adaptive=auto")),
+            (
+                "POST",
+                format!("{base}/close-reading/generate?adaptive=true"),
+            ),
+            (
+                "PUT",
+                format!("/api/v1/papers/{paper}/concept-understanding/n1"),
+            ),
+            (
+                "GET",
+                format!("/api/v1/papers/foreign/sections/{section}/paragraphs"),
+            ),
+        ] {
+            assert!(
+                !super::allowed(method, &path),
+                "unsafe route accepted: {method} {path}"
+            );
+        }
+    }
+
+    #[test]
     fn engine_response_preserves_success_and_structured_error_message() {
         let success = br#"{"items":[],"next_cursor":null}"#;
         assert_eq!(
@@ -771,7 +927,7 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0008",
+            "schema_version": "lite0010",
             "database": "ready",
             "fts5": true
         })));
@@ -783,14 +939,14 @@ mod tests {
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "lite0008",
+            "schema_version": "lite0010",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"lite0008"}),
-            super::json!({"protocol_version":1,"schema_version":"lite0008","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"lite0008","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"lite0010"}),
+            super::json!({"protocol_version":1,"schema_version":"lite0010","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"lite0010","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

@@ -71,3 +71,24 @@ test("pin, zoom, selection and saved layout survive browser reload", async ({
   expect(renderedCamera.zoom).toBeCloseTo(camera.zoom, 3);
   await expect(page.locator(".react-flow__node")).toHaveCount(12);
 });
+test("reading metadata adds an independent ring without changing semantic color or saved layout", async ({
+  page,
+}) => {
+  await page.goto("/e2e/graph.html");
+  const node = page.locator('.react-flow__node[data-id="n0"]');
+  await expect(node).toBeVisible();
+  const layout = await page.getByTestId("layout").textContent();
+  const color = await node.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  await page.getByRole("button", { name: "切换阅读困惑标记" }).click();
+  await expect(node).toHaveClass(/reading-unsure/);
+  await expect(node).toHaveClass(/reading-misconception/);
+  await expect(node).toHaveCSS("outline-style", "dashed");
+  expect(
+    await node.evaluate((element) => getComputedStyle(element).backgroundColor),
+  ).toBe(color);
+  expect(await page.getByTestId("layout").textContent()).toBe(layout);
+  await page.getByRole("button", { name: "切换阅读困惑标记" }).click();
+  await expect(node).not.toHaveClass(/reading-unsure/);
+});

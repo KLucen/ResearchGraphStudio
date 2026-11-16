@@ -2,12 +2,14 @@
 
 ## 1. Prompt工程目标
 
-原设计中 P02/P12/P13 需要大量实体抽取、整合和贡献排序；轻量版只保留三类面向阅读的调用。**模型输出少、上下文少、调用轮数少**优先；不要“为了确保理解”默认重新发送整篇PDF。
+原设计中 P02/P12/P13 需要大量实体抽取、整合和贡献排序；轻量版保留按需论文概览、章节阅读与问答。**有限上下文、避免重复输出与调用**优先；不要“为了确保理解”默认重新发送整篇PDF。
 
 | 模板 | 工作 | 触发 | 输出契约 |
 |---|---|---|---|
 | `B01_paper_card.md` | 论文6字段速览 | 用户点击“生成卡片” | `PaperCardDraft` |
 | `A01_section_guide.md` | 当前小节导读 | 用户点击“生成导读” | `ReadingGuideDraft` |
+| `A02_bilingual_argument_annotation_v1` | 所选范围逐段译文和论证批注 | 用户明确生成双栏精读 | `SectionReadingAnalysis` |
+| `A03_understanding_check_v1` | 短范围复述理解检查 | 用户主动提交复述 | `UnderstandingCheck` |
 | `D01_grounded_qa.md` | 有引用的按需问答 | 用户提问 | `QAAnswerDraft` |
 | `D02_search_keywords_optional.md` | 中文查询的英文关键词补全 | 本地检索不足且用户选择辅助 | `SearchKeywordsDraft` |
 
@@ -82,3 +84,15 @@ flowchart TD
 ## 9. Prompt版本与A/B实验
 
 把 `prompt_id`, `prompt_version`, `schema_version`, `model_id`, `source_doc_version`, `task_scope`, `params_hash`纳入ModelRun与缓存键。任何Prompt变动不覆盖原结果。保留基线对比：旧P02/P12/P13全量成本与 Lite B/A/D 在**同一论文、同一模型、明确范围**下的Token、耗时、引文正确率、用户可用性；不能把任务减少后的Token节省直接宣称“抽取算法更高效”。
+
+## 10. 章节精读补充（2026-11-14）
+
+A02/A03 的完整模板与 DTO 见 [补充规范](../ResearchGraph_Lite_Section_CloseReading_Bilingual_Annotation.md)，运行实现以 `close_reading_contracts.py`、Prompt 模块和导出的 OpenAPI 为准。A02 的英文来源只出现在输入，输出中文译文和批注，不重复英文全文；五色高亮只引用精确原文子串和零起始 occurrence_index。A02 不串联 A01、B01 或整篇抽取，缺段重试只处理用户明确指定的缺失范围。
+
+A01 显式 adaptive 模式只增加至多三项可靠相关状态的短 reader_context；关闭或无可靠映射时使用原 Prompt 和缓存身份。A03 不读取历史问答全文或整张图谱，只读取当前短范围、缓存要点和主动提交的复述；输出建议不覆盖用户自评。状态点击不触发模型或使 A02 缓存失效。
+
+## 11. 当前全文精读 A04
+
+默认精读改用 `A04_paper_reading_notes_v1` / `paper_reading_analysis.v1`。一次请求传入当前论文全部可读正文段落及标题层次，联合返回译文、段落论证作用、精确英文高亮和全文论证摘要。模型不重复输出英文原文；图表/图注/疑似标签作为本地折叠材料保留，不要求模型翻译或分析。缺失图表不能被当成已读证据。独立 Prompt 与 Schema 不覆盖旧 A02 历史。
+
+输出每个 paragraph_id 必须与本次阅读投影一致；原文和来源映射在请求前后重验，高亮继续精确匹配。容量不足调用前拒绝，不隐藏分批。缺段或截断保留已验证段落但标记不完整，用户可明确重新生成全文，不自动补调。运行 Prompt 常量见引擎 paper_reading_api.py，参考模板见 [A04](../prompts/A04_paper_reading_notes_v1.md)。

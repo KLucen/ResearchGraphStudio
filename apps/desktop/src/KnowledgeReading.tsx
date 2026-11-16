@@ -7,25 +7,49 @@ import {
   type SearchHit,
   type QAView,
   type ReadingGuide,
+  type ReadingParagraph,
 } from "./api";
+import { SectionCloseReading } from "./SectionCloseReading";
+import { PaperCloseReading } from "./PaperCloseReading";
+import { ReadingOutline } from "./ReadingOutline";
+
+const sectionTargetId = (id: string) => `reading-section-${id || "all"}`;
 
 export function KnowledgeReading({
   versionId,
   paperId,
   connected,
   panel = "all",
+  initialSectionId = "",
+  initialParagraphId,
+  selectedSpanIds = [],
+  onSectionChange,
+  onOpenGraph,
+  onAskParagraph,
 }: {
   versionId: string;
   paperId: string;
   connected: boolean;
   panel?: "guide" | "qa" | "all";
+  initialSectionId?: string;
+  initialParagraphId?: string;
+  selectedSpanIds?: string[];
+  onSectionChange?: (sectionId: string) => void;
+  onOpenGraph?: (nodeId: string) => void;
+  onAskParagraph?: (sectionId: string, paragraph: ReadingParagraph) => void;
 }) {
   const [query, setQuery] = useState("");
-  const [sectionId, setSectionId] = useState("");
+  const [sectionId, setSectionId] = useState(initialSectionId);
+  const [readingMode, setReadingMode] = useState<"paper" | "close" | "guide">(
+    panel === "guide" ? "paper" : "guide",
+  );
+  const [adaptive, setAdaptive] = useState(false);
   const [depth, setDepth] = useState<GuideDepth>("standard");
   const [allowNetwork, setAllowNetwork] = useState(false);
   const [qaQuestion, setQaQuestion] = useState("");
-  const [qaScope, setQaScope] = useState<QAScope>("section");
+  const [qaScope, setQaScope] = useState<QAScope>(
+    selectedSpanIds.length ? "selection" : "section",
+  );
   const [qaAllowNetwork, setQaAllowNetwork] = useState(false);
   const [keywordAllowNetwork, setKeywordAllowNetwork] = useState(false);
   const [expandedKeywords, setExpandedKeywords] = useState<string[]>([]);
@@ -122,8 +146,9 @@ export function KnowledgeReading({
     selected && !selected.excluded && selected.role !== "references",
   );
   const guide = useQuery({
-    queryKey: ["section-guide", paperId, versionId, sectionId, depth],
-    queryFn: () => api.sectionGuide(paperId, sectionId, versionId, depth),
+    queryKey: ["section-guide", paperId, versionId, sectionId, depth, adaptive],
+    queryFn: () =>
+      api.sectionGuide(paperId, sectionId, versionId, depth, adaptive),
     enabled: connected && readable,
     retry: false,
     refetchInterval: (query) =>
@@ -139,6 +164,7 @@ export function KnowledgeReading({
         true,
         guide.data?.status === "FAILED",
         guide.data?.status === "COMPLETED" || guide.data?.status === "STALE",
+        adaptive,
       ),
     onSuccess: (value) => {
       client.setQueryData(
@@ -148,6 +174,7 @@ export function KnowledgeReading({
           value.document_version_id,
           value.section_id,
           value.depth,
+          adaptive,
         ],
         value,
       );
@@ -157,13 +184,20 @@ export function KnowledgeReading({
   });
   const guideText = guide.data?.guide ? formatGuide(guide.data.guide) : "";
   const qaHistory = useQuery({
-    queryKey: ["paper-qa", paperId, versionId, sectionId, qaScope],
+    queryKey: [
+      "paper-qa",
+      paperId,
+      versionId,
+      sectionId,
+      qaScope,
+      selectedSpanIds.join(","),
+    ],
     queryFn: () =>
       api.qa
         ? api.qa(
             paperId,
             versionId,
-            qaScope === "section" ? sectionId || undefined : undefined,
+            qaScope !== "paper" ? sectionId || undefined : undefined,
             qaScope,
           )
         : Promise.resolve([]),
@@ -176,21 +210,38 @@ export function KnowledgeReading({
   });
   const currentQuestion = qaQuestion.trim();
   const latestQA = currentQuestion
-    ? (qaHistory.data?.find((item) => item.question === currentQuestion) ??
-      null)
+    ? (qaHistory.data?.find(
+        (item) =>
+          item.question === currentQuestion &&
+          (qaScope !== "selection" ||
+            (item.retrieval_spans.length === selectedSpanIds.length &&
+              item.retrieval_spans.every((span) =>
+                selectedSpanIds.includes(span.span_id),
+              ))),
+      ) ?? null)
     : null;
   const askQA = useMutation({
     mutationFn: () =>
       api.askQA(paperId, {
         document_version_id: versionId,
-        section_id: qaScope === "section" ? sectionId || undefined : undefined,
+        section_id: qaScope !== "paper" ? sectionId || undefined : undefined,
         scope: qaScope,
         question: qaQuestion.trim(),
+        ...(qaScope === "selection"
+          ? { selection_span_ids: selectedSpanIds }
+          : {}),
         allow_network: true,
       }),
     onSuccess: (value) => {
       client.setQueryData(
-        ["paper-qa", paperId, versionId, sectionId, qaScope],
+        [
+          "paper-qa",
+          paperId,
+          versionId,
+          sectionId,
+          qaScope,
+          selectedSpanIds.join(","),
+        ],
         (items: QAView[] | undefined) => [
           value,
           ...(items ?? []).filter((item) => item.id !== value.id),
@@ -211,8 +262,58 @@ export function KnowledgeReading({
   };
   return (
     <section className="knowledge-area" aria-label="章节与本地索引">
-      <h4>章节与本地索引</h4>
-      <p className="muted">章节识别和原文搜索在本机完成，不调用模型。</p>
+      {panel === "guide" ? (
+        <>
+          <nav className="reading-mode-tabs" aria-label="精读方式">
+            <button
+              type="button"
+              className={
+                readingMode === "paper" ? "button primary" : "button secondary"
+              }
+              aria-pressed={readingMode === "paper"}
+              onClick={() => setReadingMode("paper")}
+            >
+              全文精读
+            </button>
+            <button
+              type="button"
+              className={
+                readingMode === "guide" ? "button primary" : "button secondary"
+              }
+              aria-pressed={readingMode === "guide"}
+              onClick={() => setReadingMode("guide")}
+            >
+              小节导读 A01
+            </button>
+            <button
+              type="button"
+              className={
+                readingMode === "close" ? "button primary" : "button secondary"
+              }
+              aria-pressed={readingMode === "close"}
+              onClick={() => setReadingMode("close")}
+            >
+              理解状态与旧笔记
+            </button>
+          </nav>
+          {readingMode === "paper" && (
+            <PaperCloseReading
+              key={`${paperId}:${versionId}`}
+              paperId={paperId}
+              revisionId={versionId}
+              connected={connected}
+              initialParagraphId={initialParagraphId}
+              onOpenGraph={onOpenGraph}
+              onAskParagraph={onAskParagraph}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <h4>章节与本地索引</h4>
+          <p className="muted">章节识别和原文搜索在本机完成，不调用模型。</p>
+        </>
+      )}
       {sections.isPending && connected && <p role="status">正在读取章节…</p>}
       {sections.isError && (
         <p role="alert" className="error-text">
@@ -225,296 +326,362 @@ export function KnowledgeReading({
           </button>
         </p>
       )}
-      {sections.data && (
-        <>
-          <p role="status">
-            本地索引已就绪：{sections.data.sections.length} 个章节。
-          </p>
-          <label>
-            选择章节{" "}
-            <select
-              value={sectionId}
-              onChange={(e) => {
-                setSectionId(e.target.value);
-                setAllowNetwork(false);
-                setQaAllowNetwork(false);
-                setKeywordAllowNetwork(false);
-                setExpandedKeywords([]);
-                setExpandedResults(null);
-                setCopyState("idle");
-              }}
-            >
-              <option value="">全部章节</option>
-              {sections.data.sections.map((section) => (
-                <option key={section.id} value={section.id}>
-                  {section.title || `章节 ${section.ordinal + 1}`}
-                  {section.excluded ? "（参考文献等）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="section-directory" aria-label="章节目录">
-            {sections.data.sections
-              .filter(
-                (section) => !section.excluded && section.role !== "references",
-              )
-              .map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  className={
-                    section.id === sectionId
-                      ? "section-link selected"
-                      : "section-link"
-                  }
-                  aria-pressed={section.id === sectionId}
-                  onClick={() => {
-                    setSectionId(section.id);
-                    setAllowNetwork(false);
-                    setQaAllowNetwork(false);
-                    setKeywordAllowNetwork(false);
-                    setExpandedKeywords([]);
-                    setExpandedResults(null);
-                    setCopyState("idle");
-                  }}
-                >
-                  <span
-                    style={{
-                      paddingLeft: `${Math.min(section.level, 5) * 12}px`,
-                    }}
-                  >
-                    {section.title || `章节 ${section.ordinal + 1}`}
-                  </span>
-                </button>
-              ))}
-          </div>
-          {selected && (
-            <details key={selected.id} open>
-              <summary>{selected.title} · 查看章节原文</summary>
-              {selected.start_page !== null && (
-                <p className="muted">
-                  PDF 第 {selected.start_page + 1} 页
-                  {selected.end_page !== null &&
-                  selected.end_page !== selected.start_page
-                    ? ` 至第 ${selected.end_page + 1} 页`
-                    : ""}
-                </p>
-              )}
-              <pre className="section-text">
-                {selected.text || "此章节没有可提取文本。"}
-              </pre>
-            </details>
-          )}
-          {selected && readable && (panel === "guide" || panel === "all") && (
-            <section className="section-guide" aria-label="章节导读">
-              <div className="section-guide-header">
-                <div>
-                  <h5>章节导读</h5>
-                  <p className="muted">
-                    只处理当前小节。切换章节只读取缓存状态，不会自动调用模型。
-                  </p>
-                </div>
-                <span className="pill">
-                  {guide.isPending
-                    ? "正在读取状态…"
-                    : guide.data?.status === "PENDING"
-                      ? "正在生成…"
-                      : guide.data?.status === "COMPLETED"
-                        ? guide.data.cache_hit
-                          ? "缓存命中"
-                          : "已有导读"
-                        : guide.data?.status === "STALE"
-                          ? "版本已变化"
-                          : guide.data?.status === "FAILED"
-                            ? "生成失败"
-                            : "尚未生成"}
-                </span>
-              </div>
-              <div className="guide-controls">
-                <label>
-                  导读深度{" "}
-                  <select
-                    value={depth}
-                    onChange={(e) => {
-                      setDepth(e.target.value as GuideDepth);
-                      setAllowNetwork(false);
-                      setCopyState("idle");
-                    }}
-                  >
-                    <option value="quick">快速</option>
-                    <option value="standard">标准</option>
-                    <option value="deep">深入</option>
-                  </select>
-                </label>
-                <label className="consent-inline">
-                  <input
-                    type="checkbox"
-                    checked={allowNetwork}
-                    onChange={(e) => setAllowNetwork(e.target.checked)}
-                  />
-                  允许本次把当前小节发送给已配置模型
-                </label>
-                <button
-                  type="button"
-                  className="button primary"
-                  disabled={
-                    !connected ||
-                    !allowNetwork ||
-                    guide.isPending ||
-                    generateGuide.isPending ||
-                    guide.data?.status === "PENDING"
-                  }
-                  onClick={() => generateGuide.mutate()}
-                >
-                  {generateGuide.isPending || guide.data?.status === "PENDING"
-                    ? "正在生成…"
-                    : guide.data?.status === "COMPLETED"
-                      ? "重新生成导读"
-                      : "生成导读"}
-                </button>
-              </div>
-              {guide.isError && (
-                <p role="alert" className="error-text">
-                  {guide.error.message}
-                </p>
-              )}
-              {generateGuide.isError && (
-                <p role="alert" className="error-text">
-                  {generateGuide.error.message}
-                </p>
-              )}
-              {guide.data?.error && guide.data.status === "FAILED" && (
-                <p role="alert" className="error-text">
-                  {guide.data.error}
-                </p>
-              )}
-              {guide.data?.status === "STALE" && (
-                <p className="quality-note">
-                  当前导读来自旧文献版本，保留旧内容；请确认后重新生成当前版本。
-                </p>
-              )}
-              {guide.data?.guide && (
-                <GuideResult
-                  guide={guide.data.guide}
-                  evidence={guide.data.evidence}
-                  onCopy={copyGuide}
-                  copyState={copyState}
-                />
-              )}
-            </section>
-          )}
-          {readable && (panel === "qa" || panel === "all") && (
-            <section className="qa-panel" aria-label="局部证据问答">
-              <div className="section-guide-header">
-                <div>
-                  <h5>局部证据问答</h5>
-                  <p className="muted">
-                    默认只检索当前小节的少量原文片段；回答必须引用这些片段，不会自动扩大范围。
-                  </p>
-                </div>
-                <span className="pill">
-                  {askQA.isPending || latestQA?.status === "PENDING"
-                    ? "正在处理…"
-                    : latestQA?.status === "COMPLETED"
-                      ? latestQA.cache_hit
-                        ? "缓存命中"
-                        : "已有回答"
-                      : latestQA?.status === "FAILED"
-                        ? "回答失败"
-                        : "尚未提问"}
-                </span>
-              </div>
-              <form
-                className="qa-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (
-                    connected &&
-                    qaQuestion.trim() &&
-                    qaAllowNetwork &&
-                    !askQA.isPending &&
-                    latestQA?.status !== "PENDING"
-                  ) {
-                    askQA.mutate();
-                  }
+      {sections.data && (panel !== "guide" || readingMode !== "paper") && (
+        <ReadingOutline
+          key={`${paperId}:${versionId}:${readingMode}:${panel}`}
+          entries={sections.data.sections
+            .filter(
+              (section) => !section.excluded && section.role !== "references",
+            )
+            .map((section) => ({
+              id: section.id,
+              label: section.title || `章节 ${section.ordinal + 1}`,
+              targetId: sectionTargetId(section.id),
+              level: section.level,
+              detail:
+                section.start_page === null
+                  ? undefined
+                  : `PDF 第 ${section.start_page + 1} 页`,
+            }))}
+          activeId={sectionId}
+          onSelect={(id) => {
+            setSectionId(id);
+            onSectionChange?.(id);
+            setAllowNetwork(false);
+            setQaAllowNetwork(false);
+            setKeywordAllowNetwork(false);
+            setExpandedKeywords([]);
+            setExpandedResults(null);
+            setCopyState("idle");
+          }}
+          controls={
+            <label>
+              选择章节
+              <select
+                value={sectionId}
+                onChange={(event) => {
+                  setSectionId(event.target.value);
+                  onSectionChange?.(event.target.value);
+                  setAllowNetwork(false);
+                  setQaAllowNetwork(false);
+                  setKeywordAllowNetwork(false);
+                  setExpandedKeywords([]);
+                  setExpandedResults(null);
+                  setCopyState("idle");
                 }}
               >
-                <label>
-                  作用范围
-                  <select
-                    value={qaScope}
-                    onChange={(event) => {
-                      setQaScope(event.target.value as QAScope);
-                      setQaAllowNetwork(false);
-                    }}
-                  >
-                    <option value="section">当前小节</option>
-                    <option value="paper">整篇论文（仍只发送少量片段）</option>
-                    <option value="selection" disabled>
-                      已选原文片段（请先选择 Span）
-                    </option>
-                  </select>
-                </label>
-                <label>
-                  你的问题
-                  <textarea
-                    rows={3}
-                    maxLength={3000}
-                    value={qaQuestion}
-                    placeholder="例如：这项方法在本节中解决了什么问题？"
-                    disabled={!connected || askQA.isPending}
-                    onChange={(event) => setQaQuestion(event.target.value)}
-                  />
-                </label>
-                {qaQuestion.trim() && (
-                  <label className="consent-inline">
-                    <input
-                      type="checkbox"
-                      checked={qaAllowNetwork}
-                      onChange={(event) =>
-                        setQaAllowNetwork(event.target.checked)
-                      }
-                    />
-                    允许本次把检索片段发送给已配置模型
-                  </label>
-                )}
-                <button
-                  type="submit"
-                  className="button primary"
-                  disabled={
-                    !connected ||
-                    !qaQuestion.trim() ||
-                    !qaAllowNetwork ||
-                    askQA.isPending ||
-                    latestQA?.status === "PENDING"
+                <option value="">全部章节</option>
+                {sections.data.sections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.title || `章节 ${section.ordinal + 1}`}
+                    {section.excluded ? "（参考文献等）" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
+        >
+          <div
+            id={sectionTargetId(sectionId)}
+            className="reading-outline-section"
+            tabIndex={-1}
+          >
+            <p role="status">
+              本地索引已就绪：{sections.data.sections.length} 个章节。
+            </p>
+            {panel === "guide" && !readable && (
+              <p className="muted">
+                请从目录选择一个正文小节，查看导读或记录理解状态。
+              </p>
+            )}
+            {selected &&
+              readable &&
+              panel === "guide" &&
+              readingMode === "close" && (
+                <SectionCloseReading
+                  key={`${versionId}:${sectionId}`}
+                  paperId={paperId}
+                  revisionId={versionId}
+                  sectionId={sectionId}
+                  title={selected.title}
+                  connected={connected}
+                  onOpenGraph={onOpenGraph}
+                  onAskParagraph={
+                    onAskParagraph
+                      ? (paragraph) => onAskParagraph(sectionId, paragraph)
+                      : undefined
                   }
+                  initialParagraphId={initialParagraphId}
+                  historyOnly
+                />
+              )}
+            {selected && (panel !== "guide" || readingMode === "guide") && (
+              <details key={selected.id} open>
+                <summary>{selected.title} · 查看章节原文</summary>
+                {selected.start_page !== null && (
+                  <p className="muted">
+                    PDF 第 {selected.start_page + 1} 页
+                    {selected.end_page !== null &&
+                    selected.end_page !== selected.start_page
+                      ? ` 至第 ${selected.end_page + 1} 页`
+                      : ""}
+                  </p>
+                )}
+                <pre className="section-text" data-reading-anchor>
+                  {selected.text || "此章节没有可提取文本。"}
+                </pre>
+              </details>
+            )}
+            {selected &&
+              readable &&
+              ((panel === "guide" && readingMode === "guide") ||
+                panel === "all") && (
+                <section className="section-guide" aria-label="章节导读">
+                  <div className="section-guide-header">
+                    <div>
+                      <h5>章节导读</h5>
+                      <p className="muted">
+                        只处理当前小节。切换章节只读取缓存状态，不会自动调用模型。
+                      </p>
+                    </div>
+                    <span className="pill">
+                      {guide.isPending
+                        ? "正在读取状态…"
+                        : guide.data?.status === "PENDING"
+                          ? "正在生成…"
+                          : guide.data?.status === "COMPLETED"
+                            ? guide.data.cache_hit
+                              ? "缓存命中"
+                              : "已有导读"
+                            : guide.data?.status === "STALE"
+                              ? "版本已变化"
+                              : guide.data?.status === "FAILED"
+                                ? "生成失败"
+                                : "尚未生成"}
+                    </span>
+                  </div>
+                  <div className="guide-controls">
+                    <label>
+                      导读深度{" "}
+                      <select
+                        value={depth}
+                        onChange={(e) => {
+                          setDepth(e.target.value as GuideDepth);
+                          setAllowNetwork(false);
+                          setCopyState("idle");
+                        }}
+                      >
+                        <option value="quick">快速</option>
+                        <option value="standard">标准</option>
+                        <option value="deep">深入</option>
+                      </select>
+                    </label>
+                    <label className="consent-inline">
+                      <input
+                        type="checkbox"
+                        checked={adaptive}
+                        onChange={(event) => {
+                          setAdaptive(event.target.checked);
+                          setAllowNetwork(false);
+                        }}
+                      />
+                      参考已记录的理解状态调整侧重点
+                    </label>
+                    <label className="consent-inline">
+                      <input
+                        type="checkbox"
+                        checked={allowNetwork}
+                        onChange={(e) => setAllowNetwork(e.target.checked)}
+                      />
+                      允许本次把当前小节发送给已配置模型
+                    </label>
+                    <button
+                      type="button"
+                      className="button primary"
+                      disabled={
+                        !connected ||
+                        !allowNetwork ||
+                        guide.isPending ||
+                        generateGuide.isPending ||
+                        guide.data?.status === "PENDING"
+                      }
+                      onClick={() => generateGuide.mutate()}
+                    >
+                      {generateGuide.isPending ||
+                      guide.data?.status === "PENDING"
+                        ? "正在生成…"
+                        : guide.data?.status === "COMPLETED"
+                          ? "重新生成导读"
+                          : "生成导读"}
+                    </button>
+                  </div>
+                  {guide.isError && (
+                    <p role="alert" className="error-text">
+                      {guide.error.message}
+                    </p>
+                  )}
+                  {generateGuide.isError && (
+                    <p role="alert" className="error-text">
+                      {generateGuide.error.message}
+                    </p>
+                  )}
+                  {guide.data?.error && guide.data.status === "FAILED" && (
+                    <p role="alert" className="error-text">
+                      {guide.data.error}
+                    </p>
+                  )}
+                  {guide.data?.status === "STALE" && (
+                    <p className="quality-note">
+                      当前导读来自旧文献版本，保留旧内容；请确认后重新生成当前版本。
+                    </p>
+                  )}
+                  {guide.data?.guide && (
+                    <GuideResult
+                      guide={guide.data.guide}
+                      evidence={guide.data.evidence}
+                      onCopy={copyGuide}
+                      copyState={copyState}
+                    />
+                  )}
+                  {adaptive && guide.data?.reader_context && (
+                    <p className="quality-note">
+                      本次导读参考了少量已记录状态。侧重点：
+                      {String(
+                        guide.data.reader_context.preferred_focus ||
+                          "回顾相关概念与论证联系",
+                      )}
+                      。关闭上方选项可使用普通导读缓存。
+                    </p>
+                  )}
+                </section>
+              )}
+            {readable && (panel === "qa" || panel === "all") && (
+              <section className="qa-panel" aria-label="局部证据问答">
+                <div className="section-guide-header">
+                  <div>
+                    <h5>局部证据问答</h5>
+                    <p className="muted">
+                      默认只检索当前小节的少量原文片段；回答必须引用这些片段，不会自动扩大范围。
+                    </p>
+                  </div>
+                  <span className="pill">
+                    {askQA.isPending || latestQA?.status === "PENDING"
+                      ? "正在处理…"
+                      : latestQA?.status === "COMPLETED"
+                        ? latestQA.cache_hit
+                          ? "缓存命中"
+                          : "已有回答"
+                        : latestQA?.status === "FAILED"
+                          ? "回答失败"
+                          : "尚未提问"}
+                  </span>
+                </div>
+                <form
+                  className="qa-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (
+                      connected &&
+                      qaQuestion.trim() &&
+                      qaAllowNetwork &&
+                      !askQA.isPending &&
+                      latestQA?.status !== "PENDING"
+                    ) {
+                      askQA.mutate();
+                    }
+                  }}
                 >
-                  {askQA.isPending || latestQA?.status === "PENDING"
-                    ? "正在回答…"
-                    : latestQA?.status === "COMPLETED"
-                      ? "再次提问"
-                      : "提交问题"}
-                </button>
-              </form>
-              {qaHistory.isError && (
-                <p role="alert" className="error-text">
-                  {qaHistory.error.message}
-                </p>
-              )}
-              {askQA.isError && (
-                <p role="alert" className="error-text">
-                  {askQA.error.message}
-                </p>
-              )}
-              {latestQA?.error && latestQA.status === "FAILED" && (
-                <p role="alert" className="error-text">
-                  {latestQA.error}
-                </p>
-              )}
-              {latestQA?.answer && <QAResult qa={latestQA} />}
-            </section>
-          )}
-        </>
+                  <label>
+                    作用范围
+                    <select
+                      value={qaScope}
+                      onChange={(event) => {
+                        setQaScope(event.target.value as QAScope);
+                        setQaAllowNetwork(false);
+                      }}
+                    >
+                      <option value="section">当前小节</option>
+                      <option value="paper">
+                        整篇论文（仍只发送少量片段）
+                      </option>
+                      <option
+                        value="selection"
+                        disabled={!selectedSpanIds.length}
+                      >
+                        {selectedSpanIds.length
+                          ? "已选段落原文"
+                          : "已选原文片段（请先在双栏精读选择段落）"}
+                      </option>
+                    </select>
+                  </label>
+                  {qaScope === "selection" && (
+                    <p className="quality-note">
+                      当前仅使用从双栏精读选中的段落，共{" "}
+                      {selectedSpanIds.length} 个原文
+                      Span。提交前不会自动扩大范围。
+                    </p>
+                  )}
+                  <label>
+                    你的问题
+                    <textarea
+                      rows={3}
+                      maxLength={3000}
+                      value={qaQuestion}
+                      placeholder="例如：这项方法在本节中解决了什么问题？"
+                      disabled={!connected || askQA.isPending}
+                      onChange={(event) => setQaQuestion(event.target.value)}
+                    />
+                  </label>
+                  {qaQuestion.trim() && (
+                    <label className="consent-inline">
+                      <input
+                        type="checkbox"
+                        checked={qaAllowNetwork}
+                        onChange={(event) =>
+                          setQaAllowNetwork(event.target.checked)
+                        }
+                      />
+                      允许本次把检索片段发送给已配置模型
+                    </label>
+                  )}
+                  <button
+                    type="submit"
+                    className="button primary"
+                    disabled={
+                      !connected ||
+                      !qaQuestion.trim() ||
+                      !qaAllowNetwork ||
+                      askQA.isPending ||
+                      latestQA?.status === "PENDING"
+                    }
+                  >
+                    {askQA.isPending || latestQA?.status === "PENDING"
+                      ? "正在回答…"
+                      : latestQA?.status === "COMPLETED"
+                        ? "再次提问"
+                        : "提交问题"}
+                  </button>
+                </form>
+                {qaHistory.isError && (
+                  <p role="alert" className="error-text">
+                    {qaHistory.error.message}
+                  </p>
+                )}
+                {askQA.isError && (
+                  <p role="alert" className="error-text">
+                    {askQA.error.message}
+                  </p>
+                )}
+                {latestQA?.error && latestQA.status === "FAILED" && (
+                  <p role="alert" className="error-text">
+                    {latestQA.error}
+                  </p>
+                )}
+                {latestQA?.answer && <QAResult qa={latestQA} />}
+              </section>
+            )}
+          </div>
+        </ReadingOutline>
       )}
       {(panel === "guide" || panel === "all") && (
         <>

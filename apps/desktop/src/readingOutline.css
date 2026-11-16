@@ -1,0 +1,173 @@
+.reading-outline-layout {
+  display: grid;
+  grid-template-columns: 206px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  min-width: 0;
+  margin-top: 22px;
+}
+.reading-outline-layout[data-expanded="false"] {
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 18px;
+}
+.reading-outline-sidebar {
+  position: sticky;
+  top: 20px;
+  z-index: 3;
+  min-width: 0;
+  background: #fafbf7;
+  border: 1px solid #dce3d8;
+  border-radius: 9px;
+}
+.reading-outline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 3px;
+  gap: 2px;
+}
+.reading-outline-toggle,
+.reading-outline-locate {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 34px;
+  gap: 8px;
+  padding: 6px;
+  border: 0;
+  border-radius: 5px;
+  color: #456457;
+  background: transparent;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reading-outline-locate:disabled {
+  color: #a1ada0;
+  cursor: default;
+}
+.reading-outline-sidebar button:focus-visible,
+.reading-outline-sidebar select:focus-visible {
+  outline: 2px solid #567f70;
+  outline-offset: 2px;
+}
+.reading-outline-sidebar button:hover:not(:disabled) {
+  background: #eaf0e5;
+}
+.reading-outline-position {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid #e1e7dd;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.reading-outline-position span {
+  display: block;
+  color: #7a8879;
+  font-size: 10px;
+}
+.reading-outline-position strong {
+  display: block;
+  color: #41634f;
+  font-size: 12px;
+  font-weight: 500;
+}
+.reading-outline-controls {
+  padding: 5px 12px 12px;
+  font-size: 11px;
+  color: #6f806f;
+}
+.reading-outline-controls select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+.reading-outline-list {
+  max-height: calc(100dvh - 245px);
+  min-height: 60px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 6px;
+  border-top: 1px solid #e1e7dd;
+}
+.reading-outline-list button {
+  display: block;
+  width: 100%;
+  margin: 2px 0;
+  padding: 10px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 4px;
+  color: #647361;
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.reading-outline-list button[aria-current="location"] {
+  border-left-color: #4f7c61;
+  color: #2e6046;
+  background: #e7efe0;
+  font-weight: 600;
+}
+.reading-outline-list small {
+  display: block;
+  color: #8b9786;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 400;
+}
+.reading-outline-content {
+  min-width: 0;
+}
+.reading-outline-section {
+  min-width: 0;
+  scroll-margin-top: 24px;
+}
+.reading-outline-section:focus {
+  outline: 2px solid #71938a;
+  outline-offset: 5px;
+}
+.reading-outline-layout[data-expanded="false"] .reading-outline-toolbar {
+  flex-direction: column;
+  padding: 3px 0;
+}
+.reading-outline-layout[data-expanded="false"] .reading-outline-toggle span {
+  display: none;
+}
+/* Adapt to the reading workspace width, including the app's project sidebar. */
+.reading-outline-layout[data-narrow="true"] {
+  display: block;
+  margin-top: 18px;
+}
+.reading-outline-layout[data-narrow="true"] .reading-outline-sidebar {
+  top: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 16px;
+}
+.reading-outline-layout[data-narrow="true"] .reading-outline-toolbar {
+  flex-direction: row;
+  padding: 3px;
+}
+.reading-outline-layout[data-narrow="true"] .reading-outline-toggle span {
+  display: inline;
+}
+.reading-outline-layout[data-narrow="true"] .reading-outline-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: -1px;
+  width: min(290px, calc(100vw - 64px));
+  border: 1px solid #dce3d8;
+  border-radius: 8px;
+  background: #fafbf7;
+  box-shadow: 0 8px 24px #273b2b1a;
+}
+.reading-outline-layout[data-narrow="true"] .reading-outline-list {
+  max-height: min(48dvh, 440px);
+}

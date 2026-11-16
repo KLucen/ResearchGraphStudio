@@ -22,6 +22,9 @@ const kinds: Record<string, string> = {
   diagnostics: "存储诊断",
   paper_overview: "论文概览",
   section_guide: "章节导读",
+  section_close_reading: "双栏精读",
+  paper_reading_notes: "全文精读笔记",
+  understanding_check: "理解检查",
   grounded_qa: "局部证据问答",
   search_keywords: "英文关键词辅助",
   pdf_translation: "文献翻译（已停用）",
@@ -122,12 +125,22 @@ export function JobHistory({
                   <p role="status">
                     {job.kind === "section_guide" && job.stage === "generating"
                       ? "生成章节导读"
-                      : job.kind === "grounded_qa" && job.stage === "generating"
-                        ? "生成局部证据问答"
-                        : job.kind === "search_keywords" &&
+                      : job.kind === "paper_reading_notes" &&
+                          job.stage === "generating"
+                        ? "一次生成全文译文与精读笔记"
+                        : job.kind === "section_close_reading" &&
                             job.stage === "generating"
-                          ? "生成英文关键词"
-                          : stages[job.stage] || "正在处理"}
+                          ? "生成所选范围译文与批注"
+                          : job.kind === "understanding_check" &&
+                              job.stage === "generating"
+                            ? "检查用户复述"
+                            : job.kind === "grounded_qa" &&
+                                job.stage === "generating"
+                              ? "生成局部证据问答"
+                              : job.kind === "search_keywords" &&
+                                  job.stage === "generating"
+                                ? "生成英文关键词"
+                                : stages[job.stage] || "正在处理"}
                   </p>
                 )}
               {typeof job.result?.title === "string" && (
@@ -143,6 +156,12 @@ export function JobHistory({
                 ["failed", "interrupted", "cancelled"].includes(job.status) && (
                   <p className="muted">
                     章节导读未自动重发。请回到章节目录，确认范围后重新生成。
+                  </p>
+                )}
+              {job.kind === "paper_reading_notes" &&
+                ["failed", "interrupted", "cancelled"].includes(job.status) && (
+                  <p className="muted">
+                    全文精读未自动重发。请回到全文精读查看已保留的结果和原因，再决定是否重新生成。
                   </p>
                 )}
               {job.kind === "grounded_qa" &&
@@ -162,6 +181,16 @@ export function JobHistory({
                   文献翻译功能已移除，此记录仅保留为历史，不会重新执行。
                 </p>
               )}
+              {["section_close_reading", "understanding_check"].includes(
+                job.kind,
+              ) &&
+                ["failed", "interrupted", "cancelled"].includes(job.status) && (
+                  <p className="muted">
+                    {job.kind === "section_close_reading"
+                      ? "双栏精读未自动重发。请回到章节精读，查看已保留段落并显式重试缺失范围。"
+                      : "理解检查未自动重发。请回到章节精读，确认原文范围后重新提交复述。"}
+                  </p>
+                )}
             </div>
             {job.kind !== "pdf_translation" &&
             ["queued", "running"].includes(job.status) ? (
@@ -176,6 +205,9 @@ export function JobHistory({
               ![
                 "paper_overview",
                 "section_guide",
+                "section_close_reading",
+                "paper_reading_notes",
+                "understanding_check",
                 "grounded_qa",
                 "search_keywords",
                 "pdf_translation",

@@ -1841,3 +1841,68 @@ GitHub Actions run43049353054（Windows build and acceptance）已启动，记�
 默认HTTPS约21秒连接失败。按github-transfer技能核对本机无Git代理/重写设置及代理环境变量，使用StrictHostKeyChecking的GitHub官方SSH443认证成功，fetch确认远端与本地原基线bfe3a0c一致。源码提交 `a2ed78f9db31f7d61dcc79a707bdfaea0d4a210b`（refactor: remove PDF translation and preserve Lite data compatibility）先dry-run后普通推送main成功，官方ls-remote确认同一SHA。未force push、未改origin、全局Git或网络配置。
 
 GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56查询为in_progress、conclusion=null，head SHA对应a2ed78f；不能宣称远端CI通过。本轮仅补本交付记录的文档提交，运行源码与最终安装器保持DEV-0086，安装器SHA256仍为 `B01F56AF08D2CBB0C2D0E2591D12038430FDC2D2BD3B82D19EAC630E2C652835`。真实模型/Token/新增费用仍0，正式数据未操作，用户新版界面反馈与干净机验证仍待。
+
+## DEV-0088 — 2026-11-14 19:43（Asia/Shanghai）：P2双栏精读、常驻段落译文与理解状态
+
+**目标与边界**：按本轮附件完成Lite P2-a/b/c增量。保留A01、B联合概览、D问答、Zotero/PDF本地解析、Section/Span、Provider与缓存；不重建A+B+D，不恢复完整Knowledge Engine或整篇PDF翻译服务器，不进入其他阶段。真实模型/真实Token/真实重试/新增收费全部0，不读取正式Key、用户库、Zotero库或私人PDF。既有推送授权已用于旧交付，本轮未Commit/Push。
+
+**实际修改**：
+
+- 前端新增`SectionCloseReading.tsx`、`sectionCloseReading.css`、`readingHighlights.ts`及夹具/组件/Edge测试；`KnowledgeReading.tsx`保留A01并增加双栏切换、范围选择和可关闭自适应。逐段英文由本地读取，常驻中文在英文下方，右栏中文批注同一行对齐，窄屏逐段堆叠。五色只用于精确原文，范围摘要不冒充全文；不完整段保留译文占位并只显式重试缺失段，过期稿独立折叠。
+- `PaperOverview.tsx`、`ForceGraph.tsx`、`graphTypes.ts`、`graphAppearance.css`加入独立个人阅读圈层、概念详情自评/检查/关联章节与段落/问答跳转，图谱原语义颜色保持。`Papers.tsx`处理导航和PDF修订重置，D历史显示绑定所选Span；`JobHistory.tsx`识别A02/A03并阻断通用重试。`api.ts`及导出OpenAPI/TS契约对应新接口。
+- 新增`close_reading_contracts.py/models.py/api.py`：A02 `section_reading_analysis.v1` / `A02_bilingual_argument_annotation_v1`一次范围调用；A03 `understanding_check.v1` / `A03_understanding_check_v1`仅主动复述。严格验证段落覆盖/顺序/重复/归属、Span连续完整原文/hash、高亮精确引用及出现序号。非法高亮/图谱引用单独移除；独立完整段可保留，raw不修造，英文原文不能冒充译文。
+- 请求槽原子认领、任务唯一约束、来源前后终验、取消/重启不重发、未知usage/费用保持。缓存包含源/范围/输入、Prompt/Schema内容hash、模型与配置，当前配置变化派生STALE；未配置当前模型仍可读旧结果。缺段重试独立任务，可恢复父范围译文而不提升子范围摘要，缓存损坏重验后拒绝伪完成。
+- 新增`reading_state_contracts.py/models.py/api.py`，个人状态与图谱事实隔离；A03只写检查建议，不覆盖自评或个人笔记。节点需同修订、稳定ID及完整语义指纹才能匹配，否则保留待关联。`section_guide_api.py/contracts.py`最多附加三项可靠相关状态，普通旧A01身份兼容，状态点击不使A02失效。
+- `lite0009_close_reading.py`加性四表，`storage.py`/Rust宿主更新head、白名单和查询验证；`app.py`接入worker、API、启动恢复/取消。保留Lite数据和迁移备份，不删除任何外部原文。新增`smoke-section-reading.py`实际HTTP/SSE夹具，增强`smoke-engine.py`和PS5.1安装验证。更新ADR0041、Lite规范/Prompt/迁移文档、README、progress及本轮验证报告。
+
+**实际验证与修复尝试**：
+
+- 最终`python -m pytest -q`为242 passed/1 skipped/1 warning，77.39秒。跳过为本机symlink权限，警告为既有Starlette/httpx弃用；新增覆盖A02/A03、状态/自适应、真实app worker与迁移备份。首轮240 passed/1 failed/1 skipped，失败为旧翻译撤下测试仍断言lite0008；更新head断言后全量重跑通过。最初smoke脚本格式检查失败，格式化后Ruff、86文件格式、mypy56源、pip check全部通过。
+- 前端7 files/59 passed，TypeScript/ESLint/Prettier通过；真实Edge 6 passed，覆盖旧图谱、独立阅读圈层、桌面60/40与窄屏布局、常驻译文、安全文本、缺段/过期和本地跳转。实际截图已查看。生产构建通过，562.66KB单JS包提示保留；契约重新导出。
+- PowerShell7完整build-windows完成PyInstaller/Tauri/NSIS，56个Python运行源打包前后SHA保持。PowerShell5.1隔离静默安装成功，schema lite0009、本地PDF解析/索引0模型，整篇翻译404且无translation-runtime。安装后263个sidecar文件与封存逐一hash匹配，桌面EXE存在。
+- 源码及安装后实际引擎分别通过合成SSE smoke：匿名PDF4段，本地导入/原文/状态零调用，A02一次、缓存新增0、A03一次且PARTIAL自评保持，PDF SHA不变。每次独立smoke模拟输入46/输出82/总128、缓存1/重试0、费用未知；A02专项另一夹具123/234/357亦为合成，不混作真实Token或生产费用。
+- Rust fmt/clippy通过，RGS_TEST_ENGINE_PATH指向最终安装后的引擎，Host全量10 passed/0 ignored、3.03秒，含启动/重启和新路由安全。没有用正式数据目录启动GUI，不宣称干净机或正式库GUI验收。
+
+**Windows交付**：`.local/releases/lite-section-reading-20261114/ResearchGraph-Studio-Lite-Section-Reading-0.0.1-x64-setup.exe`，38,480,943字节/36.70MiB，SHA256 `3E27C040FBF893AEF21B1C1F4C91B36DD0E44F685A5FD0EF934B3DD914C96DB5`。完整sidecar含_internal，EXE15,149,749字节，SHA256 `CCC3CAB1057C2F732B314EBD6F65BA8E8A65CC5A478664A91D738C55EF16E2A3`；不可单独复制EXE。未签名、未覆盖旧封存包或用户日常安装；资料在忽略目录`.local/verify/lite-section-reading-20261114/`。
+
+**剩余问题与下一步**：真实论文翻译忠实度、批注/A03教学质量、真实Token与费用尚未标定；需另行明确样例和预算。无OCR，复杂公式/图表缺失如实保留信息缺口。正式Zotero库、用户原生GUI与干净机反馈待验。完成当前阶段后停止，不自动开发后续阶段或追加收费验证。最终源码内容/私人路径及Gitleaks284文件通过，17个改动文档/83个本地链接无缺失，git diff --check通过，暂存为空。没有Commit/Push或远端CI运行。
+
+## DEV-0089 — 2026-11-14 22:38（Asia/Shanghai）：PDF阅读整理、材料分离与一次全文精读
+
+**目标与边界**：按用户最新要求先修复跨页断段、双栏顺序与图表材料混入正文，再将默认精读改为一次明确操作处理整篇可读正文。增量保留Lite A+B+D、A01、A03、个人理解状态与A02历史，不恢复旧完整Knowledge Engine、Lint/Wiki、跨论文推理或PDF翻译服务器。真实模型调用、真实Token、真实重试和新增费用全部0；只用匿名PDF、隔离库与loopback合成Provider，不读取正式Key、用户库、Zotero库或私人论文。本轮没有Commit/Push授权，未提交上传。
+
+**实际修改**：
+
+- 新增`reading_projection.py`、`reading_projection_contracts.py`、`reading_document_models.py`与`reading_document_api.py`，使用独立`reading-document-1`投影；`pdf_structure.py`补页面尺寸、嵌入图像及疑似矢量区域。正文/标题/材料分型，双栏按左后右、跨栏标题分区，可靠同段文字才合并；跨页/跨栏须有真实尺寸、首尾几何与续文信号，不穿越标题/材料。原始Chunk/Section/Span/DocumentParse不重写，保留每源精确offset、原文、坐标、页码与SHA。
+- GET重验本地映射且不读外部PDF；显式refresh仅只读登记的同SHA来源补充结构。旧解析缺尺寸时保留不确定断段，源缺失/变化保留本地原文并提示。表格、图片区域、图注、疑似图内标签单独折叠，保留原始换行、页码、依据与处理建议；非文字图像只定位，不造Span、OCR或科学解释。
+- 新增`paper_reading_api.py/contracts.py/models.py`：`paper_reading_notes` / `A04_paper_reading_notes_v1` / `paper_reading_analysis.v1`一次完整正文请求生成逐段译文、五色精确高亮、论证笔记及全文摘要。英文从本地读取，材料正文不外发。完整context/源映射冻结并前后终验，缺段/截断只保留有效部分且整体INCOMPLETE，不自动补调或缓存成完整。
+- 容量预检按实际ConfiguredProvider构造逻辑、准确端点限制与输入预留执行，不读Key或联网探测；已知不足零请求拒绝，未知容量明确提示。缓存绑定来源/全文/投影/Prompt和Schema内容/模型配置，临时文件警告不单独失效；旧稿STALE保留。持久唯一请求槽、原子claim、启动恢复与取消不自动重发。
+- 前端新增`PaperCloseReading.tsx`、CSS、fixtures、组件与Edge测试；`KnowledgeReading.tsx`默认全文精读，无需先选小节。标题独立、段落双栏常驻中文、材料折叠、窄屏堆叠；`SectionCloseReading.tsx`的historyOnly保留旧稿/状态/A03，隐藏旧范围生成及缺段补调。Papers/JobHistory/API、Rust路由白名单和契约同步。
+- `lite0010_reading_document.py`仅新增`lite_reading_documents`、`lite_paper_readings`；storage/宿主/安装脚本更新head，沿用升级前备份。新增真实旧结构隔离迁移测试逐表保持原文、旧A02raw、usage和快照。新增`smoke-paper-reading.py`，旧smoke保持兼容。更新ADR0042、A04模板、README、Lite规范、迁移文档、progress与本轮验证报告。
+
+**实际验证与审查修复**：
+
+- 最终后端全量`python -m pytest -q`：272 passed/1 skipped/1 warning，63.73秒。较早271通过发生在新增图注回归前，不当最终成绩；全文专项13、解析/投影专项31通过。Ruff/98文件格式/mypy64源/pip check通过。skip为既有Windows符号链接权限，warning为既有Starlette/httpx弃用。
+- 前端TypeScript/ESLint/Prettier通过，React8 files/65 passed、8.80秒；真实Edge全量8 passed、7.9秒，含真实图谱组件、旧精读、全文授权/刷新、材料及窄屏。生产构建通过，现有577.65KB单JS包提示保留；OpenAPI/TS契约已导出。
+- 独立审查发现并修复右栏页末跨页续文的栏内边距比较、正文Figure/Table指代句可能误判图注、材料原文换行丢失及普通bbox文案不准。最终回归覆盖这些情况，没有剩余已知P1/P2阻断。自造双栏两页PDF、跨页合段/表格/矢量图及58.0/T3: Flights样例的Poppler页图和前端截图已查看；不把匿名样例当真实论文质量验收。
+- PowerShell7完整build-windows成功；101个Python/前端/宿主源打包前后hash保持。PowerShell5.1隔离静默安装通过，schema lite0010，本地PDF解析/索引0调用/0Token、旧翻译404、无translation-runtime。安装后265个sidecar文件与封存逐一hash匹配，桌面EXE存在；未替换日常安装。
+- 源码及安装后全文HTTP/SSE smoke分别通过：3段正文一次合成A04、cache新增0、本地导入/GET/refresh0调用、外部匿名PDF SHA保持。每次独立模拟23输入/41输出/64总Token、重试0、费用未知、非loopback0；不是生产成本。安装后旧A02/A03兼容smoke模拟46/82/128另列，自评PARTIAL保持；普通引擎smoke本地4段读取与状态0模型。
+- Rust fmt/clippy通过；RGS_TEST_ENGINE_PATH指向最终安装引擎，`cargo test --locked -- --include-ignored`全量11 passed/0 ignored、2.77秒，含原生Host启动/重启和路由安全。未用正式数据启动GUI，不宣称用户GUI或干净机通过。
+
+**Windows交付**：`.local/releases/lite-paper-reading-20261114/ResearchGraph-Studio-Lite-Paper-Reading-0.0.1-x64-setup.exe`，38,522,485字节/36.74MiB，SHA256 `E0D4999005CF6CFE18ED3C4D7CCD57C49A7BB47B924CC42B5345A00013B87174`。完整sidecar含_internal，引擎EXE15,202,470字节，SHA256 `B8F53E250DC98CD3580B3FA7BB8A2DC25FF513AF4B13DE91E391F03A0C2D2148`；不能只复制引擎EXE。包未签名、独立封存，旧章节精读包保留。所有构建/安装/匿名样本/日志在忽略目录`.local/verify/lite-paper-reading-20261114/`。
+
+**剩余与下一步**：关闭旧程序安装新包，选择已有论文→论文精读→全文精读→重新整理本地阅读版面；核对正文与折叠材料后，显式允许一次全文生成。无需删库或重导。复杂版面/特殊字体/扫描页无OCR、真实译文与批注质量、真实全文Token/金额、正式Zotero库、用户原生GUI与干净机仍待验收。当前阶段完成后停止，不追加真实收费或其他阶段开发。最终源码内容/私人路径规则及Gitleaks306文件通过，20个改动文档/103个本地链接无缺失，git diff --check通过，暂存为空。
+
+## DEV-0090 — 2026-11-16 14:24（Asia/Shanghai）：可收起阅读目录、当前位置与公式诊断
+
+**目标与授权**：用户要求精读和问答的文章目录改为可展开/收起侧栏，标记正在阅读的位置，并定位公式识别不准的原因。保留既有Lite增量，不恢复完整Knowledge Engine或PDF翻译服务器。本轮随后明确授权完成后Push GitHub，提交范围包含此前尚未上传的P2/全文精读与本轮导航；先安全核查，不上传安装器/本地运行数据。真实模型/Token/真实重试/新增收费全部0，没有操作正式库、Zotero库、真实Key或私人PDF。
+
+**实际修改**：新增共享`ReadingOutline.tsx`、`readingOutline.css`、组件测试及`e2e/reading-outline.{html,tsx,spec.ts}`；`KnowledgeReading.tsx`、`PaperCloseReading.tsx`集成侧栏，`paperCloseReading.css`移除旧顶部目录。桌面sticky左目录可收起，实际阅读宽度小于880px改浮层，长列表独立滚动，支持Esc/外点/焦点恢复/当前项语义。全文随实际滚动更新章节；问答保留所选scope，滚动不选章、不发模型。目录定位只揭示目录当前项，明确点击章节才跳正文。收起/展开记录段中字符Range并恢复；没有用户滚动的连续切换复用同一来源锚点，问答pre内部与外层分别恢复。短末节和父组件选段状态清除导致的remount导航均有回归。
+
+**公式诊断与文档**：`ingest.py`线性文字块、`pdf_structure.py`缺少完整字符几何/基线/方向、阅读整理压平换行，且没有equation结构与LaTeX恢复；现有纯文字渲染无法重建复杂公式。新增ADR0043和`docs/formula-parsing-assessment.md`，建议先同SHA登记来源的受限原图区域预览，再按需OCR→LaTeX，保留原图/来源/不确定性，不覆盖Span。本轮未实现公式检测/预览/OCR，未下载权重或增加模型依赖。README、Lite规范入口、docs README、progress和`docs/reading-sidebar-verification-20261116.md`同步；清除progress“下一步”中已撤下的翻译联调计划，更新当前head为lite0010。无API/Schema/Prompt/缓存改动。
+
+**验证与修复过程**：首轮Edge为9通过/3失败，发现正文宽度重排偏移，另两项为测试坐标越界及控件名称不符。加强段中断言后观察33px行首重捕获漂移，修复连续切换的稳定Range；独立审查补齐QA内部scrollroot。QA测试曾触及物理滚动边界/框外点，改取可用范围中点并验证Range归属，不放宽精度。截图又发现夹具重复238px main左边距，已只修夹具并增加长原文，重新全量通过。失败与最终日志均保留。最终TypeScript/ESLint/Prettier通过，React9文件69 passed/8.68秒；修正夹具后Edge12 passed/10.5秒（目录专项4/4），段首/段中/内部原文字符切换误差<2px。4张截图已查看。65后端/宿主源与前次101清单保持，旧272后端成绩不冒作本轮重跑；生产构建现有585.94KB单JS提示保留。
+
+**安装与启动**：114个源码/配置打包前后哈希保持，PyInstaller/Tauri/NSIS通过。独立未签名安装包`.local/releases/lite-reading-sidebar-20261116/ResearchGraph-Studio-Lite-Reading-Sidebar-0.0.1-x64-setup.exe`，38,533,805字节，SHA256 `82758295011D3CDC48AD5A3207C0059344268C88C3A3E941B56D712457A11C5A`。完整引擎含_internal，EXE15,202,470字节，SHA `B8F53E250DC98CD3580B3FA7BB8A2DC25FF513AF4B13DE91E391F03A0C2D2148`，与前次引擎相同；不可单独复制EXE。PS5.1隔离安装通过、265资源逐一匹配、桌面EXE存在；本地匿名PDF解析/索引0调用。安装后普通引擎/A02+A03/A04 HTTP/SSE smoke通过，模拟46/82/128和23/41/64分列、缓存各1/重试0/费用未知/非loopback0/源SHA保持。安装后Rust Host11 passed/0 ignored，2.87秒，含启动/重启与路由安全。未覆盖日常安装或用正式数据启动GUI。
+
+**剩余与下一步**：先安装新包验证实际阅读工作流；公式原图保真定位优先，其后按需局部OCR的部署与质量评估；真实论文译文/批注/A03质量、实际Token费用、统一预算守卫、正式Zotero/原生GUI/干净机和跨平台仍待验。用户本轮授权只用于本轮代码交付，不自动开启真实收费或后续阶段。提交前安全与远端结果另补记。

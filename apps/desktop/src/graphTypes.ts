@@ -8,6 +8,9 @@ export type GraphNode = {
   label_en?: string | null;
   description_zh?: string | null;
   basis?: string;
+  reading_level?: string;
+  reading_check?: string;
+  reading_unresolved?: boolean;
 };
 
 export type GraphEdge = {

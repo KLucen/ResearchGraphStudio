@@ -76,7 +76,7 @@ def run(
             base = f"http://127.0.0.1:{ready['port']}/api/v1"
             health = request(base, token, "GET", "/health")
             assert (
-                health["schema_version"] == "lite0008"
+                health["schema_version"] == "lite0010"
                 and health["database"] == "ready"
                 and health["fts5"]
             )
@@ -111,16 +111,55 @@ def run(
                     break
                 time.sleep(0.1)
             assert current and current["status"] == "succeeded", current
+            papers = request(base, token, "GET", f"/projects/{project['id']}/papers")
+            paper_id = papers["items"][0]["id"]
+            detail = request(base, token, "GET", f"/papers/{paper_id}")
+            version = detail["revisions"][0]["id"]
+            sections = request(base, token, "GET", f"/revisions/{version}/sections")
+            section = next(
+                item for item in sections["sections"] if not item["excluded"] and item["chunk_ids"]
+            )
+            scope = f"/papers/{paper_id}/sections/{section['id']}"
+            paragraphs = request(
+                base, token, "GET", f"{scope}/paragraphs?document_version_id={version}"
+            )
+            assert paragraphs["paragraphs"]
+            assert all(
+                item["text_en"] and item["text_hash"] and item["span_ids"]
+                for item in paragraphs["paragraphs"]
+            )
+            state = request(
+                base,
+                token,
+                "PUT",
+                f"{scope}/reading-state",
+                {
+                    "document_version_id": version,
+                    "progress": "READING",
+                    "self_assessment": "PARTIAL",
+                },
+            )
+            assert state["progress"] == "READING" and state["self_assessment"] == "PARTIAL"
+            restored = request(
+                base, token, "GET", f"{scope}/reading-state?document_version_id={version}"
+            )
+            assert restored["self_assessment"] == "PARTIAL"
+            assert (
+                request(base, token, "GET", f"{scope}/close-reading?document_version_id={version}")
+                is None
+            )
+            request(base, token, "GET", f"/papers/{paper_id}/concept-understanding")
             usage = request(base, token, "GET", f"/projects/{project['id']}/lite/usage")
             assert (
                 usage["calls"] == 0 and usage["input_tokens"] == 0 and usage["output_tokens"] == 0
             )
-            request(base, token, "GET", f"/projects/{project['id']}/papers")
             report = {
                 "schema_version": health["schema_version"],
                 "project": project["id"],
                 "pdf_job": job["id"],
                 "model_calls": usage["calls"],
+                "local_reading_paragraphs": len(paragraphs["paragraphs"]),
+                "local_reading_state": restored["progress"],
                 "translation_available": False,
                 "status": "passed",
             }

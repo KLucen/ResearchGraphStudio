@@ -626,6 +626,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/paragraphs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paragraphs */
+        get: operations["paragraphs_api_v1_papers__paper_id__sections__section_id__paragraphs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/close-reading": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Analysis */
+        get: operations["get_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/close-reading/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Analysis */
+        post: operations["generate_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/understanding-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Check */
+        get: operations["get_check_api_v1_papers__paper_id__sections__section_id__understanding_check_get"];
+        put?: never;
+        /** Generate Check */
+        post: operations["generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/understanding-check/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Check */
+        post: operations["generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/reading-document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reading Document */
+        get: operations["reading_document_api_v1_papers__paper_id__reading_document_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/reading-document/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Reading Document */
+        post: operations["refresh_reading_document_api_v1_papers__paper_id__reading_document_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/reading-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notes */
+        get: operations["get_notes_api_v1_papers__paper_id__reading_notes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/reading-notes/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Notes */
+        post: operations["generate_notes_api_v1_papers__paper_id__reading_notes_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/sections/{section_id}/reading-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get State */
+        get: operations["get_state_api_v1_papers__paper_id__sections__section_id__reading_state_get"];
+        /** Put State */
+        put: operations["put_state_api_v1_papers__paper_id__sections__section_id__reading_state_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/concept-understanding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Concepts */
+        get: operations["get_concepts_api_v1_papers__paper_id__concept_understanding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/papers/{paper_id}/concept-understanding/{graph_node_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Concept */
+        put: operations["put_concept_api_v1_papers__paper_id__concept_understanding__graph_node_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/papers/{paper_id}/qa": {
         parameters: {
             query?: never;
@@ -922,6 +1128,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArgumentHighlight */
+        ArgumentHighlight: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "THESIS" | "CONCEPT" | "EVIDENCE" | "COUNTERARGUMENT" | "METHOD";
+            /** Quote En */
+            quote_en: string;
+            /** Occurrence Index */
+            occurrence_index: number;
+        };
         /** AttachmentChoice */
         AttachmentChoice: {
             /** Item Key */
@@ -971,6 +1189,83 @@ export interface components {
             /** Bbox */
             bbox: number[];
         };
+        /** CloseReadingGenerate */
+        CloseReadingGenerate: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+            /** Paragraph Ids */
+            paragraph_ids: string[];
+            /**
+             * Allow Network
+             * @default false
+             */
+            allow_network: boolean;
+            /**
+             * Force Regenerate
+             * @default false
+             */
+            force_regenerate: boolean;
+            /** Retry Missing Of */
+            retry_missing_of?: string | null;
+        };
+        /** CloseReadingView */
+        CloseReadingView: {
+            /** Id */
+            id: string;
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Section Id */
+            section_id: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Input Hash */
+            input_hash: string;
+            /** Schema Version */
+            schema_version: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Model Id */
+            model_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "COMPLETED" | "INCOMPLETE" | "FAILED" | "STALE";
+            range: components["schemas"]["ReadingRange"];
+            analysis: components["schemas"]["SectionReadingAnalysis"] | null;
+            /** Missing Paragraph Ids */
+            missing_paragraph_ids: string[];
+            /** Warnings */
+            warnings: string[];
+            usage: components["schemas"]["GuideUsage"];
+            /**
+             * New Calls
+             * @default 0
+             */
+            new_calls: number;
+            estimated: components["schemas"]["ReadingBudget"];
+            /** Generated At */
+            generated_at: string;
+            /**
+             * Cache Hit
+             * @default false
+             */
+            cache_hit: boolean;
+            /** Job Id */
+            job_id?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Stale Reason */
+            stale_reason?: string | null;
+            /** Retry Of */
+            retry_of?: string | null;
+        };
         /** CollectionBrowse */
         CollectionBrowse: {
             /**
@@ -997,6 +1292,77 @@ export interface components {
             items: components["schemas"]["ZoteroPaper"][];
             /** Next Start */
             next_start: number | null;
+        };
+        /** ConceptUnderstandingPut */
+        ConceptUnderstandingPut: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+            /** Overview Result Id */
+            overview_result_id: string;
+            /**
+             * Self Level
+             * @default UNSET
+             * @enum {string}
+             */
+            self_level: "UNSET" | "UNSURE" | "PARTIAL" | "CONFIDENT";
+            /**
+             * Note Zh
+             * @default
+             */
+            note_zh: string;
+        };
+        /** ConceptUnderstandingView */
+        ConceptUnderstandingView: {
+            /** Id */
+            id?: string | null;
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Overview Result Id */
+            overview_result_id: string | null;
+            /** Graph Node Id */
+            graph_node_id: string;
+            /** Node Label Zh */
+            node_label_zh: string;
+            /** Node Label En */
+            node_label_en?: string | null;
+            /**
+             * Self Level
+             * @default UNSET
+             * @enum {string}
+             */
+            self_level: "UNSET" | "UNSURE" | "PARTIAL" | "CONFIDENT";
+            /**
+             * Last Check Result
+             * @default NOT_CHECKED
+             * @enum {string}
+             */
+            last_check_result: "NOT_CHECKED" | "ADEQUATE" | "PARTIAL" | "MISCONCEPTION" | "UNCERTAIN";
+            /**
+             * Note Zh
+             * @default
+             */
+            note_zh: string;
+            /**
+             * Last Check Note Zh
+             * @default
+             */
+            last_check_note_zh: string;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Association Status
+             * @enum {string}
+             */
+            association_status: "CURRENT" | "NEEDS_RELINK";
+            /**
+             * Has Unresolved Question
+             * @default false
+             */
+            has_unresolved_question: boolean;
+            /** Related Sections */
+            related_sections?: components["schemas"]["RelatedSection"][];
         };
         /** ConnectionInput */
         ConnectionInput: {
@@ -1043,6 +1409,30 @@ export interface components {
             term_en: string;
             /** Hint Zh */
             hint_zh: string;
+        };
+        /** DocumentReadingView */
+        DocumentReadingView: {
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /**
+             * Projection Version
+             * @default reading-document-1
+             */
+            projection_version: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Projection Hash */
+            projection_hash: string;
+            /** Sections */
+            sections: components["schemas"]["ReadingDocumentSection"][];
+            /** Units */
+            units: components["schemas"]["ReadingUnit"][];
+            /** Warnings */
+            warnings: string[];
+            /** Refreshed At */
+            refreshed_at?: string | null;
         };
         /** DocumentStructure */
         DocumentStructure: {
@@ -1160,6 +1550,11 @@ export interface components {
              * @default false
              */
             force_regenerate: boolean;
+            /**
+             * Adaptive
+             * @default false
+             */
+            adaptive: boolean;
         };
         /** GuideUsage */
         GuideUsage: {
@@ -1236,6 +1631,12 @@ export interface components {
             stale_reason?: string | null;
             /** Evidence */
             evidence?: components["schemas"]["GuideEvidence"][];
+            /**
+             * Adaptive
+             * @default false
+             */
+            adaptive: boolean;
+            reader_context?: components["schemas"]["ReaderContext"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1768,6 +2169,91 @@ export interface components {
             /** Next Cursor */
             next_cursor: number | null;
         };
+        /** PaperReadingAnalysis */
+        PaperReadingAnalysis: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "paper_reading_analysis.v1";
+            /** Paragraphs */
+            paragraphs: components["schemas"]["ParagraphAnalysis"][];
+            paper_argument: components["schemas"]["SectionArgument"] | null;
+        };
+        /** PaperReadingGenerate */
+        PaperReadingGenerate: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+            /**
+             * Allow Network
+             * @default false
+             */
+            allow_network: boolean;
+            /**
+             * Force Regenerate
+             * @default false
+             */
+            force_regenerate: boolean;
+        };
+        /** PaperReadingView */
+        PaperReadingView: {
+            /** Id */
+            id: string;
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Input Hash */
+            input_hash: string;
+            /** Projection Version */
+            projection_version: string;
+            /** Projection Hash */
+            projection_hash: string;
+            /** Schema Version */
+            schema_version: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Model Id */
+            model_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "COMPLETED" | "INCOMPLETE" | "FAILED" | "STALE";
+            analysis: components["schemas"]["PaperReadingAnalysis"] | null;
+            /** Paragraph Count */
+            paragraph_count: number;
+            /** Missing Paragraph Ids */
+            missing_paragraph_ids?: string[];
+            /** Warnings */
+            warnings?: string[];
+            usage: components["schemas"]["GuideUsage"];
+            estimated: components["schemas"]["ReadingBudget"];
+            /** Generated At */
+            generated_at: string;
+            /**
+             * Cache Hit
+             * @default false
+             */
+            cache_hit: boolean;
+            /**
+             * New Calls
+             * @default 0
+             */
+            new_calls: number;
+            /** Job Id */
+            job_id?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Stale Reason */
+            stale_reason?: string | null;
+        };
         /** PaperView */
         PaperView: {
             /** Id */
@@ -1778,6 +2264,50 @@ export interface components {
             title: string;
             /** Created At */
             created_at: string;
+        };
+        /** ParagraphAnalysis */
+        ParagraphAnalysis: {
+            /** Paragraph Id */
+            paragraph_id: string;
+            /** Translation Zh */
+            translation_zh: string;
+            /**
+             * Paragraph Function
+             * @enum {string}
+             */
+            paragraph_function: "INTRODUCE_PROBLEM" | "DEFINE_CONCEPT" | "STATE_CLAIM" | "EXPLAIN_METHOD" | "PRESENT_EVIDENCE" | "HANDLE_OBJECTION" | "DISCUSS_LIMITATION" | "SUMMARIZE_TRANSITION" | "OTHER";
+            /** Logic Role Zh */
+            logic_role_zh: string;
+            /** Critical Note Zh */
+            critical_note_zh: string;
+            /** Reading Question Zh */
+            reading_question_zh: string | null;
+            /** Highlights */
+            highlights: components["schemas"]["ArgumentHighlight"][];
+            /** Related Graph Node Ids */
+            related_graph_node_ids: string[];
+        };
+        /** ParagraphsView */
+        ParagraphsView: {
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Section Id */
+            section_id: string;
+            /** Section Title */
+            section_title: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Paragraphs */
+            paragraphs: components["schemas"]["ReadingParagraph"][];
+            /** Estimated Source Tokens */
+            estimated_source_tokens: number;
+            /**
+             * Suggested Max Source Tokens
+             * @default 2000
+             */
+            suggested_max_source_tokens: number;
         };
         /** PdfChoice */
         PdfChoice: {
@@ -2033,6 +2563,57 @@ export interface components {
             /** Retrieval Spans */
             retrieval_spans?: components["schemas"]["QAEvidence"][];
         };
+        /** ReaderContext */
+        ReaderContext: {
+            /**
+             * Strategy
+             * @enum {string}
+             */
+            strategy: "BRIDGE_GAPS" | "CONNECT_ARGUMENT" | "CRITICAL_READING" | "REVISIT_DEFINITIONS";
+            /** Unresolved Concepts */
+            unresolved_concepts?: string[];
+            /**
+             * Prior Misunderstanding Summary
+             * @default
+             */
+            prior_misunderstanding_summary: string;
+            /** Preferred Focus */
+            preferred_focus: string;
+        };
+        /** ReadingBudget */
+        ReadingBudget: {
+            /** Estimated Input Tokens */
+            estimated_input_tokens: number;
+            /** Estimated Output Tokens */
+            estimated_output_tokens: number;
+            /** Estimated Total Tokens */
+            estimated_total_tokens: number;
+            /** Estimated Source Tokens */
+            estimated_source_tokens: number;
+            /**
+             * Estimate Only
+             * @default true
+             */
+            estimate_only: boolean;
+            /** Warning */
+            warning?: string | null;
+        };
+        /** ReadingDocumentRefresh */
+        ReadingDocumentRefresh: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+        };
+        /** ReadingDocumentSection */
+        ReadingDocumentSection: {
+            /** Section Id */
+            section_id: string;
+            /** Title */
+            title: string;
+            /** Level */
+            level: number;
+            /** Role */
+            role: string;
+        };
         /** ReadingGuideDraft */
         ReadingGuideDraft: {
             /** Section Id */
@@ -2054,6 +2635,180 @@ export interface components {
             needs_more_context: boolean;
             /** Caveats */
             caveats?: string[];
+        };
+        /** ReadingParagraph */
+        ReadingParagraph: {
+            /** Paragraph Id */
+            paragraph_id: string;
+            /** Text En */
+            text_en: string;
+            /** Text Hash */
+            text_hash: string;
+            /** Page Start */
+            page_start: number;
+            /** Page End */
+            page_end: number;
+            /** Ordinal */
+            ordinal: number;
+            /** Span Ids */
+            span_ids: string[];
+        };
+        /** ReadingQuestion */
+        ReadingQuestion: {
+            /** Paragraph Id */
+            paragraph_id?: string | null;
+            /** Text */
+            text: string;
+            /**
+             * Resolved
+             * @default false
+             */
+            resolved: boolean;
+        };
+        /** ReadingRange */
+        ReadingRange: {
+            /** Paragraph Ids */
+            paragraph_ids: string[];
+            /** Range Label */
+            range_label: string;
+            /** Full Section */
+            full_section: boolean;
+            /** Range Hash */
+            range_hash: string;
+        };
+        /** ReadingRegion */
+        ReadingRegion: {
+            /** Page */
+            page: number;
+            /** Bbox */
+            bbox: number[];
+        };
+        /** ReadingSource */
+        ReadingSource: {
+            /** Chunk Id */
+            chunk_id: string;
+            /** Span Ids */
+            span_ids: string[];
+            /** Page */
+            page: number;
+            /** Start Offset */
+            start_offset: number;
+            /** End Offset */
+            end_offset: number;
+            /** Text */
+            text: string;
+            /** Text Hash */
+            text_hash: string;
+            /** Bbox */
+            bbox: number[];
+        };
+        /** ReadingStatePut */
+        ReadingStatePut: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+            /** Overview Result Id */
+            overview_result_id?: string | null;
+            /**
+             * Progress
+             * @default NOT_STARTED
+             * @enum {string}
+             */
+            progress: "NOT_STARTED" | "READING" | "COMPLETED";
+            /**
+             * Self Assessment
+             * @default UNSET
+             * @enum {string}
+             */
+            self_assessment: "UNSET" | "UNSURE" | "PARTIAL" | "CONFIDENT";
+            /** Unresolved Concept Ids */
+            unresolved_concept_ids?: string[];
+            /** Questions */
+            questions?: components["schemas"]["ReadingQuestion"][];
+        };
+        /** ReadingStateView */
+        ReadingStateView: {
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Section Id */
+            section_id: string;
+            /**
+             * Progress
+             * @default NOT_STARTED
+             * @enum {string}
+             */
+            progress: "NOT_STARTED" | "READING" | "COMPLETED";
+            /**
+             * Self Assessment
+             * @default UNSET
+             * @enum {string}
+             */
+            self_assessment: "UNSET" | "UNSURE" | "PARTIAL" | "CONFIDENT";
+            /** Unresolved Concept Ids */
+            unresolved_concept_ids?: string[];
+            /** Questions */
+            questions?: components["schemas"]["ReadingQuestion"][];
+            /** Updated At */
+            updated_at?: string | null;
+            /** Source Hash */
+            source_hash: string;
+            /**
+             * Source Changed
+             * @default false
+             */
+            source_changed: boolean;
+            /** Overview Result Id */
+            overview_result_id?: string | null;
+            /** Unresolved Unlinked Ids */
+            unresolved_unlinked_ids?: string[];
+        };
+        /** ReadingUnit */
+        ReadingUnit: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paragraph" | "heading" | "material";
+            /** Material Type */
+            material_type?: ("table" | "figure" | "caption" | "figure_label" | "running" | "reference" | "unresolved") | null;
+            /** Section Id */
+            section_id: string;
+            /** Text */
+            text: string;
+            /** Page Start */
+            page_start: number;
+            /** Page End */
+            page_end: number;
+            /** Ordinal */
+            ordinal: number;
+            /** Source Hash */
+            source_hash: string;
+            /** Sources */
+            sources: components["schemas"]["ReadingSource"][];
+            /** Regions */
+            regions?: components["schemas"]["ReadingRegion"][];
+            /** Join Reason */
+            join_reason?: string | null;
+            /**
+             * Confidence
+             * @default high
+             * @enum {string}
+             */
+            confidence: "high" | "suspected";
+            /** Reason */
+            reason?: string | null;
+            /** Solution */
+            solution?: string | null;
+        };
+        /** RelatedSection */
+        RelatedSection: {
+            /** Section Id */
+            section_id: string;
+            /** Title */
+            title: string;
         };
         /** RevisionView */
         RevisionView: {
@@ -2113,12 +2868,34 @@ export interface components {
             /** Items */
             items: components["schemas"]["SearchHit"][];
         };
+        /** SectionArgument */
+        SectionArgument: {
+            /** Logic Chain Zh */
+            logic_chain_zh: string[];
+            /** Core Claim Zh */
+            core_claim_zh: string | null;
+            /** Strong Point Zh */
+            strong_point_zh: string | null;
+            /** Question To Verify Zh */
+            question_to_verify_zh: string | null;
+        };
         /** SectionList */
         SectionList: {
             /** Document Version Id */
             document_version_id: string;
             /** Sections */
             sections: components["schemas"]["SectionView"][];
+        };
+        /** SectionReadingAnalysis */
+        SectionReadingAnalysis: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "section_reading_analysis.v1";
+            /** Paragraphs */
+            paragraphs: components["schemas"]["ParagraphAnalysis"][];
+            section_argument: components["schemas"]["SectionArgument"] | null;
         };
         /** SectionView */
         SectionView: {
@@ -2198,6 +2975,105 @@ export interface components {
             /** Generation */
             generation: number;
             last_check: components["schemas"]["SourceCheck"] | null;
+        };
+        /** UnderstandingCheck */
+        UnderstandingCheck: {
+            /**
+             * Check Result
+             * @enum {string}
+             */
+            check_result: "ADEQUATE" | "PARTIAL" | "MISCONCEPTION" | "UNCERTAIN";
+            /** Correct Points Zh */
+            correct_points_zh: string[];
+            /** Missing Or Mistaken Zh */
+            missing_or_mistaken_zh: string[];
+            /** Feedback Zh */
+            feedback_zh: string;
+            /** Follow Up Question Zh */
+            follow_up_question_zh: string;
+        };
+        /** UnderstandingCheckGenerate */
+        UnderstandingCheckGenerate: {
+            /** Document Version Id */
+            document_version_id?: string | null;
+            /** Paragraph Ids */
+            paragraph_ids: string[];
+            /**
+             * Allow Network
+             * @default false
+             */
+            allow_network: boolean;
+            /**
+             * Force Regenerate
+             * @default false
+             */
+            force_regenerate: boolean;
+            /** Retry Missing Of */
+            retry_missing_of?: string | null;
+            /** User Explanation */
+            user_explanation: string;
+            /** Graph Node Ids */
+            graph_node_ids?: string[];
+            /** Overview Result Id */
+            overview_result_id?: string | null;
+        };
+        /** UnderstandingCheckView */
+        UnderstandingCheckView: {
+            /** Id */
+            id: string;
+            /** Paper Id */
+            paper_id: string;
+            /** Document Version Id */
+            document_version_id: string;
+            /** Section Id */
+            section_id: string;
+            /** Source Hash */
+            source_hash: string;
+            /** Input Hash */
+            input_hash: string;
+            /** Schema Version */
+            schema_version: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Provider Id */
+            provider_id: string;
+            /** Model Id */
+            model_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "COMPLETED" | "FAILED" | "STALE";
+            range: components["schemas"]["ReadingRange"];
+            /** User Explanation */
+            user_explanation: string;
+            check: components["schemas"]["UnderstandingCheck"] | null;
+            /** Graph Node Ids */
+            graph_node_ids: string[];
+            /** Overview Result Id */
+            overview_result_id: string | null;
+            usage: components["schemas"]["GuideUsage"];
+            /**
+             * New Calls
+             * @default 0
+             */
+            new_calls: number;
+            estimated: components["schemas"]["ReadingBudget"];
+            /** Generated At */
+            generated_at: string;
+            /**
+             * Cache Hit
+             * @default false
+             */
+            cache_hit: boolean;
+            /** Job Id */
+            job_id?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Stale Reason */
+            stale_reason?: string | null;
         };
         /** UsageKindView */
         UsageKindView: {
@@ -3621,6 +4497,7 @@ export interface operations {
             query?: {
                 document_version_id?: string | null;
                 depth?: string;
+                adaptive?: boolean;
             };
             header?: never;
             path: {
@@ -3674,6 +4551,497 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuideView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    paragraphs_api_v1_papers__paper_id__sections__section_id__paragraphs_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParagraphsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+                paragraph_ids?: string | null;
+                result_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseReadingView"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseReadingGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseReadingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_check_api_v1_papers__paper_id__sections__section_id__understanding_check_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+                paragraph_ids?: string | null;
+                result_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderstandingCheckView"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnderstandingCheckGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderstandingCheckView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnderstandingCheckGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnderstandingCheckView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reading_document_api_v1_papers__paper_id__reading_document_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentReadingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_reading_document_api_v1_papers__paper_id__reading_document_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingDocumentRefresh"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentReadingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notes_api_v1_papers__paper_id__reading_notes_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+                result_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperReadingView"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_notes_api_v1_papers__paper_id__reading_notes_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaperReadingGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaperReadingView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_state_api_v1_papers__paper_id__sections__section_id__reading_state_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingStateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_state_api_v1_papers__paper_id__sections__section_id__reading_state_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingStatePut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingStateView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_concepts_api_v1_papers__paper_id__concept_understanding_get: {
+        parameters: {
+            query?: {
+                document_version_id?: string | null;
+                overview_result_id?: string | null;
+            };
+            header?: never;
+            path: {
+                paper_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConceptUnderstandingView"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_concept_api_v1_papers__paper_id__concept_understanding__graph_node_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                paper_id: string;
+                graph_node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConceptUnderstandingPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConceptUnderstandingView"];
                 };
             };
             /** @description Validation Error */

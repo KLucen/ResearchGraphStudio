@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, type ReadingParagraph } from "./api";
 import { PaperMetadata } from "./PaperMetadata";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
@@ -72,7 +72,7 @@ export function Papers({
             <div>
               <h2>从左侧选择一篇论文</h2>
               <p>
-                选中文献后，这里显示对应的论文阅读工作区：论文概览、章节精读和论文问答。
+                选中文献后，这里显示对应的论文阅读工作区：论文概览、论文精读和论文问答。
               </p>
             </div>
           </div>
@@ -226,6 +226,10 @@ function PaperText({
   const [activePanel, setActivePanel] = useState<"overview" | "guide" | "qa">(
     "overview",
   );
+  const [readingSection, setReadingSection] = useState("");
+  const [readingParagraph, setReadingParagraph] = useState("");
+  const [graphNode, setGraphNode] = useState("");
+  const [qaParagraph, setQaParagraph] = useState<ReadingParagraph | null>(null);
   const revisionId = chosen || detail.data?.revisions[0]?.id || "";
   return (
     <div className="paper-reading paper-reading-focused">
@@ -254,7 +258,7 @@ function PaperText({
               {(
                 [
                   ["overview", "论文概览"],
-                  ["guide", "章节精读"],
+                  ["guide", "论文精读"],
                   ["qa", "论文问答"],
                 ] as const
               ).map(([value, label]) => (
@@ -280,7 +284,7 @@ function PaperText({
               <strong>正在准备论文阅读功能</strong>
               <p>
                 当前论文还没有完成的 PDF
-                解析版本。系统正在等待本地解析和章节索引；完成后会启用论文概览、章节精读和论文问答。
+                解析版本。系统正在等待本地解析和章节索引；完成后会启用论文概览、论文精读和论文问答。
               </p>
               <p className="muted">
                 如果长时间没有变化，请打开左侧“任务记录”查看 PDF 导入是否失败。
@@ -292,33 +296,65 @@ function PaperText({
               {activePanel === "overview" && (
                 <section className="reading-panel" aria-label="论文概览">
                   <PaperOverview
-                    key={`overview-${revisionId}`}
+                    key={`overview-${revisionId}-${graphNode}`}
                     paperId={paperId}
                     revisionId={revisionId}
                     projectId={projectId}
                     connected={connected}
+                    initialNodeId={graphNode}
+                    onOpenSection={(sectionId, paragraphId) => {
+                      setReadingSection(sectionId);
+                      setReadingParagraph(paragraphId ?? "");
+                      setActivePanel("guide");
+                    }}
+                    onAskParagraph={(sectionId, paragraph) => {
+                      setReadingSection(sectionId);
+                      setQaParagraph(paragraph);
+                      setActivePanel("qa");
+                    }}
                   />
                 </section>
               )}
               {activePanel === "guide" && (
-                <section className="reading-panel" aria-label="章节精读">
+                <section className="reading-panel" aria-label="论文精读">
                   <KnowledgeReading
                     key={`guide-${revisionId}`}
                     versionId={revisionId}
                     paperId={paperId}
                     connected={connected}
                     panel="guide"
+                    initialSectionId={readingSection}
+                    initialParagraphId={readingParagraph || undefined}
+                    onSectionChange={(sectionId) => {
+                      setReadingSection(sectionId);
+                      setReadingParagraph("");
+                    }}
+                    onOpenGraph={(nodeId) => {
+                      setGraphNode(nodeId);
+                      setActivePanel("overview");
+                    }}
+                    onAskParagraph={(sectionId, paragraph) => {
+                      setReadingSection(sectionId);
+                      setQaParagraph(paragraph);
+                      setActivePanel("qa");
+                    }}
                   />
                 </section>
               )}
               {activePanel === "qa" && (
                 <section className="reading-panel" aria-label="论文问答">
                   <KnowledgeReading
-                    key={`qa-${revisionId}`}
+                    key={`qa-${revisionId}-${qaParagraph?.paragraph_id ?? ""}`}
                     versionId={revisionId}
                     paperId={paperId}
                     connected={connected}
                     panel="qa"
+                    initialSectionId={readingSection}
+                    selectedSpanIds={qaParagraph?.span_ids ?? []}
+                    onSectionChange={(sectionId) => {
+                      setReadingSection(sectionId);
+                      setQaParagraph(null);
+                    }}
                   />
                 </section>
               )}
@@ -331,7 +367,13 @@ function PaperText({
             connected={connected}
             category={category}
             onCategoryChange={onCategoryChange}
-            onRevisionChange={setChosen}
+            onRevisionChange={(revisionId) => {
+              setChosen(revisionId);
+              setReadingSection("");
+              setReadingParagraph("");
+              setGraphNode("");
+              setQaParagraph(null);
+            }}
           />
         </>
       )}

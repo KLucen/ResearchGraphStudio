@@ -25,3 +25,20 @@
   flex: 0 0 10px;
   border-radius: 50%;
 }
+
+/* Reading metadata surrounds the semantic dot without replacing its type color. */
+.graph-dot.reading-confident {
+  outline: 2px solid #88a879;
+  outline-offset: 3px;
+}
+.graph-dot.reading-partial {
+  outline: 2px dashed #b9a364;
+  outline-offset: 3px;
+}
+.graph-dot.reading-unsure {
+  outline: 2px dashed #c58a78;
+  outline-offset: 3px;
+}
+.graph-dot.reading-misconception {
+  box-shadow: 0 0 0 5px #d184713d;
+}

@@ -182,8 +182,8 @@ export function ForceGraph({
       height: 18,
       measured: { width: 18, height: 18 },
       selected: n.id === selected,
-      className: `graph-dot${p?.pinned ? " pinned" : ""}`,
-      ariaLabel: `${n.label_en || n.label_zh || "节点"}${p?.pinned ? "，已固定" : ""}`,
+      className: `graph-dot${p?.pinned ? " pinned" : ""}${n.reading_level ? ` reading-${n.reading_level.toLowerCase()}` : ""}${n.reading_check === "MISCONCEPTION" || n.reading_unresolved ? " reading-misconception" : ""}`,
+      ariaLabel: `${n.label_en || n.label_zh || "节点"}${p?.pinned ? "，已固定" : ""}${n.reading_unresolved ? "，有待解问题" : ""}`,
       data: {
         label: (
           <span

@@ -2210,6 +2210,16 @@
               "default": "standard",
               "title": "Depth"
             }
+          },
+          {
+            "name": "adaptive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Adaptive"
+            }
           }
         ],
         "responses": {
@@ -2285,6 +2295,935 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GuideView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/paragraphs": {
+      "get": {
+        "summary": "Paragraphs",
+        "operationId": "paragraphs_api_v1_papers__paper_id__sections__section_id__paragraphs_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParagraphsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/close-reading": {
+      "get": {
+        "summary": "Get Analysis",
+        "operationId": "get_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "paragraph_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paragraph Ids"
+            }
+          },
+          {
+            "name": "result_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CloseReadingView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Analysis Api V1 Papers  Paper Id  Sections  Section Id  Close Reading Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/close-reading/generate": {
+      "post": {
+        "summary": "Generate Analysis",
+        "operationId": "generate_analysis_api_v1_papers__paper_id__sections__section_id__close_reading_generate_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloseReadingGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseReadingView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/understanding-check": {
+      "get": {
+        "summary": "Get Check",
+        "operationId": "get_check_api_v1_papers__paper_id__sections__section_id__understanding_check_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "paragraph_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paragraph Ids"
+            }
+          },
+          {
+            "name": "result_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/UnderstandingCheckView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Check Api V1 Papers  Paper Id  Sections  Section Id  Understanding Check Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Generate Check",
+        "operationId": "generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnderstandingCheckGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnderstandingCheckView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/understanding-check/generate": {
+      "post": {
+        "summary": "Generate Check",
+        "operationId": "generate_check_api_v1_papers__paper_id__sections__section_id__understanding_check_generate_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnderstandingCheckGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnderstandingCheckView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/reading-document": {
+      "get": {
+        "summary": "Reading Document",
+        "operationId": "reading_document_api_v1_papers__paper_id__reading_document_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentReadingView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/reading-document/refresh": {
+      "post": {
+        "summary": "Refresh Reading Document",
+        "operationId": "refresh_reading_document_api_v1_papers__paper_id__reading_document_refresh_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingDocumentRefresh"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentReadingView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/reading-notes": {
+      "get": {
+        "summary": "Get Notes",
+        "operationId": "get_notes_api_v1_papers__paper_id__reading_notes_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "result_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Result Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PaperReadingView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Notes Api V1 Papers  Paper Id  Reading Notes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/reading-notes/generate": {
+      "post": {
+        "summary": "Generate Notes",
+        "operationId": "generate_notes_api_v1_papers__paper_id__reading_notes_generate_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaperReadingGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperReadingView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/sections/{section_id}/reading-state": {
+      "get": {
+        "summary": "Get State",
+        "operationId": "get_state_api_v1_papers__paper_id__sections__section_id__reading_state_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingStateView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Put State",
+        "operationId": "put_state_api_v1_papers__paper_id__sections__section_id__reading_state_put",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Section Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadingStatePut"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingStateView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/concept-understanding": {
+      "get": {
+        "summary": "Get Concepts",
+        "operationId": "get_concepts_api_v1_papers__paper_id__concept_understanding_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "overview_result_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Overview Result Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConceptUnderstandingView"
+                  },
+                  "title": "Response Get Concepts Api V1 Papers  Paper Id  Concept Understanding Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/concept-understanding/{graph_node_id}": {
+      "put": {
+        "summary": "Put Concept",
+        "operationId": "put_concept_api_v1_papers__paper_id__concept_understanding__graph_node_id__put",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "graph_node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Graph Node Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConceptUnderstandingPut"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptUnderstandingView"
                 }
               }
             }
@@ -3370,6 +4309,40 @@
   },
   "components": {
     "schemas": {
+      "ArgumentHighlight": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "THESIS",
+              "CONCEPT",
+              "EVIDENCE",
+              "COUNTERARGUMENT",
+              "METHOD"
+            ],
+            "title": "Type"
+          },
+          "quote_en": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Quote En"
+          },
+          "occurrence_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Occurrence Index"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "quote_en",
+          "occurrence_index"
+        ],
+        "title": "ArgumentHighlight"
+      },
       "AttachmentChoice": {
         "properties": {
           "item_key": {
@@ -3504,6 +4477,237 @@
         ],
         "title": "ChunkView"
       },
+      "CloseReadingGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Paragraph Ids"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          },
+          "retry_missing_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Missing Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paragraph_ids"
+        ],
+        "title": "CloseReadingGenerate"
+      },
+      "CloseReadingView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "INCOMPLETE",
+              "FAILED",
+              "STALE"
+            ],
+            "title": "Status"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ReadingRange"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionReadingAnalysis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing_paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Paragraph Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/GuideUsage"
+          },
+          "new_calls": {
+            "type": "integer",
+            "title": "New Calls",
+            "default": 0
+          },
+          "estimated": {
+            "$ref": "#/components/schemas/ReadingBudget"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          },
+          "retry_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "section_id",
+          "source_hash",
+          "input_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "range",
+          "analysis",
+          "missing_paragraph_ids",
+          "warnings",
+          "usage",
+          "estimated",
+          "generated_at"
+        ],
+        "title": "CloseReadingView"
+      },
       "CollectionBrowse": {
         "properties": {
           "library": {
@@ -3565,6 +4769,176 @@
           "next_start"
         ],
         "title": "CollectionPage"
+      },
+      "ConceptUnderstandingPut": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "overview_result_id": {
+            "type": "string",
+            "title": "Overview Result Id"
+          },
+          "self_level": {
+            "type": "string",
+            "enum": [
+              "UNSET",
+              "UNSURE",
+              "PARTIAL",
+              "CONFIDENT"
+            ],
+            "title": "Self Level",
+            "default": "UNSET"
+          },
+          "note_zh": {
+            "type": "string",
+            "maxLength": 1600,
+            "title": "Note Zh",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "overview_result_id"
+        ],
+        "title": "ConceptUnderstandingPut"
+      },
+      "ConceptUnderstandingView": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "overview_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Result Id"
+          },
+          "graph_node_id": {
+            "type": "string",
+            "title": "Graph Node Id"
+          },
+          "node_label_zh": {
+            "type": "string",
+            "title": "Node Label Zh"
+          },
+          "node_label_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Label En"
+          },
+          "self_level": {
+            "type": "string",
+            "enum": [
+              "UNSET",
+              "UNSURE",
+              "PARTIAL",
+              "CONFIDENT"
+            ],
+            "title": "Self Level",
+            "default": "UNSET"
+          },
+          "last_check_result": {
+            "type": "string",
+            "enum": [
+              "NOT_CHECKED",
+              "ADEQUATE",
+              "PARTIAL",
+              "MISCONCEPTION",
+              "UNCERTAIN"
+            ],
+            "title": "Last Check Result",
+            "default": "NOT_CHECKED"
+          },
+          "note_zh": {
+            "type": "string",
+            "title": "Note Zh",
+            "default": ""
+          },
+          "last_check_note_zh": {
+            "type": "string",
+            "title": "Last Check Note Zh",
+            "default": ""
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "association_status": {
+            "type": "string",
+            "enum": [
+              "CURRENT",
+              "NEEDS_RELINK"
+            ],
+            "title": "Association Status"
+          },
+          "has_unresolved_question": {
+            "type": "boolean",
+            "title": "Has Unresolved Question",
+            "default": false
+          },
+          "related_sections": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedSection"
+            },
+            "type": "array",
+            "title": "Related Sections"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id",
+          "document_version_id",
+          "overview_result_id",
+          "graph_node_id",
+          "node_label_zh",
+          "association_status"
+        ],
+        "title": "ConceptUnderstandingView"
       },
       "ConnectionInput": {
         "properties": {
@@ -3690,6 +5064,75 @@
           "hint_zh"
         ],
         "title": "DifficultTerm"
+      },
+      "DocumentReadingView": {
+        "properties": {
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "projection_version": {
+            "type": "string",
+            "title": "Projection Version",
+            "default": "reading-document-1"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "projection_hash": {
+            "type": "string",
+            "title": "Projection Hash"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingDocumentSection"
+            },
+            "type": "array",
+            "title": "Sections"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingUnit"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "refreshed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id",
+          "document_version_id",
+          "source_hash",
+          "projection_hash",
+          "sections",
+          "units",
+          "warnings"
+        ],
+        "title": "DocumentReadingView"
       },
       "DocumentStructure": {
         "properties": {
@@ -3995,6 +5438,11 @@
             "type": "boolean",
             "title": "Force Regenerate",
             "default": false
+          },
+          "adaptive": {
+            "type": "boolean",
+            "title": "Adaptive",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -4229,6 +5677,21 @@
             "type": "array",
             "maxItems": 8,
             "title": "Evidence"
+          },
+          "adaptive": {
+            "type": "boolean",
+            "title": "Adaptive",
+            "default": false
+          },
+          "reader_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReaderContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5695,6 +7158,241 @@
         ],
         "title": "PaperList"
       },
+      "PaperReadingAnalysis": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "paper_reading_analysis.v1",
+            "title": "Schema Version"
+          },
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/ParagraphAnalysis"
+            },
+            "type": "array",
+            "title": "Paragraphs"
+          },
+          "paper_argument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionArgument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "paragraphs",
+          "paper_argument"
+        ],
+        "title": "PaperReadingAnalysis"
+      },
+      "PaperReadingGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PaperReadingGenerate"
+      },
+      "PaperReadingView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "projection_version": {
+            "type": "string",
+            "title": "Projection Version"
+          },
+          "projection_hash": {
+            "type": "string",
+            "title": "Projection Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "INCOMPLETE",
+              "FAILED",
+              "STALE"
+            ],
+            "title": "Status"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaperReadingAnalysis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paragraph_count": {
+            "type": "integer",
+            "title": "Paragraph Count"
+          },
+          "missing_paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Paragraph Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/GuideUsage"
+          },
+          "estimated": {
+            "$ref": "#/components/schemas/ReadingBudget"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "new_calls": {
+            "type": "integer",
+            "title": "New Calls",
+            "default": 0
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "source_hash",
+          "input_hash",
+          "projection_version",
+          "projection_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "analysis",
+          "paragraph_count",
+          "usage",
+          "estimated",
+          "generated_at"
+        ],
+        "title": "PaperReadingView"
+      },
       "PaperView": {
         "properties": {
           "id": {
@@ -5722,6 +7420,140 @@
           "created_at"
         ],
         "title": "PaperView"
+      },
+      "ParagraphAnalysis": {
+        "properties": {
+          "paragraph_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Paragraph Id"
+          },
+          "translation_zh": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Translation Zh"
+          },
+          "paragraph_function": {
+            "type": "string",
+            "enum": [
+              "INTRODUCE_PROBLEM",
+              "DEFINE_CONCEPT",
+              "STATE_CLAIM",
+              "EXPLAIN_METHOD",
+              "PRESENT_EVIDENCE",
+              "HANDLE_OBJECTION",
+              "DISCUSS_LIMITATION",
+              "SUMMARIZE_TRANSITION",
+              "OTHER"
+            ],
+            "title": "Paragraph Function"
+          },
+          "logic_role_zh": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Logic Role Zh"
+          },
+          "critical_note_zh": {
+            "type": "string",
+            "maxLength": 1600,
+            "title": "Critical Note Zh"
+          },
+          "reading_question_zh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Question Zh"
+          },
+          "highlights": {
+            "items": {
+              "$ref": "#/components/schemas/ArgumentHighlight"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "title": "Highlights"
+          },
+          "related_graph_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Related Graph Node Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "translation_zh",
+          "paragraph_function",
+          "logic_role_zh",
+          "critical_note_zh",
+          "reading_question_zh",
+          "highlights",
+          "related_graph_node_ids"
+        ],
+        "title": "ParagraphAnalysis"
+      },
+      "ParagraphsView": {
+        "properties": {
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "section_title": {
+            "type": "string",
+            "title": "Section Title"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingParagraph"
+            },
+            "type": "array",
+            "title": "Paragraphs"
+          },
+          "estimated_source_tokens": {
+            "type": "integer",
+            "title": "Estimated Source Tokens"
+          },
+          "suggested_max_source_tokens": {
+            "type": "integer",
+            "title": "Suggested Max Source Tokens",
+            "default": 2000
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id",
+          "document_version_id",
+          "section_id",
+          "section_title",
+          "source_hash",
+          "paragraphs",
+          "estimated_source_tokens"
+        ],
+        "title": "ParagraphsView"
       },
       "PdfChoice": {
         "properties": {
@@ -6461,6 +8293,138 @@
         ],
         "title": "QAView"
       },
+      "ReaderContext": {
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "enum": [
+              "BRIDGE_GAPS",
+              "CONNECT_ARGUMENT",
+              "CRITICAL_READING",
+              "REVISIT_DEFINITIONS"
+            ],
+            "title": "Strategy"
+          },
+          "unresolved_concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Unresolved Concepts"
+          },
+          "prior_misunderstanding_summary": {
+            "type": "string",
+            "maxLength": 240,
+            "title": "Prior Misunderstanding Summary",
+            "default": ""
+          },
+          "preferred_focus": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Preferred Focus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "strategy",
+          "preferred_focus"
+        ],
+        "title": "ReaderContext"
+      },
+      "ReadingBudget": {
+        "properties": {
+          "estimated_input_tokens": {
+            "type": "integer",
+            "title": "Estimated Input Tokens"
+          },
+          "estimated_output_tokens": {
+            "type": "integer",
+            "title": "Estimated Output Tokens"
+          },
+          "estimated_total_tokens": {
+            "type": "integer",
+            "title": "Estimated Total Tokens"
+          },
+          "estimated_source_tokens": {
+            "type": "integer",
+            "title": "Estimated Source Tokens"
+          },
+          "estimate_only": {
+            "type": "boolean",
+            "title": "Estimate Only",
+            "default": true
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estimated_input_tokens",
+          "estimated_output_tokens",
+          "estimated_total_tokens",
+          "estimated_source_tokens"
+        ],
+        "title": "ReadingBudget"
+      },
+      "ReadingDocumentRefresh": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReadingDocumentRefresh"
+      },
+      "ReadingDocumentSection": {
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "section_id",
+          "title",
+          "level",
+          "role"
+        ],
+        "title": "ReadingDocumentSection"
+      },
       "ReadingGuideDraft": {
         "properties": {
           "section_id": {
@@ -6532,6 +8496,512 @@
           "reading_questions"
         ],
         "title": "ReadingGuideDraft"
+      },
+      "ReadingParagraph": {
+        "properties": {
+          "paragraph_id": {
+            "type": "string",
+            "title": "Paragraph Id"
+          },
+          "text_en": {
+            "type": "string",
+            "title": "Text En"
+          },
+          "text_hash": {
+            "type": "string",
+            "title": "Text Hash"
+          },
+          "page_start": {
+            "type": "integer",
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "title": "Page End"
+          },
+          "ordinal": {
+            "type": "integer",
+            "title": "Ordinal"
+          },
+          "span_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Span Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paragraph_id",
+          "text_en",
+          "text_hash",
+          "page_start",
+          "page_end",
+          "ordinal",
+          "span_ids"
+        ],
+        "title": "ReadingParagraph"
+      },
+      "ReadingQuestion": {
+        "properties": {
+          "paragraph_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paragraph Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ReadingQuestion"
+      },
+      "ReadingRange": {
+        "properties": {
+          "paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Paragraph Ids"
+          },
+          "range_label": {
+            "type": "string",
+            "title": "Range Label"
+          },
+          "full_section": {
+            "type": "boolean",
+            "title": "Full Section"
+          },
+          "range_hash": {
+            "type": "string",
+            "title": "Range Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paragraph_ids",
+          "range_label",
+          "full_section",
+          "range_hash"
+        ],
+        "title": "ReadingRange"
+      },
+      "ReadingRegion": {
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page",
+          "bbox"
+        ],
+        "title": "ReadingRegion"
+      },
+      "ReadingSource": {
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "span_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Span Ids"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "start_offset": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start Offset"
+          },
+          "end_offset": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "End Offset"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "text_hash": {
+            "type": "string",
+            "title": "Text Hash"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "span_ids",
+          "page",
+          "start_offset",
+          "end_offset",
+          "text",
+          "text_hash",
+          "bbox"
+        ],
+        "title": "ReadingSource"
+      },
+      "ReadingStatePut": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "overview_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Result Id"
+          },
+          "progress": {
+            "type": "string",
+            "enum": [
+              "NOT_STARTED",
+              "READING",
+              "COMPLETED"
+            ],
+            "title": "Progress",
+            "default": "NOT_STARTED"
+          },
+          "self_assessment": {
+            "type": "string",
+            "enum": [
+              "UNSET",
+              "UNSURE",
+              "PARTIAL",
+              "CONFIDENT"
+            ],
+            "title": "Self Assessment",
+            "default": "UNSET"
+          },
+          "unresolved_concept_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Unresolved Concept Ids"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingQuestion"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Questions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ReadingStatePut"
+      },
+      "ReadingStateView": {
+        "properties": {
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "progress": {
+            "type": "string",
+            "enum": [
+              "NOT_STARTED",
+              "READING",
+              "COMPLETED"
+            ],
+            "title": "Progress",
+            "default": "NOT_STARTED"
+          },
+          "self_assessment": {
+            "type": "string",
+            "enum": [
+              "UNSET",
+              "UNSURE",
+              "PARTIAL",
+              "CONFIDENT"
+            ],
+            "title": "Self Assessment",
+            "default": "UNSET"
+          },
+          "unresolved_concept_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresolved Concept Ids"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "source_changed": {
+            "type": "boolean",
+            "title": "Source Changed",
+            "default": false
+          },
+          "overview_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Result Id"
+          },
+          "unresolved_unlinked_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresolved Unlinked Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id",
+          "document_version_id",
+          "section_id",
+          "source_hash"
+        ],
+        "title": "ReadingStateView"
+      },
+      "ReadingUnit": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paragraph",
+              "heading",
+              "material"
+            ],
+            "title": "Kind"
+          },
+          "material_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "table",
+                  "figure",
+                  "caption",
+                  "figure_label",
+                  "running",
+                  "reference",
+                  "unresolved"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Type"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "page_start": {
+            "type": "integer",
+            "title": "Page Start"
+          },
+          "page_end": {
+            "type": "integer",
+            "title": "Page End"
+          },
+          "ordinal": {
+            "type": "integer",
+            "title": "Ordinal"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingRegion"
+            },
+            "type": "array",
+            "title": "Regions"
+          },
+          "join_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Reason"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "suspected"
+            ],
+            "title": "Confidence",
+            "default": "high"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "solution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "section_id",
+          "text",
+          "page_start",
+          "page_end",
+          "ordinal",
+          "source_hash",
+          "sources"
+        ],
+        "title": "ReadingUnit"
+      },
+      "RelatedSection": {
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "section_id",
+          "title"
+        ],
+        "title": "RelatedSection"
       },
       "RevisionView": {
         "properties": {
@@ -6697,6 +9167,64 @@
         ],
         "title": "SearchResults"
       },
+      "SectionArgument": {
+        "properties": {
+          "logic_chain_zh": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 2,
+            "title": "Logic Chain Zh"
+          },
+          "core_claim_zh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Core Claim Zh"
+          },
+          "strong_point_zh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strong Point Zh"
+          },
+          "question_to_verify_zh": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1600
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question To Verify Zh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "logic_chain_zh",
+          "core_claim_zh",
+          "strong_point_zh",
+          "question_to_verify_zh"
+        ],
+        "title": "SectionArgument"
+      },
       "SectionList": {
         "properties": {
           "document_version_id": {
@@ -6717,6 +9245,40 @@
           "sections"
         ],
         "title": "SectionList"
+      },
+      "SectionReadingAnalysis": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "section_reading_analysis.v1",
+            "title": "Schema Version"
+          },
+          "paragraphs": {
+            "items": {
+              "$ref": "#/components/schemas/ParagraphAnalysis"
+            },
+            "type": "array",
+            "title": "Paragraphs"
+          },
+          "section_argument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionArgument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "paragraphs",
+          "section_argument"
+        ],
+        "title": "SectionReadingAnalysis"
       },
       "SectionView": {
         "properties": {
@@ -6941,6 +9503,312 @@
           "last_check"
         ],
         "title": "SourceView"
+      },
+      "UnderstandingCheck": {
+        "properties": {
+          "check_result": {
+            "type": "string",
+            "enum": [
+              "ADEQUATE",
+              "PARTIAL",
+              "MISCONCEPTION",
+              "UNCERTAIN"
+            ],
+            "title": "Check Result"
+          },
+          "correct_points_zh": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Correct Points Zh"
+          },
+          "missing_or_mistaken_zh": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Missing Or Mistaken Zh"
+          },
+          "feedback_zh": {
+            "type": "string",
+            "maxLength": 2400,
+            "minLength": 1,
+            "title": "Feedback Zh"
+          },
+          "follow_up_question_zh": {
+            "type": "string",
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Follow Up Question Zh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "check_result",
+          "correct_points_zh",
+          "missing_or_mistaken_zh",
+          "feedback_zh",
+          "follow_up_question_zh"
+        ],
+        "title": "UnderstandingCheck"
+      },
+      "UnderstandingCheckGenerate": {
+        "properties": {
+          "document_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Version Id"
+          },
+          "paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Paragraph Ids"
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "force_regenerate": {
+            "type": "boolean",
+            "title": "Force Regenerate",
+            "default": false
+          },
+          "retry_missing_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Missing Of"
+          },
+          "user_explanation": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "User Explanation"
+          },
+          "graph_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Graph Node Ids"
+          },
+          "overview_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Result Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paragraph_ids",
+          "user_explanation"
+        ],
+        "title": "UnderstandingCheckGenerate"
+      },
+      "UnderstandingCheckView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "document_version_id": {
+            "type": "string",
+            "title": "Document Version Id"
+          },
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "source_hash": {
+            "type": "string",
+            "title": "Source Hash"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "schema_version": {
+            "type": "string",
+            "title": "Schema Version"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "FAILED",
+              "STALE"
+            ],
+            "title": "Status"
+          },
+          "range": {
+            "$ref": "#/components/schemas/ReadingRange"
+          },
+          "user_explanation": {
+            "type": "string",
+            "title": "User Explanation"
+          },
+          "check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnderstandingCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graph_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Graph Node Ids"
+          },
+          "overview_result_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Result Id"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/GuideUsage"
+          },
+          "new_calls": {
+            "type": "integer",
+            "title": "New Calls",
+            "default": 0
+          },
+          "estimated": {
+            "$ref": "#/components/schemas/ReadingBudget"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "cache_hit": {
+            "type": "boolean",
+            "title": "Cache Hit",
+            "default": false
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "stale_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "paper_id",
+          "document_version_id",
+          "section_id",
+          "source_hash",
+          "input_hash",
+          "schema_version",
+          "prompt_version",
+          "provider_id",
+          "model_id",
+          "status",
+          "range",
+          "user_explanation",
+          "check",
+          "graph_node_ids",
+          "overview_result_id",
+          "usage",
+          "estimated",
+          "generated_at"
+        ],
+        "title": "UnderstandingCheckView"
       },
       "UsageKindView": {
         "properties": {

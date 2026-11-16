@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from researchgraph.core import StrictModel
+from researchgraph.reading_state_contracts import ReaderContext
 
 SCHEMA_VERSION = "reading_guide.v1"
 PROMPT_VERSION = "a01_section_guide_v1"
@@ -57,6 +58,7 @@ class GuideGenerate(StrictModel):
     allow_network: bool = False
     retry_failed: bool = False
     force_regenerate: bool = False
+    adaptive: bool = False
 
 
 class GuideUsage(StrictModel):
@@ -98,6 +100,8 @@ class GuideView(StrictModel):
     error: str | None = None
     stale_reason: str | None = None
     evidence: list[GuideEvidence] = Field(default_factory=list, max_length=8)
+    adaptive: bool = False
+    reader_context: ReaderContext | None = None
 
 
 def guide_schema() -> dict[str, Any]:

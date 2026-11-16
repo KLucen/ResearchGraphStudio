@@ -24,7 +24,7 @@ def test_fresh_database_is_lite_only():
     with TemporaryDirectory() as raw:
         data = Path(raw)
         with client(data) as api:
-            assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD == "lite0008"
+            assert api.get("/api/v1/health").json()["schema_version"] == SCHEMA_HEAD
             response = api.post(
                 "/api/v1/projects",
                 json={"name": "Lite"},

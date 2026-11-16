@@ -1,6 +1,6 @@
 # 02 精简 Schema、证据来源与 API 契约
 
-> 这是基于现有 ResearchGraph v2/v3 的**Lite 设计参考**。设计包以 `lite0001` 作为空基线；当前工程保留已部署的 `lite0008` 迁移链，不加载或迁移既有 Graph/Claim/RelationAssertion 等旧业务表；历史工程通过 `backup/pre-lite-refactor` 回退。文献翻译已按 [ADR0040](../../adr/0040-remove-pdf-translation.md) 撤下，保留表结构仅用于已有数据库兼容，不再有翻译业务 API 或运行时。下面的参考 SQL 不直接升级用户数据库。
+> 这是基于现有 ResearchGraph v2/v3 的**Lite 设计参考**。设计包以 `lite0001` 作为空基线；当前工程通过 `lite0010` 加性迁移保存本地阅读投影与全文笔记，并保留范围精读、理解状态和已有迁移链，不加载或迁移 Graph/Claim/RelationAssertion 等旧业务表；历史工程通过 `backup/pre-lite-refactor` 回退。整篇 PDF 翻译已按 [ADR0040](../../adr/0040-remove-pdf-translation.md) 撤下，正文译文属于 [P2 精读](../../adr/0041-section-bilingual-close-reading.md) 与 [A04 全文精读](../../adr/0042-paper-reading-document-and-notes.md)。下面的参考 SQL 不直接升级用户数据库。
 
 ## 1. 模型分层
 
@@ -151,7 +151,7 @@ sha256(canonical_json({
 
 新增 `lite_paper_cards`, `lite_section_guides`, `lite_qa_records`, `lite_cache_entries`, `lite_token_usage`（详见 `schemas/sqlite_reference.sql`）。正式迁移应基于现有Alembic历史实现，只新增字段/表和索引。
 
-Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertions / wiki_*` 等旧业务表，也不提供旧 API 入口；运行时使用独立 Lite Schema（head 保持 `lite0008`，包括章节导读、D01 局部问答、D02 英文关键词、全局模型连接及历史翻译兼容结构），不读取或迁移旧图谱。旧用户需要访问历史数据时，使用 `backup/pre-lite-refactor` 和原工程数据目录回退，不把旧历史混入 Lite 数据库。
+Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertions / wiki_*` 等旧业务表，也不提供旧 API 入口；运行时使用独立 Lite Schema（head 为 `lite0010`，包括章节导读、D01 局部问答、D02 英文关键词、全局模型连接、范围精读、个人理解状态、本地阅读投影、全文笔记及历史翻译兼容结构），不读取或迁移旧图谱。旧用户需要访问历史数据时，使用 `backup/pre-lite-refactor` 和原工程数据目录回退，不把旧历史混入 Lite 数据库。
 
 2026-11-12 撤下翻译时不执行数据库 downgrade、重新初始化或数据删除。既有翻译表、配置、任务快照、用量及生成文件保留，历史实际或未知用量不回写；前端设置、翻译 API、worker、代理和随包资源移除，旧任务不能恢复或重试。`lite0008` 只表达迁移兼容边界，不表示翻译功能仍然启用。
 
@@ -161,3 +161,32 @@ Lite 干净工程不包含 `claims / evidence / graph_nodes / relation_assertion
 - SQLite保存原文索引和用户提问等敏感研究数据时须留在本地，不提交GitHub；提供清除缓存选项。
 - 更新本地版本采用事务；遇到PDF文件变化不在旧证据上进行覆盖式重提取。
 - `.gitignore`、Secret Scanner、日志脱敏、系统安全密钥存储继续沿用旧工程规范。
+
+## 11. P2 双栏精读兼容契约（2026-11-14 较早阶段）
+
+`lite0009` 增加 `lite_section_close_readings`、`lite_understanding_checks`、`lite_reading_states` 和 `lite_concept_understanding`，不修改旧成果或外部文件。完整模型 DTO 见 [补充规范](../ResearchGraph_Lite_Section_CloseReading_Bilingual_Annotation.md)，运行 API/响应外壳以 `packages/contracts/openapi.json` 为准。
+
+| 路由（均在 `/api/v1` 下） | 作用 |
+| --- | --- |
+| `GET /papers/{paper}/sections/{section}/paragraphs` | 本地读取稳定段落 ID、原文、页码、hash、Span IDs |
+| `GET /papers/{paper}/sections/{section}/close-reading` | 按版本、段落范围或 result_id 读取已生成结果；不发模型 |
+| `POST /papers/{paper}/sections/{section}/close-reading/generate` | 显式一次 A02；缺段重试传 retry_missing_of |
+| `GET/PUT /papers/{paper}/sections/{section}/reading-state` | 本地进度、自评、疑问和未解概念 |
+| `GET/POST /papers/{paper}/sections/{section}/understanding-check` | 读取结果或主动提交 A03；POST 也兼容 `/generate` |
+| `GET /papers/{paper}/concept-understanding` | 当前及待重新关联的个人概念状态 |
+| `PUT /papers/{paper}/concept-understanding/{node}` | 本地修改自评和个人笔记，不改图谱语义 |
+
+英文由 Chunk/Span 一致性校验后读取，输出不包含英文全文。A02 `COMPLETED` 与 `INCOMPLETE` 明确分开；重试后原范围可从合法后继恢复已缺段译文，但不把子范围摘要提升为整节摘要。高亮原文不匹配和外来图谱 ID 单独移除。A03 只更新可靠关联节点的 last_check_result，自评不被模型覆盖。A01 可显式传 adaptive，并最多加入三项可靠相关状态；理解状态更改不改变 A02 缓存。
+
+## 12. 当前阅读整理与全文笔记
+
+`lite0010` 增加 `lite_reading_documents` 与 `lite_paper_readings`。阅读单元通过 sources/regions 保存原始 Chunk、Span、原文跨度/哈希、页码和坐标；阅读投影不覆盖源表。正文、标题、折叠材料分别为 paragraph、heading、material。已有 A02/A03 和个人状态表保留。
+
+| 路由（均在 `/api/v1` 下） | 作用 |
+| --- | --- |
+| `GET /papers/{paper}/reading-document` | 从本地已索引原文建立/读取阅读投影；不读外部 PDF、不发模型 |
+| `POST /papers/{paper}/reading-document/refresh` | 明确本地重新整理，可从登记且哈希相符的 PDF 补充图像/版面信息；零模型 |
+| `GET /papers/{paper}/reading-notes` | 读取当前或指定 result_id 的全文笔记；不自动生成 |
+| `POST /papers/{paper}/reading-notes/generate` | 用户显式授权，一次全文模型请求；有效容量不足时零请求拒绝 |
+
+阅读投影版本及内容、原始来源、Prompt/Schema 内容与模型参数共同决定新缓存身份。原文或投影变化只将旧笔记派生为 STALE，旧 raw 和成果保留。旧小节 A02 API 继续兼容，但默认界面不提供逐段范围生成。完整运行 DTO 以导出 OpenAPI 为准。[ADR0042](../../adr/0042-paper-reading-document-and-notes.md) 说明范围覆盖关系。

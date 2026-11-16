@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-SCHEMA_HEAD = "lite0008"
+SCHEMA_HEAD = "lite0010"
 DATABASE_NAME = "researchgraph-lite.sqlite3"
 
 

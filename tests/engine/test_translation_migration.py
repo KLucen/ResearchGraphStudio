@@ -71,7 +71,9 @@ def test_lite0005_upgrade_preserves_sources_usage_and_creates_backup(tmp_path):
         assert session.get(Paper, paper_id).title == "Keep source"
         assert session.get(AttachmentRevision, revision_id).sha256 == "a" * 64
         assert session.get(LiteTokenUsage, usage_id).total_tokens == 20
-        assert session.scalar(text("SELECT version_num FROM alembic_version")) == "lite0008"
+        assert (
+            session.scalar(text("SELECT version_num FROM alembic_version")) == storage.SCHEMA_HEAD
+        )
     assert {"pdf_translations", "pdf_translation_settings"} <= set(
         inspect(engine).get_table_names()
     )
@@ -189,7 +191,10 @@ def test_upgrade_keeps_records_and_switches_only_future_runtime(tmp_path, initia
         translation = dict(
             connection.execute(text("SELECT * FROM pdf_translations")).mappings().one()
         )
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "lite0008"
+        assert (
+            connection.scalar(text("SELECT version_num FROM alembic_version"))
+            == storage.SCHEMA_HEAD
+        )
         if initial == "lite0006":
             assert settings.pop("launch_mode") == "bundled"
             assert settings.pop("python_path") is None

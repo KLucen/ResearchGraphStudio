@@ -1,0 +1,130 @@
+import { expect, test } from "@playwright/test";
+
+test("full-paper reading renders headings and body paragraphs while preserving folded material source information", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.goto("/e2e/paper-reading.html");
+  await expect(page.getByText("缓存命中 · 新增调用 0")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "2. Synthetic Methods" }),
+  ).toBeVisible();
+  await expect(page.locator(".paper-reading-paragraph")).toHaveCount(2);
+  await expect(page.locator(".paper-reading-body .paper-material")).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".paper-material-raw").first()).not.toBeVisible();
+  await expect(page.locator(".paper-paragraph-english").first()).toHaveText(
+    "We test a bounded method. A bounded method may fail under noise.",
+  );
+  await expect(
+    page.locator(".paper-paragraph-english mark[data-highlight-type=METHOD]"),
+  ).toHaveText("bounded method");
+  await expect(page.getByLabel("正文第 1 段中文译文")).toContainText(
+    "我们测试一种有界方法",
+  );
+  await expect(page.getByLabel("正文第 2 段中文译文")).toContainText(
+    "<script>只显示文字</script>",
+  );
+  await expect(
+    page.locator(".paper-close-reading img,.paper-close-reading script"),
+  ).toHaveCount(0);
+  for (const row of await page.locator(".paper-reading-paragraph").all()) {
+    const source = await row.locator(".paper-paragraph-source").boundingBox();
+    const note = await row.locator(".paper-paragraph-note").boundingBox();
+    expect(source && note).toBeTruthy();
+    expect(Math.abs(source!.y - note!.y)).toBeLessThan(2);
+    expect(note!.x).toBeGreaterThan(source!.x + source!.width);
+  }
+  expect(await page.evaluate(() => window.__paperReadingCalls)).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath("paper-reading-desktop.png"),
+    fullPage: true,
+  });
+  await page.getByText("图表与其他材料（3）", { exact: true }).click();
+  const material = page.locator(".paper-material").first();
+  await material.locator("summary").first().click();
+  await expect(material.locator(".paper-material-raw")).toHaveText(
+    "58.0\nT3: Flights",
+  );
+  await expect(material).toContainText("PDF 第 2 页");
+  await expect(material).toContainText(
+    "处理建议：请在 Zotero 原始 PDF 第 2 页查看图像",
+  );
+  await material.getByText("原始块与定位", { exact: true }).click();
+  await expect(material).toContainText("chunk-m1 · SHA-256 synthetic-m1");
+  await expect(material.locator(".paper-paragraph-translation")).toHaveCount(0);
+  const figure = page.locator(".paper-material").nth(2);
+  await figure.locator("summary").first().click();
+  await figure.getByText("原始块与定位", { exact: true }).click();
+  await expect(figure).toContainText("坐标 40, 200, 400, 500");
+  await page.screenshot({
+    path: testInfo.outputPath("paper-reading-materials.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 620, height: 900 });
+  for (const row of await page.locator(".paper-reading-paragraph").all()) {
+    const translation = await row
+      .locator(".paper-paragraph-translation")
+      .boundingBox();
+    const note = await row.locator(".paper-paragraph-note").boundingBox();
+    expect(note!.y).toBeGreaterThan(translation!.y + translation!.height);
+    expect(note!.width).toBeGreaterThan(500);
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: testInfo.outputPath("paper-reading-narrow.png"),
+    fullPage: true,
+  });
+});
+
+test("one explicit consent generates full-paper notes and local refresh never starts generation", async ({
+  page,
+}) => {
+  await page.goto("/e2e/paper-reading.html?scenario=empty");
+  await expect(
+    page.getByRole("heading", { name: "2. Synthetic Methods" }),
+  ).toBeVisible();
+  const generate = page.getByRole("button", {
+    name: "生成全文精读笔记",
+    exact: true,
+  });
+  await expect(generate).toBeDisabled();
+  await expect(page.getByLabel("起始段落")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /仅重试缺失/ })).toHaveCount(0);
+  expect(await page.evaluate(() => window.__paperReadingCalls)).toEqual([]);
+  await page
+    .getByRole("checkbox", { name: "允许本次发送整篇正文，生成全文精读笔记" })
+    .check();
+  await generate.click();
+  await expect(page.getByLabel("正文第 2 段中文译文")).toContainText(
+    "观察到的结果有条件限制",
+  );
+  expect(await page.evaluate(() => window.__paperReadingCalls)).toEqual([
+    { document_version_id: "v", allow_network: true, force_regenerate: false },
+  ]);
+  await page.getByRole("button", { name: "对这段提问" }).first().click();
+  await page.getByRole("button", { name: "查看关联概念 1" }).click();
+  expect(await page.evaluate(() => window.__paperReadingNavigation)).toEqual([
+    { sectionId: "s", paragraphId: "p1" },
+    { nodeId: "n1" },
+  ]);
+  await page.getByRole("button", { name: "重新整理本地阅读版面" }).click();
+  await expect(page.getByLabel("正文第 1 段中文译文")).toContainText(
+    "旧笔记未与当前原文对齐",
+  );
+  expect(await page.evaluate(() => window.__paperReadingLocalRefresh)).toBe(1);
+  expect((await page.evaluate(() => window.__paperReadingCalls)).length).toBe(
+    1,
+  );
+  await page.getByText("查看旧版本全文笔记", { exact: true }).click();
+  await expect(
+    page.getByText("我们测试一种有界方法。有界方法可能在噪声下失效。", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});

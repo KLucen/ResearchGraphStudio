@@ -19,6 +19,16 @@ import { PaperOverview } from "./PaperOverview";
 import { Papers } from "./Papers";
 import { JobHistory } from "./JobHistory";
 import { ZoteroImport } from "./ZoteroImport";
+import {
+  readingSource,
+  readingComplete,
+  readingState,
+  readingConcept,
+} from "./closeReadingFixtures";
+import {
+  paperReadingDocument,
+  paperReadingComplete,
+} from "./paperReadingFixtures";
 
 const renderer = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
@@ -58,9 +68,22 @@ vi.mock("./api", () => ({
     jobs: vi.fn(),
     jobAction: vi.fn(),
     sections: vi.fn(),
+    readingDocument: vi.fn(),
+    refreshReadingDocument: vi.fn(),
+    paperReadingNotes: vi.fn(),
+    generatePaperReadingNotes: vi.fn(),
     sectionGuide: vi.fn(),
     sectionGuides: vi.fn(),
     generateSectionGuide: vi.fn(),
+    conceptUnderstanding: vi.fn(),
+    saveConceptUnderstanding: vi.fn(),
+    sectionParagraphs: vi.fn(),
+    closeReading: vi.fn(),
+    generateCloseReading: vi.fn(),
+    readingState: vi.fn(),
+    saveReadingState: vi.fn(),
+    understandingCheck: vi.fn(),
+    generateUnderstandingCheck: vi.fn(),
     qa: vi.fn(),
     askQA: vi.fn(),
     search: vi.fn(),
@@ -248,6 +271,16 @@ beforeEach(() => {
     ],
   });
   vi.mocked(api.sectionGuide).mockResolvedValue(null);
+  vi.mocked(api.readingDocument).mockResolvedValue(paperReadingDocument);
+  vi.mocked(api.paperReadingNotes).mockResolvedValue(paperReadingComplete);
+  vi.mocked(api.conceptUnderstanding).mockResolvedValue([]);
+  vi.mocked(api.sectionParagraphs).mockResolvedValue(readingSource);
+  vi.mocked(api.closeReading).mockResolvedValue(readingComplete);
+  vi.mocked(api.readingState).mockResolvedValue(readingState);
+  vi.mocked(api.understandingCheck).mockResolvedValue(null);
+  vi.mocked(api.saveConceptUnderstanding).mockImplementation(
+    async (_paper, _node, body) => ({ ...readingConcept, ...body }),
+  );
   vi.mocked(api.qa).mockResolvedValue([]);
   vi.mocked(api.askQA).mockResolvedValue({
     id: "qa-1",
@@ -519,8 +552,18 @@ test("section guide requires an explicit click and keeps depth-specific status",
   await user.click(screen.getByRole("button", { name: "Results" }));
   expect(await screen.findByRole("region", { name: "章节导读" })).toBeVisible();
   expect(api.generateSectionGuide).not.toHaveBeenCalled();
-  expect(api.sectionGuide).toHaveBeenCalledWith("paper", "s", "v", "standard");
-  await user.click(screen.getByRole("checkbox"));
+  expect(api.sectionGuide).toHaveBeenCalledWith(
+    "paper",
+    "s",
+    "v",
+    "standard",
+    false,
+  );
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "允许本次把当前小节发送给已配置模型",
+    }),
+  );
   await user.click(screen.getByRole("button", { name: "生成导读" }));
   expect(api.generateSectionGuide).toHaveBeenCalledWith(
     "paper",
@@ -528,6 +571,7 @@ test("section guide requires an explicit click and keeps depth-specific status",
     "v",
     "standard",
     true,
+    false,
     false,
     false,
   );
@@ -984,7 +1028,7 @@ test("reading workspace starts with three reading actions and ends with collapse
   expect(
     within(header).getByRole("navigation", { name: "论文阅读板块" }),
   ).toBeVisible();
-  for (const name of ["论文概览", "章节精读", "论文问答"])
+  for (const name of ["论文概览", "论文精读", "论文问答"])
     expect(within(header).getByRole("button", { name })).toBeEnabled();
   expect(
     within(header).queryByRole("button", { name: "文献翻译" }),
@@ -1023,7 +1067,7 @@ test("revision selection still drives reading and switching papers resets the co
   await waitFor(() =>
     expect(api.overview).toHaveBeenCalledWith("paper", "v-old"),
   );
-  await user.click(screen.getByRole("button", { name: "章节精读" }));
+  await user.click(screen.getByRole("button", { name: "论文精读" }));
   await waitFor(() => expect(api.sections).toHaveBeenCalledWith("v-old"));
   rerender(
     <QueryClientProvider client={client}>
@@ -1215,4 +1259,91 @@ test("Zotero batch body contains local parsing choices only", async () => {
       /解析后直接建图|同意向已配置模型/,
     ),
   ).not.toBeInTheDocument();
+});
+
+test("close reading routes one paragraph to D and a concept to the existing graph without model work", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  vi.mocked(api.overview).mockResolvedValue(completedOverview);
+  vi.mocked(api.conceptUnderstanding).mockResolvedValue([
+    { ...readingConcept, has_unresolved_question: true },
+  ]);
+  vi.mocked(api.readingState).mockResolvedValue({
+    ...readingState,
+    progress: "READING",
+    questions: [
+      { paragraph_id: "p1", text: "方法条件是什么？", resolved: false },
+    ],
+  });
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+  await user.click(await screen.findByRole("button", { name: "论文精读" }));
+  const close = await screen.findByRole("region", { name: "全文精读笔记" });
+  await within(close).findByText("缓存命中 · 新增调用 0");
+  await user.click(
+    within(close).getAllByRole("button", { name: "对这段提问" })[0],
+  );
+  const qa = await screen.findByRole("region", { name: "局部证据问答" });
+  expect(within(qa).getByLabelText("作用范围")).toHaveValue("selection");
+  await user.type(within(qa).getByLabelText("你的问题"), "方法条件是什么？");
+  await user.click(
+    within(qa).getByRole("checkbox", {
+      name: "允许本次把检索片段发送给已配置模型",
+    }),
+  );
+  await user.click(within(qa).getByRole("button", { name: "提交问题" }));
+  expect(api.askQA).toHaveBeenCalledWith(
+    "paper",
+    expect.objectContaining({
+      scope: "selection",
+      section_id: "s",
+      selection_span_ids: ["sp1"],
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "论文精读" }));
+  await user.click(
+    await screen.findByRole("button", { name: "查看关联概念 1" }),
+  );
+  const details = await screen.findByRole("complementary", {
+    name: "图谱详情",
+  });
+  expect(await within(details).findByLabelText("概念理解自评")).toHaveValue(
+    "UNSET",
+  );
+  expect(await within(details).findByText("方法条件是什么？")).toBeVisible();
+  expect(renderer.props.graph).toMatchObject({
+    nodes: [
+      expect.objectContaining({
+        id: "n1",
+        type: "METHOD",
+        reading_unresolved: true,
+      }),
+      expect.anything(),
+    ],
+  });
+  await user.selectOptions(
+    within(details).getByLabelText("概念理解自评"),
+    "PARTIAL",
+  );
+  await user.click(
+    within(details).getByRole("button", { name: "保存理解记录" }),
+  );
+  expect(api.saveConceptUnderstanding).toHaveBeenCalledWith(
+    "paper",
+    "n1",
+    expect.objectContaining({
+      self_level: "PARTIAL",
+      overview_result_id: "overview",
+    }),
+  );
+  expect(api.generateOverview).not.toHaveBeenCalled();
+  expect(api.generateCloseReading).not.toHaveBeenCalled();
+  await user.click(
+    within(details).getByRole("button", { name: "返回对应段落" }),
+  );
+  const restored = await screen.findByRole("region", { name: "全文精读笔记" });
+  expect(
+    await within(restored).findByLabelText("正文第 1 段中文译文"),
+  ).toBeVisible();
+  expect(within(restored).getByLabelText("正文第 2 段中文译文")).toBeVisible();
+  expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
 });

@@ -288,7 +288,7 @@ def test_startup_retires_unfinished_work_and_preserves_history_usage_and_files(
     monkeypatch.setattr(httpx.AsyncClient, "send", forbidden)
     monkeypatch.setattr(subprocess, "Popen", forbidden)
     with client(tmp_path, worker=True) as api:
-        assert api.get("/api/v1/health").json()["schema_version"] == "lite0008"
+        assert api.get("/api/v1/health").json()["schema_version"] == "lite0010"
         assert _snapshot(api.app.state.engine, exclude=("jobs", "pdf_translations")) == unchanged
         with Session(api.app.state.engine) as session:
             for job_id, status in jobs:

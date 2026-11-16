@@ -188,6 +188,21 @@ async def worker(engine: Engine, data_dir: Path) -> None:
 
                 await execute_section_guide(engine, job_id, data_dir)
                 continue
+            if kind == "section_close_reading":
+                from researchgraph.close_reading_api import execute_close_reading
+
+                await execute_close_reading(engine, job_id, data_dir)
+                continue
+            if kind == "paper_reading_notes":
+                from researchgraph.paper_reading_api import execute_paper_reading
+
+                await execute_paper_reading(engine, job_id, data_dir)
+                continue
+            if kind == "understanding_check":
+                from researchgraph.close_reading_api import execute_understanding_check
+
+                await execute_understanding_check(engine, job_id, data_dir)
+                continue
             if kind == "grounded_qa":
                 from researchgraph.qa_api import execute_qa
 
@@ -239,13 +254,17 @@ def create_app(
                 app.state.workspace_cleanup = recover_workspaces(data_dir)
                 # Overview requests persist their own PENDING result and must be
                 # marked interrupted on restart without being sent again.
+                from researchgraph.close_reading_api import recover_close_reading
                 from researchgraph.keyword_api import recover_keywords
                 from researchgraph.paper_overview_api import recover_overviews
+                from researchgraph.paper_reading_api import recover_paper_readings
                 from researchgraph.qa_api import recover_qa
                 from researchgraph.section_guide_api import recover_section_guides
 
                 recover_overviews(engine)
                 recover_section_guides(engine)
+                recover_close_reading(engine)
+                recover_paper_readings(engine)
                 recover_qa(engine)
                 recover_keywords(engine)
                 with Session(engine) as session, session.begin():
@@ -348,17 +367,25 @@ def create_app(
 
     register_settings_api(app, engine, data_dir)
     register_zotero_batch_api(app, engine)
+    from researchgraph.close_reading_api import register_close_reading_api
     from researchgraph.keyword_api import register_keyword_api
     from researchgraph.lite_usage import register_lite_usage_api
     from researchgraph.local_index import register_local_index_api
     from researchgraph.paper_overview_api import register_paper_overview_api
+    from researchgraph.paper_reading_api import register_paper_reading_api
     from researchgraph.qa_api import register_qa_api
+    from researchgraph.reading_document_api import register_reading_document_api
+    from researchgraph.reading_state_api import register_reading_state_api
     from researchgraph.section_guide_api import register_section_guide_api
 
     register_lite_usage_api(app, engine)
     register_local_index_api(app, engine)
     register_paper_overview_api(app, engine, data_dir)
     register_section_guide_api(app, engine, data_dir)
+    register_close_reading_api(app, engine, data_dir)
+    register_reading_document_api(app, engine, data_dir)
+    register_paper_reading_api(app, engine, data_dir)
+    register_reading_state_api(app, engine)
     register_qa_api(app, engine, data_dir)
     register_keyword_api(app, engine, data_dir)
 
@@ -518,6 +545,9 @@ def create_app(
             if action == "retry" and job.kind in {
                 "paper_overview",
                 "section_guide",
+                "section_close_reading",
+                "paper_reading_notes",
+                "understanding_check",
                 "grounded_qa",
                 "search_keywords",
             }:
@@ -558,6 +588,45 @@ def create_app(
                         guide.error_code = "CANCELLED"
                         guide.error = "章节导读任务已取消，未自动重发"
                         guide.updated_at = now()
+                elif job.kind == "paper_reading_notes":
+                    from researchgraph.paper_reading_models import PaperReadingResult
+
+                    paper_reading = session.scalar(
+                        select(PaperReadingResult).where(
+                            PaperReadingResult.job_id == job.id,
+                            PaperReadingResult.status == "PENDING",
+                        )
+                    )
+                    if paper_reading is not None:
+                        paper_reading.status = "FAILED"
+                        paper_reading.error_code = "CANCELLED"
+                        paper_reading.error = "全文精读任务已取消，未自动重发"
+                        paper_reading.updated_at = now()
+                elif job.kind in {"section_close_reading", "understanding_check"}:
+                    from researchgraph.close_reading_models import (
+                        SectionCloseReadingResult,
+                        UnderstandingCheckResult,
+                    )
+
+                    result_model = (
+                        SectionCloseReadingResult
+                        if job.kind == "section_close_reading"
+                        else UnderstandingCheckResult
+                    )
+                    reading_result = cast(
+                        SectionCloseReadingResult | UnderstandingCheckResult | None,
+                        session.scalar(
+                            select(result_model).where(
+                                result_model.job_id == job.id,
+                                result_model.status == "PENDING",
+                            )
+                        ),
+                    )
+                    if reading_result is not None:
+                        reading_result.status = "FAILED"
+                        reading_result.error_code = "CANCELLED"
+                        reading_result.error = "阅读任务已取消，未自动重发"
+                        reading_result.updated_at = now()
                 elif job.kind == "grounded_qa":
                     from researchgraph.qa_models import LiteQARecord
 
