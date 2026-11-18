@@ -3,20 +3,89 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { LocateFixed, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  LocateFixed,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import "./readingOutline.css";
 
 export type OutlineEntry = {
   id: string;
   label: string;
   targetId: string;
+  parentId?: string | null;
   level?: number;
   detail?: string;
 };
+
+type OutlineNode = {
+  entry: OutlineEntry;
+  children: OutlineNode[];
+  index: number;
+};
+
+function outlineTree(entries: OutlineEntry[]) {
+  const nodes = new Map<string, OutlineNode>();
+  for (const [index, entry] of entries.entries()) {
+    if (!nodes.has(entry.id))
+      nodes.set(entry.id, { entry, children: [], index });
+  }
+  const parents = new Map<string, string | null>();
+  const stack: { id: string; level: number }[] = [];
+  for (const { entry } of nodes.values()) {
+    const level = Number.isFinite(entry.level)
+      ? Math.max(1, Math.floor(entry.level!))
+      : 1;
+    while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+    // An explicit null or unresolved parent remains a root. Only older flat
+    // payloads without a parent field infer ancestry from preceding levels.
+    const parent =
+      entry.parentId === undefined ? stack.at(-1)?.id : entry.parentId;
+    parents.set(
+      entry.id,
+      parent && parent !== entry.id && nodes.has(parent) ? parent : null,
+    );
+    stack.push({ id: entry.id, level });
+  }
+  // Invalid input must never recurse forever or hide an entire cyclic group.
+  for (const id of nodes.keys()) {
+    const seen = new Set<string>();
+    let current: string | null | undefined = id;
+    while (current) {
+      if (seen.has(current)) {
+        parents.set(current, null);
+        break;
+      }
+      seen.add(current);
+      current = parents.get(current);
+    }
+  }
+  const roots: OutlineNode[] = [];
+  for (const node of nodes.values()) {
+    const parent = parents.get(node.entry.id);
+    if (parent) nodes.get(parent)!.children.push(node);
+    else roots.push(node);
+  }
+  return { roots, parents };
+}
+
+function ancestorIds(parents: Map<string, string | null>, id: string) {
+  const result: string[] = [];
+  let parent = parents.get(id);
+  while (parent) {
+    result.push(parent);
+    parent = parents.get(parent);
+  }
+  return result;
+}
 
 function narrowViewport() {
   return typeof window.matchMedia === "function"
@@ -148,7 +217,7 @@ function revealCurrent(
   const button = Array.from(
     navigation.querySelectorAll<HTMLButtonElement>("button[data-outline-id]"),
   ).find((item) => item.dataset.outlineId === currentId);
-  if (!button) return;
+  if (!button || button.closest("[hidden]")) return;
   const bounds = navigation.getBoundingClientRect();
   const item = button.getBoundingClientRect();
   // Change only the directory scroll offset, never the article viewport.
@@ -178,6 +247,11 @@ export function ReadingOutline({
   const [narrow, setNarrow] = useState(narrowViewport);
   const narrowRef = useRef(narrow);
   const [observedId, setObservedId] = useState(entries[0]?.id ?? "");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const tree = useMemo(() => outlineTree(entries), [entries]);
+  const previousCurrent = useRef<{ id: string; ancestors: string } | null>(
+    null,
+  );
   const layout = useRef<HTMLDivElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const list = useRef<HTMLElement>(null);
@@ -196,6 +270,38 @@ export function ReadingOutline({
   const currentId = activeId ?? observedId;
   const current = entries.find((entry) => entry.id === currentId);
   const entrySignature = entries.map((entry) => entry.targetId).join("\u0000");
+  const currentAncestorIds = ancestorIds(tree.parents, currentId);
+  const currentAncestorSignature = JSON.stringify(currentAncestorIds);
+  const currentAncestors = new Set(currentAncestorIds);
+
+  const openAncestors = useCallback(
+    (id: string) => {
+      const ancestors = ancestorIds(tree.parents, id);
+      setCollapsed((previous) => {
+        if (!ancestors.some((ancestor) => previous.has(ancestor)))
+          return previous;
+        const next = new Set(previous);
+        ancestors.forEach((ancestor) => next.delete(ancestor));
+        return next;
+      });
+    },
+    [tree],
+  );
+
+  useEffect(() => {
+    // Reveal a newly selected/read chapter, while respecting a reader who
+    // deliberately folds the branch containing the unchanged current chapter.
+    if (
+      previousCurrent.current?.id === currentId &&
+      previousCurrent.current.ancestors === currentAncestorSignature
+    )
+      return;
+    previousCurrent.current = {
+      id: currentId,
+      ancestors: currentAncestorSignature,
+    };
+    openAncestors(currentId);
+  }, [currentId, currentAncestorSignature, openAncestors]);
 
   useEffect(
     () => () => {
@@ -398,7 +504,7 @@ export function ReadingOutline({
   useEffect(() => {
     if (!expanded || !currentId || !list.current) return;
     revealCurrent(list.current, currentId);
-  }, [currentId, expanded]);
+  }, [currentId, expanded, collapsed]);
 
   const choose = (entry: OutlineEntry) => {
     stableAnchor.current = null;
@@ -409,6 +515,68 @@ export function ReadingOutline({
     // view by its parent. The globally unique section/unit target is looked
     // up after React commits; no state or detached element is retained.
     requestAnimationFrame(() => focusEntry(entry));
+  };
+
+  const renderNode = (node: OutlineNode, depth: number): ReactNode => {
+    const { entry, children: descendants, index } = node;
+    const hasChildren = descendants.length > 0;
+    const branchExpanded = !collapsed.has(entry.id);
+    const childrenId = `${panelId}-children-${index}`;
+    return (
+      <li key={entry.id} data-outline-level={depth}>
+        <div
+          className="reading-outline-row"
+          data-current-branch={currentAncestors.has(entry.id)}
+        >
+          {hasChildren ? (
+            <button
+              type="button"
+              className="reading-outline-branch"
+              aria-label={`${branchExpanded ? "收起" : "展开"} ${entry.label} 的子章节`}
+              aria-expanded={branchExpanded}
+              aria-controls={childrenId}
+              onClick={() =>
+                setCollapsed((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(entry.id)) next.delete(entry.id);
+                  else next.add(entry.id);
+                  return next;
+                })
+              }
+            >
+              {branchExpanded ? (
+                <ChevronDown size={14} />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </button>
+          ) : (
+            <span className="reading-outline-leaf-space" aria-hidden="true" />
+          )}
+          <button
+            type="button"
+            className="reading-outline-entry"
+            data-outline-id={entry.id}
+            aria-label={entry.label}
+            aria-current={entry.id === currentId ? "location" : undefined}
+            onClick={() => choose(entry)}
+          >
+            <span>{entry.label}</span>
+            {entry.detail && <small>{entry.detail}</small>}
+          </button>
+        </div>
+        {hasChildren && (
+          <ul
+            id={childrenId}
+            className="reading-outline-children"
+            data-indent={depth < 4}
+            hidden={!branchExpanded}
+          >
+            {descendants.map((child) => renderNode(child, depth + 1))}
+          </ul>
+        )}
+      </li>
+    );
   };
 
   return (
@@ -452,6 +620,7 @@ export function ReadingOutline({
             }
             disabled={!current}
             onClick={() => {
+              openAncestors(currentId);
               setOutlineExpanded(true);
               cancelAnimationFrame(navigationFrame.current);
               navigationFrame.current = requestAnimationFrame(() =>
@@ -475,22 +644,9 @@ export function ReadingOutline({
             aria-label="文章目录"
             className="reading-outline-list"
           >
-            {entries.map((entry) => (
-              <button
-                type="button"
-                key={entry.id}
-                data-outline-id={entry.id}
-                aria-label={entry.label}
-                aria-current={entry.id === currentId ? "location" : undefined}
-                style={{
-                  paddingLeft: `${10 + Math.min(Math.max((entry.level ?? 1) - 1, 0), 4) * 10}px`,
-                }}
-                onClick={() => choose(entry)}
-              >
-                <span>{entry.label}</span>
-                {entry.detail && <small>{entry.detail}</small>}
-              </button>
-            ))}
+            <ul className="reading-outline-tree">
+              {tree.roots.map((node) => renderNode(node, 1))}
+            </ul>
             {!entries.length && <p className="muted">尚无可定位的章节。</p>}
           </nav>
         </div>

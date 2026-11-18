@@ -65,6 +65,22 @@ def test_cross_page_hierarchy_preserves_raw_text_and_explicit_intervals():
     assert json.loads(json.dumps(result))["schema_version"] == "pdf-structure-1"
 
 
+def test_formula_structure_keeps_revision_bound_identifier_and_source_geometry():
+    with pymupdf.open() as document:
+        page = document.new_page(width=612, height=792)
+        page.insert_text((190, 180), "x_u^(l) = W x_u^(l-1) + b", fontsize=14)
+        result = parse_structure(document, "revision-123")
+    assert result["formulas"]
+    formula = result["formulas"][0]
+    assert formula["formula_id"].startswith("formula-")
+    assert formula["formula_id"] == formula["id"]
+    assert len(formula["formula_id"]) == len("formula-") + 32
+    assert formula["page_index"] == 0
+    assert formula["bbox"][2] > formula["bbox"][0]
+    assert formula["text"]
+    assert formula["status"] == "latex_unavailable"
+
+
 def test_references_are_excluded_until_appendix_without_deleting_source():
     with pymupdf.open() as document:
         page = document.new_page()
@@ -347,3 +363,304 @@ def test_a_heading_outside_grid_is_retained_when_shared_block_overlaps_table(mon
         result = parse_structure(document)
     assert [s["title"] for s in result["sections"]] == ["Document", "Methods"]
     assert result["blocks"][0]["heading_text"] == "Methods"
+
+
+def small_caps_heading(page, y, number, title):
+    page.insert_text((45, y), number, fontsize=11)
+    x = 85
+    for word in title.split(" "):
+        page.insert_text((x, y), word[:1], fontsize=11)
+        x += pymupdf.get_text_length(word[:1], fontsize=11)
+        page.insert_text((x, y), word[1:], fontsize=8.8)
+        x += pymupdf.get_text_length(word[1:], fontsize=8.8) + 4
+
+
+def test_numbered_small_caps_recover_all_chapters_and_three_levels_without_bold():
+    names = [
+        "INTRODUCTION",
+        "PROBLEM FORMULATION",
+        "SYNTHETIC FRAMEWORK",
+        "EXPERIMENTS",
+        "CONCLUSION",
+    ]
+    with pymupdf.open() as document:
+        for number, title in enumerate(names, 1):
+            page = document.new_page()
+            small_caps_heading(page, 90, str(number), title)
+            paragraph(page, 45, 120, "The ordinary body font remains at eleven points. " * 6)
+            if number == 3:
+                small_caps_heading(page, 260, "3.1", "MODEL DESIGN")
+                paragraph(page, 45, 285, "A second level uses the same small capital type. " * 4)
+                small_caps_heading(page, 420, "3.1.1", "STAGE 1: INPUT ENCODER")
+                paragraph(page, 45, 445, "A third level preserves its original source block. " * 4)
+        expected = [
+            (page.number, block[4], list(block[:4]))
+            for page in document
+            for block in page.get_text("blocks", sort=True)
+            if block[6] == 0 and block[4].strip()
+        ]
+        result = parse_structure(document)
+    titles = {section["title"]: section for section in result["sections"]}
+    assert all(f"{number} {title}" in titles for number, title in enumerate(names, 1))
+    parent = titles["3 SYNTHETIC FRAMEWORK"]
+    child = titles["3.1 MODEL DESIGN"]
+    grandchild = titles["3.1.1 STAGE 1: INPUT ENCODER"]
+    assert child["parent_id"] == parent["id"] and child["level"] == 2
+    assert grandchild["parent_id"] == child["id"] and grandchild["level"] == 3
+    assert [(b["page_index"], b["text"], b["bbox"]) for b in result["blocks"]] == expected
+    assert result["parser_version"].endswith(";structure-v2")
+
+
+def test_middle_of_merged_block_heading_has_exact_range_without_replacing_prose():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text(
+            (45, 90), "The earlier source sentence remains ordinary body text.", fontsize=11
+        )
+        page.insert_text((45, 104), "2 SYNTHETIC METHOD", fontsize=11, fontname="hebo")
+        page.insert_text(
+            (45, 118), "The following source sentence belongs to this heading.", fontsize=11
+        )
+        result = parse_structure(document)
+    mixed = by_text(result, "The earlier source")
+    candidate = next(c for c in mixed["heading_candidates"] if c["text"] == "2 SYNTHETIC METHOD")
+    assert candidate["start_offset"] > 0
+    assert mixed["text"][candidate["start_offset"] : candidate["end_offset"]] == candidate["text"]
+    assert mixed["kind"] == "paragraph"
+    assert candidate["section_ref"] in {s["id"] for s in result["sections"]}
+    assert any("标题与正文共用" in warning for warning in result["warnings"])
+
+
+def test_multiple_headings_in_one_block_keep_separate_exact_ranges_and_original_text():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((45, 90), "1 Introduction", fontsize=11, fontname="hebo")
+        page.insert_text((45, 104), "The first source sentence remains available.", fontsize=11)
+        page.insert_text((45, 118), "2 SYNTHETIC METHOD", fontsize=11, fontname="hebo")
+        page.insert_text((45, 132), "The second source sentence remains available.", fontsize=11)
+        result = parse_structure(document)
+    block = by_text(result, "The first source")
+    candidates = block["heading_candidates"]
+    assert [candidate["text"] for candidate in candidates] == [
+        "1 Introduction",
+        "2 SYNTHETIC METHOD",
+    ]
+    assert all(
+        block["text"][candidate["start_offset"] : candidate["end_offset"]] == candidate["text"]
+        for candidate in candidates
+    )
+    assert candidates[0]["end_offset"] < candidates[1]["start_offset"]
+    assert len({candidate["section_ref"] for candidate in candidates}) == 2
+    assert "The first source sentence remains available." in block["text"]
+    assert "The second source sentence remains available." in block["text"]
+
+
+def contents_row(page, y, prefix, title, page_number):
+    page.insert_text((45, y), prefix, fontsize=11, fontname="hebo")
+    page.insert_text((90, y), title, fontsize=11, fontname="hebo")
+    page.insert_text((510, y), str(page_number), fontsize=11, fontname="hebo")
+
+
+def test_contents_entries_and_continuation_are_material_not_duplicate_chapters():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        heading(page, 90, "1 Introduction")
+        paragraph(page, 45, 120, "The body is separate from the printed contents. " * 4)
+        page = document.new_page()
+        heading(page, 90, "Contents")
+        contents_row(page, 130, "1", "Introduction", 1)
+        contents_row(page, 170, "2", "Synthetic Method", 3)
+        contents_row(page, 210, "5", "Conclusion", 10)
+        contents_row(page, 250, "A", "Notations", 16)
+        page = document.new_page()
+        contents_row(page, 130, "B", "Additional Details", 17)
+        contents_row(page, 170, "C", "Proofs of Results", 20)
+        contents_row(page, 210, "D", "Additional Experiments", 22)
+        result = parse_structure(document)
+    assert [s["title"] for s in result["sections"]] == ["Document", "1 Introduction"]
+    contents = [b for b in result["blocks"] if b["kind"] == "contents"]
+    assert len(contents) == 8 and all(not b["heading_candidates"] for b in contents)
+    assert any("Notations" in b["text"] for b in contents)
+
+
+def test_printed_contents_recovers_plain_body_headings_without_promoting_rows():
+    with pymupdf.open() as document:
+        contents_page = document.new_page()
+        heading(contents_page, 90, "Contents")
+        contents_row(contents_page, 130, "1", "Introduction", 2)
+        contents_row(contents_page, 170, "2", "Related Work", 3)
+        contents_row(contents_page, 210, "3", "Method", 4)
+        contents_row(contents_page, 240, "3.1", "Model", 5)
+        contents_row(contents_page, 270, "5", "Conclusion", 8)
+        for title in (
+            "1 Introduction",
+            "2 Related Work",
+            "3 Method",
+            "3.1 Model",
+            "5 Conclusion",
+        ):
+            page = document.new_page()
+            # Deliberately use the body font and weight for the heading. The
+            # contents page is the only extra signal used by the parser.
+            page.insert_text((45, 90), title, fontsize=11)
+            paragraph(page, 45, 120, "Plain body text follows this heading. " * 5)
+        result = parse_structure(document)
+    titles = [section["title"] for section in result["sections"]]
+    assert titles == [
+        "Document",
+        "1 Introduction",
+        "2 Related Work",
+        "3 Method",
+        "3.1 Model",
+        "5 Conclusion",
+    ]
+    assert all(
+        block["kind"] != "contents" or not block.get("heading_candidates")
+        for block in result["blocks"]
+    )
+
+
+def test_numbered_prose_chart_values_and_inline_appendix_reference_stay_body():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        heading(page, 90, "1 Methods")
+        paragraph(page, 45, 120, "The stable body supplies a reliable font baseline. " * 5)
+        page.insert_text((45, 270), "2 A short ordinary observation", fontsize=11)
+        page.insert_text((45, 310), "47.26", fontsize=11)
+        page.insert_text((280, 310), "GAT", fontsize=11)
+        page.insert_text(
+            (45, 350),
+            "Appendix B.3. Based on these outcomes, we continue the analysis",
+            fontsize=11,
+        )
+        result = parse_structure(document)
+    assert [s["title"] for s in result["sections"]] == ["Document", "1 Methods"]
+
+
+def test_lettered_small_caps_appendix_resumes_after_references_with_three_levels():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        heading(page, 90, "References")
+        paragraph(page, 45, 120, "A synthetic bibliography entry from the year 2022.")
+        page = document.new_page()
+        small_caps_heading(page, 90, "B", "ADDITIONAL DETAILS")
+        paragraph(page, 45, 120, "The appendix uses the same body font as the main text. " * 5)
+        small_caps_heading(page, 260, "B.1", "MODEL DESIGN")
+        small_caps_heading(page, 310, "B.1.1", "INPUT ENCODER")
+        result = parse_structure(document)
+    titles = {s["title"]: s for s in result["sections"]}
+    assert not titles["B ADDITIONAL DETAILS"]["excluded"]
+    assert titles["B.1 MODEL DESIGN"]["parent_id"] == titles["B ADDITIONAL DETAILS"]["id"]
+    assert titles["B.1.1 INPUT ENCODER"]["parent_id"] == titles["B.1 MODEL DESIGN"]["id"]
+    assert titles["B.1.1 INPUT ENCODER"]["level"] == 3
+
+
+def test_numbered_title_matches_unnumbered_bookmark_before_table_suppression(monkeypatch):
+    from researchgraph import pdf_structure
+
+    def false_grid(page, blocks, warnings):
+        for block in blocks:
+            block["kind"] = "table"
+            block["table_regions"] = [[0.0, 0.0, 600.0, 800.0]]
+        return []
+
+    monkeypatch.setattr(pdf_structure, "_tables", false_grid)
+    with pymupdf.open() as document:
+        page = document.new_page()
+        small_caps_heading(page, 90, "4.2", "OVERALL PERFORMANCE")
+        paragraph(page, 45, 120, "The body is inside an incorrectly detected graphical grid. " * 5)
+        document.set_toc([[1, "Experiments", 1], [2, "Overall Performance", 1]])
+        result = parse_structure(document)
+    section = next(s for s in result["sections"] if s["title"] == "4.2 OVERALL PERFORMANCE")
+    assert section["level"] == 2
+
+
+def test_overlapping_page_sized_table_cell_does_not_swallow_body(monkeypatch):
+    from types import SimpleNamespace
+
+    false_table = SimpleNamespace(
+        bbox=[0.0, 0.0, 595.0, 750.0],
+        cells=[[0.0, 0.0, 595.0, 750.0], [45.0, 100.0, 200.0, 160.0]],
+        extract=lambda: [["A large merged region contains prose", "chart label"]],
+    )
+    monkeypatch.setattr(
+        pymupdf.Page, "find_tables", lambda _page: SimpleNamespace(tables=[false_table])
+    )
+    with pymupdf.open() as document:
+        page = document.new_page()
+        small_caps_heading(page, 90, "4.2", "OVERALL PERFORMANCE")
+        paragraph(page, 45, 120, "The original paragraph remains available for local reading. " * 5)
+        result = parse_structure(document)
+    assert result["tables"] == []
+    assert any("退化表格" in warning for warning in result["warnings"])
+    assert any(s["title"] == "4.2 OVERALL PERFORMANCE" for s in result["sections"])
+    assert not any(b["kind"] == "table" for b in result["blocks"])
+
+
+def test_partial_graphical_grid_overlap_does_not_classify_whole_prose_as_table(monkeypatch):
+    from types import SimpleNamespace
+
+    cells = [[140.0, 200.0, 210.0, 240.0], [210.0, 200.0, 280.0, 240.0]]
+    graphical_grid = SimpleNamespace(
+        bbox=[140.0, 200.0, 280.0, 240.0],
+        cells=cells,
+        rows=[SimpleNamespace(cells=cells)],
+        header=SimpleNamespace(cells=[], names=["A", "B"], external=False),
+        extract=lambda: [["A", "B"]],
+    )
+    monkeypatch.setattr(
+        pymupdf.Page, "find_tables", lambda _page: SimpleNamespace(tables=[graphical_grid])
+    )
+    with pymupdf.open() as document:
+        page = document.new_page()
+        paragraph(
+            page,
+            45,
+            190,
+            "A long original paragraph extends beyond a small graphical grid. " * 6,
+        )
+        result = parse_structure(document)
+    original = by_text(result, "A long original paragraph")
+    found = result["tables"][0]
+    assert original["ref"] in found["partial_block_refs"]
+    assert original["ref"] not in found["block_refs"]
+    assert original["kind"] == "paragraph"
+    assert "extends beyond" in original["text"]
+    assert any("未将整块正文视为表格" in note for note in found["notes"])
+
+
+def test_real_small_grid_and_external_header_keep_source_membership(monkeypatch):
+    from types import SimpleNamespace
+
+    first_row = [[45.0, 160.0, 290.0, 200.0], [290.0, 160.0, 535.0, 200.0]]
+    second_row = [[45.0, 200.0, 290.0, 240.0], [290.0, 200.0, 535.0, 240.0]]
+    grid = SimpleNamespace(
+        bbox=[45.0, 160.0, 535.0, 240.0],
+        cells=first_row + second_row,
+        rows=[SimpleNamespace(cells=first_row), SimpleNamespace(cells=second_row)],
+        header=SimpleNamespace(
+            cells=[[45.0, 105.0, 290.0, 135.0], [290.0, 105.0, 535.0, 135.0]],
+            names=["Condition", "Outcome"],
+            external=True,
+        ),
+        extract=lambda: [["Control", "42"], ["Treatment", "47"]],
+    )
+    monkeypatch.setattr(pymupdf.Page, "find_tables", lambda _page: SimpleNamespace(tables=[grid]))
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((50, 120), "Condition", fontsize=11)
+        page.insert_text((300, 120), "Outcome", fontsize=11)
+        page.insert_text((50, 185), "Control", fontsize=11)
+        page.insert_text((300, 185), "42", fontsize=11)
+        page.insert_text((50, 225), "Treatment", fontsize=11)
+        page.insert_text((300, 225), "47", fontsize=11)
+        result = parse_structure(document)
+    found = result["tables"][0]
+    header = by_text(result, "Condition")
+    control = by_text(result, "Control")
+    assert found["header"]["external"]
+    assert found["rows"] == [["Control", "42"], ["Treatment", "47"]]
+    assert header["ref"] in found["block_refs"] and header["kind"] == "table"
+    assert control["ref"] in found["block_refs"] and control["kind"] == "table"
+    assert not found["partial_block_refs"]
+    assert len(found["cells"]) == 4

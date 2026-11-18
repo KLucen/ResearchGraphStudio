@@ -43,6 +43,13 @@
   font-size: 12px;
   line-height: 1.8;
 }
+.paper-reading-retry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 16px 0;
+}
 .paper-reading-local-status {
   margin: 20px 0 16px;
   font-size: 12px;
@@ -78,6 +85,12 @@
 .paper-reading-section-heading > span {
   white-space: nowrap;
   font-size: 11px;
+}
+.paper-reading-section-heading[data-heading-level="2"] h5 {
+  font-size: 19px;
+}
+.paper-reading-section-heading[data-heading-level="3"] h5 {
+  font-size: 17px;
 }
 .paper-reading-paragraph {
   padding: 22px 0 26px;
@@ -216,6 +229,72 @@
   margin-top: 18px;
   font-size: 13px;
   line-height: 1.8;
+}
+.paper-formula-rendered,
+.paper-formula-fallback {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #dce1d5;
+  border-radius: 7px;
+  background: #fbfcf8;
+  overflow-x: auto;
+}
+.paper-formula-rendered .katex-display {
+  margin: 4px 0 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.paper-formula-status {
+  display: block;
+  margin-bottom: 6px;
+  color: #7b8478;
+  font-size: 12px;
+}
+.paper-formula-fallback pre,
+.paper-formula-source pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.paper-formula-source summary {
+  cursor: pointer;
+  color: #7b8478;
+  font-size: 12px;
+}
+.paper-formula-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+  flex-wrap: wrap;
+}
+.paper-formula-preview-error {
+  color: #a44f46;
+  font-size: 12px;
+}
+.paper-formula-preview {
+  margin: 14px 0 4px;
+  padding: 10px;
+  border: 1px solid #dce1d5;
+  border-radius: 6px;
+  background: #f4f5ef;
+}
+.paper-formula-preview img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+.paper-formula-preview figcaption {
+  margin-top: 8px;
+  color: #7b8478;
+  font-size: 11px;
+  line-height: 1.6;
 }
 @media (max-width: 850px) {
   .paper-reading-column-labels {

@@ -1,4 +1,11 @@
-import { render, screen, within, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
@@ -13,6 +20,8 @@ import {
   type QAView,
   type SectionGuide,
   type PaperDetail,
+  type Structure,
+  type SearchResult,
 } from "./api";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
@@ -58,12 +67,30 @@ vi.mock("./ForceGraph", () => ({
 }));
 vi.mock("./api", () => ({
   request: vi.fn(),
+  defaultPostImportPlan: () => ({
+    parse: true,
+    overview: true,
+    reading: false,
+    translation_mode: "none",
+    modality: "auto",
+    extract_formulas: true,
+    extract_tables: true,
+    allow_network: false,
+  }),
   api: {
     host: vi.fn(),
     health: vi.fn(),
     projects: vi.fn(),
     papers: vi.fn(),
     paper: vi.fn(),
+    importSessions: vi.fn(),
+    modelDocumentParse: vi.fn(),
+    modelDocumentOutputs: vi.fn(),
+    updateModelDocumentSegment: vi.fn(),
+    updateModelDocumentOutput: vi.fn(),
+    updatePaper: vi.fn(),
+    clearPaperLegacyContent: vi.fn(),
+    deletePaper: vi.fn(),
     projectJobs: vi.fn(),
     jobs: vi.fn(),
     jobAction: vi.fn(),
@@ -96,6 +123,8 @@ vi.mock("./api", () => ({
     resetOverviewLayout: vi.fn(),
     liteUsage: vi.fn(),
     chunks: vi.fn(),
+    selectPdfImport: vi.fn(),
+    submitPdfImport: vi.fn(),
     importPdf: vi.fn(),
     restart: vi.fn(),
   },
@@ -237,6 +266,7 @@ beforeEach(() => {
     next_cursor: null,
   });
   vi.mocked(api.papers).mockResolvedValue({ items: [], next_cursor: null });
+  vi.mocked(api.importSessions).mockResolvedValue([]);
   vi.mocked(api.projectJobs).mockResolvedValue({
     items: [],
     next_cursor: null,
@@ -373,6 +403,88 @@ test("Lite app separates projects, tasks and reading workspace", async () => {
   ).not.toBeInTheDocument();
   expect(api.generateOverview).not.toHaveBeenCalled();
 });
+
+test("project creation dialog is modal and closes on Escape", async () => {
+  const user = userEvent.setup();
+  const showModal = vi.spyOn(HTMLDialogElement.prototype, "showModal");
+  mount(<App />);
+
+  await user.click(await screen.findByTitle("新建研究项目"));
+  const dialog = await screen.findByRole("dialog", { name: "新建研究项目" });
+  await waitFor(() => expect(showModal).toHaveBeenCalledExactlyOnceWith());
+  expect(dialog).toHaveAttribute("open");
+
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  expect(
+    screen.queryByRole("dialog", { name: "新建研究项目" }),
+  ).not.toBeInTheDocument();
+});
+
+test("paper import dialog is modal and closes on Escape", async () => {
+  const user = userEvent.setup();
+  const showModal = vi.spyOn(HTMLDialogElement.prototype, "showModal");
+  mount(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "Lite project" }));
+  await user.click(
+    await screen.findByRole("button", { name: "向Lite project导入论文" }),
+  );
+  const dialog = await screen.findByRole("dialog", { name: "导入论文" });
+  await waitFor(() => expect(showModal).toHaveBeenCalledExactlyOnceWith());
+  expect(dialog).toHaveAttribute("open");
+  expect(dialog).toHaveClass("import-dialog");
+
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  expect(
+    screen.queryByRole("dialog", { name: "导入论文" }),
+  ).not.toBeInTheDocument();
+});
+
+test("sidebar refreshes papers after an import worker commits the new row", async () => {
+  const first = {
+    id: "paper-1",
+    project_id: "p",
+    title: "First paper",
+    created_at: "2026-11-09T00:00:00Z",
+  };
+  const second = {
+    id: "paper-2",
+    project_id: "p",
+    title: "Second paper",
+    created_at: "2026-11-10T00:00:00Z",
+  };
+  let calls = 0;
+  vi.mocked(api.papers).mockImplementation(async () => ({
+    items: [first, ...(calls++ > 0 ? [second] : [])],
+    next_cursor: null,
+  }));
+  const mounted = mount(<App />);
+  await waitFor(() => expect(api.papers).toHaveBeenCalled());
+  expect(screen.getByTitle("First paper")).toBeVisible();
+  expect(screen.queryByTitle("Second paper")).not.toBeInTheDocument();
+
+  await act(async () => {
+    mounted.client.setQueryData(
+      ["jobs", "global"],
+      [
+        {
+          id: "job-import",
+          kind: "pdf_import",
+          project_id: "p",
+          status: "succeeded",
+          stage: "published",
+          attempt: 1,
+          error: null,
+          result: { paper_id: second.id },
+          created_at: "2026-11-10T00:00:00Z",
+          updated_at: "2026-11-10T00:00:01Z",
+        },
+      ],
+    );
+  });
+  expect(await screen.findByTitle("Second paper")).toBeVisible();
+});
+
 test("workspace task route shows jobs across projects", async () => {
   const user = userEvent.setup();
   vi.mocked(api.jobs).mockResolvedValue([
@@ -607,6 +719,596 @@ test("offline local reader does not read or search", () => {
   mount(<KnowledgeReading versionId="v" paperId="paper" connected={false} />);
   expect(screen.getByRole("button", { name: "本地搜索" })).toBeDisabled();
   expect(api.sections).not.toHaveBeenCalled();
+});
+
+test("directory replacement clears a missing selected chapter and all consent before a stale form can send", async () => {
+  const user = userEvent.setup();
+  const onSectionChange = vi.fn();
+  vi.mocked(api.search).mockResolvedValue({ query: "old memory", items: [] });
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+      onSectionChange={onSectionChange}
+    />,
+  );
+  const qa = await screen.findByRole("region", { name: "局部证据问答" });
+  await user.type(
+    within(qa).getByLabelText("你的问题"),
+    "Explain the old section.",
+  );
+  await user.click(
+    within(qa).getByRole("checkbox", {
+      name: "允许本次把检索片段发送给已配置模型",
+    }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "允许本次把当前小节发送给已配置模型",
+    }),
+  );
+  await user.type(screen.getByLabelText("搜索论文原文"), "old memory");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const helper = await screen.findByRole("region", { name: "英文关键词辅助" });
+  await user.click(
+    within(helper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  );
+  const submit = within(qa).getByRole("button", { name: "提交问题" });
+  expect(submit).toBeEnabled();
+  const replacement = structuredClone(
+    mounted.client.getQueryData<Structure>(["sections", "v"])!,
+  );
+  replacement.sections[0].id = "s-new";
+  replacement.sections[0].title = "Updated Methods";
+  vi.mocked(api.sections).mockResolvedValue(replacement);
+  // The cache changes before React has committed its new directory. A stale
+  // DOM form still cannot send the old id because mutation entry rechecks it.
+  act(() => {
+    mounted.client.setQueryData(["sections", "v"], replacement);
+    fireEvent.submit(submit.closest("form")!);
+  });
+  expect(
+    await screen.findByText(/章节目录已更新，原先选择的章节/),
+  ).toBeVisible();
+  expect(screen.getByLabelText("选择章节")).toHaveValue("");
+  expect(screen.getByLabelText("搜索论文原文")).toHaveValue("");
+  expect(
+    screen.queryByRole("region", { name: "局部证据问答" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "英文关键词辅助" }),
+  ).not.toBeInTheDocument();
+  expect(onSectionChange).toHaveBeenCalledWith("");
+  expect(api.askQA).not.toHaveBeenCalled();
+  expect(api.generateSectionGuide).not.toHaveBeenCalled();
+  expect(api.expandSearchKeywords).not.toHaveBeenCalled();
+  await user.selectOptions(screen.getByLabelText("选择章节"), "s-new");
+  expect(
+    screen.queryByText(/章节目录已更新，原先选择的章节/),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("checkbox", {
+      name: "允许本次把检索片段发送给已配置模型",
+    }),
+  ).not.toBeChecked();
+  expect(
+    screen.getByRole("checkbox", {
+      name: "允许本次把当前小节发送给已配置模型",
+    }),
+  ).not.toBeChecked();
+  expect(screen.getByRole("button", { name: "提交问题" })).toBeDisabled();
+});
+
+test("an obsolete graph chapter does not fetch current QA or reuse old selected spans, and its notice survives remount", async () => {
+  const user = userEvent.setup();
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      panel="qa"
+      initialSectionId="historical-section"
+      selectedSpanIds={["old-span"]}
+    />,
+  );
+  expect(await screen.findByText(/历史图谱或链接可能指向旧解析/)).toBeVisible();
+  expect(screen.getByLabelText("选择章节")).toHaveValue("");
+  expect(api.qa).not.toHaveBeenCalled();
+  expect(api.askQA).not.toHaveBeenCalled();
+  mounted.rerender(
+    <QueryClientProvider client={mounted.client}>
+      <KnowledgeReading
+        key="remounted-reader"
+        versionId="v"
+        paperId="paper"
+        connected
+        panel="qa"
+        selectedSpanIds={["old-span"]}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText(/历史图谱或链接可能指向旧解析/)).toBeVisible();
+  await user.selectOptions(screen.getByLabelText("选择章节"), "s");
+  const qa = await screen.findByRole("region", { name: "局部证据问答" });
+  expect(within(qa).getByLabelText("作用范围")).toHaveValue("section");
+  expect(
+    within(qa).getByRole("option", { name: /已选原文片段/ }),
+  ).toBeDisabled();
+  expect(
+    screen.queryByText(/历史图谱或链接可能指向旧解析/),
+  ).not.toBeInTheDocument();
+  expect(api.askQA).not.toHaveBeenCalled();
+});
+
+test("a keyword result arriving after its chapter disappears cannot restore old helper state or run more searches", async () => {
+  const user = userEvent.setup();
+  let finishExpansion!: (value: KeywordView) => void;
+  const pending = new Promise<KeywordView>((resolve) => {
+    finishExpansion = resolve;
+  });
+  vi.mocked(api.search).mockResolvedValue({ query: "old memory", items: [] });
+  vi.mocked(api.expandSearchKeywords).mockReturnValue(pending);
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+    />,
+  );
+  await screen.findByRole("region", { name: "章节导读" });
+  await user.type(screen.getByLabelText("搜索论文原文"), "old memory");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const helper = await screen.findByRole("region", { name: "英文关键词辅助" });
+  await user.click(
+    within(helper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  );
+  await user.click(
+    within(helper).getByRole("button", { name: "使用英文关键词辅助" }),
+  );
+  expect(api.expandSearchKeywords).toHaveBeenCalledTimes(1);
+  const replacement = structuredClone(
+    mounted.client.getQueryData<Structure>(["sections", "v"])!,
+  );
+  replacement.sections[0].id = "replacement";
+  act(() => {
+    mounted.client.setQueryData(["sections", "v"], replacement);
+  });
+  await screen.findByText(/章节目录已更新，原先选择的章节/);
+  await act(async () => {
+    finishExpansion({
+      id: "late-keywords",
+      paper_id: "paper",
+      document_version_id: "v",
+      section_id: "s",
+      question: "old memory",
+      local_hit_count: 0,
+      source_hash: "source",
+      input_hash: "input",
+      schema_version: "search_keywords.v1",
+      prompt_version: "d02_search_keywords_v1",
+      provider_id: "synthetic",
+      model_id: "synthetic",
+      status: "COMPLETED",
+      keywords: { english_queries: ["obsolete expansion"] },
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        calls: 0,
+        retry_count: 0,
+        cost: null,
+        usage_source: "unknown",
+      },
+      generated_at: null,
+      cache_hit: false,
+      job_id: null,
+      error_code: null,
+      error: null,
+      stale_reason: null,
+    });
+    await pending;
+  });
+  expect(api.search).toHaveBeenCalledTimes(1);
+  expect(api.keyword).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole("region", { name: "英文关键词辅助" }),
+  ).not.toBeInTheDocument();
+  expect(api.askQA).not.toHaveBeenCalled();
+});
+
+test("a late QA response remains under its original section after the directory and selection change", async () => {
+  const user = userEvent.setup();
+  let finishQA!: (value: QAView) => void;
+  const pending = new Promise<QAView>((resolve) => {
+    finishQA = resolve;
+  });
+  vi.mocked(api.askQA).mockReturnValue(pending);
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+    />,
+  );
+  const qa = await screen.findByRole("region", { name: "局部证据问答" });
+  await user.type(
+    within(qa).getByLabelText("你的问题"),
+    "Explain the old section.",
+  );
+  await user.click(
+    within(qa).getByRole("checkbox", {
+      name: "允许本次把检索片段发送给已配置模型",
+    }),
+  );
+  await user.click(within(qa).getByRole("button", { name: "提交问题" }));
+  expect(api.askQA).toHaveBeenCalledTimes(1);
+  const replacement = structuredClone(
+    mounted.client.getQueryData<Structure>(["sections", "v"])!,
+  );
+  replacement.sections[0].id = "new-current";
+  act(() => {
+    mounted.client.setQueryData(["sections", "v"], replacement);
+  });
+  await screen.findByText(/章节目录已更新，原先选择的章节/);
+  await user.selectOptions(screen.getByLabelText("选择章节"), "new-current");
+  const response: QAView = {
+    id: "late-answer",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    scope: "section",
+    question: "Explain the old section.",
+    status: "COMPLETED",
+    answer: {
+      answer_zh: "仅属于旧章节的回答",
+      evidence_citations: [],
+      insufficient_evidence: true,
+      uncertainty_zh: "synthetic",
+      suggest_expand_scope: false,
+    },
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      calls: 0,
+      retry_count: 0,
+      cost: null,
+      usage_source: "unknown",
+    },
+    source_hash: "old-source",
+    input_hash: "old-input",
+    prompt_version: "d01_grounded_qa_v1",
+    schema_version: "qa_answer.v1",
+    provider_id: "synthetic",
+    model_id: "synthetic",
+    job_id: null,
+    error_code: null,
+    error: null,
+    retrieval_spans: [],
+    cache_hit: false,
+  };
+  await act(async () => {
+    finishQA(response);
+    await pending;
+  });
+  expect(
+    mounted.client.getQueryData<QAView[]>([
+      "paper-qa",
+      "paper",
+      "v",
+      "s",
+      "section",
+      "",
+    ]),
+  ).toEqual([response]);
+  expect(
+    mounted.client.getQueryData<QAView[]>([
+      "paper-qa",
+      "paper",
+      "v",
+      "new-current",
+      "section",
+      "",
+    ]),
+  ).toEqual([]);
+  expect(screen.queryByText("仅属于旧章节的回答")).not.toBeInTheDocument();
+  expect(api.askQA).toHaveBeenCalledTimes(1);
+});
+
+function addSecondValidSection(client: QueryClient) {
+  const structure = structuredClone(
+    client.getQueryData<Structure>(["sections", "v"])!,
+  );
+  structure.sections.push({
+    ...structure.sections[0],
+    id: "s2",
+    title: "Methods",
+    ordinal: 1,
+  });
+  act(() => {
+    client.setQueryData(["sections", "v"], structure);
+  });
+}
+
+test("a late A01 response keeps the original section, depth and adaptive cache identity", async () => {
+  const user = userEvent.setup();
+  let finishGuide!: (value: SectionGuide) => void;
+  const pending = new Promise<SectionGuide>((resolve) => {
+    finishGuide = resolve;
+  });
+  vi.mocked(api.generateSectionGuide).mockReturnValue(pending);
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+    />,
+  );
+  await screen.findByRole("region", { name: "章节导读" });
+  addSecondValidSection(mounted.client);
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "允许本次把当前小节发送给已配置模型",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "生成导读" }));
+  expect(api.generateSectionGuide).toHaveBeenCalledExactlyOnceWith(
+    "paper",
+    "s",
+    "v",
+    "standard",
+    true,
+    false,
+    false,
+    false,
+  );
+  await user.selectOptions(screen.getByLabelText("选择章节"), "s2");
+  await user.selectOptions(screen.getByLabelText("导读深度"), "deep");
+  await user.click(
+    screen.getByRole("checkbox", { name: "参考已记录的理解状态调整侧重点" }),
+  );
+  const response: SectionGuide = {
+    id: "late-guide",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    depth: "standard",
+    source_hash: "source",
+    input_hash: "input",
+    schema_version: "reading_guide.v1",
+    prompt_version: "a01_section_guide_v1",
+    provider_id: "synthetic",
+    model_id: "synthetic",
+    status: "COMPLETED",
+    guide: {
+      section_id: "s",
+      overview_zh: "仅属于旧导读范围",
+      key_points: [],
+      reading_questions: [],
+      difficult_terms: [],
+      evidence_span_ids: [],
+      needs_more_context: false,
+      caveats: [],
+    },
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      calls: 0,
+      retry_count: 0,
+      cost: null,
+      usage_source: "unknown",
+    },
+    generated_at: null,
+    cache_hit: false,
+    job_id: null,
+    error_code: null,
+    error: null,
+    stale_reason: null,
+    evidence: [],
+  };
+  await act(async () => {
+    finishGuide(response);
+    await pending;
+  });
+  expect(
+    mounted.client.getQueryData([
+      "section-guide",
+      "paper",
+      "v",
+      "s",
+      "standard",
+      false,
+    ]),
+  ).toEqual(response);
+  expect(
+    mounted.client.getQueryData([
+      "section-guide",
+      "paper",
+      "v",
+      "s",
+      "standard",
+      true,
+    ]),
+  ).toBeUndefined();
+  expect(
+    mounted.client.getQueryData([
+      "section-guide",
+      "paper",
+      "v",
+      "s2",
+      "deep",
+      true,
+    ]),
+  ).toBeNull();
+  expect(screen.queryByText("仅属于旧导读范围")).not.toBeInTheDocument();
+  expect(api.generateSectionGuide).toHaveBeenCalledTimes(1);
+});
+
+test("an old expanded search cannot publish into another still-valid section", async () => {
+  const user = userEvent.setup();
+  let finishExpanded!: (value: SearchResult) => void;
+  const pending = new Promise<SearchResult>((resolve) => {
+    finishExpanded = resolve;
+  });
+  vi.mocked(api.search)
+    .mockResolvedValueOnce({ query: "memory", items: [] })
+    .mockReturnValueOnce(pending)
+    .mockResolvedValue({ query: "memory", items: [] });
+  vi.mocked(api.expandSearchKeywords).mockResolvedValue({
+    id: "old-keywords",
+    paper_id: "paper",
+    document_version_id: "v",
+    section_id: "s",
+    question: "memory",
+    local_hit_count: 0,
+    source_hash: "source",
+    input_hash: "input",
+    schema_version: "search_keywords.v1",
+    prompt_version: "d02_search_keywords_v1",
+    provider_id: "synthetic",
+    model_id: "synthetic",
+    status: "COMPLETED",
+    keywords: { english_queries: ["shared memory"] },
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      calls: 0,
+      retry_count: 0,
+      cost: null,
+      usage_source: "unknown",
+    },
+    generated_at: null,
+    cache_hit: false,
+    job_id: null,
+    error_code: null,
+    error: null,
+    stale_reason: null,
+  });
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+    />,
+  );
+  await screen.findByRole("region", { name: "章节导读" });
+  addSecondValidSection(mounted.client);
+  await user.type(screen.getByLabelText("搜索论文原文"), "memory");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const oldHelper = await screen.findByRole("region", {
+    name: "英文关键词辅助",
+  });
+  await user.click(
+    within(oldHelper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  );
+  await user.click(
+    within(oldHelper).getByRole("button", { name: "使用英文关键词辅助" }),
+  );
+  await waitFor(() => expect(api.search).toHaveBeenCalledTimes(2));
+  await user.selectOptions(screen.getByLabelText("选择章节"), "s2");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const newHelper = await screen.findByRole("region", {
+    name: "英文关键词辅助",
+  });
+  await user.click(
+    within(newHelper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  );
+  await act(async () => {
+    finishExpanded({
+      query: "shared memory",
+      items: [
+        {
+          chunk_id: "old-result",
+          section_id: "s",
+          document_version_id: "v",
+          paper_id: "paper",
+          text: "Old section expanded result",
+          page_index: 0,
+          page_label: "1",
+          score: 1,
+        },
+      ],
+    });
+    await pending;
+  });
+  expect(
+    mounted.client
+      .getQueryData<Structure>(["sections", "v"])!
+      .sections.some((section) => section.id === "s"),
+  ).toBe(true);
+  expect(
+    screen.queryByText("Old section expanded result"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "英文关键词检索结果" }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(newHelper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  ).toBeChecked();
+  expect(api.search).toHaveBeenCalledTimes(3);
+  expect(api.expandSearchKeywords).toHaveBeenCalledTimes(1);
+});
+
+test("a late ordinary search does not replace new local results or withdraw the new section's helper consent", async () => {
+  const user = userEvent.setup();
+  let finishSearch!: (value: SearchResult) => void;
+  const pending = new Promise<SearchResult>((resolve) => {
+    finishSearch = resolve;
+  });
+  vi.mocked(api.search)
+    .mockReturnValueOnce(pending)
+    .mockResolvedValue({ query: "memory", items: [] });
+  const mounted = mount(
+    <KnowledgeReading
+      versionId="v"
+      paperId="paper"
+      connected
+      initialSectionId="s"
+    />,
+  );
+  await screen.findByRole("region", { name: "章节导读" });
+  addSecondValidSection(mounted.client);
+  await user.type(screen.getByLabelText("搜索论文原文"), "memory");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  expect(api.search).toHaveBeenCalledTimes(1);
+  await user.selectOptions(screen.getByLabelText("选择章节"), "s2");
+  await user.click(screen.getByRole("button", { name: "本地搜索" }));
+  const helper = await screen.findByRole("region", { name: "英文关键词辅助" });
+  await user.click(
+    within(helper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  );
+  await act(async () => {
+    finishSearch({
+      query: "memory",
+      items: [
+        {
+          chunk_id: "old-local",
+          section_id: "s",
+          document_version_id: "v",
+          paper_id: "paper",
+          text: "Late old local result",
+          page_index: 0,
+          page_label: "1",
+          score: 1,
+        },
+      ],
+    });
+    await pending;
+  });
+  expect(screen.queryByText("Late old local result")).not.toBeInTheDocument();
+  expect(
+    within(helper).getByRole("checkbox", { name: "允许本次生成英文关键词" }),
+  ).toBeChecked();
+  expect(api.expandSearchKeywords).not.toHaveBeenCalled();
+  expect(api.search).toHaveBeenCalledTimes(2);
 });
 test("overview reads cache and saved layout without generating or rewriting it", async () => {
   vi.mocked(api.overview).mockResolvedValue(completedOverview);
@@ -868,14 +1570,82 @@ test("completed overview only regenerates after consent and sends force flag", a
   );
   expect(await screen.findByText(/正在生成概览…/)).toBeVisible();
 });
-test("PDF selection remains an explicit native local action", async () => {
+test("PDF selection sends the explicit model-first plan to the native picker", async () => {
   const user = userEvent.setup();
-  vi.mocked(api.importPdf).mockResolvedValue(null);
+  vi.mocked(api.selectPdfImport).mockResolvedValue({
+    selection_id: "selection-1",
+    file_name: "paper.pdf",
+  });
+  vi.mocked(api.submitPdfImport).mockResolvedValue(null);
   mount(<Papers projectId="p" connected />);
   await user.selectOptions(screen.getByLabelText("保存方式"), "managed");
   await user.click(screen.getByRole("button", { name: "选择 PDF 导入" }));
-  expect(api.importPdf).toHaveBeenCalledExactlyOnceWith("p", "managed");
+  expect(api.selectPdfImport).toHaveBeenCalledExactlyOnceWith();
+  expect(api.submitPdfImport).toHaveBeenCalledExactlyOnceWith(
+    "p",
+    "managed",
+    "selection-1",
+    {
+      parse: true,
+      overview: true,
+      reading: false,
+      translation_mode: "none",
+      modality: "auto",
+      extract_formulas: true,
+      extract_tables: true,
+      allow_network: false,
+    },
+  );
   expect(api.generateOverview).not.toHaveBeenCalled();
+});
+test("cancelling the native PDF picker does not submit an import job", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.selectPdfImport).mockResolvedValue(null);
+  mount(<Papers projectId="p" connected />);
+  await user.click(screen.getByRole("button", { name: "选择 PDF 导入" }));
+  expect(api.selectPdfImport).toHaveBeenCalledExactlyOnceWith();
+  expect(api.submitPdfImport).not.toHaveBeenCalled();
+});
+test("import plan can select reading translation and require multimodal without generating early", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.selectPdfImport).mockResolvedValue({
+    selection_id: "selection-1",
+    file_name: "paper.pdf",
+  });
+  vi.mocked(api.submitPdfImport).mockResolvedValue(null);
+  mount(<Papers projectId="p" connected />);
+  expect(
+    screen.queryByRole("radio", { name: "生成逐段中文翻译" }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: "生成论文概览" }));
+  await user.click(screen.getByRole("checkbox", { name: "生成论文精读" }));
+  await user.click(screen.getByRole("radio", { name: "生成逐段中文翻译" }));
+  await user.selectOptions(screen.getByLabelText("多模态策略"), "required");
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "允许将所选 PDF 发送给已配置的论文解析模型",
+    }),
+  );
+  expect(screen.getByText(/当前模型能力会在提交前检查/)).toBeVisible();
+  expect(api.importPdf).not.toHaveBeenCalled();
+  expect(api.generateOverview).not.toHaveBeenCalled();
+  expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "选择 PDF 导入" }));
+  expect(api.submitPdfImport).toHaveBeenCalledExactlyOnceWith(
+    "p",
+    "reference",
+    "selection-1",
+    {
+      parse: true,
+      overview: false,
+      reading: true,
+      translation_mode: "full",
+      modality: "required",
+      extract_formulas: true,
+      extract_tables: true,
+      allow_network: true,
+    },
+  );
 });
 test("paper classification is a local project preference", async () => {
   const user = userEvent.setup();
@@ -953,6 +1723,180 @@ test("paper Zotero link uses the validated native command", async () => {
     url: "zotero://select/library/items/PAPER001",
   });
   expect(api.generateOverview).not.toHaveBeenCalled();
+});
+
+test("paper title editing refreshes the visible paper detail", async () => {
+  const user = userEvent.setup();
+  let current = metadataPaper();
+  vi.mocked(api.paper).mockImplementation(async () => current);
+  vi.mocked(api.updatePaper).mockImplementation(async (_paperId, body) => {
+    current = {
+      ...current,
+      paper: { ...current.paper, title: body.title },
+    };
+    return {
+      ok: true,
+      paper_id: current.paper.id,
+      backup_file: null,
+      removed: {},
+      retained_personal_metadata: 0,
+      retained_managed_files: 0,
+    };
+  });
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+
+  await user.click(await screen.findByRole("button", { name: "编辑题名" }));
+  const title = screen.getByRole("textbox", { name: "编辑论文题名" });
+  await user.clear(title);
+  await user.type(title, "Revised synthetic paper");
+  await user.click(screen.getByRole("button", { name: "保存论文题名" }));
+
+  await waitFor(() =>
+    expect(screen.getByTitle("Revised synthetic paper")).toBeVisible(),
+  );
+  expect(api.updatePaper).toHaveBeenCalledWith("paper", {
+    title: "Revised synthetic paper",
+  });
+});
+
+test("paper legacy cleanup requires confirmation and preserves the paper", async () => {
+  const user = userEvent.setup();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  vi.mocked(api.clearPaperLegacyContent).mockResolvedValue({
+    ok: true,
+    paper_id: "paper",
+    backup_file: "backups/before-paper-legacy-content-fixture.sqlite3",
+    removed: { chunks: 2, fts_rows: 2, cache_entries: 1 },
+    retained_personal_metadata: 3,
+    retained_managed_files: 0,
+  });
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+
+  await user.click(await screen.findByRole("button", { name: "清理旧解析" }));
+
+  expect(confirm).toHaveBeenCalledWith(
+    expect.stringContaining("已生成的概览/精读/问答"),
+  );
+  expect(api.clearPaperLegacyContent).toHaveBeenCalledWith("paper");
+  expect(await screen.findByText(/已清理旧本地解析及缓存/)).toBeVisible();
+  expect(await screen.findByText("论文阅读工作区")).toBeVisible();
+});
+
+test("paper deletion returns to project paper selection after confirmation", async () => {
+  const user = userEvent.setup();
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  const onPaperDeleted = vi.fn();
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  vi.mocked(api.deletePaper).mockResolvedValue({
+    ok: true,
+    paper_id: "paper",
+    backup_file: "backups/before-paper-delete-fixture.sqlite3",
+    removed: { papers: 1 },
+    retained_personal_metadata: 0,
+    retained_managed_files: 0,
+  });
+  mount(
+    <Papers
+      projectId="p"
+      connected
+      initialPaperId="paper"
+      onPaperDeleted={onPaperDeleted}
+    />,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "删除论文" }));
+
+  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("不会删除"));
+  await waitFor(() => expect(onPaperDeleted).toHaveBeenCalledOnce());
+  expect(api.deletePaper).toHaveBeenCalledWith("paper");
+});
+
+test("model-first paper workspace ignores legacy revision content", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
+  vi.mocked(api.importSessions).mockResolvedValue([
+    {
+      id: "model-session",
+      project_id: "p",
+      source_kind: "pdf",
+      selection_id: "selection",
+      source_snapshot: { paper_id: "paper", file_name: "synthetic.pdf" },
+      plan: {
+        overview: true,
+        reading: true,
+        translation_mode: "none",
+        modality: "pdf",
+        require_multimodal: false,
+        allow_network: false,
+      },
+      status: "succeeded",
+      error: null,
+      created_at: "2026-11-18T00:00:00Z",
+      updated_at: "2026-11-18T00:00:01Z",
+      items: [],
+    },
+  ]);
+  vi.mocked(api.modelDocumentParse).mockResolvedValue({
+    id: "model-parse",
+    import_session_id: "model-session",
+    parse_version: "synthetic-v1",
+    modality: "pdf",
+    status: "succeeded",
+    warnings: [],
+    error_code: null,
+    error: null,
+    segments: [
+      {
+        id: "model-paragraph",
+        chapter_ref: "intro",
+        chapter_title: "Introduction",
+        chapter_level: 1,
+        chapter_order: 0,
+        kind: "paragraph",
+        ordinal: 0,
+        text: "Model-first source paragraph",
+        latex: null,
+        mathml: null,
+        raw_table_text: null,
+        table_data: null,
+        locator: null,
+        status: "ok",
+        warnings: [],
+      },
+    ],
+  });
+  vi.mocked(api.modelDocumentOutputs).mockResolvedValue([
+    {
+      id: "model-overview",
+      import_session_id: "model-session",
+      parse_id: "model-parse",
+      item_kind: "paper_overview",
+      status: "succeeded",
+      output_json: { summary: "Model-first overview content" },
+      error_code: null,
+      error: null,
+    },
+  ]);
+  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+
+  expect(await screen.findByText("Model-first overview content")).toBeVisible();
+  expect(screen.getByRole("button", { name: "章节材料" })).toBeEnabled();
+  expect(screen.getByText("分类与来源文件")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("combobox", { name: "附件修订" }),
+  ).not.toBeInTheDocument();
+  expect(api.chunks).not.toHaveBeenCalled();
+  expect(api.overview).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole("button", { name: "章节材料" }));
+  expect(await screen.findByText("Model-first source paragraph")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "论文精读" }));
+  expect(
+    await screen.findByText("此导入计划没有生成论文精读或中文翻译。"),
+  ).toBeVisible();
+  expect(api.sections).not.toHaveBeenCalled();
+  expect(api.paperReadingNotes).not.toHaveBeenCalled();
 });
 
 function metadataPaper(id = "paper", revisionId = "v"): PaperDetail {
@@ -1235,7 +2179,7 @@ test("Zotero batch body contains local parsing choices only", async () => {
     await screen.findByRole("checkbox", { name: "选择附件 ATTACH01" }),
   );
   await user.click(
-    screen.getByRole("button", { name: "仅解析 · 已选 1 个附件" }),
+    screen.getByRole("button", { name: "按计划导入 · 已选 1 个附件" }),
   );
   const call = vi
     .mocked(request)
@@ -1248,6 +2192,16 @@ test("Zotero batch body contains local parsing choices only", async () => {
     collection_key: "COLL0001",
     selections: [{ item_key: "PAPER001", attachment_key: "ATTACH01" }],
     mode: "reference",
+    post_import_plan: {
+      parse: true,
+      overview: true,
+      reading: false,
+      translation_mode: "none",
+      modality: "auto",
+      extract_formulas: true,
+      extract_tables: true,
+      allow_network: false,
+    },
   });
   expect(request).toHaveBeenCalledWith(
     "POST",

@@ -410,7 +410,7 @@ def test_real_projection_source_adapter_on_parsed_fixture(tmp_path, monkeypatch)
         session.flush()
         apply_structure(session, revision.id, revision.sha256, structure)
         _paper, _revision, context = build_paper_reading_input(session, paper_id, revision.id)
-        assert context["paragraphs"] and context["projection_version"] == "reading-document-1"
+        assert context["paragraphs"] and context["projection_version"] == "reading-document-2"
         assert all(item["sources"] for item in context["paragraphs"])
         assert session.query(LiteTokenUsage).count() == 0
         from researchgraph.reading_projection import build_reading_document

@@ -58,6 +58,9 @@ def with_documented_limits(
     return ModelCapabilities(
         max_output_tokens=capabilities.max_output_tokens or documented.max_output_tokens,
         context_window=capabilities.context_window or documented.context_window,
+        document_input=capabilities.document_input,
+        multimodal=capabilities.multimodal,
+        document_transport=capabilities.document_transport,
         source=documented.source
         if capabilities.source == "provider_default"
         else f"{capabilities.source}+{documented.source}",

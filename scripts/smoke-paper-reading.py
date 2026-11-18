@@ -76,7 +76,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
     def exercise(base: str, token: str, provider: PaperProvider, pdf: Path) -> dict[str, Any]:
         request, wait_job = shared.request, shared.wait_job
         health = request(base, token, "GET", "/health")
-        assert health["schema_version"] == "lite0010" and health["database"] == "ready"
+        assert health["schema_version"] == "lite0011" and health["database"] == "ready"
         project = request(base, token, "POST", "/projects", {"name": "Synthetic whole-paper smoke"})
         imported = request(
             base,
@@ -93,7 +93,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
             base, token, "POST", document_url + "/refresh", {"document_version_id": revision}
         )
         ids = [unit["id"] for unit in refreshed["units"] if unit["kind"] == "paragraph"]
-        assert ids and refreshed["projection_version"] == "reading-document-1"
+        assert ids and refreshed["projection_version"] == "reading-document-2"
         assert all(unit["sources"] for unit in refreshed["units"] if unit["kind"] == "paragraph")
         usage_url = f"/projects/{project['id']}/lite/usage"
         assert request(base, token, "GET", usage_url)["calls"] == 0 and not provider.calls

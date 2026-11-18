@@ -1138,12 +1138,17 @@ main {
   letter-spacing: 1.6px;
 }
 .dialog {
+  box-sizing: border-box;
   border: 1px solid #d5decd;
   border-radius: 14px;
   background: #fafbf7;
   color: #34503c;
   padding: 28px 30px;
   width: min(510px, 90vw);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 0 20px 80px #14291d30;
 }
 .dialog::backdrop {
@@ -1437,8 +1442,9 @@ main {
   margin: 0;
 }
 .import-dialog {
-  max-height: 88vh;
-  overflow-y: auto;
+  width: min(760px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
 }
 .task-center-card {
   margin-top: 20px;
@@ -1466,6 +1472,71 @@ main {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+}
+.import-plan-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dce5d8;
+  border-radius: 8px;
+  background: #f8fbf5;
+}
+.import-plan-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.import-plan-heading p {
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+.import-plan-badge {
+  padding: 4px 8px;
+  border: 1px solid #bfd3bf;
+  border-radius: 999px;
+  color: #47714e;
+  background: #edf6eb;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.import-plan-options,
+.import-plan-fieldset {
+  display: grid;
+  gap: 8px;
+}
+.import-plan-fieldset {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #dce5d8;
+  border-radius: 6px;
+  background: white;
+}
+.import-plan-fieldset legend {
+  padding: 0 5px;
+  color: #60735e;
+  font-size: 11px;
+}
+.import-plan-select {
+  display: grid;
+  gap: 4px;
+  color: #60735e;
+  font-size: 11px;
+}
+.import-plan-select select {
+  width: 100%;
+  margin: 0;
+}
+.import-plan-materials {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #5f755f;
+  font-size: 11px;
+}
+.import-plan-warning {
+  margin: 0;
+  color: #866a3d;
 }
 .paper-workbench select {
   max-width: 100%;
@@ -2138,6 +2209,26 @@ main {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.paper-management-actions,
+.paper-title-edit,
+.model-document-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.paper-management-actions {
+  margin-top: 12px;
+}
+.paper-title-edit input {
+  width: min(520px, 65vw);
+  min-width: 180px;
+}
+.paper-management-status {
+  margin: 8px 0 0;
+  color: #47634e;
+  font-size: 13px;
+}
 .paper-workspace-tabs {
   margin: 20px 0 0;
   padding: 0;
@@ -2252,4 +2343,68 @@ main {
   .paper-metadata-body {
     padding: 22px 18px;
   }
+}
+.model-document-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  text-align: left;
+}
+.model-document-summary,
+.model-document-output > header,
+.model-document-segment > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+}
+.model-document-summary span,
+.model-document-segment > header span,
+.model-document-segment > header em,
+.model-document-output > header span {
+  color: var(--muted, #718096);
+  font-size: 0.85rem;
+}
+.model-document-segments {
+  display: grid;
+  gap: 0.5rem;
+}
+.model-document-segment,
+.model-document-output {
+  padding: 0.75rem;
+  border: 1px solid var(--border, #dbe3ea);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+}
+.model-document-segment-editor,
+.model-document-output-editor {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.model-document-segment-editor label,
+.model-document-output-editor label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted, #52665b);
+  font-size: 0.85rem;
+}
+.model-document-segment-editor textarea,
+.model-document-output-editor textarea {
+  width: 100%;
+  min-height: 5rem;
+  resize: vertical;
+  font: inherit;
+}
+.model-document-segment p,
+.model-document-output p {
+  white-space: pre-wrap;
+}
+.model-document-formula,
+.model-document-table {
+  overflow-x: auto;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--surface-muted, #f5f7fa);
+  white-space: pre-wrap;
 }

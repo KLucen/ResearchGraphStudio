@@ -2,13 +2,21 @@
 
 import re
 from collections.abc import Callable
+from pathlib import Path
 
 from fastapi import FastAPI, Query
 from sqlalchemy import Engine, select, text
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
-from researchgraph.document_structure import current_structure
+from researchgraph.document_structure import (
+    active_section_rows,
+    block_section_refs,
+    current_navigation_rows,
+    current_structure,
+    section_model_spans,
+    section_spans,
+)
 from researchgraph.models import AttachmentRevision, Chunk, EvidenceSpan, Paper, Project, Section
 from researchgraph.schemas import (
     DocumentStructure,
@@ -19,6 +27,7 @@ from researchgraph.schemas import (
     SectionView,
 )
 from researchgraph.storage import read_session
+from researchgraph.structure_upgrade import ensure_structure_v2
 
 
 def index_document(session: Session, revision_id: str) -> None:
@@ -32,12 +41,14 @@ def index_document(session: Session, revision_id: str) -> None:
     artifact = current_structure(session, revision_id)
     if artifact is None:
         return
+    active_section_rows(session, revision_id)
     sections = {s["id"]: s for s in artifact.data.get("sections", [])}
     chunks = {
         c.id: c for c in session.scalars(select(Chunk).where(Chunk.revision_id == revision_id))
     }
     for block in artifact.data.get("blocks", []):
         section = sections.get(block.get("section_ref"))
+        containing = [sections.get(ref) for ref in block_section_refs(block, sections)]
         chunk = chunks.get(block.get("chunk_id"))
         if (
             not section
@@ -45,9 +56,18 @@ def index_document(session: Session, revision_id: str) -> None:
             or block.get("excluded")
             or section.get("excluded")
             or section.get("role") == "references"
+            or any(
+                not entry or entry.get("excluded") or entry.get("role") == "references"
+                for entry in containing
+            )
         ):
             continue
-        if chunk.text != block.get("text") or chunk.page_index != block.get("page_index"):
+        if (
+            chunk.text != block.get("text")
+            or chunk.page_index != block.get("page_index")
+            or chunk.bbox != block.get("bbox")
+            or chunk.block_index != block.get("block_index")
+        ):
             raise KnowledgeError("PARSE_ANCHOR_MISMATCH", "章节与原文索引不一致")
         session.execute(
             text(
@@ -68,20 +88,13 @@ def index_document(session: Session, revision_id: str) -> None:
 def section_views(session: Session, revision_id: str) -> list[SectionView]:
     if session.get(AttachmentRevision, revision_id) is None:
         raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
-    spans = session.scalars(
-        select(EvidenceSpan)
-        .where(EvidenceSpan.document_version_id == revision_id)
-        .order_by(EvidenceSpan.page_index, EvidenceSpan.paragraph_id)
-    ).all()
-    rows = session.scalars(
-        select(Section)
-        .where(Section.document_version_id == revision_id)
-        .order_by(Section.ordinal, Section.id)
-    ).all()
+    # Keep legacy printed-contents rows out of navigation even when the
+    # registered PDF is temporarily unavailable for the one-time v2 upgrade.
+    rows = current_navigation_rows(session, revision_id)
     out = []
     for row in rows:
         view = SectionView.model_validate(row)
-        selected = [span for span in spans if span.section_id == row.id]
+        selected = section_spans(session, row)
         view.text = "\n".join(span.quote for span in selected)
         view.chunk_ids = [span.paragraph_id for span in selected]
         out.append(view)
@@ -115,6 +128,7 @@ def search(
             and version.paper_id != paper_id
         ):
             raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不属于当前论文")
+    scoped_chunks: list[str] | None = None
     if section_id:
         section = session.get(Section, section_id)
         version = session.get(AttachmentRevision, section.document_version_id) if section else None
@@ -130,6 +144,11 @@ def search(
             and version.id != revision_id
         ):
             raise KnowledgeError("SECTION_NOT_FOUND", "章节不属于当前论文范围")
+        scoped_chunks = list(
+            dict.fromkeys(span.paragraph_id for span in section_model_spans(session, section))
+        )
+        if not scoped_chunks:
+            return []
     sql = (
         "SELECT f.chunk_id,f.paper_id,f.document_version_id,f.section_id,f.text,"
         "bm25(chunk_fts) AS score,c.page_index,c.page_label "
@@ -144,11 +163,17 @@ def search(
     for name, value in (
         ("paper_id", paper_id),
         ("document_version_id", revision_id),
-        ("section_id", section_id),
     ):
         if value:
             sql += f" AND f.{name}=:{name}"
             params[name] = value
+    if scoped_chunks is not None:
+        placeholders = []
+        for index, chunk_id in enumerate(scoped_chunks):
+            key = f"scope_chunk_{index}"
+            placeholders.append(f":{key}")
+            params[key] = chunk_id
+        sql += " AND f.chunk_id IN (" + ",".join(placeholders) + ")"
     sql += " ORDER BY score,f.chunk_id LIMIT :limit"
     params["limit"] = max(1, min(limit, 50))
     return [
@@ -156,7 +181,9 @@ def search(
     ]
 
 
-def register_local_index_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
+def register_local_index_api(
+    app: FastAPI, engine: Callable[[], Engine], data_dir: Path | None = None
+) -> None:
     @app.get("/api/v1/papers/{paper_id}/search", response_model=SearchResults)
     def paper_search(
         paper_id: str,
@@ -195,6 +222,14 @@ def register_local_index_api(app: FastAPI, engine: Callable[[], Engine]) -> None
 
     @app.get("/api/v1/revisions/{revision_id}/sections", response_model=SectionList)
     def revision_sections(revision_id: str) -> SectionList:
+        # Existing Lite databases may still have the old parse where printed
+        # contents entries were promoted to chapters. Upgrade once from the
+        # registered, hash-checked PDF before returning the tree.
+        with read_session(engine()) as session:
+            revision = session.get(AttachmentRevision, revision_id)
+            paper_id = revision.paper_id if revision else None
+        if paper_id:
+            ensure_structure_v2(engine(), paper_id, revision_id, data_dir)
         with read_session(engine()) as session:
             return SectionList(
                 document_version_id=revision_id, sections=section_views(session, revision_id)
@@ -202,6 +237,11 @@ def register_local_index_api(app: FastAPI, engine: Callable[[], Engine]) -> None
 
     @app.get("/api/v1/revisions/{revision_id}/structure", response_model=DocumentStructure)
     def structure(revision_id: str) -> DocumentStructure:
+        with read_session(engine()) as session:
+            revision = session.get(AttachmentRevision, revision_id)
+            paper_id = revision.paper_id if revision else None
+        if paper_id:
+            ensure_structure_v2(engine(), paper_id, revision_id, data_dir)
         with read_session(engine()) as session:
             sections = section_views(session, revision_id)
             artifact = current_structure(session, revision_id)

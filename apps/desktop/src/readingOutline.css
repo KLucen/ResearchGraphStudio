@@ -93,9 +93,31 @@
   padding: 6px;
   border-top: 1px solid #e1e7dd;
 }
-.reading-outline-list button {
+.reading-outline-tree,
+.reading-outline-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reading-outline-children {
+  margin-left: 12px;
+  padding-left: 3px;
+  border-left: 1px solid #e1e7dd;
+}
+.reading-outline-children[data-indent="false"] {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+.reading-outline-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+.reading-outline-entry {
   display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   margin: 2px 0;
   padding: 10px;
   border: 0;
@@ -109,11 +131,32 @@
   overflow-wrap: anywhere;
   cursor: pointer;
 }
-.reading-outline-list button[aria-current="location"] {
+.reading-outline-entry[aria-current="location"] {
   border-left-color: #4f7c61;
   color: #2e6046;
   background: #e7efe0;
   font-weight: 600;
+}
+.reading-outline-branch,
+.reading-outline-leaf-space {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex: 0 0 25px;
+  width: 25px;
+  height: 34px;
+  margin-top: 5px;
+}
+.reading-outline-branch {
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: #70816d;
+  background: transparent;
+  cursor: pointer;
+}
+.reading-outline-row[data-current-branch="true"] > .reading-outline-branch {
+  color: #2e6046;
 }
 .reading-outline-list small {
   display: block;

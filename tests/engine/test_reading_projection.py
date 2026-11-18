@@ -23,14 +23,16 @@ from researchgraph.pdf_structure import parse_structure
 from researchgraph.reading_document_models import ReadingDocumentProjection
 from researchgraph.reading_projection import build_reading_document
 from researchgraph.structure_models import DocumentParse
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 
-def store(document, tmp_path=None, *, legacy=False):
+def store(document, tmp_path=None, *, legacy=False, structure_data=None):
     content = document.tobytes()
     digest = hashlib.sha256(content).hexdigest()
-    structure = parse_structure(document)
+    structure = (
+        deepcopy(structure_data) if structure_data is not None else parse_structure(document)
+    )
     if legacy:
         structure.pop("figures", None)
         structure.pop("page_geometry", None)
@@ -401,6 +403,91 @@ def test_changed_external_pdf_is_not_used_or_overwritten(tmp_path):
         assert path.read_bytes() == b"%PDF-private-replacement"
 
 
+def test_refresh_recovers_versioned_tree_without_rewriting_old_sources_or_sections(tmp_path):
+    with pymupdf.open() as document:
+        for number in range(1, 6):
+            page = document.new_page()
+            page.insert_text((45, 90), f"{number} SYNTHETIC STAGE", fontsize=12, fontname="hebo")
+            textbox(
+                page, 45, 125, f"Stage {number} contains uniquely identifiable source prose. " * 4
+            )
+            if number == 3:
+                page.insert_text((45, 310), "3.1 Synthetic Component", fontsize=12, fontname="hebo")
+                textbox(
+                    page, 45, 345, "This component preserves the original textual evidence. " * 3
+                )
+                page.insert_text((45, 500), "3.1.1 Detailed Protocol", fontsize=12, fontname="hebo")
+                textbox(
+                    page,
+                    45,
+                    535,
+                    "Detailed protocol text stays available after local refresh. " * 3,
+                )
+        fresh = parse_structure(document)
+        old = deepcopy(fresh)
+        old["parser_version"] = "synthetic-old-missing-headings"
+        intro_ref = old["sections"][1]["id"]
+        old["sections"] = old["sections"][:2]
+        old["sections"][1]["end_page"] = len(document) - 1
+        for block in old["blocks"]:
+            if block["section_ref"] not in {"s0", intro_ref}:
+                block["section_ref"] = intro_ref
+                block["kind"] = "paragraph"
+                for key in ("heading_text", "heading_size", "heading_candidates"):
+                    block.pop(key, None)
+        engine, paper, revision = store(document, tmp_path, structure_data=old)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE VIRTUAL TABLE chunk_fts USING fts5("
+                "chunk_id UNINDEXED,paper_id UNINDEXED,document_version_id UNINDEXED,"
+                "section_id UNINDEXED,text)"
+            )
+        )
+    with Session(engine) as session, session.begin():
+        originals = {
+            model: {
+                row.id: deepcopy(
+                    {column.name: getattr(row, column.name) for column in model.__table__.columns}
+                )
+                for row in session.scalars(select(model))
+            }
+            for model in (Chunk, Section, EvidenceSpan, DocumentParse)
+        }
+        before = build_reading_document(session, paper, revision)
+        assert len(before.sections) == 2
+        after = build_reading_document(session, paper, revision, refresh=True)
+        assert after.projection_version == "reading-document-2"
+        assert after.projection_hash != before.projection_hash
+        titles = [section.title for section in after.sections]
+        assert all(f"{number} SYNTHETIC STAGE" in titles for number in range(1, 6))
+        by_title = {section.title: section for section in after.sections}
+        assert (
+            by_title["3.1 Synthetic Component"].parent_id
+            == by_title["3 SYNTHETIC STAGE"].section_id
+        )
+        assert (
+            by_title["3.1.1 Detailed Protocol"].parent_id
+            == by_title["3.1 Synthetic Component"].section_id
+        )
+        for model, rows in originals.items():
+            for old_id, values in rows.items():
+                row = session.get(model, old_id)
+                assert row is not None
+                assert {
+                    column.name: getattr(row, column.name) for column in model.__table__.columns
+                } == values
+        for unit in after.units:
+            for source in unit.sources:
+                chunk = session.get(Chunk, source.chunk_id)
+                assert chunk.text[source.start_offset : source.end_offset] == source.text
+                assert source.text_hash == text_hash(source.text)
+        count = len(list(session.scalars(select(DocumentParse))))
+        again = build_reading_document(session, paper, revision, refresh=True)
+        assert again.projection_hash == after.projection_hash
+        assert len(list(session.scalars(select(DocumentParse)))) == count
+
+
 def test_scanned_image_only_page_has_material_and_ocr_warning():
     with pymupdf.open() as document:
         page = document.new_page(width=600, height=800)
@@ -439,3 +526,208 @@ def test_each_read_revalidates_raw_sources_and_cannot_reuse_corrupt_projection(t
         with pytest.raises(KnowledgeError):
             build_reading_document(session, paper, revision)
         assert len(list(session.scalars(select(ReadingDocumentProjection)))) == 1
+
+
+def assert_original_coverage(session, view):
+    sources = [source for unit in view.units for source in unit.sources]
+    for chunk in session.scalars(select(Chunk)):
+        counts = [0] * len(chunk.text)
+        for source in sources:
+            if source.chunk_id != chunk.id:
+                continue
+            assert chunk.text[source.start_offset : source.end_offset] == source.text
+            assert source.text_hash == text_hash(source.text)
+            for offset in range(source.start_offset, source.end_offset):
+                counts[offset] += 1
+        assert all(
+            counts[offset] == 1
+            for offset, character in enumerate(chunk.text)
+            if not character.isspace()
+        )
+
+
+def candidate_document():
+    document = pymupdf.open()
+    page = document.new_page()
+    page.insert_text((45, 90), "The preceding source sentence remains ordinary text.", fontsize=11)
+    page.insert_text((45, 104), "2 SYNTHETIC METHOD", fontsize=11, fontname="hebo")
+    page.insert_text((45, 118), "The middle source sentence remains ordinary text.", fontsize=11)
+    page.insert_text((45, 132), "2.1 Detailed Protocol", fontsize=11, fontname="hebo")
+    page.insert_text((45, 146), "The following source sentence remains ordinary text.", fontsize=11)
+    return document
+
+
+def test_nonleading_and_multiple_titles_preserve_every_original_character_once():
+    with candidate_document() as document:
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        view = build_reading_document(session, paper, revision)
+        headings = [unit for unit in view.units if unit.kind == "heading"]
+        assert [unit.text for unit in headings] == ["2 SYNTHETIC METHOD", "2.1 Detailed Protocol"]
+        assert [unit.heading_level for unit in headings] == [1, 2]
+        paragraphs = body(view)
+        assert len(paragraphs) == 3
+        assert paragraphs[0].section_id != headings[0].section_id
+        assert paragraphs[1].section_id == headings[0].section_id
+        assert paragraphs[2].section_id == headings[1].section_id
+        assert_original_coverage(session, view)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("start_offset", True),
+        ("start_offset", -1),
+        ("end_offset", 1_000_000),
+        ("text", "The source title was changed"),
+        ("level", "2"),
+        ("level", 1.5),
+        ("level", True),
+        ("level", -1),
+        ("section_ref", None),
+        ("section_ref", "missing-section"),
+        ("section_ref", "s0"),
+    ],
+)
+def test_corrupt_candidate_metadata_is_rejected_before_projection(field, value):
+    with candidate_document() as document:
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        artifact = session.scalar(select(DocumentParse))
+        data = deepcopy(artifact.data)
+        block = next(item for item in data["blocks"] if item["heading_candidates"])
+        block["heading_candidates"][0][field] = value
+        artifact.data = data
+        session.flush()
+        with pytest.raises(KnowledgeError, match="章节|标题"):
+            build_reading_document(session, paper, revision)
+        assert not list(session.scalars(select(ReadingDocumentProjection)))
+
+
+def test_overlapping_candidate_ranges_are_rejected():
+    with candidate_document() as document:
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        artifact = session.scalar(select(DocumentParse))
+        data = deepcopy(artifact.data)
+        block = next(item for item in data["blocks"] if len(item["heading_candidates"]) == 2)
+        block["heading_candidates"].append(deepcopy(block["heading_candidates"][0]))
+        artifact.data = data
+        session.flush()
+        with pytest.raises(KnowledgeError, match="章节|标题"):
+            build_reading_document(session, paper, revision)
+
+
+def test_references_starting_inside_body_block_remain_material():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((45, 90), "1 Methods", fontsize=11, fontname="hebo")
+        page.insert_text((45, 104), "The scientific source body is retained.", fontsize=11)
+        page.insert_text((45, 118), "References", fontsize=11, fontname="hebo")
+        page.insert_text((45, 132), "A synthetic bibliography item dated 2024.", fontsize=11)
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        view = build_reading_document(session, paper, revision)
+        assert any(unit.text == "1 Methods" for unit in view.units if unit.kind == "heading")
+        assert not any("bibliography" in unit.text for unit in body(view))
+        reference = next(unit for unit in view.units if "bibliography" in unit.text)
+        assert reference.kind == "material" and reference.material_type == "reference"
+        assert_original_coverage(session, view)
+
+
+def test_appendix_inside_reference_block_resumes_body_without_releasing_reference_text():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((45, 90), "References", fontsize=11, fontname="hebo")
+        page.insert_text((45, 104), "A synthetic bibliography item dated 2024.", fontsize=11)
+        page.insert_text((45, 118), "Appendix A Additional Protocol", fontsize=11, fontname="hebo")
+        page.insert_text(
+            (45, 132), "The additional protocol is ordinary scientific body text.", fontsize=11
+        )
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        view = build_reading_document(session, paper, revision)
+        assert any("additional protocol is ordinary" in unit.text for unit in body(view))
+        assert not any("bibliography" in unit.text for unit in body(view))
+        assert_original_coverage(session, view)
+
+
+def test_printed_contents_stay_separate_material_without_heading_or_readable_body():
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((45, 90), "Contents", fontsize=14, fontname="hebo")
+        for row, (number, title, label) in enumerate(
+            [("1", "Introduction", "1"), ("2", "Synthetic Method", "3"), ("5", "Conclusion", "10")]
+        ):
+            y = 130 + row * 35
+            page.insert_text((45, y), number, fontsize=11, fontname="hebo")
+            page.insert_text((90, y), title, fontsize=11, fontname="hebo")
+            page.insert_text((510, y), label, fontsize=11, fontname="hebo")
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        view = build_reading_document(session, paper, revision)
+        assert not body(view)
+        assert not any(unit.kind == "heading" for unit in view.units)
+        assert len([unit for unit in view.units if unit.material_type == "contents"]) == 4
+        assert_original_coverage(session, view)
+
+
+def test_bookmarked_heading_is_not_swallowed_by_false_table_membership(monkeypatch):
+    from researchgraph import pdf_structure
+
+    def false_table(page, blocks, warnings):
+        for block in blocks:
+            block["kind"] = "table"
+            block["table_regions"] = [[0.0, 0.0, 595.0, 800.0]]
+        return [
+            {
+                "page_index": 0,
+                "bbox": [0.0, 0.0, 595.0, 800.0],
+                "block_refs": [b["ref"] for b in blocks],
+            }
+        ]
+
+    monkeypatch.setattr(pdf_structure, "_tables", false_table)
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((45, 90), "4.2 OVERALL PERFORMANCE", fontsize=11)
+        textbox(page, 45, 130, "This paragraph has uncertain graphical table membership.")
+        document.set_toc([[1, "Experiments", 1], [2, "Overall Performance", 1]])
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        view = build_reading_document(session, paper, revision)
+        title = next(unit for unit in view.units if unit.text == "4.2 OVERALL PERFORMANCE")
+        assert title.kind == "heading" and title.heading_level == 2
+        assert_original_coverage(session, view)
+
+
+@pytest.mark.parametrize("container", [None, "invalid", {}, 3, True])
+def test_invalid_candidate_container_fails_with_source_error(container):
+    with candidate_document() as document:
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        artifact = session.scalar(select(DocumentParse))
+        data = deepcopy(artifact.data)
+        block = next(item for item in data["blocks"] if item["heading_candidates"])
+        block["heading_candidates"] = container
+        artifact.data = data
+        session.flush()
+        with pytest.raises(KnowledgeError, match="章节标题候选"):
+            build_reading_document(session, paper, revision)
+        assert not list(session.scalars(select(ReadingDocumentProjection)))
+
+
+@pytest.mark.parametrize("item", [None, "invalid", [], 3, True])
+def test_invalid_candidate_item_fails_with_source_error(item):
+    with candidate_document() as document:
+        engine, paper, revision = store(document)
+    with Session(engine) as session, session.begin():
+        artifact = session.scalar(select(DocumentParse))
+        data = deepcopy(artifact.data)
+        block = next(item for item in data["blocks"] if item["heading_candidates"])
+        block["heading_candidates"] = [item]
+        artifact.data = data
+        session.flush()
+        with pytest.raises(KnowledgeError, match="章节标题候选"):
+            build_reading_document(session, paper, revision)
+        assert not list(session.scalars(select(ReadingDocumentProjection)))

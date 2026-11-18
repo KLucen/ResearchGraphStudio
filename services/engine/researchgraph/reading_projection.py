@@ -12,6 +12,7 @@ import json
 import re
 from collections import defaultdict
 from copy import deepcopy
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError, stable_id, text_hash
-from researchgraph.document_structure import current_structure
+from researchgraph.document_structure import apply_structure, current_structure
 from researchgraph.models import (
     AttachmentRevision,
     Chunk,
@@ -124,6 +125,7 @@ def _scope(
                 or span.quote != chunk.text[span.start_offset : span.end_offset]
                 or span.text_sha256 != text_hash(span.quote)
                 or span.page_index != chunk.page_index
+                or span.bbox_list != [chunk.bbox]
                 or span.normalization != "identity-v1"
                 or span.section_id not in known_sections
             ):
@@ -161,7 +163,13 @@ def _layout(
             ):
                 raise KnowledgeError("READING_SOURCE_INVALID", "结构文字块与原始定位不一致")
             seen.add(chunk.id)
-            block["section_id"] = spans[chunk.id][0].section_id
+            section = next(
+                (item for item in data.get("sections", []) if item["id"] == block["section_ref"]),
+                None,
+            )
+            if section is None or not isinstance(section.get("section_id"), str):
+                raise KnowledgeError("READING_SOURCE_INVALID", "结构章节映射不完整")
+            block["section_id"] = section["section_id"]
         if seen != set(by_id):
             raise KnowledgeError("READING_SOURCE_INVALID", "结构解析未覆盖全部原始块")
         return data
@@ -183,8 +191,42 @@ def _layout(
         ],
         "tables": [],
         "figures": [],
+        "formulas": [],
         "warnings": ["旧解析缺少精细版面信息；可点击本地重新整理，原文与历史数据保持。"],
     }
+
+
+def _merge_projection_scan(layout: dict[str, Any], scan: Any, revision: AttachmentRevision) -> None:
+    """Use the same formula precedence and source gate for prepare and publish.
+
+    An older scan is only a fallback for parses without a formula list. In
+    particular it cannot overwrite newly recognized metadata or resurrect a
+    deleted candidate from the current source structure.
+    """
+    current_formulas = "parser_version" in layout and isinstance(layout.get("formulas"), list)
+    if isinstance(scan, dict):
+        for key in ("figures", "tables", "formulas", "page_geometry"):
+            if key in scan and not (key == "formulas" and current_formulas):
+                layout[key] = deepcopy(scan[key])
+    from researchgraph.formula_api import stored_formula_candidate
+
+    formulas: list[dict[str, Any]] = []
+    for record in layout.get("formulas", []):
+        if not isinstance(record, dict):
+            continue
+        candidate = stored_formula_candidate(record, revision)
+        if candidate is None:
+            continue
+        normalized = deepcopy(record)
+        normalized.update(
+            id=candidate.id,
+            formula_id=candidate.id,
+            status=candidate.status,
+            latex=candidate.latex,
+            confidence=candidate.confidence,
+        )
+        formulas.append(normalized)
+    layout["formulas"] = formulas
 
 
 def _scan_pdf(
@@ -227,7 +269,7 @@ def _scan_pdf(
             with pymupdf.open(stream=content, filetype="pdf") as document:
                 if document.needs_pass or document.page_count != revision.page_count:
                     continue
-                fresh = parse_structure(document)
+                fresh = parse_structure(document, revision.id)
             return fresh, []
         except (OSError, ValueError, RuntimeError):
             continue
@@ -337,6 +379,120 @@ def _heading_end(block: dict[str, Any]) -> int:
     return len(block["text"])
 
 
+def _block_units(
+    block: dict[str, Any],
+    spans: dict[str, list[EvidenceSpan]],
+    sections: dict[str, Section],
+    section_refs: dict[str, str],
+    tables: list[dict[str, Any]],
+    figures: list[dict[str, Any]],
+) -> list[ReadingUnit]:
+    """Split only source-verified title ranges; never synthesize source text."""
+    kind, material, confidence, reason, solution = _classify(block, sections, tables, figures)
+    candidates = block.get("heading_candidates", [])
+    if not isinstance(candidates, list):
+        raise KnowledgeError("READING_SOURCE_INVALID", "章节标题候选结构无效")
+    units: list[ReadingUnit] = []
+    if candidates and block.get("kind") not in {"contents", "toc_entry", "header", "footer"}:
+        cursor = 0
+        source_block = dict(block)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                raise KnowledgeError("READING_SOURCE_INVALID", "章节标题候选结构无效")
+            start, end = candidate.get("start_offset"), candidate.get("end_offset")
+            title, level = candidate.get("text"), candidate.get("level")
+            candidate_ref = candidate.get("section_ref")
+            section_id = section_refs.get(candidate_ref) if isinstance(candidate_ref, str) else None
+            section = sections.get(section_id) if section_id else None
+            if (
+                type(start) is not int
+                or type(end) is not int
+                or not cursor <= start < end <= len(block["text"])
+                or not isinstance(title, str)
+                or not title.strip()
+                or _clean(block["text"][start:end]) != _clean(title)
+                or type(level) is not int
+                or level < 1
+                or section is None
+                or section.level != level
+                or _clean(section.title) != _clean(title)
+                or section.role != candidate.get("role")
+            ):
+                raise KnowledgeError("READING_SOURCE_INVALID", "章节标题与原始字符范围不匹配")
+            if block["text"][cursor:start].strip():
+                units.append(
+                    _classified_fragment(
+                        source_block, spans, sections, tables, figures, cursor, start
+                    )
+                )
+            source_block["section_id"] = section_id
+            source_block["excluded"] = section.excluded
+            heading_kind, heading_material, *_ = _classify(
+                {**source_block, "kind": "heading"}, sections, tables, figures
+            )
+            heading = _unit(
+                source_block,
+                spans,
+                start=start,
+                end=end,
+                kind=heading_kind,
+                material_type=heading_material,
+            )
+            heading.heading_level = level if heading_kind == "heading" else None
+            units.append(heading)
+            cursor = end
+        if block["text"][cursor:].strip():
+            units.append(
+                _classified_fragment(
+                    source_block, spans, sections, tables, figures, cursor, len(block["text"])
+                )
+            )
+        return units
+    heading_end = _heading_end(block) if kind == "heading" else len(block["text"])
+    unit = _unit(
+        block,
+        spans,
+        end=heading_end,
+        kind=kind,
+        material_type=material,
+        confidence=confidence,
+        reason=reason,
+        solution=solution,
+    )
+    if kind == "heading":
+        unit.heading_level = sections[block["section_id"]].level
+    units.append(unit)
+    if heading_end < len(block["text"]) and block["text"][heading_end:].strip():
+        units.append(_unit(block, spans, start=heading_end))
+    return units
+
+
+def _classified_fragment(
+    block: dict[str, Any],
+    spans: dict[str, list[EvidenceSpan]],
+    sections: dict[str, Section],
+    tables: list[dict[str, Any]],
+    figures: list[dict[str, Any]],
+    start: int,
+    end: int,
+) -> ReadingUnit:
+    probe = {**block, "text": block["text"][start:end]}
+    if probe.get("kind") == "heading":
+        probe["kind"] = "paragraph"
+    kind, material, confidence, reason, solution = _classify(probe, sections, tables, figures)
+    return _unit(
+        block,
+        spans,
+        start=start,
+        end=end,
+        kind=kind,
+        material_type=material,
+        confidence=confidence,
+        reason=reason,
+        solution=solution,
+    )
+
+
 def _near_region(block: dict[str, Any], regions: list[dict[str, Any]]) -> bool:
     bbox = block["bbox"]
     return any(
@@ -387,6 +543,14 @@ def _classify(
 ) -> tuple[str, str | None, str, str | None, str | None]:
     text = _clean(block["text"])
     section = sections[block["section_id"]]
+    if block.get("kind") in {"contents", "toc_entry"}:
+        return (
+            "material",
+            "contents",
+            "high",
+            "原始 PDF 内的目录条目，保留原文但不重复生成正文标题。",
+            "请使用左侧按正文标题生成的文章目录；此处可核对原 PDF 中的页码条目。",
+        )
     if section.role == "references" or section.excluded:
         return (
             "material",
@@ -403,6 +567,8 @@ def _classify(
             "重复页眉、页脚或页码。",
             "原文与页码保留在材料区，不当作正文段落。",
         )
+    if block.get("kind") in {"heading", "document_title"}:
+        return "heading", None, "high", None, None
     if CAPTION.match(text) or (
         CAPTION_PREFIX.match(text) and _geometric_caption(block, [*tables, *figures])
     ):
@@ -436,8 +602,6 @@ def _classify(
             "展开保留的原文并到对应 PDF 页查看；若实际是正文，"
             "可反馈版面样例改进规则，系统不会猜补语义。",
         )
-    if block.get("kind") in {"heading", "document_title"}:
-        return "heading", None, "high", None, None
     return "paragraph", None, "high", None, None
 
 
@@ -574,7 +738,11 @@ def _assemble(
     for page, page_geometry in geometry.items():
         page_geometry["material_regions"] = [
             region["bbox"]
-            for region in [*layout.get("tables", []), *layout.get("figures", [])]
+            for region in [
+                *layout.get("tables", []),
+                *layout.get("figures", []),
+                *layout.get("formulas", []),
+            ]
             if region["page_index"] == page
         ]
     ordered = [
@@ -584,23 +752,10 @@ def _assemble(
     ]
     units: list[ReadingUnit] = []
     tables, figures = layout.get("tables", []), layout.get("figures", [])
+    formulas = layout.get("formulas", [])
+    section_refs = {str(item["id"]): str(item["section_id"]) for item in layout.get("sections", [])}
     for block in ordered:
-        kind, material, confidence, reason, solution = _classify(block, by_section, tables, figures)
-        heading_end = _heading_end(block) if kind == "heading" else len(block["text"])
-        units.append(
-            _unit(
-                block,
-                spans,
-                end=heading_end,
-                kind=kind,
-                material_type=material,
-                confidence=confidence,
-                reason=reason,
-                solution=solution,
-            )
-        )
-        if heading_end < len(block["text"]) and block["text"][heading_end:].strip():
-            units.append(_unit(block, spans, start=heading_end))
+        units.extend(_block_units(block, spans, by_section, section_refs, tables, figures))
     page_bodies: dict[int, list[str]] = defaultdict(list)
     for unit in units:
         if unit.kind == "paragraph":
@@ -662,6 +817,70 @@ def _assemble(
                 )
             )
         )
+    for formula in formulas:
+        page = int(formula["page_index"])
+        nearest = [unit for unit in merged if unit.page_start <= page + 1 <= unit.page_end]
+        section_id = nearest[0].section_id if nearest else sections[0].id if sections else ""
+        source_text = str(formula.get("text", ""))
+        formula_id = formula.get("formula_id") or formula.get("id")
+        # Older structure artifacts predate revision-bound formula IDs.  Keep
+        # them usable by deriving the exact API identity from the current
+        # source revision and the preserved page/bbox/text fields.
+        try:
+            from researchgraph.formula_api import formula_candidate_id
+
+            formula_id = formula_candidate_id(
+                revision.id,
+                page,
+                [round(float(value), 3) for value in formula["bbox"]],
+                source_text,
+            )
+        except (ImportError, KeyError, TypeError, ValueError):
+            pass
+        region = ReadingRegion(page=page + 1, bbox=formula["bbox"])
+        formula_status = str(formula.get("status", "latex_unavailable"))
+        if formula_status not in {
+            "source_only",
+            "latex_unavailable",
+            "recognized",
+            "needs_review",
+            "failed",
+        }:
+            formula_status = "latex_unavailable"
+        formula_latex = formula.get("latex")
+        if not isinstance(formula_latex, str) or not formula_latex.strip():
+            formula_latex = None
+        if formula_status != "recognized":
+            formula_latex = None
+        merged.append(
+            _finish(
+                ReadingUnit(
+                    id="",
+                    kind="material",
+                    material_type="formula",
+                    section_id=section_id,
+                    text=source_text,
+                    page_start=page + 1,
+                    page_end=page + 1,
+                    ordinal=0,
+                    source_hash="",
+                    sources=[],
+                    regions=[region],
+                    confidence=formula.get("confidence", "suspected"),
+                    reason="依据 PDF 版面检测到疑似独立公式区域。",
+                    solution=(
+                        "当前保留原始公式文字和定位；请打开公式原图核对。"
+                        if formula_status != "recognized"
+                        else "LaTeX 由本地公式识别器生成；请结合原图核对上下标、分数和积分上下限。"
+                    ),
+                    formula_latex=formula_latex,
+                    formula_status=cast(Any, formula_status),
+                    formula_confidence=formula.get("confidence", "suspected"),
+                    formula_source_text=source_text,
+                    formula_id=formula_id,
+                )
+            )
+        )
     for ordinal, unit in enumerate(merged, start=1):
         unit.ordinal = ordinal
     warnings = list(dict.fromkeys([*layout.get("warnings", []), *extra_warnings]))
@@ -674,14 +893,20 @@ def _assemble(
         warnings.append(
             "当前版本没有可精读正文；图像或扫描页需要在原始 PDF 中核对，并另行进行 OCR。"
         )
+    current_ids = {item.get("section_id") for item in layout.get("sections", [])}
+    visible_sections = (
+        [section for section in sections if section.id in current_ids] if current_ids else sections
+    )
     result = DocumentReadingView(
         paper_id=paper_id,
         document_version_id=revision.id,
         source_hash=revision.sha256,
         projection_hash="",
         sections=[
-            ReadingDocumentSection(section_id=s.id, title=s.title, level=s.level, role=s.role)
-            for s in sections
+            ReadingDocumentSection(
+                section_id=s.id, parent_id=s.parent_id, title=s.title, level=s.level, role=s.role
+            )
+            for s in visible_sections
         ],
         units=merged,
         warnings=warnings,
@@ -694,14 +919,143 @@ def _assemble(
     return result
 
 
-def build_reading_document(
+def _archive_fingerprint(
+    revision: AttachmentRevision,
+    chunks: list[Chunk],
+    sections: list[Section],
+    spans: dict[str, list[EvidenceSpan]],
+    layout: dict[str, Any],
+) -> str:
+    """Return the local source/layout identity used by persisted views.
+
+    The reading view is disposable, but it must never be served for a changed
+    source or a different parser layout.  This fingerprint deliberately uses
+    the validated immutable rows and the complete layout (including scan
+    regions), rather than timestamps or file paths.
+    """
+    return _hash(
+        {
+            "projection_version": PROJECTION_VERSION,
+            "revision_id": revision.id,
+            "source_hash": revision.sha256,
+            "chunks": [
+                {
+                    "id": chunk.id,
+                    "page_index": chunk.page_index,
+                    "block_index": chunk.block_index,
+                    "text": chunk.text,
+                    "bbox": chunk.bbox,
+                }
+                for chunk in chunks
+            ],
+            "sections": [
+                {
+                    "id": section.id,
+                    "parent_id": section.parent_id,
+                    "title": section.title,
+                    "level": section.level,
+                    "role": section.role,
+                    "ordinal": section.ordinal,
+                    "excluded": section.excluded,
+                }
+                for section in sections
+            ],
+            "spans": [
+                {
+                    "id": span.id,
+                    "chunk_id": span.paragraph_id,
+                    "section_id": span.section_id,
+                    "start": span.start_offset,
+                    "end": span.end_offset,
+                    "quote": span.quote,
+                    "sha256": span.text_sha256,
+                    "page_index": span.page_index,
+                    "bbox_list": span.bbox_list,
+                    "normalization": span.normalization,
+                }
+                for chunk_id in sorted(spans)
+                for span in spans[chunk_id]
+            ],
+            "layout": layout,
+        }
+    )
+
+
+def _saved_view(
+    row: ReadingDocumentProjection | None,
+    *,
+    paper_id: str,
+    revision: AttachmentRevision,
+    fingerprint: str,
+) -> DocumentReadingView | None:
+    """Validate a persisted view without rebuilding or writing anything."""
+    if row is None or row.source_hash != revision.sha256 or not isinstance(row.data, dict):
+        return None
+    if row.data.get("archive_fingerprint") != fingerprint:
+        return None
+    raw = row.data.get("view")
+    if not isinstance(raw, dict) or row.data.get("archive_view_hash") != _hash(raw):
+        return None
+    try:
+        view = DocumentReadingView.model_validate(raw)
+    except (TypeError, ValueError):
+        return None
+    if (
+        view.paper_id != paper_id
+        or view.document_version_id != revision.id
+        or view.projection_version != PROJECTION_VERSION
+        or view.source_hash != revision.sha256
+        or view.projection_hash != row.projection_hash
+        or view.projection_hash
+        != _hash(view.model_dump(exclude={"projection_hash", "refreshed_at", "warnings"}))
+    ):
+        return None
+    return view
+
+
+@dataclass(frozen=True)
+class PreparedReadingDocument:
+    """A detached reading snapshot, suitable for optimistic short publication."""
+
+    view: DocumentReadingView
+    data: dict[str, Any]
+    fingerprint: str
+    previous_archive_hash: str | None
+    needs_write: bool
+
+
+def _archive_row_hash(row: ReadingDocumentProjection | None) -> str | None:
+    if row is None:
+        return None
+    return _hash(
+        {
+            "document_version_id": row.document_version_id,
+            "projection_version": row.projection_version,
+            "source_hash": row.source_hash,
+            "projection_hash": row.projection_hash,
+            "data": row.data,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+    )
+
+
+def prepare_reading_document(
     session: Session,
     paper_id: str,
     revision_id: str | None,
     refresh: bool = False,
     data_dir: Path | None = None,
-) -> DocumentReadingView:
-    """Build/validate the local reading layer without making any model request."""
+    fresh_scan: tuple[dict[str, Any] | None, list[str]] | None = None,
+) -> PreparedReadingDocument:
+    """Read/assemble local content; refresh alone may publish a new source tree.
+
+    A supplied fresh_scan must have been obtained by _scan_pdf for the same
+    registered revision. The HTTP route can do that expensive work before it
+    opens its short writer transaction.
+    """
+    if refresh and session.get_bind().get_execution_options().get("sqlite_readonly", False):
+        raise KnowledgeError("READING_REFRESH_REQUIRES_WRITE", "重新整理需要写入本地阅读存档")
     revision, chunks, sections, spans = _scope(session, paper_id, revision_id)
     layout = _layout(session, revision, chunks, spans)
     row = session.scalar(
@@ -720,23 +1074,104 @@ def build_reading_document(
                     "READING_SOURCE_INVALID", "图表定位缓存校验失败，请本地重新整理"
                 )
             saved_scan = None
-    if isinstance(saved_scan, dict):
-        for key in ("figures", "tables", "page_geometry"):
-            if key in saved_scan:
-                layout[key] = deepcopy(saved_scan[key])
+    _merge_projection_scan(layout, saved_scan, revision)
+    fingerprint = _archive_fingerprint(revision, chunks, sections, spans, layout)
+    if not refresh:
+        saved = _saved_view(
+            row,
+            paper_id=paper_id,
+            revision=revision,
+            fingerprint=fingerprint,
+        )
+        if saved is not None:
+            assert row is not None
+            return PreparedReadingDocument(
+                view=saved,
+                data=deepcopy(row.data),
+                fingerprint=fingerprint,
+                previous_archive_hash=_archive_row_hash(row),
+                needs_write=False,
+            )
     warnings: list[str] = list(row.data.get("scan_warnings", [])) if row else []
     scan = saved_scan if isinstance(saved_scan, dict) else None
     refreshed_at = row.data.get("refreshed_at") if row else None
     if refresh:
-        fresh, warnings = _scan_pdf(session, revision, data_dir)
+        fresh, warnings = (
+            fresh_scan if fresh_scan is not None else _scan_pdf(session, revision, data_dir)
+        )
         if fresh:
-            # Existing raw text and sections remain authoritative. Only geometry
-            # and graphical-region metadata are refreshed from the same bytes.
-            scan = {key: fresh.get(key, []) for key in ("figures", "tables", "page_geometry")}
-            for key, value in scan.items():
-                layout[key] = deepcopy(value)
+            # Publish a new parser artifact and tree additively. Existing
+            # Sections/Spans and model results retain their original identities.
+            # apply_structure checks every raw block before it writes anything.
+            previous_artifact = current_structure(session, revision.id)
+            try:
+                artifact = apply_structure(session, revision.id, revision.sha256, fresh)
+            except KnowledgeError as error:
+                if error.code != "PARSE_ANCHOR_MISMATCH":
+                    raise
+                warnings.append("新解析与保存的原始块无法逐一匹配，已保留原章节；请核对原始 PDF。")
+            else:
+                from researchgraph.local_index import index_document
+                from researchgraph.structure_upgrade import clear_local_content_cleared
+
+                if previous_artifact is None or previous_artifact.id != artifact.id:
+                    index_document(session, revision.id)
+                clear_local_content_cleared(revision)
+                revision, chunks, sections, spans = _scope(session, paper_id, revision.id)
+                layout = _layout(session, revision, chunks, spans)
+                if artifact.parser_version != fresh.get("parser_version"):
+                    raise KnowledgeError("READING_SOURCE_INVALID", "本地章节版本未正确发布")
+            scan = {
+                key: fresh.get(key, [])
+                for key in ("figures", "tables", "formulas", "page_geometry")
+            }
+            _merge_projection_scan(layout, scan, revision)
             refreshed_at = now()
+    fingerprint = _archive_fingerprint(revision, chunks, sections, spans, layout)
     view = _assemble(paper_id, revision, layout, sections, spans, refreshed_at, warnings)
+    updated_data = {
+        "view": view.model_dump(),
+        "scan": scan,
+        "scan_hash": _hash(scan) if scan else None,
+        "scan_warnings": warnings,
+        "refreshed_at": refreshed_at,
+        "archive_fingerprint": fingerprint,
+        "archive_view_hash": _hash(view.model_dump()),
+    }
+    return PreparedReadingDocument(
+        view=view,
+        data=updated_data,
+        fingerprint=fingerprint,
+        previous_archive_hash=_archive_row_hash(row),
+        needs_write=True,
+    )
+
+
+def publish_reading_document(session: Session, prepared: PreparedReadingDocument) -> bool:
+    """Persist a prepared view only if its source/archive snapshot is current.
+
+    No PDF parsing, paragraph joining or reading-order assembly happens while
+    this helper holds the writer transaction. False means another caller has
+    published a different archive; callers keep their committed reading view
+    and let the next ordinary read observe the newer one.
+    """
+    if not prepared.needs_write:
+        return True
+    view = prepared.view
+    revision, chunks, sections, spans = _scope(session, view.paper_id, view.document_version_id)
+    layout = _layout(session, revision, chunks, spans)
+    row = session.scalar(
+        select(ReadingDocumentProjection).where(
+            ReadingDocumentProjection.document_version_id == revision.id,
+            ReadingDocumentProjection.projection_version == PROJECTION_VERSION,
+        )
+    )
+    if _archive_row_hash(row) != prepared.previous_archive_hash:
+        return False
+    scan = prepared.data.get("scan")
+    _merge_projection_scan(layout, scan, revision)
+    if _archive_fingerprint(revision, chunks, sections, spans, layout) != prepared.fingerprint:
+        return False
     if row is None:
         row = ReadingDocumentProjection(
             id=stable_id("reading-document", revision.id + PROJECTION_VERSION),
@@ -749,21 +1184,30 @@ def build_reading_document(
             updated_at=now(),
         )
         session.add(row)
-    updated_data = {
-        "view": view.model_dump(),
-        "scan": scan,
-        "scan_hash": _hash(scan) if scan else None,
-        "scan_warnings": warnings,
-        "refreshed_at": refreshed_at,
-    }
-    if (
-        row.source_hash != revision.sha256
-        or row.projection_hash != view.projection_hash
-        or row.data != updated_data
-    ):
-        row.source_hash = revision.sha256
-        row.projection_hash = view.projection_hash
-        row.data = updated_data
-        row.updated_at = now()
+    row.source_hash = revision.sha256
+    row.projection_hash = view.projection_hash
+    row.data = deepcopy(prepared.data)
+    row.updated_at = now()
     session.flush()
-    return view
+    return True
+
+
+def build_reading_document(
+    session: Session,
+    paper_id: str,
+    revision_id: str | None,
+    refresh: bool = False,
+    data_dir: Path | None = None,
+    persist: bool = True,
+    fresh_scan: tuple[dict[str, Any] | None, list[str]] | None = None,
+) -> DocumentReadingView:
+    """Validate the local archive, rebuilding only absent/stale derived views."""
+    readonly = session.get_bind().get_execution_options().get("sqlite_readonly", False)
+    if refresh and (not persist or readonly):
+        raise KnowledgeError("READING_REFRESH_REQUIRES_WRITE", "重新整理需要写入本地阅读存档")
+    prepared = prepare_reading_document(
+        session, paper_id, revision_id, refresh=refresh, data_dir=data_dir, fresh_scan=fresh_scan
+    )
+    if persist and not readonly and not publish_reading_document(session, prepared):
+        raise KnowledgeError("READING_SOURCE_CHANGED", "本地原文或阅读存档已变化，请重新读取")
+    return prepared.view

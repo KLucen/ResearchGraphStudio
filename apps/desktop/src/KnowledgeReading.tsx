@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
@@ -8,12 +8,15 @@ import {
   type QAView,
   type ReadingGuide,
   type ReadingParagraph,
+  type Structure,
 } from "./api";
 import { SectionCloseReading } from "./SectionCloseReading";
 import { PaperCloseReading } from "./PaperCloseReading";
 import { ReadingOutline } from "./ReadingOutline";
 
 const sectionTargetId = (id: string) => `reading-section-${id || "all"}`;
+type DirectoryNotice = { sectionId: string; spanKey: string };
+type LocalSearchScope = { sectionId: string; query: string; epoch: number };
 
 export function KnowledgeReading({
   versionId,
@@ -38,6 +41,19 @@ export function KnowledgeReading({
   onOpenGraph?: (nodeId: string) => void;
   onAskParagraph?: (sectionId: string, paragraph: ReadingParagraph) => void;
 }) {
+  const client = useQueryClient();
+  const [directoryNotice, setDirectoryNotice] =
+    useState<DirectoryNotice | null>(
+      () =>
+        client.getQueryData(["reading-directory-notice", paperId, versionId]) ??
+        null,
+    );
+  const [blockedSpanKey, setBlockedSpanKey] = useState<string | null>(
+    directoryNotice?.spanKey ?? null,
+  );
+  const selectedSpanKey = selectedSpanIds.join(",");
+  const usableSpanIds =
+    blockedSpanKey === selectedSpanKey ? [] : selectedSpanIds;
   const [query, setQuery] = useState("");
   const [sectionId, setSectionId] = useState(initialSectionId);
   const [readingMode, setReadingMode] = useState<"paper" | "close" | "guide">(
@@ -48,7 +64,7 @@ export function KnowledgeReading({
   const [allowNetwork, setAllowNetwork] = useState(false);
   const [qaQuestion, setQaQuestion] = useState("");
   const [qaScope, setQaScope] = useState<QAScope>(
-    selectedSpanIds.length ? "selection" : "section",
+    usableSpanIds.length ? "selection" : "section",
   );
   const [qaAllowNetwork, setQaAllowNetwork] = useState(false);
   const [keywordAllowNetwork, setKeywordAllowNetwork] = useState(false);
@@ -60,18 +76,45 @@ export function KnowledgeReading({
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
-  const client = useQueryClient();
+  const searchEpoch = useRef(0);
   const sections = useQuery({
     queryKey: ["sections", versionId],
     queryFn: () => api.sections(versionId),
     enabled: connected,
     retry: false,
   });
+  const selected = sections.data?.sections.find(
+    (section) => section.id === sectionId,
+  );
+  const readable = Boolean(
+    selected && !selected.excluded && selected.role !== "references",
+  );
+  const currentSectionExists = useCallback(
+    (id: string, requireReadable = false) =>
+      client
+        .getQueryData<Structure>(["sections", versionId])
+        ?.sections.some(
+          (section) =>
+            section.id === id &&
+            (!requireReadable ||
+              (!section.excluded && section.role !== "references")),
+        ) ?? false,
+    [client, versionId],
+  );
   const search = useMutation({
-    mutationFn: () =>
-      api.search(paperId, query.trim(), versionId, sectionId || undefined),
+    mutationFn: (input: LocalSearchScope) => {
+      if (input.sectionId && !currentSectionExists(input.sectionId))
+        throw new Error("章节目录已更新，请重新选择当前章节后搜索。");
+      return api.search(
+        paperId,
+        input.query,
+        versionId,
+        input.sectionId || undefined,
+      );
+    },
     retry: false,
-    onSuccess: () => {
+    onSuccess: (_value, input) => {
+      if (input.epoch !== searchEpoch.current) return;
       setExpandedKeywords([]);
       setExpandedResults(null);
       setKeywordAllowNetwork(false);
@@ -81,13 +124,21 @@ export function KnowledgeReading({
   const keywordRecord = useQuery({
     queryKey: ["search-keywords", paperId, versionId, sectionId, query.trim()],
     queryFn: () => api.keyword(paperId, keywordRecordId as string),
-    enabled: connected && Boolean(keywordRecordId),
+    enabled:
+      connected &&
+      Boolean(keywordRecordId) &&
+      (!sectionId || Boolean(selected)),
     retry: false,
     refetchInterval: (current) =>
       current.state.data?.status === "PENDING" ? 800 : false,
   });
   const runExpandedSearch = useCallback(
-    async (keywords: string[]) => {
+    async (keywords: string[], input: LocalSearchScope) => {
+      if (
+        input.epoch !== searchEpoch.current ||
+        (input.sectionId && !currentSectionExists(input.sectionId))
+      )
+        return;
       const cleaned = keywords.filter(Boolean).slice(0, 5);
       setExpandedKeywords(cleaned);
       setKeywordAllowNetwork(false);
@@ -98,53 +149,86 @@ export function KnowledgeReading({
       try {
         const results = await Promise.all(
           cleaned.map((keyword) =>
-            api.search(paperId, keyword, versionId, sectionId || undefined),
+            api.search(
+              paperId,
+              keyword,
+              versionId,
+              input.sectionId || undefined,
+            ),
           ),
         );
         const byChunk = new Map<string, SearchHit>();
         results.forEach((result) =>
           result.items.forEach((item) => byChunk.set(item.chunk_id, item)),
         );
+        if (
+          input.epoch !== searchEpoch.current ||
+          (input.sectionId && !currentSectionExists(input.sectionId))
+        )
+          return;
         setExpandedResults([...byChunk.values()]);
       } catch {
-        setExpandedResults(null);
+        if (input.epoch === searchEpoch.current) setExpandedResults(null);
       }
     },
-    [paperId, sectionId, versionId],
+    [paperId, versionId, currentSectionExists],
   );
   const expandKeywords = useMutation({
-    mutationFn: () =>
-      api.expandSearchKeywords(paperId, {
+    mutationFn: (input: LocalSearchScope) => {
+      if (input.sectionId && !currentSectionExists(input.sectionId))
+        throw new Error("章节目录已更新，请重新选择当前章节并确认本次授权。");
+      return api.expandSearchKeywords(paperId, {
         document_version_id: versionId,
-        section_id: sectionId || undefined,
-        question: query.trim(),
+        section_id: input.sectionId || undefined,
+        question: input.query,
         allow_network: true,
-      }),
-    onSuccess: async (value) => {
+      });
+    },
+    onSuccess: async (value, input) => {
+      if (
+        input.epoch !== searchEpoch.current ||
+        value.section_id !== (input.sectionId || null) ||
+        value.document_version_id !== versionId ||
+        value.question !== input.query ||
+        (value.section_id && !currentSectionExists(value.section_id))
+      )
+        return;
       setKeywordRecordId(value.status === "PENDING" ? value.id : null);
       if (value.status === "COMPLETED" && value.keywords) {
-        await runExpandedSearch(value.keywords.english_queries);
+        await runExpandedSearch(value.keywords.english_queries, input);
       }
     },
   });
   useEffect(() => {
     const value = keywordRecord.data;
-    if (value?.status === "COMPLETED" && value.keywords) {
+    if (
+      value?.status === "COMPLETED" &&
+      value.keywords &&
+      keywordRecordId &&
+      value.section_id === (sectionId || null) &&
+      value.question === query.trim() &&
+      (!value.section_id || currentSectionExists(value.section_id))
+    ) {
       const next = value.keywords.english_queries.filter(Boolean).slice(0, 5);
       if (next.join("\u0000") !== expandedKeywords.join("\u0000")) {
         // The query is an asynchronous external result; update local display
         // state only after React finishes the current effect pass.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        void runExpandedSearch(next);
+        void runExpandedSearch(next, {
+          sectionId,
+          query: query.trim(),
+          epoch: searchEpoch.current,
+        });
       }
     }
-  }, [expandedKeywords, keywordRecord.data, runExpandedSearch]);
-  const selected = sections.data?.sections.find(
-    (section) => section.id === sectionId,
-  );
-  const readable = Boolean(
-    selected && !selected.excluded && selected.role !== "references",
-  );
+  }, [
+    expandedKeywords,
+    keywordRecord.data,
+    keywordRecordId,
+    runExpandedSearch,
+    sectionId,
+    query,
+    currentSectionExists,
+  ]);
   const guide = useQuery({
     queryKey: ["section-guide", paperId, versionId, sectionId, depth, adaptive],
     queryFn: () =>
@@ -155,26 +239,35 @@ export function KnowledgeReading({
       query.state.data?.status === "PENDING" ? 1200 : false,
   });
   const generateGuide = useMutation({
-    mutationFn: () =>
-      api.generateSectionGuide(
+    mutationFn: (input: {
+      sectionId: string;
+      depth: GuideDepth;
+      adaptive: boolean;
+      retry: boolean;
+      force: boolean;
+    }) => {
+      if (!input.sectionId || !currentSectionExists(input.sectionId, true))
+        throw new Error("章节目录已更新，请重新选择正文小节并确认本次授权。");
+      return api.generateSectionGuide(
         paperId,
-        sectionId,
+        input.sectionId,
         versionId,
-        depth,
+        input.depth,
         true,
-        guide.data?.status === "FAILED",
-        guide.data?.status === "COMPLETED" || guide.data?.status === "STALE",
-        adaptive,
-      ),
-    onSuccess: (value) => {
+        input.retry,
+        input.force,
+        input.adaptive,
+      );
+    },
+    onSuccess: (value, input) => {
       client.setQueryData(
         [
           "section-guide",
           value.paper_id,
           value.document_version_id,
-          value.section_id,
-          value.depth,
-          adaptive,
+          input.sectionId,
+          input.depth,
+          input.adaptive,
         ],
         value,
       );
@@ -190,7 +283,7 @@ export function KnowledgeReading({
       versionId,
       sectionId,
       qaScope,
-      selectedSpanIds.join(","),
+      usableSpanIds.join(","),
     ],
     queryFn: () =>
       api.qa
@@ -201,7 +294,7 @@ export function KnowledgeReading({
             qaScope,
           )
         : Promise.resolve([]),
-    enabled: connected && Boolean(sectionId || qaScope === "paper"),
+    enabled: connected && readable,
     retry: false,
     refetchInterval: (query) =>
       query.state.data?.some((item) => item.status === "PENDING")
@@ -214,33 +307,47 @@ export function KnowledgeReading({
         (item) =>
           item.question === currentQuestion &&
           (qaScope !== "selection" ||
-            (item.retrieval_spans.length === selectedSpanIds.length &&
+            (item.retrieval_spans.length === usableSpanIds.length &&
               item.retrieval_spans.every((span) =>
-                selectedSpanIds.includes(span.span_id),
+                usableSpanIds.includes(span.span_id),
               ))),
       ) ?? null)
     : null;
   const askQA = useMutation({
-    mutationFn: () =>
-      api.askQA(paperId, {
+    mutationFn: (input: {
+      sectionId: string;
+      scope: QAScope;
+      spanIds: string[];
+      question: string;
+    }) => {
+      if (
+        !input.sectionId ||
+        !currentSectionExists(input.sectionId, true) ||
+        (input.scope === "selection" && !input.spanIds.length)
+      )
+        throw new Error(
+          "章节目录已更新，请重新选择正文小节或原文段落并确认本次授权。",
+        );
+      return api.askQA(paperId, {
         document_version_id: versionId,
-        section_id: qaScope !== "paper" ? sectionId || undefined : undefined,
-        scope: qaScope,
-        question: qaQuestion.trim(),
-        ...(qaScope === "selection"
-          ? { selection_span_ids: selectedSpanIds }
+        section_id: input.scope !== "paper" ? input.sectionId : undefined,
+        scope: input.scope,
+        question: input.question,
+        ...(input.scope === "selection"
+          ? { selection_span_ids: input.spanIds }
           : {}),
         allow_network: true,
-      }),
-    onSuccess: (value) => {
+      });
+    },
+    onSuccess: (value, input) => {
       client.setQueryData(
         [
           "paper-qa",
-          paperId,
-          versionId,
-          sectionId,
-          qaScope,
-          selectedSpanIds.join(","),
+          value.paper_id,
+          value.document_version_id,
+          input.sectionId,
+          input.scope,
+          input.spanIds.join(","),
         ],
         (items: QAView[] | undefined) => [
           value,
@@ -251,6 +358,69 @@ export function KnowledgeReading({
       setQaAllowNetwork(false);
     },
   });
+  const resetSearch = search.reset;
+  const resetExpansion = expandKeywords.reset;
+  const resetGuide = generateGuide.reset;
+  const resetQA = askQA.reset;
+  useEffect(() => {
+    if (!sections.isSuccess || !sectionId || selected) return;
+    const notice = { sectionId, spanKey: selectedSpanKey };
+    searchEpoch.current += 1;
+    client.setQueryData(
+      ["reading-directory-notice", paperId, versionId],
+      notice,
+    );
+    // A successful local directory refresh invalidates this selected identity;
+    // clear its consent instead of silently sending it under a new chapter.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDirectoryNotice(notice);
+    setBlockedSpanKey(selectedSpanKey);
+    setSectionId("");
+    setAllowNetwork(false);
+    setQaAllowNetwork(false);
+    setKeywordAllowNetwork(false);
+    setQaScope("section");
+    setQuery("");
+    setExpandedKeywords([]);
+    setExpandedResults(null);
+    setKeywordRecordId(null);
+    setCopyState("idle");
+    resetSearch();
+    resetExpansion();
+    resetGuide();
+    resetQA();
+    onSectionChange?.("");
+  }, [
+    sections.isSuccess,
+    sectionId,
+    selected,
+    selectedSpanKey,
+    client,
+    paperId,
+    versionId,
+    onSectionChange,
+    resetSearch,
+    resetExpansion,
+    resetGuide,
+    resetQA,
+  ]);
+
+  const chooseSection = (id: string) => {
+    searchEpoch.current += 1;
+    setSectionId(id);
+    setDirectoryNotice(null);
+    client.setQueryData(["reading-directory-notice", paperId, versionId], null);
+    onSectionChange?.(id);
+    setAllowNetwork(false);
+    setQaAllowNetwork(false);
+    setKeywordAllowNetwork(false);
+    setExpandedKeywords([]);
+    setExpandedResults(null);
+    setKeywordRecordId(null);
+    setCopyState("idle");
+    resetSearch();
+    resetExpansion();
+  };
   const copyGuide = async () => {
     if (!guideText) return;
     try {
@@ -326,6 +496,12 @@ export function KnowledgeReading({
           </button>
         </p>
       )}
+      {directoryNotice && (
+        <p role="status" className="quality-note">
+          章节目录已更新，原先选择的章节已不在当前目录中，已清除章节选择和本次模型授权。请从当前目录重新选择正文小节。
+          历史图谱或链接可能指向旧解析；当前入口无法定位该历史章节，不会自动将其归入新章节。
+        </p>
+      )}
       {sections.data && (panel !== "guide" || readingMode !== "paper") && (
         <ReadingOutline
           key={`${paperId}:${versionId}:${readingMode}:${panel}`}
@@ -338,37 +514,20 @@ export function KnowledgeReading({
               label: section.title || `章节 ${section.ordinal + 1}`,
               targetId: sectionTargetId(section.id),
               level: section.level,
+              parentId: section.parent_id,
               detail:
                 section.start_page === null
                   ? undefined
                   : `PDF 第 ${section.start_page + 1} 页`,
             }))}
           activeId={sectionId}
-          onSelect={(id) => {
-            setSectionId(id);
-            onSectionChange?.(id);
-            setAllowNetwork(false);
-            setQaAllowNetwork(false);
-            setKeywordAllowNetwork(false);
-            setExpandedKeywords([]);
-            setExpandedResults(null);
-            setCopyState("idle");
-          }}
+          onSelect={chooseSection}
           controls={
             <label>
               选择章节
               <select
                 value={sectionId}
-                onChange={(event) => {
-                  setSectionId(event.target.value);
-                  onSectionChange?.(event.target.value);
-                  setAllowNetwork(false);
-                  setQaAllowNetwork(false);
-                  setKeywordAllowNetwork(false);
-                  setExpandedKeywords([]);
-                  setExpandedResults(null);
-                  setCopyState("idle");
-                }}
+                onChange={(event) => chooseSection(event.target.value)}
               >
                 <option value="">全部章节</option>
                 {sections.data.sections.map((section) => (
@@ -505,7 +664,17 @@ export function KnowledgeReading({
                         generateGuide.isPending ||
                         guide.data?.status === "PENDING"
                       }
-                      onClick={() => generateGuide.mutate()}
+                      onClick={() =>
+                        generateGuide.mutate({
+                          sectionId,
+                          depth,
+                          adaptive,
+                          retry: guide.data?.status === "FAILED",
+                          force:
+                            guide.data?.status === "COMPLETED" ||
+                            guide.data?.status === "STALE",
+                        })
+                      }
                     >
                       {generateGuide.isPending ||
                       guide.data?.status === "PENDING"
@@ -587,7 +756,12 @@ export function KnowledgeReading({
                       !askQA.isPending &&
                       latestQA?.status !== "PENDING"
                     ) {
-                      askQA.mutate();
+                      askQA.mutate({
+                        sectionId,
+                        scope: qaScope,
+                        spanIds: [...usableSpanIds],
+                        question: qaQuestion.trim(),
+                      });
                     }
                   }}
                 >
@@ -606,9 +780,9 @@ export function KnowledgeReading({
                       </option>
                       <option
                         value="selection"
-                        disabled={!selectedSpanIds.length}
+                        disabled={!usableSpanIds.length}
                       >
-                        {selectedSpanIds.length
+                        {usableSpanIds.length
                           ? "已选段落原文"
                           : "已选原文片段（请先在双栏精读选择段落）"}
                       </option>
@@ -616,9 +790,8 @@ export function KnowledgeReading({
                   </label>
                   {qaScope === "selection" && (
                     <p className="quality-note">
-                      当前仅使用从双栏精读选中的段落，共{" "}
-                      {selectedSpanIds.length} 个原文
-                      Span。提交前不会自动扩大范围。
+                      当前仅使用从双栏精读选中的段落，共 {usableSpanIds.length}{" "}
+                      个原文 Span。提交前不会自动扩大范围。
                     </p>
                   )}
                   <label>
@@ -689,7 +862,12 @@ export function KnowledgeReading({
             className="import-controls"
             onSubmit={(e) => {
               e.preventDefault();
-              if (connected && query.trim()) search.mutate();
+              if (connected && query.trim())
+                search.mutate({
+                  sectionId,
+                  query: query.trim(),
+                  epoch: searchEpoch.current,
+                });
             }}
           >
             <label>
@@ -700,10 +878,14 @@ export function KnowledgeReading({
                 placeholder="输入原文中的关键词"
                 disabled={!connected}
                 onChange={(e) => {
+                  searchEpoch.current += 1;
                   setQuery(e.target.value);
                   setKeywordAllowNetwork(false);
                   setExpandedKeywords([]);
                   setExpandedResults(null);
+                  setKeywordRecordId(null);
+                  resetSearch();
+                  resetExpansion();
                 }}
               />
             </label>
@@ -748,7 +930,13 @@ export function KnowledgeReading({
                   }
                   results={expandedResults}
                   onAllowNetwork={setKeywordAllowNetwork}
-                  onGenerate={() => expandKeywords.mutate()}
+                  onGenerate={() =>
+                    expandKeywords.mutate({
+                      sectionId,
+                      query: query.trim(),
+                      epoch: searchEpoch.current,
+                    })
+                  }
                   error={
                     expandKeywords.error ??
                     (keywordRecord.data?.error

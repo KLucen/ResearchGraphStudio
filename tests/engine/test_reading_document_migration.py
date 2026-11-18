@@ -7,6 +7,12 @@ from alembic import command
 from alembic.config import Config
 from researchgraph import storage
 from researchgraph.close_reading_models import SectionCloseReadingResult
+from researchgraph.import_plan_models import ImportPlanItem, ImportSession
+from researchgraph.model_document_models import (
+    LlmDocumentOutput,
+    LlmDocumentParse,
+    LlmDocumentSegment,
+)
 from researchgraph.models import AttachmentRevision, Chunk, Paper, Project, Section, now
 from researchgraph.paper_reading_models import PaperReadingResult
 from researchgraph.reading_document_models import ReadingDocumentProjection
@@ -36,7 +42,15 @@ def test_real_lite0009_upgrade_preserves_every_existing_row_and_backup(tmp_path)
         command.upgrade(config, "lite0009")
         # 0001's shared Base may know future imports in this test process.
         # Drop the empty new tables to model an actual pre-0010 deployment.
-        for model in (PaperReadingResult, ReadingDocumentProjection):
+        for model in (
+            LlmDocumentOutput,
+            LlmDocumentSegment,
+            LlmDocumentParse,
+            ImportPlanItem,
+            ImportSession,
+            PaperReadingResult,
+            ReadingDocumentProjection,
+        ):
             model.__table__.drop(connection, checkfirst=True)
     with Session(engine) as session, session.begin():
         session.add(Project(id="project", name="keep", description="", created_at=now()))
@@ -107,7 +121,15 @@ def test_real_lite0009_upgrade_preserves_every_existing_row_and_backup(tmp_path)
     after = _snapshot(tmp_path / storage.DATABASE_NAME)
     for table, rows in original.items():
         assert after[table] == rows, table
-    assert set(after) - set(original) == {"lite_paper_readings", "lite_reading_documents"}
+    assert set(after) - set(original) == {
+        "lite_paper_readings",
+        "lite_reading_documents",
+        "import_sessions",
+        "import_plan_items",
+        "llm_document_parses",
+        "llm_document_segments",
+            "llm_document_outputs",
+    }
     assert after["chunks"][0][5] == "Unmodified original\n58.0"
     backups = list((tmp_path / "backups").glob("before-migration-*.sqlite3"))
     assert len(backups) == 1 and _snapshot(backups[0]) == original
@@ -117,6 +139,9 @@ def test_real_lite0009_upgrade_preserves_every_existing_row_and_backup(tmp_path)
             == "lite0009"
         )
     with engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "lite0010"
+        assert (
+            connection.scalar(text("SELECT version_num FROM alembic_version"))
+            == storage.SCHEMA_HEAD
+        )
     assert storage.diagnostics(engine)["integrity"] == "ok"
     engine.dispose()

@@ -6,7 +6,7 @@ from pydantic import Field
 
 from researchgraph.core import StrictModel
 
-PROJECTION_VERSION = "reading-document-1"
+PROJECTION_VERSION = "reading-document-2"
 
 
 class ReadingSource(StrictModel):
@@ -29,10 +29,21 @@ class ReadingUnit(StrictModel):
     id: str
     kind: Literal["paragraph", "heading", "material"]
     material_type: (
-        Literal["table", "figure", "caption", "figure_label", "running", "reference", "unresolved"]
+        Literal[
+            "table",
+            "figure",
+            "formula",
+            "caption",
+            "figure_label",
+            "running",
+            "reference",
+            "contents",
+            "unresolved",
+        ]
         | None
     ) = None
     section_id: str
+    heading_level: int | None = None
     text: str
     page_start: int
     page_end: int
@@ -44,10 +55,22 @@ class ReadingUnit(StrictModel):
     confidence: Literal["high", "suspected"] = "high"
     reason: str | None = None
     solution: str | None = None
+    formula_latex: str | None = None
+    formula_status: Literal[
+        "source_only",
+        "latex_unavailable",
+        "recognized",
+        "needs_review",
+        "failed",
+    ] | None = None
+    formula_confidence: Literal["suspected", "high"] | None = None
+    formula_source_text: str | None = None
+    formula_id: str | None = None
 
 
 class ReadingDocumentSection(StrictModel):
     section_id: str
+    parent_id: str | None = None
     title: str
     level: int
     role: str

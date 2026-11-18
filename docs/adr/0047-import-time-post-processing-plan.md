@@ -1,8 +1,8 @@
-# ADR0047：论文导入时的大模型章节解析与后处理计划（仅设计）
+# ADR0047：论文导入时的大模型章节解析与后处理计划
 
 日期：2026-11-17（Asia/Shanghai）
 
-状态：提案；本轮只更新设计，不实施、不迁移、不新增模型调用。
+状态：设计基线已推送；模型优先解析与独立后处理已实现，Windows 安装包通过合成数据隔离验证；真实 Provider 与论文科学质量验收未完成。
 
 ## 背景
 
@@ -116,8 +116,12 @@ translation_mode = full | none
 
 每个模型子项发送前独立冻结 Provider、模型、参数、Prompt/Schema 和容量预算。沿用 `allow_network`、用量记录和费用 `unknown` 语义；重启时运行中的任务标记为 `interrupted`，不自动重发。任一批次失败只标记该批次缺失，其他批次、原始 PDF 和已生成章节仍可读。
 
-## 不在本轮实施
+## 已实施的第一步
 
-本轮只根据用户最新要求更新设计文档，不新增模型调用、不修改当前导入 API、不新增数据库迁移、不改变现有本地解析运行逻辑，也不实现 `llm_document_parse`、`paper_reading_analysis.v2` 或导入向导。
+工作区已加入 `lite0011` 加性迁移和独立模型文档层：`ImportSession`/`ImportPlanItem` 保存导入选择，`LlmDocumentParse`/`LlmDocumentSegment` 保存章节、正文、公式和表格，`LlmDocumentOutput` 保存概览、精读和翻译的派生结果。解析成功后，用户选择的后处理项进入专用 `llm_document_postprocess` worker，直接消费模型章节数据，不进入旧依赖本地 Chunk/Section/SHA 的 worker。无文档能力、无联网授权或必须多模态能力不足时保留明确失败/暂停状态。匿名合成 Provider 和隔离迁移回归已通过；真实 Provider、真实成本和科学质量仍待验收。
 
-正式实施前必须完成：模型文件/多模态能力探测、章节批次与合并协议、公式/表格降级文案、Provider/预算确认、opaque 文件选择句柄、匿名 PDF + 合成 Provider 回归，以及真实论文的成本和科学质量验收。
+## 实施结果（2026-11-18）
+
+模型优先导入和 `lite0011` 文档层已实现：native PDF 选择句柄绑定 ImportSession；用户授权后由模型生成章节正文、公式与表格；解析成功后只为所选概览/精读/翻译计划排入独立后处理 Job。桌面工作区读取模型文档和生成输出，旧本地内容只在没有模型会话的旧论文视图中兼容，不覆盖模型结果。编辑、清理和删除边界见 [ADR0048](0048-paper-content-management-and-legacy-cleanup.md)。
+
+已通过匿名合成 Provider、隔离迁移、后端、桌面及 Windows 隔离安装验证。真实 Provider PDF 兼容性、真实论文章节/公式/表格准确率、Token/费用和桌面原生 GUI 仍待验收，具体实测以 [`docs/progress.md`](../progress.md) 为准。

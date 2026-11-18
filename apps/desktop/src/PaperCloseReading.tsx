@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import {
   api,
   type DocumentReadingUnit,
   type DocumentReadingView,
+  type FormulaPreview,
   type ParagraphAnalysis,
   type ReadingParagraph,
 } from "./api";
@@ -22,12 +25,145 @@ const statusLabels = {
 const materialLabels = {
   table: "表格",
   figure: "图像区域",
+  formula: "公式区域",
   caption: "图表标题与图注",
   figure_label: "疑似图内标签",
   running: "页眉页脚",
   reference: "参考文献",
+  contents: "原文目录",
   unresolved: "待核对材料",
 };
+
+function FormulaDisplay({
+  unit,
+  revisionId,
+}: {
+  unit: DocumentReadingUnit;
+  revisionId: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [preview, setPreview] = useState<FormulaPreview | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const latex = unit.formula_latex?.trim();
+  const status = unit.formula_status ?? (latex ? "recognized" : "detected");
+  const source = unit.formula_source_text || unit.text;
+  const togglePreview = async () => {
+    if (preview) {
+      setPreviewOpen((open) => !open);
+      return;
+    }
+    if (!unit.formula_id) {
+      setPreviewError("当前公式没有可用的原图定位信息。");
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      const value = await api.formulaPreview(revisionId, unit.formula_id);
+      setPreview(value);
+      setPreviewOpen(true);
+    } catch (error) {
+      setPreviewError(
+        error instanceof Error ? error.message : "公式原图预览读取失败。",
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+  const previewControl = (
+    <>
+      <button
+        className="text-button"
+        type="button"
+        disabled={previewLoading}
+        onClick={() => void togglePreview()}
+      >
+        {previewLoading
+          ? "正在读取原图…"
+          : previewOpen
+            ? "隐藏原图区域"
+            : "查看原图区域"}
+      </button>
+      {previewError && (
+        <span className="paper-formula-preview-error" role="alert">
+          {previewError}
+        </span>
+      )}
+      {previewOpen && preview && (
+        <figure className="paper-formula-preview">
+          <img
+            src={`data:${preview.mime_type};base64,${preview.data_base64}`}
+            alt={`PDF 第 ${preview.page} 页公式原图区域`}
+          />
+          <figcaption>
+            PDF 第 {preview.page} 页 · 原始区域已按登记来源截取；请以此核对
+            LaTeX、上下标和积分上下限。
+          </figcaption>
+        </figure>
+      )}
+    </>
+  );
+  if (!latex || status !== "recognized") {
+    return (
+      <div className="paper-formula-fallback" role="note">
+        <span className="paper-formula-status">
+          {status === "uncertain" || status === "detected"
+            ? "公式已定位，LaTeX 尚未可靠确认"
+            : "公式暂未转换为 LaTeX"}
+        </span>
+        <pre>{source || "请查看原始 PDF 中的公式区域。"}</pre>
+        <div className="paper-formula-actions">{previewControl}</div>
+      </div>
+    );
+  }
+  let html: string;
+  try {
+    html = katex.renderToString(latex, {
+      displayMode: true,
+      throwOnError: false,
+      strict: "warn",
+      trust: false,
+    });
+  } catch {
+    return (
+      <div className="paper-formula-fallback" role="note">
+        <span className="paper-formula-status">
+          LaTeX 渲染失败，保留原始公式
+        </span>
+        <pre>{source || latex}</pre>
+        <div className="paper-formula-actions">{previewControl}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="paper-formula-rendered" role="note" aria-label="LaTeX 公式">
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="paper-formula-actions">
+        <button
+          className="text-button"
+          type="button"
+          onClick={() => {
+            if (!navigator.clipboard) return;
+            void navigator.clipboard.writeText(latex).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1400);
+            });
+          }}
+        >
+          {copied ? "已复制 LaTeX" : "复制 LaTeX"}
+        </button>
+        {previewControl}
+      </div>
+      <details className="paper-formula-source">
+        <summary>查看 LaTeX 与原始公式</summary>
+        <pre>{latex}</pre>
+        {source && source !== latex && <pre>{source}</pre>}
+      </details>
+    </div>
+  );
+}
 const functionLabels = {
   INTRODUCE_PROBLEM: "提出问题",
   DEFINE_CONCEPT: "定义概念",
@@ -60,6 +196,13 @@ function pageLabel(unit: Pick<DocumentReadingUnit, "page_start" | "page_end">) {
     ? `PDF 第 ${unit.page_start} 页`
     : `PDF 第 ${unit.page_start}–${unit.page_end} 页`;
 }
+function localReadingTime(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString("zh-CN", { hour12: false })
+    : null;
+}
 
 export function PaperCloseReading(props: Props) {
   const client = useQueryClient();
@@ -71,6 +214,14 @@ export function PaperCloseReading(props: Props) {
     enabled: props.connected,
     retry: false,
   });
+  useEffect(() => {
+    // The chapter query and the persisted full-reading projection are mounted
+    // together. If the projection upgrades a legacy structure while the
+    // directory request was still in flight, make the directory read the new
+    // tree instead of keeping the old 1→5 outline in React Query.
+    if (!local.data?.projection_hash) return;
+    void client.invalidateQueries({ queryKey: ["sections", props.revisionId] });
+  }, [client, local.data?.projection_hash, props.revisionId]);
   const notes = useQuery({
     queryKey: notesKey,
     queryFn: () => api.paperReadingNotes(props.paperId, props.revisionId),
@@ -103,6 +254,23 @@ export function PaperCloseReading(props: Props) {
       client.setQueryData(documentKey, value);
       setAllowNetwork(false);
       void client.invalidateQueries({ queryKey: notesKey });
+      void client.invalidateQueries({
+        queryKey: ["sections", props.revisionId],
+      });
+    },
+  });
+  const recognizeFormulas = useMutation({
+    mutationFn: () => api.recognizeFormulas(props.revisionId),
+    retry: false,
+    onSuccess: async (value) => {
+      if (value.reading_document_refresh_required) {
+        const refreshed = await local.refetch();
+        if (refreshed.data) client.setQueryData(documentKey, refreshed.data);
+        void client.invalidateQueries({ queryKey: notesKey });
+        void client.invalidateQueries({
+          queryKey: ["sections", props.revisionId],
+        });
+      }
     },
   });
   const cancel = useMutation({
@@ -169,7 +337,9 @@ export function PaperCloseReading(props: Props) {
           <input
             type="checkbox"
             checked={allowNetwork}
-            disabled={pending || refresh.isPending}
+            disabled={
+              pending || refresh.isPending || recognizeFormulas.isPending
+            }
             onChange={(event) => setAllowNetwork(event.target.checked)}
           />
           允许本次发送整篇正文，生成全文精读笔记
@@ -183,7 +353,8 @@ export function PaperCloseReading(props: Props) {
             local.isPending ||
             notes.isPending ||
             pending ||
-            refresh.isPending
+            refresh.isPending ||
+            recognizeFormulas.isPending
           }
           onClick={() => generate.mutate()}
         >
@@ -204,14 +375,37 @@ export function PaperCloseReading(props: Props) {
         )}
         <button
           className="button secondary"
-          disabled={!props.connected || pending || refresh.isPending}
+          disabled={
+            !props.connected ||
+            pending ||
+            refresh.isPending ||
+            recognizeFormulas.isPending
+          }
           onClick={() => refresh.mutate()}
         >
           {refresh.isPending ? "正在整理本地版面…" : "重新整理本地阅读版面"}
         </button>
+        <button
+          className="button secondary"
+          disabled={
+            !props.connected ||
+            pending ||
+            refresh.isPending ||
+            recognizeFormulas.isPending ||
+            !(
+              local.data?.units.some(
+                (unit) => unit.material_type === "formula",
+              ) ?? false
+            )
+          }
+          onClick={() => recognizeFormulas.mutate()}
+        >
+          {recognizeFormulas.isPending ? "正在识别公式…" : "自动识别公式并刷新"}
+        </button>
         <p className="paper-reading-action-note muted">
           全文笔记只发送正文，不发送图表材料；单次容量不足会在调用前提示。重新整理只处理本地
-          PDF，模型调用为 0。
+          PDF，模型调用为 0。公式识别只使用已配置的本地 OCR，不发送 PDF 或公式到
+          LLM。
           模型容量未知时只能按当前配置估算，不能保证一次完成；实际用量以模型返回为准。
         </p>
       </div>
@@ -219,6 +413,7 @@ export function PaperCloseReading(props: Props) {
         notes.error ||
         generate.error ||
         refresh.error ||
+        recognizeFormulas.error ||
         cancel.error) && (
         <p role="alert" className="error-text">
           {
@@ -227,9 +422,44 @@ export function PaperCloseReading(props: Props) {
               notes.error ??
               generate.error ??
               refresh.error ??
+              recognizeFormulas.error ??
               cancel.error
             )?.message
           }
+        </p>
+      )}
+      {recognizeFormulas.data?.status === "unavailable" && (
+        <p className="quality-note" role="status">
+          当前安装包没有配置本地公式 OCR；已保留原图和原始文本，没有生成不可靠的
+          LaTeX。 请先配置专用公式识别器后再次操作。
+        </p>
+      )}
+      {recognizeFormulas.data?.status === "partial" && (
+        <p className="quality-note" role="status">
+          部分公式已生成 LaTeX，低置信度或失败项仍保留原图，请逐项核对。
+        </p>
+      )}
+      {(local.isError || notes.isError) && (
+        <p className="paper-reading-retry">
+          <button
+            className="button secondary"
+            disabled={
+              !props.connected ||
+              local.isFetching ||
+              notes.isFetching ||
+              refresh.isPending
+            }
+            onClick={() => {
+              void Promise.all([local.refetch(), notes.refetch()]);
+            }}
+          >
+            {local.isFetching || notes.isFetching
+              ? "正在重新读取…"
+              : "重新读取本地存档"}
+          </button>
+          <span className="muted">
+            重新读取本地正文和已有笔记，模型调用为 0。
+          </span>
         </p>
       )}
       {notes.data?.error && (
@@ -238,7 +468,7 @@ export function PaperCloseReading(props: Props) {
         </p>
       )}
       {local.isPending && props.connected && (
-        <p role="status">正在整理本地正文与材料…</p>
+        <p role="status">正在读取本地阅读内容…</p>
       )}
       {stale && (
         <p className="quality-note">
@@ -266,6 +496,7 @@ export function PaperCloseReading(props: Props) {
         <>
           <ReadingDocument
             document={local.data}
+            revisionId={props.revisionId}
             analyses={byId}
             pending={pending}
             stale={stale}
@@ -323,6 +554,7 @@ export function PaperCloseReading(props: Props) {
 
 function ReadingDocument({
   document,
+  revisionId,
   analyses,
   pending,
   stale,
@@ -330,6 +562,7 @@ function ReadingDocument({
   onAskParagraph,
 }: {
   document: DocumentReadingView;
+  revisionId: string;
   analyses: Map<string, ParagraphAnalysis>;
   pending: boolean;
   stale: boolean;
@@ -343,6 +576,7 @@ function ReadingDocument({
   const paragraphNumbers = new Map(
     paragraphs.map((unit, index) => [unit.id, index + 1]),
   );
+  const refreshedAt = localReadingTime(document.refreshed_at);
   const outlineEntries: OutlineEntry[] = [];
   const headedSections = new Set(headings.map((unit) => unit.section_id));
   const fallbackSections = new Set<string | null>();
@@ -355,7 +589,7 @@ function ReadingDocument({
         id: unit.id,
         label: unit.text,
         targetId: unitElementId(unit.id),
-        level: section?.level,
+        level: unit.heading_level ?? section?.level,
         detail: pageLabel(unit),
       });
     } else if (
@@ -372,12 +606,45 @@ function ReadingDocument({
       });
     }
   }
+  const entryBySection = new Map<string, string>();
+  for (const entry of outlineEntries) {
+    const unit = body.find((item) => item.id === entry.id);
+    if (unit?.section_id && !entryBySection.has(unit.section_id))
+      entryBySection.set(unit.section_id, entry.id);
+  }
+  for (const entry of outlineEntries) {
+    const unit = body.find((item) => item.id === entry.id);
+    const section = document.sections.find(
+      (item) => item.section_id === unit?.section_id,
+    );
+    // Old projections may only have levels. New projections carry the source
+    // tree explicitly; the synthetic Document root is not a containing chapter.
+    if (
+      section?.parent_id !== undefined &&
+      entryBySection.get(section.section_id) === entry.id
+    ) {
+      const parent = document.sections.find(
+        (item) => item.section_id === section.parent_id,
+      );
+      entry.parentId =
+        parent?.role === "document"
+          ? null
+          : (entryBySection.get(section.parent_id ?? "") ?? null);
+    }
+  }
   return (
     <ReadingOutline entries={outlineEntries} trackScroll>
       <div className="paper-reading-local-status">
         <span>
-          {paragraphs.length} 段正文 · {materials.length} 项单独材料
+          本地阅读内容已就绪 · {paragraphs.length} 段正文 · {materials.length}{" "}
+          项单独材料
         </span>
+        {refreshedAt && (
+          <span>
+            上次本地整理：
+            <time dateTime={document.refreshed_at!}>{refreshedAt}</time>
+          </span>
+        )}
         <span>原始文字块、定位与哈希保留</span>
       </div>
       {!!document.warnings.length && (
@@ -413,6 +680,12 @@ function ReadingDocument({
               id={unitElementId(unit.id)}
               data-reading-anchor
               tabIndex={-1}
+              data-heading-level={
+                unit.heading_level ??
+                document.sections.find((s) => s.section_id === unit.section_id)
+                  ?.level ??
+                1
+              }
             >
               <h5>{unit.text}</h5>
               <span className="muted">{pageLabel(unit)}</span>
@@ -421,6 +694,7 @@ function ReadingDocument({
             <PaperParagraph
               key={unit.id}
               unit={unit}
+              revisionId={revisionId}
               paragraphNumber={paragraphNumbers.get(unit.id)!}
               analysis={analyses.get(unit.id)}
               pending={pending}
@@ -482,6 +756,9 @@ function ReadingDocument({
                 {unit.solution ||
                   "请在 Zotero 中打开原始 PDF，按页码查看；尚未对图表内容进行分析。"}
               </p>
+              {unit.material_type === "formula" && (
+                <FormulaDisplay unit={unit} revisionId={revisionId} />
+              )}
               <pre className="paper-material-raw">
                 {unit.sources.length
                   ? unit.sources.map((source) => source.text).join("\n")
@@ -504,6 +781,7 @@ function ReadingDocument({
 
 function PaperParagraph({
   unit,
+  revisionId,
   paragraphNumber,
   analysis,
   pending,
@@ -512,6 +790,7 @@ function PaperParagraph({
   onAsk,
 }: {
   unit: DocumentReadingUnit;
+  revisionId: string;
   paragraphNumber: number;
   analysis?: ParagraphAnalysis;
   pending: boolean;
@@ -571,6 +850,9 @@ function PaperParagraph({
           </p>
         </div>
         <SourceMap unit={unit} />
+        {unit.formula_latex && (
+          <FormulaDisplay unit={unit} revisionId={revisionId} />
+        )}
       </div>
       <aside
         className="paper-paragraph-note"

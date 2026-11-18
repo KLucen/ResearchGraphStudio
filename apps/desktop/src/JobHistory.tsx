@@ -76,6 +76,9 @@ export function JobHistory({
       });
       if (projectId) {
         void client.invalidateQueries({ queryKey: ["papers", projectId] });
+        void client.invalidateQueries({
+          queryKey: ["sidebar-papers", projectId],
+        });
         void client.invalidateQueries({ queryKey: ["lite-usage", projectId] });
       }
     },

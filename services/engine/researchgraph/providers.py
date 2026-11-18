@@ -1,12 +1,15 @@
 """Bounded text-only providers: no tools, database handles or filesystem capabilities."""
 
 import asyncio
+import base64
+import binascii
 import json
 import os
 import re
 import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
@@ -47,6 +50,56 @@ class ProviderError(ValueError):
         self.category = category
         self.retry_after = retry_after
         self.timeout_phase = timeout_phase
+
+
+def require_document_capability(
+    provider: Provider,
+    modality: str,
+    *,
+    require_multimodal: bool = False,
+) -> None:
+    """Reject document inputs a configured provider cannot actually receive.
+
+    The ordinary ``complete`` protocol remains text-only for compatibility. A
+    model-first import may therefore run against a text fixture whose source is
+    already represented as untrusted text JSON, while a PDF/image request must
+    be explicitly advertised by the provider configuration. The caller should
+    surface ``error_code`` instead of falling back to local PDF parsing.
+    """
+
+    if modality not in {"text", "pdf", "image"}:
+        raise ProviderError("document_capability", "不支持的文档输入类型")
+    capabilities = getattr(provider, "capabilities", None)
+    document_input = getattr(capabilities, "document_input", "text")
+    multimodal = bool(getattr(capabilities, "multimodal", False))
+    document_transport = getattr(capabilities, "document_transport", "none")
+    if modality == "text":
+        if require_multimodal and not multimodal:
+            raise ProviderError(
+                "document_capability",
+                "当前模型不具备多模态能力，已按选择暂停；未回退本地解析",
+            )
+        return
+    if modality == "pdf" and document_input not in {"pdf", "image"}:
+        raise ProviderError(
+            "document_capability",
+            "当前模型未声明 PDF/文档输入能力；未回退本地解析",
+        )
+    if modality in {"pdf", "image"} and document_transport != "chat_file":
+        raise ProviderError(
+            "document_capability",
+            "当前模型未声明可用的文件传输方式；未回退本地解析",
+        )
+    if modality == "image" and not (multimodal or document_input == "image"):
+        raise ProviderError(
+            "document_capability",
+            "当前模型未声明图像输入能力；未回退本地解析",
+        )
+    if require_multimodal and not multimodal:
+        raise ProviderError(
+            "document_capability",
+            "当前模型未声明多模态能力，已按选择暂停；未回退本地解析",
+        )
 
 
 class ConfiguredProvider:
@@ -125,6 +178,22 @@ class ConfiguredProvider:
                                 or self.capabilities.max_output_tokens,
                                 context_window=discovered.context_window
                                 or self.capabilities.context_window,
+                                # Preserve document transport declared by the
+                                # frozen profile.  Standard /models metadata
+                                # usually reports only token limits; rebuilding
+                                # the object without these fields would silently
+                                # turn a PDF-capable provider back into text-only.
+                                document_input=(
+                                    discovered.document_input
+                                    if discovered.document_input != "text"
+                                    else self.capabilities.document_input
+                                ),
+                                multimodal=discovered.multimodal or self.capabilities.multimodal,
+                                document_transport=(
+                                    discovered.document_transport
+                                    if discovered.document_transport != "none"
+                                    else self.capabilities.document_transport
+                                ),
                                 source=discovered.source
                                 if discovered.max_output_tokens and discovered.context_window
                                 else f"{discovered.source}+{self.capabilities.source}",
@@ -397,6 +466,8 @@ class ConfiguredProvider:
                 )
             if not isinstance(content, str):
                 raise ValueError("模型没有返回文本 JSON")
+
+
             if self.key and self.key in content:
                 raise ValueError("模型响应包含凭据，已拒绝保存")
             return content
@@ -449,6 +520,149 @@ class ConfiguredProvider:
             self.request_metadata.update(
                 elapsed_seconds=round(time.monotonic() - started, 3), response_bytes=response_bytes
             )
+
+    async def complete_document(
+        self, payload: dict[str, Any], schema: dict[str, Any] | None = None
+    ) -> str:
+        """Send a PDF/document as an explicitly enabled chat file input.
+
+        OpenAI-compatible chat endpoints do not uniformly support files.  The
+        caller must therefore advertise ``capabilities.document_transport`` as
+        ``chat_file`` before this method is reachable.  The local path is read
+        only by the engine and is never included in the prompt; the provider
+        receives a data URL in the user content.
+        """
+        modality = str(payload.get("modality") or "pdf")
+        if modality != "pdf":
+            raise ProviderError("document_capability", "当前文档传输仅支持 PDF 文件")
+        require_document_capability(
+            self,
+            modality,
+            require_multimodal=bool(payload.get("require_multimodal", False)),
+        )
+        path_value = payload.get("path")
+        if isinstance(payload.get("document_base64"), str):
+            encoded = payload["document_base64"]
+            filename = str(payload.get("file_name") or "paper.pdf")
+            # Bound and validate caller-supplied base64 before embedding it in
+            # a request; do not allocate a decoded buffer of unbounded size.
+            max_encoded = ((50 * 1024 * 1024 + 2) // 3) * 4
+            if len(encoded) > max_encoded:
+                raise ProviderError("document_input", "PDF 超过 50 MiB 限制")
+            try:
+                raw_size = len(base64.b64decode(encoded, validate=True))
+            except (binascii.Error, ValueError):
+                raise ProviderError("document_input", "模型文档任务的 PDF 编码无效") from None
+            if raw_size > 50 * 1024 * 1024:
+                raise ProviderError("document_input", "PDF 超过 50 MiB 限制")
+        else:
+            if not isinstance(path_value, str):
+                raise ProviderError("document_input", "模型文档任务缺少本地文件引用")
+            path = Path(path_value)
+            if not path.is_absolute() or path.suffix.lower() != ".pdf" or not path.is_file():
+                raise ProviderError("document_input", "模型文档任务的 PDF 文件不可读")
+            try:
+                raw = await asyncio.to_thread(path.read_bytes)
+            except OSError as exc:
+                raise ProviderError("document_input", "模型文档任务无法读取 PDF") from exc
+            if len(raw) > 50 * 1024 * 1024:
+                raise ProviderError("document_input", "PDF 超过 50 MiB 限制")
+            encoded = base64.b64encode(raw).decode("ascii")
+            filename = path.name
+        if schema is None:
+            from researchgraph.model_document_contracts import ModelDocumentParseInput
+
+            schema = ModelDocumentParseInput.model_json_schema()
+        prompt = (
+            "你是论文文档转录模型。只根据用户提供的 PDF 文件输出严格 JSON，"
+            "按章节顺序给出正文段落，并尽量提取公式和表格。不要生成数据库 ID，"
+            "不要补猜无法观察到的公式、表格或图片内容。公式至少保留原文或线性形式，"
+            "表格无法确认结构时保留 raw_table_text 并标记 degraded 或 needs_review。"
+        )
+        # _build_body applies output-policy validation and endpoint-specific
+        # limits.  Replace only the user message with the file-aware content.
+        body = self._build_body(
+            prompt,
+            {
+                "source_snapshot": payload.get("source_snapshot", {}),
+                "modality": payload.get("modality", "pdf"),
+            },
+            schema,
+        )
+        original_user_content = body["messages"][1]["content"]
+        try:
+            output_schema = json.loads(original_user_content).get("output_schema", schema)
+        except (TypeError, ValueError):
+            output_schema = schema
+        body["messages"][1]["content"] = [
+            {
+                "type": "text",
+                "text": json.dumps(
+                    {
+                        "source_snapshot": payload.get("source_snapshot", {}),
+                        "modality": payload.get("modality", "pdf"),
+                        "output_schema": output_schema,
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+            {
+                "type": "file",
+                "file": {
+                    "filename": filename,
+                    "file_data": f"data:application/pdf;base64,{encoded}",
+                },
+            },
+        ]
+        body["stream"] = False
+        body.pop("stream_options", None)
+        headers = {"Content-Type": "application/json"}
+        if self.key:
+            headers["Authorization"] = f"Bearer {self.key}"
+        timeout = self.parameters.get("timeout_seconds", 30)
+        try:
+            async with asyncio.timeout(self.total_timeout):
+                async with httpx.AsyncClient(
+                    trust_env=False,
+                    follow_redirects=False,
+                    timeout=httpx.Timeout(timeout, connect=min(timeout, 15)),
+                ) as client:
+                    response = await client.post(
+                        self.base_url + "/chat/completions", json=body, headers=headers
+                    )
+        except TimeoutError:
+            raise ProviderError("timeout", "模型文档请求达到总时限") from None
+        except httpx.TimeoutException as exc:
+            raise ProviderError("timeout", "模型文档请求超时") from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError("network", "模型文档网络连接失败") from exc
+        if response.status_code >= 400:
+            raise ProviderError("client", f"模型文档请求被拒绝（HTTP {response.status_code}）")
+        try:
+            envelope = response.json()
+            content = envelope["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise ProviderError("response", "模型文档响应结构无效") from exc
+        if not isinstance(content, str):
+            raise ProviderError("response", "模型文档响应不是 JSON 文本")
+        if self.key and self.key in content:
+            raise ValueError("模型响应包含凭据，已拒绝保存")
+        usage = envelope.get("usage")
+        if isinstance(usage, dict):
+            self.usage = {
+                key: value
+                for key, value in usage.items()
+                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                and type(value) is int
+                and value >= 0
+            }
+        self.request_metadata = {
+            "transport": "chat-file-v1",
+            "file_name": filename,
+            "file_bytes": len(encoded) * 3 // 4,
+            "finish_reason": envelope.get("choices", [{}])[0].get("finish_reason", "unknown"),
+        }
+        return content
 
     @property
     def total_timeout(self) -> float:

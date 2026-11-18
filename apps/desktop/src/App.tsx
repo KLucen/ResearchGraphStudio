@@ -48,10 +48,15 @@ export default function App() {
   );
   const [creating, setCreating] = useState(false);
   const [importProjectId, setImportProjectId] = useState<string | null>(null);
+  const importDialogRef = useRef<HTMLDialogElement>(null);
   const [selected, setSelected] = useState<Project | null>(null);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const client = useQueryClient();
+  useEffect(() => {
+    const dialog = importDialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, [importProjectId]);
   const host = useQuery({
     queryKey: ["host"],
     queryFn: api.host,
@@ -83,6 +88,27 @@ export default function App() {
   const activeTaskCount =
     globalJobs.data?.filter((job) => ["queued", "running"].includes(job.status))
       .length ?? 0;
+  const paperJobSignature = (globalJobs.data ?? [])
+    .filter((job) => job.kind === "pdf_import" || job.kind === "zotero_import")
+    .map((job) => `${job.id}:${job.status}:${job.updated_at}`)
+    .sort()
+    .join("|");
+  const lastPaperJobSignature = useRef("");
+  useEffect(() => {
+    if (
+      !connected ||
+      !globalJobs.data ||
+      paperJobSignature === lastPaperJobSignature.current
+    ) {
+      return;
+    }
+    lastPaperJobSignature.current = paperJobSignature;
+    // A paper row is published by the worker, after the import request returns.
+    // Refresh both list projections whenever that durable job changes so the
+    // sidebar and the project view observe the same committed state.
+    void client.invalidateQueries({ queryKey: ["sidebar-papers"] });
+    void client.invalidateQueries({ queryKey: ["papers"] });
+  }, [client, connected, globalJobs.data, paperJobSignature]);
   const projectNames = Object.fromEntries(
     allProjects.map((project) => [project.id, project.name]),
   );
@@ -274,6 +300,7 @@ export default function App() {
                 connected={connected}
                 initialPaperId={selectedPaperId}
                 onOpenTasks={() => setPage("tasks")}
+                onPaperDeleted={() => setSelectedPaperId(null)}
               />
             </section>
           ) : (
@@ -302,9 +329,13 @@ export default function App() {
       )}
       {importProjectId && (
         <dialog
+          ref={importDialogRef}
           className="dialog import-dialog"
-          open
           aria-labelledby="import-paper-title"
+          onCancel={(event) => {
+            event.preventDefault();
+            setImportProjectId(null);
+          }}
         >
           <div className="dialog-header">
             <div className="eyebrow">ADD TO PROJECT</div>
@@ -357,7 +388,11 @@ function ProjectSidebar({
       queryKey: ["sidebar-papers", project.id],
       queryFn: () => api.papers(project.id),
       enabled: connected,
-      staleTime: 30_000,
+      refetchOnMount: "always",
+      // PDF/Zotero imports are durable jobs.  The first invalidation can
+      // happen before the worker has committed the Paper row, so keep the
+      // sidebar in the same eventual-consistency loop as the project view.
+      refetchInterval: connected ? 3000 : false,
     })),
   });
 
@@ -631,14 +666,27 @@ function CreateProject({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const key = useRef(crypto.randomUUID());
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
   const mutation = useMutation({
     mutationFn: () =>
       api.createProject({ name: name.trim(), description }, key.current),
     onSuccess: onCreated,
   });
   return (
-    <dialog className="dialog" open aria-labelledby="create-project-title">
+    <dialog
+      ref={dialogRef}
+      className="dialog"
+      aria-labelledby="create-project-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();

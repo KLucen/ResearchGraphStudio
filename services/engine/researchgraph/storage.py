@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-SCHEMA_HEAD = "lite0010"
+SCHEMA_HEAD = "lite0011"
 DATABASE_NAME = "researchgraph-lite.sqlite3"
 
 
@@ -35,6 +35,13 @@ def make_engine(data_dir: Path) -> Engine:
 
     @event.listens_for(engine, "begin")
     def begin(connection: Any) -> None:
+        # Optional derived archives must never make a successful local read
+        # wait behind a writer. All ordinary writes retain the 5s timeout.
+        timeout = connection.get_execution_options().get("sqlite_busy_timeout_ms")
+        if timeout is not None:
+            if type(timeout) is not int or not 0 <= timeout <= 5000:
+                raise ValueError("Invalid SQLite busy timeout")
+            connection.exec_driver_sql(f"PRAGMA busy_timeout={timeout}")
         readonly = connection.get_execution_options().get("sqlite_readonly", False)
         connection.exec_driver_sql("PRAGMA query_only=ON" if readonly else "PRAGMA query_only=OFF")
         connection.exec_driver_sql("BEGIN" if readonly else "BEGIN IMMEDIATE")

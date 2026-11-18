@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 
 class InputModel(BaseModel):
@@ -53,6 +53,7 @@ class JobView(BaseModel):
             "saving",
             "diagnostics",
             "generating",
+            "recognizing",
             "indexing",
             "completed",
             "failed",
@@ -114,6 +115,100 @@ class Health(BaseModel):
 class PdfImport(InputModel):
     path: str = Field(min_length=1, max_length=4096)
     mode: Literal["reference", "managed"] = "reference"
+    # The native host keeps the real path; the web layer only sends this opaque
+    # selection identity together with the post-import choices.
+    selection_id: str | None = Field(default=None, min_length=1, max_length=200)
+    post_import_plan: "PdfPostImportPlan | None" = None
+
+
+class SourceSnapshot(InputModel):
+    paper_id: str | None = Field(default=None, max_length=36)
+    file_name: str | None = Field(default=None, max_length=512)
+    page_count: int | None = Field(default=None, ge=1, le=100000)
+    provider_file_id: str | None = Field(default=None, max_length=240)
+    source_generation: int | None = Field(default=None, ge=0)
+
+
+class ImportPlan(InputModel):
+    overview: bool = False
+    reading: bool = False
+    translation_mode: Literal["full", "none"] = "none"
+    modality: Literal["auto", "required", "text", "pdf", "image"] = "text"
+    require_multimodal: bool = False
+    allow_network: bool = False
+    provider_profile_id: str | None = Field(default=None, max_length=160)
+
+    @model_validator(mode="after")
+    def validate_translation(self) -> "ImportPlan":
+        if self.translation_mode == "full" and not self.reading:
+            raise ValueError("只有选择全文精读后才能生成逐段中文翻译")
+        if self.modality == "auto":
+            self.modality = "pdf"
+        elif self.modality == "required":
+            self.modality = "pdf"
+            self.require_multimodal = True
+        if self.require_multimodal and self.modality == "text":
+            raise ValueError("需要多模态时，modality 不能为 text")
+        return self
+
+
+class PdfPostImportPlan(InputModel):
+    """Desktop import choices translated into the model-first plan."""
+
+    parse: Literal[True] = True
+    overview: bool = False
+    reading: bool = False
+    translation_mode: Literal["full", "none"] = "none"
+    modality: Literal["auto", "required"] = "auto"
+    extract_formulas: Literal[True] = True
+    extract_tables: Literal[True] = True
+    # Sending a PDF to a configured model is an explicit user authorization.
+    # Keep this separate from the extraction choices so merely opening the
+    # import panel never creates a network request or a paid task.
+    allow_network: bool = False
+    provider_profile_id: str | None = Field(default=None, max_length=160)
+
+    @model_validator(mode="after")
+    def validate_translation(self) -> "PdfPostImportPlan":
+        if self.translation_mode == "full" and not self.reading:
+            raise ValueError("只有选择全文精读后才能生成逐段中文翻译")
+        return self
+
+
+class ImportSessionCreate(InputModel):
+    source_kind: Literal["pdf", "zotero"] = "pdf"
+    selection_id: str = Field(min_length=1, max_length=200)
+    source_snapshot: SourceSnapshot = Field(default_factory=SourceSnapshot)
+    plan: ImportPlan = Field(default_factory=ImportPlan)
+
+
+class ImportPlanItemView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    item_kind: Literal["document_parse", "paper_overview", "paper_reading", "translation"]
+    status: Literal["planned", "queued", "running", "succeeded", "failed", "interrupted", "paused"]
+    config: dict[str, Any]
+    job_id: str | None
+    attempt: int
+    error: str | None
+    result: dict[str, Any] | None
+    created_at: str
+    updated_at: str
+
+
+class ImportSessionView(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    project_id: str
+    source_kind: Literal["pdf", "zotero"]
+    selection_id: str
+    source_snapshot: SourceSnapshot
+    plan: ImportPlan
+    status: Literal["planned", "queued", "running", "succeeded", "failed", "interrupted", "paused"]
+    error: str | None
+    created_at: str
+    updated_at: str
+    items: list[ImportPlanItemView] = Field(default_factory=list)
 
 
 class PaperView(BaseModel):

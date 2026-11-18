@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, request, type Job } from "./api";
+import {
+  api,
+  defaultPostImportPlan,
+  request,
+  type Job,
+  type PostImportPlan,
+} from "./api";
+import { ImportPostProcessingPlan } from "./ImportPostProcessingPlan";
 
 type Collection = {
   key: string;
@@ -54,6 +61,9 @@ export function ZoteroImport({
   const [start, setStart] = useState(0);
   const [chosen, setChosen] = useState<Record<string, Choice>>({});
   const [mode, setMode] = useState<"reference" | "managed">("reference");
+  const [postImportPlan, setPostImportPlan] = useState<PostImportPlan>(() =>
+    defaultPostImportPlan(),
+  );
   const [enabled, setEnabled] = useState(false);
   const collections = useQuery({
     queryKey: ["zotero-collections", library],
@@ -104,6 +114,7 @@ export function ZoteroImport({
           collection_key: collection,
           selections: Object.values(chosen),
           mode,
+          post_import_plan: postImportPlan,
         },
         crypto.randomUUID(),
       ),
@@ -113,6 +124,9 @@ export function ZoteroImport({
         queryKey: ["zotero-imports", projectId],
       });
       void client.invalidateQueries({ queryKey: ["papers", projectId] });
+      void client.invalidateQueries({
+        queryKey: ["sidebar-papers", projectId],
+      });
       void client.invalidateQueries({ queryKey: ["jobs", projectId] });
     },
   });
@@ -125,8 +139,12 @@ export function ZoteroImport({
       }),
   });
   useEffect(() => {
-    if (history.data?.some((item) => item.job.status === "succeeded"))
+    if (history.data?.some((item) => item.job.status === "succeeded")) {
       void client.invalidateQueries({ queryKey: ["papers", projectId] });
+      void client.invalidateQueries({
+        queryKey: ["sidebar-papers", projectId],
+      });
+    }
   }, [history.data, client, projectId]);
   const choose = (rows: Choice[], checked: boolean) =>
     setChosen((old) => {
@@ -150,7 +168,7 @@ export function ZoteroImport({
       <h4>Zotero 分类批量导入</h4>
       <p>
         勾选附件即授权只读导入对应 PDF。原文件保持在 Zotero；Lite
-        只解析、建立章节和全文索引。
+        按导入计划调用模型解析章节、正文、公式和表格；原文件仍保留在 Zotero。
       </p>
       <label>
         文献库
@@ -303,7 +321,7 @@ export function ZoteroImport({
               }
               onClick={() => submit.mutate()}
             >
-              仅解析 · 已选 {Object.keys(chosen).length} 个附件
+              按计划导入 · 已选 {Object.keys(chosen).length} 个附件
             </button>
             <button className="text-button" onClick={() => setChosen({})}>
               清空选择
@@ -312,6 +330,10 @@ export function ZoteroImport({
           {Object.keys(chosen).length > 50 && (
             <p role="alert">单批最多 50 个附件。</p>
           )}
+          <ImportPostProcessingPlan
+            value={postImportPlan}
+            onChange={setPostImportPlan}
+          />
         </>
       )}
       {jobs.length > 0 && (

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.lite_models import LiteCacheEntry, LiteTokenUsage
 from researchgraph.models import AttachmentRevision, Paper, Section, now
+from researchgraph.storage import read_session
 
 
 class UsageKindView(BaseModel):
@@ -475,12 +476,12 @@ def register_lite_usage_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
 
     @app.get("/api/v1/lite/usage", response_model=LiteUsageView)
     def global_usage() -> LiteUsageView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             return aggregate_usage(session, None)
 
     @app.get("/api/v1/projects/{project_id}/lite/usage", response_model=LiteUsageView)
     def usage(project_id: str, paper_id: str | None = Query(default=None)) -> LiteUsageView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             from researchgraph.models import Project
 
             project = session.get(Project, project_id)

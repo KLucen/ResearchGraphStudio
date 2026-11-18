@@ -10,6 +10,10 @@
 
 2026-11-16 导航增量见 [ADR0043](../adr/0043-reading-outline-and-formula-source-boundary.md)：精读与问答目录改为可收起侧栏，全文跟随实际阅读章节，问答同步所选章节；不改变模型调用、检索范围、Schema 或缓存身份。公式识别问题另见 [评估](../formula-parsing-assessment.md)，尚未接入公式预览/OCR。
 
+同日缺章修复见 [ADR0044](../adr/0044-versioned-pdf-chapter-tree.md)：`structure-v2` 修复小型大写标题、退化表格和印刷目录误识别，`reading-document-2` 支持精确标题片段；侧栏按 parent_id 展示可逐级折叠的目录树。显式本地刷新增量保存新解析/章节，旧原文、Span 和结果保留；跨小节的完整来源块明确标注范围较宽。数据库仍 `lite0010`，旧笔记可能过期，不自动重新生成或收费。实际结果读 [验证报告](../reading-tree-verification-20261116.md)。
+
+2026-11-16 本地存档修复见 [ADR0045](../adr/0045-persisted-reading-archive-and-read-transactions.md)：普通打开使用只读快照，校验后直接读取保存的版面；首次或旧存档仅本地组装并短事务归档，写锁忙时仍返回阅读内容。显式刷新才重新扫描 PDF，模型仍仅显式生成。现有数据库、原文和历史结果保留。
+
 ## 2026-11-14 较早的章节精读增量（历史生成入口）
 
 [双栏精读补充规范](ResearchGraph_Lite_Section_CloseReading_Bilingual_Annotation.md) 扩展现有 P2：保留 A01，新增 A02 逐段英文原文 + 常驻中文译文 + 五色论证批注、独立个人理解状态、A03 按需复述检查，以及可关闭的 A01 自适应侧重点。A02 一次调用联合生成译文和批注，英文来自本地 Section/Span/Chunk；长小节由用户选择段落范围，不默认预生成全篇。当时 head 为 `lite0009`，通过加性迁移保存新增状态与成果，旧数据保留；实现和实际验收读 [progress](../progress.md) 与 [ADR0041](../adr/0041-section-bilingual-close-reading.md)。

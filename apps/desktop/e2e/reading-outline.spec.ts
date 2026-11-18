@@ -229,3 +229,65 @@ test("a short final section remains current at the bottom of a real scrolling do
   await final.click();
   await expect(final).toHaveAttribute("aria-current", "location");
 });
+
+test("three-level outline branches fold locally and locating or reading a new chapter reveals its ancestors", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/e2e/reading-outline.html?scenario=tree");
+  const outline = page.getByRole("navigation", { name: "文章目录" });
+  const detail = outline.getByRole("button", {
+    name: "1.1.1 Detail",
+    exact: true,
+  });
+  await expect(detail.locator("xpath=ancestor::li[1]")).toHaveAttribute(
+    "data-outline-level",
+    "3",
+  );
+  await detail.click();
+  await expect(page.locator("#tree-detail-1")).toBeFocused();
+  await page.screenshot({
+    path: testInfo.outputPath("outline-tree-desktop.png"),
+  });
+  const beforeFold = await page.evaluate(() => window.scrollY);
+  await outline
+    .getByRole("button", { name: "收起 1.1 Context 的子章节" })
+    .click();
+  await expect(detail).not.toBeVisible();
+  await outline
+    .getByRole("button", { name: "收起 1 Introduction 的子章节" })
+    .click();
+  await expect(
+    outline.getByRole("button", { name: "1.1 Context", exact: true }),
+  ).not.toBeVisible();
+  expect(await page.evaluate(() => window.scrollY)).toBe(beforeFold);
+  await page.screenshot({
+    path: testInfo.outputPath("outline-tree-folded.png"),
+  });
+  await page.getByRole("button", { name: "在目录中定位当前章节" }).click();
+  await expect(detail).toBeVisible();
+  await expect(detail).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(beforeFold);
+  await outline
+    .getByRole("button", { name: "收起 2 Methods 的子章节" })
+    .click();
+  const next = outline.getByRole("button", {
+    name: "2.1.1 Parameters",
+    exact: true,
+  });
+  await expect(next).not.toBeVisible();
+  await page
+    .locator("#tree-detail-2")
+    .evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await expect(next).toBeVisible();
+  await expect(next).toHaveAttribute("aria-current", "location");
+  await page.setViewportSize({ width: 1120, height: 900 });
+  await expect(
+    page.getByRole("button", { name: "展开文章目录" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "展开文章目录" }).click();
+  await page.screenshot({
+    path: testInfo.outputPath("outline-tree-compact.png"),
+  });
+  expect(await page.evaluate(() => window.__outlineModelCalls)).toBe(0);
+});

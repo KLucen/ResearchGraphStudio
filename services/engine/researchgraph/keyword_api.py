@@ -35,6 +35,7 @@ from researchgraph.keyword_models import LiteKeywordRecord
 from researchgraph.lite_usage import cache_key, read_cache, record_usage, write_cache
 from researchgraph.models import AttachmentRevision, Job, Paper, Section, now
 from researchgraph.providers import Provider
+from researchgraph.storage import read_session
 
 SYSTEM_PROMPT = """You are a bilingual scientific search-keyword converter.
 Return only JSON matching the output schema. Read the question, paper title,
@@ -557,7 +558,7 @@ def register_keyword_api(app: FastAPI, engine: Callable[[], Engine], data_dir: P
         document_version_id: str | None = Query(default=None),
         section_id: str | None = Query(default=None),
     ) -> list[KeywordView]:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             if session.get(Paper, paper_id) is None:
                 raise HTTPException(404, "论文不存在")
             statement = select(LiteKeywordRecord).where(LiteKeywordRecord.paper_id == paper_id)
@@ -577,7 +578,7 @@ def register_keyword_api(app: FastAPI, engine: Callable[[], Engine], data_dir: P
 
     @app.get("/api/v1/papers/{paper_id}/qa/keywords/{keyword_id}", response_model=KeywordView)
     def get_keywords(paper_id: str, keyword_id: str) -> KeywordView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             row = session.get(LiteKeywordRecord, keyword_id)
             if row is None or row.paper_id != paper_id:
                 raise HTTPException(404, "关键词记录不存在")

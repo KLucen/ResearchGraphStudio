@@ -31,6 +31,7 @@ from researchgraph.model_settings import (
     settings_view,
 )
 from researchgraph.providers import ConfiguredProvider
+from researchgraph.storage import read_session
 
 
 def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: Path) -> None:
@@ -39,7 +40,7 @@ def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: 
     @app.get("/api/v1/settings/models", response_model=SettingsView)
     @app.get("/api/v1/projects/{project_id}/models", response_model=SettingsView)
     def settings(project_id: str | None = None) -> SettingsView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             return settings_view(session, project_id)
 
     @app.post("/api/v1/settings/connections", response_model=ConnectionView)

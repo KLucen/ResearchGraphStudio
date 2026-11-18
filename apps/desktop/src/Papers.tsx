@@ -5,11 +5,19 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, type ReadingParagraph } from "./api";
+import { Eraser, Pencil, Save, Trash2, X } from "lucide-react";
+import {
+  api,
+  defaultPostImportPlan,
+  type PostImportPlan,
+  type ReadingParagraph,
+} from "./api";
+import { ImportPostProcessingPlan } from "./ImportPostProcessingPlan";
 import { PaperMetadata } from "./PaperMetadata";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
 import { ZoteroImport } from "./ZoteroImport";
+import { ModelDocumentPanel } from "./ModelDocumentPanel";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -19,12 +27,14 @@ export function Papers({
   projectName,
   initialPaperId,
   onOpenTasks,
+  onPaperDeleted,
 }: {
   projectId: string;
   connected: boolean;
   projectName?: string;
   initialPaperId?: string | null;
   onOpenTasks?: () => void;
+  onPaperDeleted?: () => void;
 }) {
   const paperId = initialPaperId ?? null;
   const [categories, setCategories] = useState<Record<string, string>>(() => {
@@ -91,6 +101,7 @@ export function Papers({
           paperId={paperId}
           projectId={projectId}
           connected={connected}
+          onPaperDeleted={onPaperDeleted}
           category={categories[paperId] ?? ""}
           onCategoryChange={(value) => {
             const next = { ...categories, [paperId]: value };
@@ -122,9 +133,21 @@ export function PaperImport({
   const [mode, setMode] = useState<"reference" | "managed">("reference");
   const [source, setSource] = useState<"pdf" | "zotero">("pdf");
   const [zoteroVisited, setZoteroVisited] = useState(false);
+  const [postImportPlan, setPostImportPlan] = useState<PostImportPlan>(() =>
+    defaultPostImportPlan(),
+  );
   const client = useQueryClient();
   const importing = useMutation({
-    mutationFn: () => api.importPdf(projectId, mode),
+    mutationFn: async () => {
+      const selection = await api.selectPdfImport();
+      if (!selection) return null;
+      return api.submitPdfImport(
+        projectId,
+        mode,
+        selection.selection_id,
+        postImportPlan,
+      );
+    },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["jobs"] });
       void client.invalidateQueries({ queryKey: ["papers", projectId] });
@@ -177,10 +200,13 @@ export function PaperImport({
             {importing.isPending ? "正在选择…" : "选择 PDF 导入"}
           </button>
         </div>
+        <ImportPostProcessingPlan
+          value={postImportPlan}
+          onChange={setPostImportPlan}
+        />
         {!compact && (
           <p className="muted">
-            选择 PDF
-            后仅在本机解析章节、文本块和全文索引，不会自动调用模型。每次一份，最多
+            选择 PDF 后按计划调用模型解析章节、正文、公式和表格。每次一份，最多
             50 MiB / 300 页。
           </p>
         )}
@@ -205,12 +231,14 @@ function PaperText({
   connected,
   category,
   onCategoryChange,
+  onPaperDeleted,
 }: {
   paperId: string;
   projectId: string;
   connected: boolean;
   category: string;
   onCategoryChange: (value: string) => void;
+  onPaperDeleted?: () => void;
 }) {
   const detail = useQuery({
     queryKey: ["paper", paperId],
@@ -222,15 +250,106 @@ function PaperText({
         ? 1500
         : false,
   });
+  const importSessions = useQuery({
+    queryKey: ["paper-import-sessions", projectId],
+    queryFn: () => api.importSessions(projectId),
+    enabled: connected,
+    refetchInterval: (query) =>
+      query.state.data?.some((session) =>
+        ["planned", "queued", "running"].includes(session.status),
+      )
+        ? 1500
+        : false,
+  });
   const [chosen, setChosen] = useState("");
-  const [activePanel, setActivePanel] = useState<"overview" | "guide" | "qa">(
-    "overview",
-  );
+  const [activePanel, setActivePanel] = useState<
+    "overview" | "guide" | "qa" | "materials"
+  >("overview");
   const [readingSection, setReadingSection] = useState("");
   const [readingParagraph, setReadingParagraph] = useState("");
   const [graphNode, setGraphNode] = useState("");
   const [qaParagraph, setQaParagraph] = useState<ReadingParagraph | null>(null);
   const revisionId = chosen || detail.data?.revisions[0]?.id || "";
+  const modelSession = (importSessions.data ?? [])
+    .filter((session) => session.source_snapshot.paper_id === paperId)
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
+  const currentPanel =
+    modelSession && activePanel === "qa" ? "overview" : activePanel;
+  const client = useQueryClient();
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [managementMessage, setManagementMessage] = useState("");
+  const renamePaper = useMutation({
+    mutationFn: () => api.updatePaper(paperId, { title: titleDraft.trim() }),
+    onSuccess: () => {
+      setEditingTitle(false);
+      setManagementMessage("论文题名已保存");
+      void client.invalidateQueries({ queryKey: ["paper", paperId] });
+      void client.invalidateQueries({ queryKey: ["papers", projectId] });
+      void client.invalidateQueries({
+        queryKey: ["sidebar-papers", projectId],
+      });
+    },
+  });
+  const clearLegacy = useMutation({
+    mutationFn: () => api.clearPaperLegacyContent(paperId),
+    onSuccess: (result) => {
+      setChosen("");
+      setManagementMessage(
+        `已清理旧本地解析及缓存；保留个人记录 ${result.retained_personal_metadata} 项`,
+      );
+      void client.invalidateQueries({ queryKey: ["paper", paperId] });
+      void client.invalidateQueries({ queryKey: ["papers", projectId] });
+      void client.invalidateQueries({
+        queryKey: ["sidebar-papers", projectId],
+      });
+    },
+  });
+  const deletePaper = useMutation({
+    mutationFn: () => api.deletePaper(paperId),
+    onSuccess: () => {
+      void client.removeQueries({ queryKey: ["paper", paperId] });
+      void client.invalidateQueries({ queryKey: ["papers", projectId] });
+      void client.invalidateQueries({
+        queryKey: ["sidebar-papers", projectId],
+      });
+      void client.invalidateQueries({
+        queryKey: ["paper-import-sessions", projectId],
+      });
+      onPaperDeleted?.();
+    },
+  });
+  const confirmClearLegacy = () => {
+    if (
+      window.confirm(
+        "清理这篇论文的旧本地解析与缓存？个人笔记、已生成的概览/精读/问答、模型章节内容、论文记录及 PDF/Zotero 源文件都会保留。",
+      )
+    ) {
+      setManagementMessage("");
+      clearLegacy.mutate();
+    }
+  };
+  const confirmDeletePaper = () => {
+    if (
+      window.confirm(
+        "删除这篇论文及其本地生成内容？PDF 与 Zotero 文献库原件不会删除；已删除内容无法从应用恢复。",
+      )
+    ) {
+      setManagementMessage("");
+      deletePaper.mutate();
+    }
+  };
+  const visibleTabs = modelSession
+    ? ([
+        ["overview", "论文概览"],
+        ["guide", "论文精读"],
+        ["materials", "章节材料"],
+      ] as const)
+    : ([
+        ["overview", "论文概览"],
+        ["guide", "论文精读"],
+        ["qa", "论文问答"],
+      ] as const);
   return (
     <div className="paper-reading paper-reading-focused">
       {detail.isError && (
@@ -251,27 +370,130 @@ function PaperText({
                 {detail.data.paper.title}
               </span>
             </div>
+            <div className="paper-management-actions" aria-label="论文管理">
+              {!editingTitle ? (
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={() => {
+                    setTitleDraft(detail.data!.paper.title);
+                    setEditingTitle(true);
+                    setManagementMessage("");
+                  }}
+                >
+                  <Pencil size={14} /> 编辑题名
+                </button>
+              ) : (
+                <form
+                  className="paper-title-edit"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    renamePaper.mutate();
+                  }}
+                >
+                  <input
+                    aria-label="编辑论文题名"
+                    maxLength={500}
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    className="icon-button"
+                    aria-label="保存论文题名"
+                    title="保存"
+                    disabled={!titleDraft.trim() || renamePaper.isPending}
+                  >
+                    <Save size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="取消编辑论文题名"
+                    title="取消"
+                    onClick={() => setEditingTitle(false)}
+                    disabled={renamePaper.isPending}
+                  >
+                    <X size={16} />
+                  </button>
+                </form>
+              )}
+              {detail.data.revisions.length > 0 && (
+                <button
+                  type="button"
+                  className="button secondary compact"
+                  onClick={confirmClearLegacy}
+                  disabled={clearLegacy.isPending || deletePaper.isPending}
+                  title="清理旧本地解析及缓存，保留个人笔记与已生成内容"
+                >
+                  <Eraser size={14} /> 清理旧解析
+                </button>
+              )}
+              <button
+                type="button"
+                className="button danger compact"
+                onClick={confirmDeletePaper}
+                disabled={deletePaper.isPending || clearLegacy.isPending}
+                title="删除论文和本地生成内容"
+              >
+                <Trash2 size={14} /> 删除论文
+              </button>
+            </div>
+            {(managementMessage ||
+              renamePaper.isError ||
+              clearLegacy.isError ||
+              deletePaper.isError) && (
+              <p
+                className={
+                  renamePaper.isError ||
+                  clearLegacy.isError ||
+                  deletePaper.isError
+                    ? "error-text"
+                    : "paper-management-status"
+                }
+                role={
+                  renamePaper.isError ||
+                  clearLegacy.isError ||
+                  deletePaper.isError
+                    ? "alert"
+                    : "status"
+                }
+              >
+                {renamePaper.isError
+                  ? errorText(renamePaper.error)
+                  : clearLegacy.isError
+                    ? errorText(clearLegacy.error)
+                    : deletePaper.isError
+                      ? errorText(deletePaper.error)
+                      : managementMessage}
+              </p>
+            )}
             <nav
               className="reading-panels paper-workspace-tabs"
               aria-label="论文阅读板块"
             >
-              {(
-                [
-                  ["overview", "论文概览"],
-                  ["guide", "论文精读"],
-                  ["qa", "论文问答"],
-                ] as const
-              ).map(([value, label]) => (
+              {visibleTabs.map(([value, label]) => (
                 <button
                   type="button"
                   key={value}
                   className={
-                    activePanel === value
+                    currentPanel === value
                       ? "button primary"
                       : "button secondary"
                   }
-                  aria-pressed={activePanel === value}
-                  disabled={!revisionId}
+                  aria-pressed={currentPanel === value}
+                  disabled={
+                    modelSession
+                      ? ![
+                          "succeeded",
+                          "queued",
+                          "running",
+                          "paused",
+                          "failed",
+                          "interrupted",
+                        ].includes(modelSession.status)
+                      : !revisionId
+                  }
                   onClick={() => setActivePanel(value)}
                 >
                   {label}
@@ -279,21 +501,35 @@ function PaperText({
               ))}
             </nav>
           </header>
-          {!revisionId && (
+          {modelSession && (
+            <ModelDocumentPanel
+              sessionId={modelSession.id}
+              connected={connected}
+              activeView={
+                currentPanel === "guide"
+                  ? "reading"
+                  : currentPanel === "materials"
+                    ? "materials"
+                    : "overview"
+              }
+              sessionStatus={modelSession.status}
+              sessionError={modelSession.error}
+            />
+          )}
+          {!modelSession && !revisionId && (
             <div className="quality-note" role="status">
               <strong>正在准备论文阅读功能</strong>
               <p>
-                当前论文还没有完成的 PDF
-                解析版本。系统正在等待本地解析和章节索引；完成后会启用论文概览、论文精读和论文问答。
+                当前论文还没有完成的模型解析版本。系统正在等待按导入计划生成章节、正文、公式和表格；完成后会启用论文概览、论文精读和论文问答。
               </p>
               <p className="muted">
                 如果长时间没有变化，请打开左侧“任务记录”查看 PDF 导入是否失败。
               </p>
             </div>
           )}
-          {revisionId && (
+          {!modelSession && revisionId && (
             <>
-              {activePanel === "overview" && (
+              {currentPanel === "overview" && (
                 <section className="reading-panel" aria-label="论文概览">
                   <PaperOverview
                     key={`overview-${revisionId}-${graphNode}`}
@@ -315,7 +551,7 @@ function PaperText({
                   />
                 </section>
               )}
-              {activePanel === "guide" && (
+              {currentPanel === "guide" && (
                 <section className="reading-panel" aria-label="论文精读">
                   <KnowledgeReading
                     key={`guide-${revisionId}`}
@@ -341,7 +577,7 @@ function PaperText({
                   />
                 </section>
               )}
-              {activePanel === "qa" && (
+              {currentPanel === "qa" && (
                 <section className="reading-panel" aria-label="论文问答">
                   <KnowledgeReading
                     key={`qa-${revisionId}-${qaParagraph?.paragraph_id ?? ""}`}
@@ -367,6 +603,7 @@ function PaperText({
             connected={connected}
             category={category}
             onCategoryChange={onCategoryChange}
+            hideLegacyText={!!modelSession}
             onRevisionChange={(revisionId) => {
               setChosen(revisionId);
               setReadingSection("");

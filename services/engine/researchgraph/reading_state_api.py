@@ -14,7 +14,8 @@ from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
-from researchgraph.models import AttachmentRevision, Chunk, EvidenceSpan, Paper, Section, now
+from researchgraph.document_structure import active_section_rows, section_spans
+from researchgraph.models import AttachmentRevision, Chunk, Paper, Section, now
 from researchgraph.paper_overview_models import PaperOverviewResult
 from researchgraph.reading_state_contracts import (
     ConceptUnderstandingPut,
@@ -24,6 +25,7 @@ from researchgraph.reading_state_contracts import (
     ReadingStateView,
 )
 from researchgraph.reading_state_models import ConceptUnderstanding, ReadingState
+from researchgraph.storage import read_session
 
 
 def _hash(value: Any) -> str:
@@ -62,16 +64,13 @@ def _scope(
     section = session.get(Section, section_id)
     if section is None or section.document_version_id != revision.id:
         raise KnowledgeError("SECTION_NOT_FOUND", "章节不属于当前论文版本")
-    paragraphs = session.execute(
-        select(Chunk.id, Chunk.text, EvidenceSpan.id, EvidenceSpan.quote)
-        .join(EvidenceSpan, EvidenceSpan.paragraph_id == Chunk.id)
-        .where(
-            EvidenceSpan.section_id == section_id,
-            EvidenceSpan.document_version_id == revision.id,
-            Chunk.revision_id == revision.id,
-        )
-        .order_by(Chunk.page_index, Chunk.block_index, EvidenceSpan.start_offset)
-    ).all()
+    selected = []
+    for span in section_spans(session, section):
+        chunk = session.get(Chunk, span.paragraph_id)
+        if chunk is not None and chunk.revision_id == revision.id:
+            selected.append((chunk, span))
+    selected.sort(key=lambda item: (item[0].page_index, item[0].block_index, item[1].start_offset))
+    paragraphs = [(chunk.id, chunk.text, span.id, span.quote) for chunk, span in selected]
     source_hash = _hash(
         {
             "pdf_hash": revision.sha256,
@@ -179,20 +178,27 @@ def _related_sections(
             if isinstance(paragraph, dict)
         ):
             linked_section_ids.add(reading.section_id)
-    for section, text in session.execute(
-        select(Section, Chunk.text)
-        .join(EvidenceSpan, EvidenceSpan.section_id == Section.id)
-        .join(Chunk, Chunk.id == EvidenceSpan.paragraph_id)
-        .where(
-            Section.document_version_id == revision_id,
-            Section.excluded.is_(False),
-            Chunk.revision_id == revision_id,
+    sections = active_section_rows(session, revision_id)
+    active_ids = {section.id for section in sections}
+    # Explicit historical associations retain their original navigation IDs.
+    sections.extend(
+        session.scalars(
+            select(Section)
+            .where(
+                Section.document_version_id == revision_id,
+                Section.id.in_(linked_section_ids - active_ids),
+            )
+            .order_by(Section.ordinal, Section.id)
         )
-        .order_by(Section.ordinal)
-    ).all():
-        if (
-            section.id in linked_section_ids or any(_term_present(term, text) for term in terms)
-        ) and not any(item["section_id"] == section.id for item in related):
+    )
+    for section in sections:
+        if section.excluded or section.role == "references":
+            continue
+        spans = section_spans(session, section)
+        if spans and (
+            section.id in linked_section_ids
+            or any(_term_present(term, span.quote) for span in spans for term in terms)
+        ):
             related.append({"section_id": section.id, "title": section.title})
     return related
 
@@ -518,7 +524,7 @@ def register_reading_state_api(app: FastAPI, engine: Callable[[], Engine]) -> No
         paper_id: str, section_id: str, document_version_id: str | None = Query(None)
     ) -> ReadingStateView:
         try:
-            with Session(engine()) as session:
+            with read_session(engine()) as session:
                 revision = _revision(session, paper_id, document_version_id)
                 return ReadingStateView.model_validate(
                     get_state_snapshot(session, paper_id, revision.id, section_id)
@@ -597,7 +603,7 @@ def register_reading_state_api(app: FastAPI, engine: Callable[[], Engine]) -> No
         overview_result_id: str | None = Query(None),
     ) -> list[ConceptUnderstandingView]:
         try:
-            with Session(engine()) as session:
+            with read_session(engine()) as session:
                 revision = _revision(session, paper_id, document_version_id)
                 if overview_result_id is not None:
                     _require_graph(session, paper_id, revision.id, overview_result_id, [])

@@ -19,6 +19,11 @@ from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
+from researchgraph.document_structure import (
+    section_model_spans,
+    section_spans,
+    source_block_boundary,
+)
 from researchgraph.lite_usage import cache_key, read_cache, record_usage, write_cache
 from researchgraph.models import AttachmentRevision, EvidenceSpan, Job, Paper, Section, now
 from researchgraph.providers import Provider
@@ -37,6 +42,7 @@ from researchgraph.section_guide_contracts import (
     validate_response,
 )
 from researchgraph.section_guide_models import SectionGuideResult
+from researchgraph.storage import read_session
 
 SYSTEM_PROMPT = """You are a concise reading guide for a Chinese graduate student.
 Help the reader understand only the selected paper section. Use only the supplied
@@ -98,16 +104,7 @@ def _section_scope(
     if section.excluded or section.role == "references":
         raise KnowledgeError("SECTION_NOT_READABLE", "参考文献等排除章节不能生成导读")
     parent = session.get(Section, section.parent_id) if section.parent_id else None
-    spans = list(
-        session.scalars(
-            select(EvidenceSpan)
-            .where(
-                EvidenceSpan.document_version_id == revision_id,
-                EvidenceSpan.section_id == section_id,
-            )
-            .order_by(EvidenceSpan.page_index, EvidenceSpan.paragraph_id, EvidenceSpan.start_offset)
-        ).all()
-    )
+    spans = section_model_spans(session, section)
     return paper, revision, section, parent, spans
 
 
@@ -147,7 +144,7 @@ def build_guide_input(
             }
         )
         total += len(text)
-    return {
+    context = {
         "paper_title": paper.title[:500],
         "section_id": section.id,
         "section_heading": section.title[:240],
@@ -156,6 +153,10 @@ def build_guide_input(
         "allowed_spans": allowed,
         "source_truncated": truncated,
     }
+    boundary = source_block_boundary(session, revision.id, spans, section.id)
+    if boundary is not None:
+        context["source_boundary"] = boundary
+    return context
 
 
 def _model_context(context: dict[str, Any]) -> dict[str, Any]:
@@ -173,6 +174,8 @@ def _model_context(context: dict[str, Any]) -> dict[str, Any]:
     }
     if context.get("reader_context") is not None:
         result["reader_context"] = context["reader_context"]
+    if context.get("source_boundary") is not None:
+        result["source_boundary"] = context["source_boundary"]
     return result
 
 
@@ -253,6 +256,9 @@ def _evidence_for_row(session: Session, row: SectionGuideResult) -> list[GuideEv
     ids = set((row.guide_json or {}).get("evidence_span_ids", []))
     if not ids:
         return []
+    section = session.get(Section, row.section_id)
+    if section is None or section.document_version_id != row.document_version_id:
+        return []
     return [
         GuideEvidence(
             span_id=span.id,
@@ -260,15 +266,8 @@ def _evidence_for_row(session: Session, row: SectionGuideResult) -> list[GuideEv
             page_end=span.page_index + 1,
             quote=_clean(span.quote)[:320],
         )
-        for span in session.scalars(
-            select(EvidenceSpan)
-            .where(
-                EvidenceSpan.document_version_id == row.document_version_id,
-                EvidenceSpan.section_id == row.section_id,
-                EvidenceSpan.id.in_(ids),
-            )
-            .order_by(EvidenceSpan.page_index, EvidenceSpan.paragraph_id, EvidenceSpan.start_offset)
-        ).all()
+        for span in section_spans(session, section)
+        if span.id in ids
     ]
 
 
@@ -762,7 +761,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         section_id: str | None = Query(default=None),
         depth: str | None = Query(default=None, pattern="^(quick|standard|deep)$"),
     ) -> list[GuideView]:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")
@@ -798,7 +797,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         depth: str = Query("standard", pattern="^(quick|standard|deep)$"),
         adaptive: bool = Query(False),
     ) -> GuideView | None:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")

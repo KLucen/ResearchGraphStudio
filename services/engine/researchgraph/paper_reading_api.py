@@ -40,6 +40,7 @@ from researchgraph.paper_reading_models import PaperReadingResult
 from researchgraph.providers import ConfiguredProvider, Provider, ProviderError
 from researchgraph.section_guide_api import _hash, _latest_revision, _provider_usage
 from researchgraph.section_guide_contracts import GuideUsage
+from researchgraph.storage import read_session
 
 SYSTEM_PROMPT = """你是一名帮助研究生精读科研论文的双语阅读导师。
 本次任务是一次阅读整篇论文提供的全部正文，生成连贯的全文精读笔记，不是逐段独立请求。
@@ -755,7 +756,7 @@ def register_paper_reading_api(app: FastAPI, engine: Callable[[], Engine], data_
         document_version_id: str | None = Query(default=None),
         result_id: str | None = Query(default=None),
     ) -> PaperReadingView | None:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             if session.get(Paper, paper_id) is None:
                 raise HTTPException(404, "论文不存在")
             if result_id:

@@ -15,7 +15,151 @@ export type Paper = {
   title: string;
   created_at: string;
 };
+export type PaperManagementResult = {
+  ok: boolean;
+  paper_id: string;
+  backup_file: string | null;
+  removed: Record<string, number>;
+  retained_personal_metadata: number;
+  retained_managed_files: number;
+};
 export type PaperList = { items: Paper[]; next_cursor: number | null };
+export type PostImportPlan = {
+  parse: true;
+  overview: boolean;
+  reading: boolean;
+  translation_mode: "full" | "none";
+  modality: "auto" | "required";
+  extract_formulas: true;
+  extract_tables: true;
+  allow_network: boolean;
+  provider_profile_id?: string | null;
+};
+
+export type PdfSelection = {
+  selection_id: string;
+  file_name: string;
+};
+
+export type ImportPlanItem = {
+  id: string;
+  item_kind:
+    "document_parse" | "paper_overview" | "paper_reading" | "translation";
+  status:
+    | "planned"
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "interrupted"
+    | "paused";
+  config: Record<string, unknown>;
+  job_id: string | null;
+  attempt: number;
+  error: string | null;
+  result: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+export type ImportSession = {
+  id: string;
+  project_id: string;
+  source_kind: "pdf" | "zotero";
+  selection_id: string;
+  source_snapshot: {
+    paper_id?: string | null;
+    file_name?: string | null;
+    page_count?: number | null;
+    provider_file_id?: string | null;
+  };
+  plan: {
+    overview: boolean;
+    reading: boolean;
+    translation_mode: "full" | "none";
+    modality: string;
+    require_multimodal: boolean;
+    allow_network: boolean;
+  };
+  status:
+    | "planned"
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "interrupted"
+    | "paused";
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  items: ImportPlanItem[];
+};
+export type ModelDocumentSegment = {
+  id: string;
+  chapter_ref: string;
+  chapter_title: string;
+  chapter_level: number;
+  chapter_order: number;
+  kind: string;
+  ordinal: number;
+  text: string | null;
+  latex: string | null;
+  mathml: string | null;
+  raw_table_text: string | null;
+  table_data: Record<string, unknown> | null;
+  locator: Record<string, unknown> | null;
+  status: string;
+  warnings: string[];
+};
+export type ModelDocumentParse = {
+  id: string;
+  import_session_id: string;
+  parse_version: string;
+  modality: string;
+  status: string;
+  warnings: string[];
+  error_code: string | null;
+  error: string | null;
+  segments: ModelDocumentSegment[];
+};
+export type ModelDocumentOutput = {
+  id: string;
+  import_session_id: string;
+  parse_id: string;
+  item_kind: "paper_overview" | "paper_reading" | "translation" | string;
+  status: string;
+  output_json: {
+    summary?: string | null;
+    sections?: { chapter_ref: string; text: string; role?: string | null }[];
+    contributions?: string[];
+    findings?: string[];
+    limitations?: string[];
+    translations?: {
+      chapter_ref: string;
+      source_text: string;
+      translation_zh: string;
+    }[];
+  } | null;
+  error_code: string | null;
+  error: string | null;
+};
+export type ModelDocumentSegmentEdit = Partial<
+  Pick<
+    ModelDocumentSegment,
+    "text" | "latex" | "mathml" | "raw_table_text" | "table_data"
+  >
+>;
+
+export const defaultPostImportPlan = (): PostImportPlan => ({
+  parse: true,
+  overview: true,
+  reading: false,
+  translation_mode: "none",
+  modality: "auto",
+  extract_formulas: true,
+  extract_tables: true,
+  allow_network: false,
+  provider_profile_id: null,
+});
 export type Revision = {
   id: string;
   paper_id: string;
@@ -84,13 +228,16 @@ export type DocumentReadingUnit = {
   material_type:
     | "table"
     | "figure"
+    | "formula"
     | "caption"
     | "figure_label"
     | "running"
     | "reference"
+    | "contents"
     | "unresolved"
     | null;
   section_id: string | null;
+  heading_level?: number | null;
   text: string;
   page_start: number;
   page_end: number;
@@ -102,6 +249,63 @@ export type DocumentReadingUnit = {
   confidence: "high" | "suspected";
   reason: string | null;
   solution: string | null;
+  /** Optional local/verified LaTeX representation for a detected formula. */
+  formula_latex?: string | null;
+  /** `recognized` is safe to render; other states keep the original source visible. */
+  formula_status?:
+    | "recognized"
+    | "detected"
+    | "uncertain"
+    | "unavailable"
+    | "source_only"
+    | "latex_unavailable"
+    | "needs_review"
+    | "failed"
+    | null;
+  formula_confidence?: "high" | "medium" | "low" | "suspected" | null;
+  formula_source_text?: string | null;
+  formula_id?: string | null;
+};
+export type FormulaPreview = {
+  formula_id: string;
+  revision_id: string;
+  page: number;
+  bbox: number[];
+  mime_type: "image/png";
+  data_base64: string;
+  source_text_hash?: string;
+};
+export type FormulaRecognitionItem = {
+  formula_id: string;
+  revision_id: string;
+  page: number;
+  bbox: number[];
+  source_text: string;
+  source_text_hash: string;
+  status: "recognized" | "needs_review" | "failed";
+  latex: string | null;
+  recognizer: string | null;
+  error_code: string | null;
+  message: string;
+};
+export type FormulaRecognitionResponse = {
+  revision_id: string;
+  source_sha256: string;
+  status: "completed" | "partial" | "unavailable" | "failed";
+  recognizer: string | null;
+  items: FormulaRecognitionItem[];
+  warnings: string[];
+  reading_document_refresh_required: boolean;
+  model_calls: number;
+};
+export type FormulaRecognitionJob = Omit<Job, "result"> & {
+  result:
+    | (Partial<FormulaRecognitionResponse> & {
+        revision_id: string;
+        processed: number;
+        total: number | null;
+      })
+    | null;
 };
 export type DocumentReadingView = {
   paper_id: string;
@@ -111,6 +315,7 @@ export type DocumentReadingView = {
   projection_hash: string;
   sections: {
     section_id: string;
+    parent_id?: string | null;
     title: string;
     level: number;
     role: string;
@@ -619,6 +824,36 @@ export const api = {
     request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
   sections: (id: string) =>
     request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
+  formulaPreview: (revisionId: string, formulaId: string) =>
+    request<FormulaPreview>(
+      "GET",
+      `/api/v1/revisions/${revisionId}/formulas/${formulaId}/preview`,
+    ),
+  recognizeFormulas: (
+    revisionId: string,
+    body: { formula_ids?: string[]; force?: boolean } = {},
+  ) =>
+    request<FormulaRecognitionResponse>(
+      "POST",
+      `/api/v1/revisions/${revisionId}/formulas/recognize`,
+      body,
+      crypto.randomUUID(),
+    ),
+  formulaRecognitionJob: (revisionId: string) =>
+    request<FormulaRecognitionJob | null>(
+      "GET",
+      `/api/v1/revisions/${revisionId}/formulas/recognize/jobs`,
+    ),
+  startFormulaRecognition: (
+    revisionId: string,
+    body: { formula_ids?: string[]; force?: boolean } = {},
+  ) =>
+    request<FormulaRecognitionJob>(
+      "POST",
+      `/api/v1/revisions/${revisionId}/formulas/recognize/jobs`,
+      body,
+      crypto.randomUUID(),
+    ),
   search: (
     paperId: string,
     query: string,
@@ -876,16 +1111,95 @@ export const api = {
       "GET",
       `/api/v1/projects/${projectId}/jobs?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
     ),
-  importPdf: (projectId: string, mode: "reference" | "managed") =>
-    invoke<Job | null>("import_pdf_file", {
+  selectPdfImport: () => invoke<PdfSelection | null>("select_pdf_import"),
+  submitPdfImport: (
+    projectId: string,
+    mode: "reference" | "managed",
+    selectionId: string,
+    postImportPlan?: PostImportPlan,
+  ) =>
+    invoke<Job | null>("submit_pdf_import", {
       projectId,
       mode,
+      selectionId,
+      postImportPlan,
       idempotencyKey: crypto.randomUUID(),
     }),
+  importPdf: async (
+    projectId: string,
+    mode: "reference" | "managed",
+    postImportPlan?: PostImportPlan,
+  ) => {
+    const selection = await invoke<PdfSelection | null>("select_pdf_import");
+    if (!selection) return null;
+    return invoke<Job | null>("submit_pdf_import", {
+      projectId,
+      mode,
+      selectionId: selection.selection_id,
+      postImportPlan,
+      idempotencyKey: crypto.randomUUID(),
+    });
+  },
   papers: (projectId: string, cursor = 0) =>
     request<PaperList>(
       "GET",
       `/api/v1/projects/${projectId}/papers?cursor=${cursor}&limit=50`,
+    ),
+  importSessions: (projectId: string) =>
+    request<ImportSession[]>(
+      "GET",
+      `/api/v1/projects/${projectId}/import-sessions`,
+    ),
+  importSession: (sessionId: string) =>
+    request<ImportSession>(
+      "GET",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}`,
+    ),
+  modelDocumentParse: (sessionId: string) =>
+    request<ModelDocumentParse>(
+      "GET",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/document-parse`,
+    ),
+  modelDocumentOutputs: (sessionId: string) =>
+    request<ModelDocumentOutput[]>(
+      "GET",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/document-outputs`,
+    ),
+  updateModelDocumentSegment: (
+    sessionId: string,
+    segmentId: string,
+    body: ModelDocumentSegmentEdit,
+  ) =>
+    request<ModelDocumentSegment>(
+      "PATCH",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/document-segments/${encodeURIComponent(segmentId)}`,
+      body,
+    ),
+  updateModelDocumentOutput: (
+    sessionId: string,
+    outputId: string,
+    outputJson: NonNullable<ModelDocumentOutput["output_json"]>,
+  ) =>
+    request<ModelDocumentOutput>(
+      "PATCH",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/document-outputs/${encodeURIComponent(outputId)}`,
+      { output_json: outputJson },
+    ),
+  updatePaper: (paperId: string, body: { title: string }) =>
+    request<PaperManagementResult>(
+      "PATCH",
+      `/api/v1/papers/${encodeURIComponent(paperId)}`,
+      body,
+    ),
+  clearPaperLegacyContent: (paperId: string) =>
+    request<PaperManagementResult>(
+      "DELETE",
+      `/api/v1/papers/${encodeURIComponent(paperId)}/legacy-content`,
+    ),
+  deletePaper: (paperId: string) =>
+    request<PaperManagementResult>(
+      "DELETE",
+      `/api/v1/papers/${encodeURIComponent(paperId)}`,
     ),
   liteUsage: (projectId: string, paperId?: string) =>
     request<LiteUsage>(

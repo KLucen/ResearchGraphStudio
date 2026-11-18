@@ -95,8 +95,19 @@ def test_import_dedup_revisions_and_immutable_text(tmp_path):
 def test_bad_pdf_fails_without_partial_objects(tmp_path, filename):
     with client(tmp_path, worker=True) as api:
         project = post(api, "/projects", {"name": "failure"}).json()["id"]
-        job = wait_job(api, queue(api, project, FIXTURES / filename, "bad-file-key"))
-        assert job["status"] == "failed" and job["error"]
+        response = post(
+            api,
+            f"/projects/{project}/papers/import/pdf",
+            {"path": str(FIXTURES / filename), "mode": "reference"},
+            "bad-file-key",
+        )
+        if filename == "missing.pdf":
+            assert response.status_code == 422, response.text
+            assert response.json()["error"]["code"] == "INVALID_PDF_PATH"
+        else:
+            assert response.status_code == 202, response.text
+            job = wait_job(api, response.json())
+            assert job["status"] == "failed" and job["error"]
         with Session(api.app.state.engine) as session:
             for model in (Paper, PaperSource, AttachmentRevision, Chunk):
                 assert session.scalar(select(model)) is None

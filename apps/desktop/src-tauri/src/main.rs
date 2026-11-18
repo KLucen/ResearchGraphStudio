@@ -3,6 +3,7 @@
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::{
+    collections::HashMap,
     io::{BufRead, BufReader, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
@@ -12,7 +13,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "lite0010";
+const ENGINE_SCHEMA_VERSION: &str = "lite0011";
 
 #[derive(Default)]
 struct Host {
@@ -23,6 +24,7 @@ struct Host {
     data_dir: PathBuf,
     executable: PathBuf,
     error: Option<String>,
+    pdf_selections: HashMap<String, PendingPdfSelection>,
 }
 
 #[derive(Clone)]
@@ -33,6 +35,17 @@ struct HostStatus {
     running: bool,
     data_dir: String,
     error: Option<String>,
+}
+
+struct PendingPdfSelection {
+    path: PathBuf,
+    expires_at: Instant,
+}
+
+#[derive(Serialize)]
+struct PdfSelection {
+    selection_id: String,
+    file_name: String,
 }
 
 impl Host {
@@ -54,6 +67,7 @@ impl Host {
     }
 
     fn stop(&mut self) {
+        self.pdf_selections.clear();
         self.input.take(); // Closing the pipe also handles abrupt host termination.
         if let Some(mut child) = self.child.take() {
             let deadline = Instant::now() + Duration::from_secs(5);
@@ -178,6 +192,12 @@ fn valid_id(value: &str) -> bool {
     uuid::Uuid::parse_str(value).is_ok()
 }
 
+fn valid_formula_id(value: &str) -> bool {
+    value
+        .strip_prefix("formula-")
+        .is_some_and(|digest| digest.len() == 32 && digest.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
 fn query_allowed(query: &str, keys: &[&str]) -> bool {
     if query.is_empty() {
         return true;
@@ -198,7 +218,8 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
                         .chars()
                         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
             }
-            "limit" | "start" => value.parse::<u32>().is_ok(),
+            "limit" | "page" => value.parse::<u32>().is_ok_and(|number| number >= 1),
+            "start" => value.parse::<u32>().is_ok(),
             "paper_id"
             | "revision_id"
             | "document_version_id"
@@ -247,11 +268,30 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["projects", project, "papers" | "jobs"]) => {
             valid_id(project) && query_allowed(query, &["cursor", "limit"])
         }
+        ("GET", ["projects", project, "import-sessions"]) => plain && valid_id(project),
+        ("GET", ["import-sessions", session]) => plain && valid_id(session),
+        ("GET", ["import-sessions", session, "document-parse" | "document-outputs"]) => {
+            plain && valid_id(session)
+        }
+        (
+            "POST",
+            ["import-sessions", session, "items", "document_parse" | "paper_overview" | "paper_reading" | "translation", "retry"],
+        ) => plain && valid_id(session),
         ("GET", ["papers", paper]) => plain && valid_id(paper),
         ("GET", ["revisions", revision, "chunks"]) => {
             valid_id(revision) && query_allowed(query, &["cursor", "limit"])
         }
         ("GET", ["revisions", revision, "sections" | "structure"]) => plain && valid_id(revision),
+        ("GET", ["revisions", revision, "formulas"]) => {
+            valid_id(revision) && query_allowed(query, &["page", "limit"])
+        }
+        ("POST", ["revisions", revision, "formulas", "recognize"]) => plain && valid_id(revision),
+        ("GET" | "POST", ["revisions", revision, "formulas", "recognize", "jobs"]) => {
+            plain && valid_id(revision)
+        }
+        ("GET", ["revisions", revision, "formulas", formula, "preview" | "image"]) => {
+            plain && valid_id(revision) && valid_formula_id(formula)
+        }
         ("GET", ["papers", paper, "search"]) => {
             valid_id(paper) && query_allowed(query, &["q", "limit", "revision_id", "section_id"])
         }
@@ -424,20 +464,83 @@ fn open_zotero(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn import_pdf_file(
+async fn select_pdf_import(state: State<'_, Shared>) -> Result<Option<PdfSelection>, String> {
+    let chosen = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("PDF", &["pdf"])
+            .pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(path) = chosen else { return Ok(None) };
+    if !path
+        .extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.eq_ignore_ascii_case("pdf"))
+    {
+        return Err("请选择 PDF 文件".into());
+    }
+    let file_name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .ok_or("无法读取所选文件名")?
+        .to_owned();
+    let selection_id = uuid::Uuid::new_v4().to_string();
+    let mut host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+    let now = Instant::now();
+    host.pdf_selections
+        .retain(|_, selection| selection.expires_at > now);
+    host.pdf_selections.insert(
+        selection_id.clone(),
+        PendingPdfSelection {
+            path,
+            expires_at: now + Duration::from_secs(10 * 60),
+        },
+    );
+    Ok(Some(PdfSelection {
+        selection_id,
+        file_name,
+    }))
+}
+
+#[tauri::command]
+async fn submit_pdf_import(
     state: State<'_, Shared>,
     project_id: String,
     mode: String,
+    selection_id: String,
+    post_import_plan: Option<Value>,
     idempotency_key: String,
 ) -> Result<Option<Value>, String> {
     uuid::Uuid::parse_str(&project_id).map_err(|_| "无效项目")?;
     if !matches!(mode.as_str(), "reference" | "managed") {
         return Err("无效导入模式".into());
     }
-    picked_pdf_request(
+    uuid::Uuid::parse_str(&selection_id).map_err(|_| "无效文件选择")?;
+    let path = {
+        let mut host = state.0.lock().map_err(|_| "宿主状态不可用")?;
+        let selection = host
+            .pdf_selections
+            .remove(&selection_id)
+            .ok_or("文件选择已过期或已提交，请重新选择")?;
+        if selection.expires_at <= Instant::now() {
+            return Err("文件选择已过期，请重新选择".into());
+        }
+        selection.path
+    };
+    let mut body = json!({"mode": mode});
+    body["path"] = json!(path.to_string_lossy());
+    // Preserve the short-lived native picker handle so the engine can verify
+    // that a model-first PDF import came from the native selection flow.
+    body["selection_id"] = json!(selection_id);
+    if let Some(plan) = post_import_plan {
+        body["post_import_plan"] = plan;
+    }
+    engine_post(
         state,
         format!("/api/v1/projects/{project_id}/papers/import/pdf"),
-        json!({"mode":mode}),
+        body,
         idempotency_key,
     )
     .await
@@ -476,6 +579,15 @@ async fn picked_pdf_request(
     .map_err(|e| e.to_string())?;
     let Some(path) = chosen else { return Ok(None) };
     body["path"] = json!(path.to_string_lossy());
+    engine_post(state, route, body, idempotency_key).await
+}
+
+async fn engine_post(
+    state: State<'_, Shared>,
+    route: String,
+    body: Value,
+    idempotency_key: String,
+) -> Result<Option<Value>, String> {
     let (port, token) = {
         let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
         (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
@@ -647,7 +759,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             host_status,
             restart_engine,
-            import_pdf_file,
+            select_pdf_import,
+            submit_pdf_import,
             relocate_source_file,
             engine_request,
             open_zotero
@@ -674,6 +787,20 @@ mod tests {
             ("GET", format!("/api/v1/papers/{paper}/search?q=sample&limit=5&revision_id={version}")),
             ("GET", format!("/api/v1/projects/{paper}/search?q=sample&paper_id={paper}&revision_id={version}")),
             ("GET", format!("/api/v1/papers/{paper}/overview?document_version_id={version}")),
+            ("GET", format!("/api/v1/revisions/{version}/formulas?page=1&limit=64")),
+            ("POST", format!("/api/v1/revisions/{version}/formulas/recognize")),
+            (
+                "GET",
+                format!(
+                    "/api/v1/revisions/{version}/formulas/formula-0123456789abcdef0123456789abcdef/preview"
+                ),
+            ),
+            (
+                "GET",
+                format!(
+                    "/api/v1/revisions/{version}/formulas/formula-0123456789abcdef0123456789abcdef/image"
+                ),
+            ),
             ("POST", format!("/api/v1/papers/{paper}/overview/generate")),
             ("GET", format!("/api/v1/papers/{paper}/section-guides?document_version_id={version}&section_id={version}&depth=standard")),
             ("GET", format!("/api/v1/papers/{paper}/qa?document_version_id={version}&section_id={version}&scope=section")),
@@ -693,6 +820,11 @@ mod tests {
         }
         for path in [
             format!("/api/v1/papers/{paper}/overview/graph/layout?overview_result_id=invalid"),
+            format!("/api/v1/revisions/{version}/formulas?page=0"),
+            format!("/api/v1/revisions/{version}/formulas/recognize?force=true"),
+            format!("/api/v1/revisions/{version}/formulas?offset=1"),
+            format!("/api/v1/revisions/{version}/formulas/formula-not-a-digest/preview"),
+            format!("/api/v1/revisions/{version}/formulas/formula-0123456789abcdef0123456789abcdef/preview?raw=1"),
             format!("/api/v1/papers/{paper}/search?q=sample&arbitrary=1"),
             format!("/api/v1/projects/{paper}/query/search"),
             format!("/api/v1/projects/{paper}/lint/runs"),
@@ -702,6 +834,54 @@ mod tests {
             "/api/v1/settings/translation?url=http://evil.test".into(),
         ] {
             assert!(!super::allowed("GET", &path));
+        }
+        assert!(!super::allowed(
+            "POST",
+            &format!("/api/v1/revisions/{version}/formulas/recognize?force=true")
+        ));
+    }
+
+    #[test]
+    fn model_document_routes_validate_session_ids_and_reject_result_publication() {
+        let session = "11111111-1111-4111-8111-111111111111";
+        for path in [
+            format!("/api/v1/projects/{session}/import-sessions"),
+            format!("/api/v1/import-sessions/{session}"),
+            format!("/api/v1/import-sessions/{session}/document-parse"),
+            format!("/api/v1/import-sessions/{session}/document-outputs"),
+        ] {
+            assert!(super::allowed("GET", &path), "route rejected: {path}");
+            assert!(!super::allowed("GET", &format!("{path}?raw=true")));
+        }
+        for item in [
+            "document_parse",
+            "paper_overview",
+            "paper_reading",
+            "translation",
+        ] {
+            let path = format!("/api/v1/import-sessions/{session}/items/{item}/retry");
+            assert!(super::allowed("POST", &path), "route rejected: {path}");
+            assert!(!super::allowed("GET", &path));
+        }
+        for (method, path) in [
+            (
+                "GET",
+                "/api/v1/import-sessions/not-a-uuid/document-parse".into(),
+            ),
+            ("GET", "/api/v1/projects/not-a-uuid/import-sessions".into()),
+            (
+                "POST",
+                format!("/api/v1/import-sessions/{session}/document-parse/result"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/import-sessions/{session}/items/arbitrary/retry"),
+            ),
+        ] {
+            assert!(
+                !super::allowed(method, &path),
+                "unsafe route accepted: {path}"
+            );
         }
     }
 
@@ -927,26 +1107,26 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0010",
+            "schema_version": "lite0011",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "0010",
+            "schema_version": "lite0010",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "lite0010",
+            "schema_version": "lite0011",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"lite0010"}),
-            super::json!({"protocol_version":1,"schema_version":"lite0010","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"lite0010","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"lite0011"}),
+            super::json!({"protocol_version":1,"schema_version":"lite0011","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"lite0011","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

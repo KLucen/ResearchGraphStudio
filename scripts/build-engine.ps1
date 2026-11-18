@@ -4,9 +4,12 @@ Push-Location $ProjectRoot
 try {
     $env:PYTHONUTF8 = '1'
     $migrations = (Join-Path $ProjectRoot 'services/engine/researchgraph/migrations') + ';researchgraph/migrations'
+    & $python "$PSScriptRoot/prepare-formula-model.py" --download
+    Assert-NativeSuccess '离线公式模型校验'
+    $formulaModel = (Join-Path $ProjectRoot '.local/formula-model') + ';formula-model'
     # The production sidecar is launched by Tauri. Keep its stdout/stderr pipes for
     # diagnostics, but do not attach a Windows console to the packaged executable.
-    & $python -m PyInstaller --noconfirm --onedir --noconsole --name researchgraph-engine --paths services/engine --distpath .local/engine-dist --workpath .local/engine-build --specpath .local --collect-submodules alembic --add-data $migrations scripts/engine_entry.py
+    & $python -m PyInstaller --noconfirm --onedir --noconsole --name researchgraph-engine --paths services/engine --distpath .local/engine-dist --workpath .local/engine-build --specpath .local --collect-submodules alembic --add-data $migrations --add-data $formulaModel scripts/engine_entry.py
     Assert-NativeSuccess 'Python Sidecar 打包'
     $binaries = Join-Path $ProjectRoot 'apps/desktop/src-tauri/binaries'
     New-Item -ItemType Directory -Path $binaries -Force | Out-Null

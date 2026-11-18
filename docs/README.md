@@ -1,6 +1,6 @@
 # 文档导航
 
-更新：2026-11-16（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前在 PaperCard + LightGraph、A01 导读、D01 局部问答、D02 关键词和全局模型配置基础上，保留本地阅读整理与一次全文精读任务，增加可收起的文章目录侧栏；保留个人状态、A03 按需检查和旧 A02 历史。Alembic head 为 `lite0010`，本轮导航不增加迁移。整篇 PDF 翻译服务器仍已撤下，正文译文作为显式精读笔记生成。公式定位/OCR 为后续方案，尚未实现。测试与交付读 progress，不以规范代替验收。完整 v3/P4/P5 保留在 `backup/pre-lite-refactor`。
+更新：2026-11-18（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前保留本地阅读整理、全文精读、PaperCard + LightGraph、A01/A03 与 D01/D02；目录树支持三级折叠，旧 PDF 章节结构可自动升级。Alembic head 为 `lite0011`，模型优先导入按章节保存正文、公式和表格，并按用户选择生成概览或全文精读及可选逐段中文翻译。桌面支持编辑题名、模型章节和生成内容、逐篇清理旧本地解析/缓存或删除论文；清理保留笔记、模型文档与源文件，操作前创建数据库备份。真实 Provider、论文科学质量和桌面 GUI 原生操作仍待验收。测试与交付读 [进度](progress.md)，管理边界见 [ADR0048](adr/0048-paper-content-management-and-legacy-cleanup.md)，完整 v3/P4/P5 保留在 `backup/pre-lite-refactor`。
 
 ## 先读
 
@@ -13,7 +13,17 @@
 - [全文精读与解析整理验证及安装交付](paper-reading-verification-20261114.md)
 - [阅读目录侧栏决策](adr/0043-reading-outline-and-formula-source-boundary.md)
 - [阅读侧栏验证与安装交付](reading-sidebar-verification-20261116.md)
+- [缺章修复与三级目录树决策](adr/0044-versioned-pdf-chapter-tree.md)
+- [三级目录树验证与安装交付](reading-tree-verification-20261116.md)
+- [本地阅读存档与并发读取决策](adr/0045-persisted-reading-archive-and-read-transactions.md)
+- [本地存档读取验证与安装交付](reading-cache-verification-20261116.md)
+- [旧 PDF 章节结构一次性自动升级](adr/0046-auto-upgrade-legacy-pdf-structure.md)
+- [论文导入后的模型处理计划（仅设计）](adr/0047-import-time-post-processing-plan.md)
+- [论文内容管理与旧解析清理](adr/0048-paper-content-management-and-legacy-cleanup.md)
+- [模型优先导入实现与安装验证](progress.md)
+- [旧章节结构自动升级验证](structure-auto-upgrade-verification-20261116.md)
 - [公式解析问题与后续方案](formula-parsing-assessment.md)
+- [可选公式 OCR 运行时](formula-ocr-setup.md)
 - [双栏精读本轮验证与安装交付](section-close-reading-verification-20261114.md)
 - [当前项目基线](current_project_baseline.md)
 - [Lite 迁移评估](migration/lite_from_v3_assessment.md)

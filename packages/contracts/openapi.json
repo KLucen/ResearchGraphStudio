@@ -1395,6 +1395,205 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/import-sessions": {
+      "post": {
+        "summary": "Create Import Session",
+        "operationId": "create_import_session_api_v1_projects__project_id__import_sessions_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSessionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List Import Sessions",
+        "operationId": "list_import_sessions_api_v1_projects__project_id__import_sessions_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ImportSessionView"
+                  },
+                  "title": "Response List Import Sessions Api V1 Projects  Project Id  Import Sessions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-sessions/{session_id}": {
+      "get": {
+        "summary": "Get Import Session",
+        "operationId": "get_import_session_api_v1_import_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-sessions/{session_id}/items/{item_kind}/retry": {
+      "post": {
+        "summary": "Retry Import Item",
+        "operationId": "retry_import_item_api_v1_import_sessions__session_id__items__item_kind__retry_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "item_kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Item Kind"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lite/usage": {
       "get": {
         "summary": "Global Usage",
@@ -2052,6 +2251,168 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}": {
+      "patch": {
+        "summary": "Update Paper",
+        "operationId": "update_paper_api_v1_papers__paper_id__patch",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaperTitleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperManagementResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Paper",
+        "operationId": "delete_paper_api_v1_papers__paper_id__delete",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperManagementResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Paper Detail",
+        "operationId": "paper_detail_api_v1_papers__paper_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/legacy-content": {
+      "delete": {
+        "summary": "Clear Legacy Content",
+        "operationId": "clear_legacy_content_api_v1_papers__paper_id__legacy_content_delete",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperManagementResult"
                 }
               }
             }
@@ -2756,6 +3117,323 @@
         }
       }
     },
+    "/api/v1/revisions/{revision_id}/formulas": {
+      "get": {
+        "summary": "Formulas",
+        "operationId": "formulas_api_v1_revisions__revision_id__formulas_get",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 300,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 128,
+              "minimum": 1,
+              "default": 64,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormulaList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revisions/{revision_id}/formulas/recognize": {
+      "post": {
+        "summary": "Recognize Formulas",
+        "operationId": "recognize_formulas_api_v1_revisions__revision_id__formulas_recognize_post",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormulaRecognitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormulaRecognitionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revisions/{revision_id}/formulas/{formula_id}/preview": {
+      "get": {
+        "summary": "Formula Preview",
+        "operationId": "formula_preview_api_v1_revisions__revision_id__formulas__formula_id__preview_get",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "formula_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Formula Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormulaPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revisions/{revision_id}/formulas/{formula_id}/image": {
+      "get": {
+        "summary": "Formula Image",
+        "operationId": "formula_image_api_v1_revisions__revision_id__formulas__formula_id__image_get",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "formula_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Formula Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revisions/{revision_id}/formulas/recognize/jobs": {
+      "get": {
+        "summary": "Latest Formula Job",
+        "operationId": "latest_formula_job_api_v1_revisions__revision_id__formulas_recognize_jobs_get",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/JobView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Latest Formula Job Api V1 Revisions  Revision Id  Formulas Recognize Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Queue Formula Job",
+        "operationId": "queue_formula_job_api_v1_revisions__revision_id__formulas_recognize_jobs_post",
+        "parameters": [
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormulaRecognitionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/papers/{paper_id}/reading-document": {
       "get": {
         "summary": "Reading Document",
@@ -3241,6 +3919,176 @@
         }
       }
     },
+    "/api/v1/papers/{paper_id}/qa/keywords": {
+      "get": {
+        "summary": "List Keywords",
+        "operationId": "list_keywords_api_v1_papers__paper_id__qa_keywords_get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "document_version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Version Id"
+            }
+          },
+          {
+            "name": "section_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Section Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KeywordView"
+                  },
+                  "title": "Response List Keywords Api V1 Papers  Paper Id  Qa Keywords Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Ask Keywords",
+        "operationId": "ask_keywords_api_v1_papers__paper_id__qa_keywords_post",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeywordGenerate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/papers/{paper_id}/qa/keywords/{keyword_id}": {
+      "get": {
+        "summary": "Get Keywords",
+        "operationId": "get_keywords_api_v1_papers__paper_id__qa_keywords__keyword_id__get",
+        "parameters": [
+          {
+            "name": "paper_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Paper Id"
+            }
+          },
+          {
+            "name": "keyword_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Keyword Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeywordView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/papers/{paper_id}/qa": {
       "get": {
         "summary": "List Qa",
@@ -3434,50 +4282,18 @@
         }
       }
     },
-    "/api/v1/papers/{paper_id}/qa/keywords": {
+    "/api/v1/import-sessions/{session_id}/document-parse": {
       "get": {
-        "summary": "List Keywords",
-        "operationId": "list_keywords_api_v1_papers__paper_id__qa_keywords_get",
+        "summary": "Get Document Parse",
+        "operationId": "get_document_parse_api_v1_import_sessions__session_id__document_parse_get",
         "parameters": [
           {
-            "name": "paper_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Paper Id"
-            }
-          },
-          {
-            "name": "document_version_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Document Version Id"
-            }
-          },
-          {
-            "name": "section_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Section Id"
+              "title": "Session Id"
             }
           }
         ],
@@ -3487,58 +4303,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KeywordView"
-                  },
-                  "title": "Response List Keywords Api V1 Papers  Paper Id  Qa Keywords Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Ask Keywords",
-        "operationId": "ask_keywords_api_v1_papers__paper_id__qa_keywords_post",
-        "parameters": [
-          {
-            "name": "paper_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Paper Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/KeywordGenerate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/KeywordView"
+                  "$ref": "#/components/schemas/ModelDocumentParseView"
                 }
               }
             }
@@ -3556,27 +4321,18 @@
         }
       }
     },
-    "/api/v1/papers/{paper_id}/qa/keywords/{keyword_id}": {
+    "/api/v1/import-sessions/{session_id}/document-outputs": {
       "get": {
-        "summary": "Get Keywords",
-        "operationId": "get_keywords_api_v1_papers__paper_id__qa_keywords__keyword_id__get",
+        "summary": "Get Document Outputs",
+        "operationId": "get_document_outputs_api_v1_import_sessions__session_id__document_outputs_get",
         "parameters": [
           {
-            "name": "paper_id",
+            "name": "session_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Paper Id"
-            }
-          },
-          {
-            "name": "keyword_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Keyword Id"
+              "title": "Session Id"
             }
           }
         ],
@@ -3586,7 +4342,187 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KeywordView"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelDocumentOutputView"
+                  },
+                  "title": "Response Get Document Outputs Api V1 Import Sessions  Session Id  Document Outputs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-sessions/{session_id}/document-segments/{segment_id}": {
+      "patch": {
+        "summary": "Update Document Segment",
+        "operationId": "update_document_segment_api_v1_import_sessions__session_id__document_segments__segment_id__patch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "segment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Segment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelDocumentSegmentEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDocumentSegmentView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-sessions/{session_id}/document-outputs/{output_id}": {
+      "patch": {
+        "summary": "Update Document Output",
+        "operationId": "update_document_output_api_v1_import_sessions__session_id__document_outputs__output_id__patch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "output_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Output Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelDocumentOutputEdit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDocumentOutputView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-sessions/{session_id}/document-parse/result": {
+      "post": {
+        "summary": "Publish Document Parse",
+        "operationId": "publish_document_parse_api_v1_import_sessions__session_id__document_parse_result_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentParseMaterializeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDocumentParseView"
                 }
               }
             }
@@ -4205,45 +5141,6 @@
         }
       }
     },
-    "/api/v1/papers/{paper_id}": {
-      "get": {
-        "summary": "Paper Detail",
-        "operationId": "paper_detail_api_v1_papers__paper_id__get",
-        "parameters": [
-          {
-            "name": "paper_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Paper Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaperDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/revisions/{revision_id}/chunks": {
       "get": {
         "summary": "Chunks",
@@ -4393,6 +5290,16 @@
             ],
             "title": "Mode",
             "default": "reference"
+          },
+          "post_import_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PdfPostImportPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5065,6 +5972,87 @@
         ],
         "title": "DifficultTerm"
       },
+      "DocumentParseMaterializeRequest": {
+        "properties": {
+          "parse_version": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Parse Version"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "text",
+              "pdf",
+              "image"
+            ],
+            "title": "Modality",
+            "default": "text"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ModelDocumentSegmentInput"
+            },
+            "type": "array",
+            "maxItems": 20000,
+            "minItems": 1,
+            "title": "Segments"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Warnings"
+          },
+          "raw_response": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Response"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "parse_version",
+          "segments"
+        ],
+        "title": "DocumentParseMaterializeRequest",
+        "description": "Explicit test/bridge endpoint payload.\n\n``raw_response`` is optional because a native provider may keep the raw\nprovider envelope in the worker workspace. It is stored verbatim when\nsupplied; the model cannot supply formal database IDs."
+      },
       "DocumentReadingView": {
         "properties": {
           "paper_id": {
@@ -5078,7 +6066,7 @@
           "projection_version": {
             "type": "string",
             "title": "Projection Version",
-            "default": "reading-document-1"
+            "default": "reading-document-2"
           },
           "source_hash": {
             "type": "string",
@@ -5298,6 +6286,396 @@
           "observed_sha256"
         ],
         "title": "FileCheck"
+      },
+      "FormulaCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "source_text": {
+            "type": "string",
+            "title": "Source Text"
+          },
+          "source_text_hash": {
+            "type": "string",
+            "title": "Source Text Hash"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "suspected",
+              "high"
+            ],
+            "title": "Confidence"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "source_only",
+              "latex_unavailable",
+              "recognized",
+              "needs_review",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "latex_unavailable"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "recognizer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognizer"
+          },
+          "recognizer_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognizer Version"
+          },
+          "recognizer_config_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognizer Config Hash"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "revision_id",
+          "page",
+          "bbox",
+          "source_text",
+          "source_text_hash",
+          "confidence",
+          "note"
+        ],
+        "title": "FormulaCandidate"
+      },
+      "FormulaList": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "source_sha256": {
+            "type": "string",
+            "title": "Source Sha256"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FormulaCandidate"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "source_sha256",
+          "items"
+        ],
+        "title": "FormulaList"
+      },
+      "FormulaPreview": {
+        "properties": {
+          "formula_id": {
+            "type": "string",
+            "title": "Formula Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "mime_type": {
+            "type": "string",
+            "const": "image/png",
+            "title": "Mime Type",
+            "default": "image/png"
+          },
+          "data_base64": {
+            "type": "string",
+            "title": "Data Base64"
+          },
+          "source_text_hash": {
+            "type": "string",
+            "title": "Source Text Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "formula_id",
+          "revision_id",
+          "page",
+          "bbox",
+          "data_base64",
+          "source_text_hash"
+        ],
+        "title": "FormulaPreview",
+        "description": "A JSON-safe, source-faithful crop for desktop bridges.\n\nThe desktop host intentionally does not expose arbitrary binary engine\nresponses.  Returning a bounded base64 PNG keeps the preview tied to the\nalready validated revision and lets the UI show the original PDF region\nwhile a formula recognizer is still unavailable."
+      },
+      "FormulaRecognitionItem": {
+        "properties": {
+          "formula_id": {
+            "type": "string",
+            "title": "Formula Id"
+          },
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "source_text": {
+            "type": "string",
+            "title": "Source Text"
+          },
+          "source_text_hash": {
+            "type": "string",
+            "title": "Source Text Hash"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "source_only",
+              "latex_unavailable",
+              "recognized",
+              "needs_review",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "recognizer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognizer"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "formula_id",
+          "revision_id",
+          "page",
+          "bbox",
+          "source_text",
+          "source_text_hash",
+          "status",
+          "message"
+        ],
+        "title": "FormulaRecognitionItem"
+      },
+      "FormulaRecognitionRequest": {
+        "properties": {
+          "formula_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Ids"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FormulaRecognitionRequest",
+        "description": "Bounded local recognition request.\n\nRecognition is explicit and revision-scoped.  The route never invokes a\nmodel Provider; an optional local image-to-LaTeX adapter is injected by\nthe application (and is absent in the default Lite build)."
+      },
+      "FormulaRecognitionResponse": {
+        "properties": {
+          "revision_id": {
+            "type": "string",
+            "title": "Revision Id"
+          },
+          "source_sha256": {
+            "type": "string",
+            "title": "Source Sha256"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "partial",
+              "unavailable",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "recognizer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognizer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FormulaRecognitionItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "reading_document_refresh_required": {
+            "type": "boolean",
+            "title": "Reading Document Refresh Required",
+            "default": false
+          },
+          "model_calls": {
+            "type": "integer",
+            "title": "Model Calls",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revision_id",
+          "source_sha256",
+          "status",
+          "items"
+        ],
+        "title": "FormulaRecognitionResponse"
       },
       "GraphPosition": {
         "properties": {
@@ -5777,6 +7155,276 @@
         ],
         "title": "Health"
       },
+      "ImportPlan": {
+        "properties": {
+          "overview": {
+            "type": "boolean",
+            "title": "Overview",
+            "default": false
+          },
+          "reading": {
+            "type": "boolean",
+            "title": "Reading",
+            "default": false
+          },
+          "translation_mode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "none"
+            ],
+            "title": "Translation Mode",
+            "default": "none"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "required",
+              "text",
+              "pdf",
+              "image"
+            ],
+            "title": "Modality",
+            "default": "text"
+          },
+          "require_multimodal": {
+            "type": "boolean",
+            "title": "Require Multimodal",
+            "default": false
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "provider_profile_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Profile Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ImportPlan"
+      },
+      "ImportPlanItemView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "item_kind": {
+            "type": "string",
+            "enum": [
+              "document_parse",
+              "paper_overview",
+              "paper_reading",
+              "translation"
+            ],
+            "title": "Item Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "interrupted",
+              "paused"
+            ],
+            "title": "Status"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "item_kind",
+          "status",
+          "config",
+          "job_id",
+          "attempt",
+          "error",
+          "result",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ImportPlanItemView"
+      },
+      "ImportSessionCreate": {
+        "properties": {
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "zotero"
+            ],
+            "title": "Source Kind",
+            "default": "pdf"
+          },
+          "selection_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Selection Id"
+          },
+          "source_snapshot": {
+            "$ref": "#/components/schemas/SourceSnapshot"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ImportPlan"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "selection_id"
+        ],
+        "title": "ImportSessionCreate"
+      },
+      "ImportSessionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "zotero"
+            ],
+            "title": "Source Kind"
+          },
+          "selection_id": {
+            "type": "string",
+            "title": "Selection Id"
+          },
+          "source_snapshot": {
+            "$ref": "#/components/schemas/SourceSnapshot"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/ImportPlan"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "interrupted",
+              "paused"
+            ],
+            "title": "Status"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImportPlanItemView"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "source_kind",
+          "selection_id",
+          "source_snapshot",
+          "plan",
+          "status",
+          "error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ImportSessionView"
+      },
       "ImportStatus": {
         "properties": {
           "job": {
@@ -5897,6 +7545,7 @@
                   "saving",
                   "diagnostics",
                   "generating",
+                  "recognizing",
                   "indexing",
                   "completed",
                   "failed",
@@ -6610,6 +8259,30 @@
             ],
             "title": "Context Window"
           },
+          "document_input": {
+            "type": "string",
+            "enum": [
+              "text",
+              "pdf",
+              "image"
+            ],
+            "title": "Document Input",
+            "default": "text"
+          },
+          "multimodal": {
+            "type": "boolean",
+            "title": "Multimodal",
+            "default": false
+          },
+          "document_transport": {
+            "type": "string",
+            "enum": [
+              "none",
+              "chat_file"
+            ],
+            "title": "Document Transport",
+            "default": "none"
+          },
           "source": {
             "type": "string",
             "title": "Source",
@@ -6619,6 +8292,659 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ModelCapabilities"
+      },
+      "ModelDocumentOutputEdit": {
+        "properties": {
+          "output_json": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output Json"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "output_json"
+        ],
+        "title": "ModelDocumentOutputEdit"
+      },
+      "ModelDocumentOutputView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "import_session_id": {
+            "type": "string",
+            "title": "Import Session Id"
+          },
+          "parse_id": {
+            "type": "string",
+            "title": "Parse Id"
+          },
+          "item_kind": {
+            "type": "string",
+            "title": "Item Kind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "output_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Json"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "import_session_id",
+          "parse_id",
+          "item_kind",
+          "status",
+          "provider_id",
+          "model_id",
+          "output_json",
+          "usage",
+          "error_code",
+          "error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ModelDocumentOutputView"
+      },
+      "ModelDocumentParseView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "import_session_id": {
+            "type": "string",
+            "title": "Import Session Id"
+          },
+          "parse_version": {
+            "type": "string",
+            "title": "Parse Version"
+          },
+          "provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Id"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "modality": {
+            "type": "string",
+            "title": "Modality"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "raw_response": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Response"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ModelDocumentSegmentView"
+            },
+            "type": "array",
+            "title": "Segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "import_session_id",
+          "parse_version",
+          "provider_id",
+          "model_id",
+          "modality",
+          "status",
+          "raw_response",
+          "warnings",
+          "error_code",
+          "error",
+          "started_at",
+          "finished_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ModelDocumentParseView"
+      },
+      "ModelDocumentSegmentEdit": {
+        "properties": {
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "mathml": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mathml"
+          },
+          "raw_table_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Table Text"
+          },
+          "table_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Data"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ModelDocumentSegmentEdit"
+      },
+      "ModelDocumentSegmentInput": {
+        "properties": {
+          "chapter_ref": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Chapter Ref"
+          },
+          "chapter_title": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Chapter Title"
+          },
+          "chapter_level": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Chapter Level",
+            "default": 1
+          },
+          "chapter_order": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Chapter Order",
+            "default": 0
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paragraph",
+              "table",
+              "formula",
+              "figure",
+              "caption"
+            ],
+            "title": "Kind"
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Ordinal",
+            "default": 0
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "mathml": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mathml"
+          },
+          "raw_table_text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Table Text"
+          },
+          "table_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Data"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "unavailable",
+              "needs_review",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "ok"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chapter_ref",
+          "chapter_title",
+          "kind"
+        ],
+        "title": "ModelDocumentSegmentInput"
+      },
+      "ModelDocumentSegmentView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "parse_id": {
+            "type": "string",
+            "title": "Parse Id"
+          },
+          "chapter_ref": {
+            "type": "string",
+            "title": "Chapter Ref"
+          },
+          "chapter_title": {
+            "type": "string",
+            "title": "Chapter Title"
+          },
+          "chapter_level": {
+            "type": "integer",
+            "title": "Chapter Level"
+          },
+          "chapter_order": {
+            "type": "integer",
+            "title": "Chapter Order"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "ordinal": {
+            "type": "integer",
+            "title": "Ordinal"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "latex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latex"
+          },
+          "mathml": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mathml"
+          },
+          "raw_table_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Table Text"
+          },
+          "table_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Data"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locator"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "parse_id",
+          "chapter_ref",
+          "chapter_title",
+          "chapter_level",
+          "chapter_order",
+          "kind",
+          "ordinal",
+          "text",
+          "latex",
+          "mathml",
+          "raw_table_text",
+          "table_data",
+          "locator",
+          "confidence",
+          "status",
+          "warnings",
+          "created_at"
+        ],
+        "title": "ModelDocumentSegmentView"
       },
       "ModelParameters": {
         "properties": {
@@ -7158,6 +9484,53 @@
         ],
         "title": "PaperList"
       },
+      "PaperManagementResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "paper_id": {
+            "type": "string",
+            "title": "Paper Id"
+          },
+          "backup_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup File"
+          },
+          "removed": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Removed"
+          },
+          "retained_personal_metadata": {
+            "type": "integer",
+            "title": "Retained Personal Metadata",
+            "default": 0
+          },
+          "retained_managed_files": {
+            "type": "integer",
+            "title": "Retained Managed Files",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_id"
+        ],
+        "title": "PaperManagementResult"
+      },
       "PaperReadingAnalysis": {
         "properties": {
           "schema_version": {
@@ -7393,6 +9766,22 @@
         ],
         "title": "PaperReadingView"
       },
+      "PaperTitleUpdate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "PaperTitleUpdate"
+      },
       "PaperView": {
         "properties": {
           "id": {
@@ -7600,6 +9989,29 @@
             ],
             "title": "Mode",
             "default": "reference"
+          },
+          "selection_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection Id"
+          },
+          "post_import_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PdfPostImportPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -7608,6 +10020,77 @@
           "path"
         ],
         "title": "PdfImport"
+      },
+      "PdfPostImportPlan": {
+        "properties": {
+          "parse": {
+            "type": "boolean",
+            "const": true,
+            "title": "Parse",
+            "default": true
+          },
+          "overview": {
+            "type": "boolean",
+            "title": "Overview",
+            "default": false
+          },
+          "reading": {
+            "type": "boolean",
+            "title": "Reading",
+            "default": false
+          },
+          "translation_mode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "none"
+            ],
+            "title": "Translation Mode",
+            "default": "none"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "required"
+            ],
+            "title": "Modality",
+            "default": "auto"
+          },
+          "extract_formulas": {
+            "type": "boolean",
+            "const": true,
+            "title": "Extract Formulas",
+            "default": true
+          },
+          "extract_tables": {
+            "type": "boolean",
+            "const": true,
+            "title": "Extract Tables",
+            "default": true
+          },
+          "allow_network": {
+            "type": "boolean",
+            "title": "Allow Network",
+            "default": false
+          },
+          "provider_profile_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Profile Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PdfPostImportPlan",
+        "description": "Desktop import choices translated into the model-first plan."
       },
       "ProfileInput": {
         "properties": {
@@ -8402,6 +10885,17 @@
             "type": "string",
             "title": "Section Id"
           },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -8875,10 +11369,12 @@
                 "enum": [
                   "table",
                   "figure",
+                  "formula",
                   "caption",
                   "figure_label",
                   "running",
                   "reference",
+                  "contents",
                   "unresolved"
                 ]
               },
@@ -8891,6 +11387,17 @@
           "section_id": {
             "type": "string",
             "title": "Section Id"
+          },
+          "heading_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Level"
           },
           "text": {
             "type": "string",
@@ -8967,6 +11474,72 @@
               }
             ],
             "title": "Solution"
+          },
+          "formula_latex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Latex"
+          },
+          "formula_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "source_only",
+                  "latex_unavailable",
+                  "recognized",
+                  "needs_review",
+                  "failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Status"
+          },
+          "formula_confidence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "suspected",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Confidence"
+          },
+          "formula_source_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Source Text"
+          },
+          "formula_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula Id"
           }
         },
         "additionalProperties": false,
@@ -9455,6 +12028,74 @@
           "path"
         ],
         "title": "SourceRelocate"
+      },
+      "SourceSnapshot": {
+        "properties": {
+          "paper_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Id"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 512
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "provider_file_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 240
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider File Id"
+          },
+          "source_generation": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SourceSnapshot"
       },
       "SourceView": {
         "properties": {

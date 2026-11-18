@@ -15,8 +15,13 @@ from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
+from researchgraph.document_structure import (
+    active_section_rows,
+    section_model_spans,
+    source_block_boundary,
+)
 from researchgraph.lite_usage import cache_key, read_cache, record_usage, write_cache
-from researchgraph.models import AttachmentRevision, Chunk, EvidenceSpan, Job, Paper, Section, now
+from researchgraph.models import AttachmentRevision, Chunk, Job, Paper, now
 from researchgraph.paper_overview_contracts import (
     PROMPT_VERSION,
     SCHEMA_VERSION,
@@ -40,6 +45,7 @@ from researchgraph.paper_overview_models import (
     PaperOverviewResult,
 )
 from researchgraph.providers import Provider
+from researchgraph.storage import read_session
 
 SYSTEM_PROMPT = """You are a concise academic paper overview and concept-graph assistant.
 Use only the supplied paper excerpts. Produce one compact Chinese paper card and
@@ -165,37 +171,30 @@ def build_overview_input(
     )
     lines = [_clean(chunk.text) for chunk in chunks]
     lines = [line for line in lines if line][:240]
-    sections = list(
-        session.scalars(
-            select(Section)
-            .where(
-                Section.document_version_id == revision.id,
-                Section.excluded.is_(False),
-                Section.role != "references",
-            )
-            .order_by(Section.ordinal, Section.id)
-        )
-    )
+    sections = [
+        section
+        for section in active_section_rows(session, revision.id)
+        if not section.excluded and section.role != "references"
+    ]
     section_text: dict[str, list[str]] = {section.id: [] for section in sections}
-    if sections:
-        spans = session.execute(
-            select(EvidenceSpan.section_id, EvidenceSpan.paragraph_id, Chunk.text)
-            .join(Chunk, Chunk.id == EvidenceSpan.paragraph_id)
-            .where(
-                EvidenceSpan.document_version_id == revision.id,
-                Chunk.revision_id == revision.id,
-            )
-            .order_by(Chunk.page_index, Chunk.block_index, EvidenceSpan.id)
-        ).all()
-        seen: set[tuple[str, str]] = set()
-        for section_id, chunk_id, text in spans:
-            identity = (str(section_id), str(chunk_id))
-            if identity in seen or identity[0] not in section_text:
+    by_chunk = {chunk.id: chunk for chunk in chunks}
+    shared_text: dict[str, str] = {}
+    for section in sections:
+        seen: set[str] = set()
+        spans = section_model_spans(session, section)
+        boundary = source_block_boundary(session, revision.id, spans, section.id)
+        shared = set(boundary["shared_chunk_ids"]) if boundary else set()
+        for span in spans:
+            chunk = by_chunk.get(span.paragraph_id)
+            if chunk is None or chunk.id in seen:
                 continue
-            seen.add(identity)
-            value = _clean(str(text))
+            seen.add(chunk.id)
+            value = _clean(chunk.text)
             if value:
-                section_text[identity[0]].append(value)
+                if chunk.id in shared:
+                    shared_text[chunk.id] = value
+                else:
+                    section_text[section.id].append(value)
 
     role_text: dict[str, list[str]] = {
         "abstract": [],
@@ -233,10 +232,11 @@ def build_overview_input(
     if not sections or not any(role_text.values()):
         # When structure is missing, preserve the source text without claiming
         # that arbitrary character ranges are an abstract, method or conclusion.
-        if sections and any(section_text.values()):
+        if sections:
             fallback_lines = [
                 text for section in sections for text in section_text.get(section.id, [])
             ]
+            fallback_lines.extend(shared_text.values())
         else:
             fallback_lines = []
             for chunk in chunks:
@@ -259,6 +259,15 @@ def build_overview_input(
         method = excerpt("method", 8_000)
         result = excerpt("result", 8_000)
         conclusion = excerpt("conclusion", 4_000)
+        if shared_text:
+            remaining = max(
+                0,
+                38_000
+                - min(len(paper.title), 500)
+                - sum(map(len, headings))
+                - sum(map(len, (abstract, introduction, method, result, conclusion))),
+            )
+            fallback = "\n".join(shared_text.values())[:remaining]
     return {
         "title": paper.title[:500],
         "abstract": abstract,
@@ -828,7 +837,7 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
     def get_overview(
         paper_id: str, document_version_id: str | None = Query(default=None)
     ) -> OverviewView | None:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             row = latest_overview(session, paper_id, document_version_id)
             return _view(row) if row else None
 
@@ -960,7 +969,7 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
 
     @app.get("/api/v1/papers/{paper_id}/overview/graph/layout", response_model=LayoutView)
     def get_layout(paper_id: str, overview_result_id: str) -> LayoutView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             return layout(session, paper_id, overview_result_id)
 
     @app.put("/api/v1/papers/{paper_id}/overview/graph/layout", response_model=LayoutView)

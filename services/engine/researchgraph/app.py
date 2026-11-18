@@ -25,6 +25,11 @@ from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
 from researchgraph.core import KnowledgeError
+from researchgraph.import_plan_api import (
+    create_import_session_record,
+    normalize_post_import_plan,
+    register_import_plan_api,
+)
 from researchgraph.ingest import run_file_job
 from researchgraph.models import (
     AttachmentRevision,
@@ -60,6 +65,7 @@ from researchgraph.schemas import (
     RevisionView,
     SourceAction,
     SourceRelocate,
+    SourceSnapshot,
     SourceView,
 )
 from researchgraph.settings_api import register_settings_api
@@ -178,6 +184,21 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "formula_recognition":
+                from researchgraph.formula_jobs import execute_formula_recognition
+
+                await execute_formula_recognition(engine, job_id, data_dir)
+                continue
+            if kind == "llm_document_parse":
+                from researchgraph.model_document_api import execute_document_parse
+
+                await execute_document_parse(engine, job_id, data_dir)
+                continue
+            if kind == "llm_document_postprocess":
+                from researchgraph.model_document_api import execute_document_postprocess
+
+                await execute_document_postprocess(engine, job_id, data_dir)
+                continue
             if kind == "paper_overview":
                 from researchgraph.paper_overview_api import execute_overview
 
@@ -213,7 +234,22 @@ async def worker(engine: Engine, data_dir: Path) -> None:
 
                 await execute_keyword_expansion(engine, job_id, data_dir)
                 continue
-            if kind in {"pdf_import", "source_check", "source_relocate", "zotero_import"}:
+            if kind in {"pdf_import", "zotero_import"}:
+                with read_session(engine) as read_db:
+                    queued_job = read_db.get(Job, job_id)
+                    model_first = bool(queued_job and (queued_job.payload or {}).get("model_first"))
+                if model_first:
+                    # A model-first import must never enter the legacy local PDF
+                    # parser. The document worker performs capability checks and
+                    # records an explicit failure when no native file transport
+                    # or frozen provider snapshot is available.
+                    from researchgraph.model_document_api import execute_document_parse
+
+                    await execute_document_parse(engine, job_id, data_dir)
+                    continue
+                await run_file_job(engine, job_id, data_dir)
+                continue
+            if kind in {"source_check", "source_relocate"}:
                 await run_file_job(engine, job_id, data_dir)
                 continue
             if kind != "diagnostics":
@@ -367,10 +403,16 @@ def create_app(
 
     register_settings_api(app, engine, data_dir)
     register_zotero_batch_api(app, engine)
+    register_import_plan_api(app, engine)
     from researchgraph.close_reading_api import register_close_reading_api
+    from researchgraph.formula_api import register_formula_api
+    from researchgraph.formula_jobs import register_formula_jobs_api
+    from researchgraph.formula_ocr import configured_formula_recognizer
     from researchgraph.keyword_api import register_keyword_api
     from researchgraph.lite_usage import register_lite_usage_api
     from researchgraph.local_index import register_local_index_api
+    from researchgraph.model_document_api import register_model_document_api
+    from researchgraph.paper_management_api import register_paper_management_api
     from researchgraph.paper_overview_api import register_paper_overview_api
     from researchgraph.paper_reading_api import register_paper_reading_api
     from researchgraph.qa_api import register_qa_api
@@ -379,15 +421,24 @@ def create_app(
     from researchgraph.section_guide_api import register_section_guide_api
 
     register_lite_usage_api(app, engine)
-    register_local_index_api(app, engine)
+    register_local_index_api(app, engine, data_dir)
     register_paper_overview_api(app, engine, data_dir)
+    register_paper_management_api(app, engine, data_dir)
     register_section_guide_api(app, engine, data_dir)
     register_close_reading_api(app, engine, data_dir)
+    register_formula_api(
+        app,
+        engine,
+        data_dir,
+        recognizer=configured_formula_recognizer(data_dir),
+    )
+    register_formula_jobs_api(app, engine)
     register_reading_document_api(app, engine, data_dir)
     register_paper_reading_api(app, engine, data_dir)
     register_reading_state_api(app, engine)
-    register_qa_api(app, engine, data_dir)
     register_keyword_api(app, engine, data_dir)
+    register_qa_api(app, engine, data_dir)
+    register_model_document_api(app, engine)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -401,7 +452,7 @@ def create_app(
 
     @app.get("/api/v1/projects", response_model=ProjectList)
     def projects(cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)) -> ProjectList:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             rows = session.scalars(
                 select(Project)
                 .order_by(Project.created_at.desc(), Project.id)
@@ -438,7 +489,7 @@ def create_app(
 
     @app.get("/api/v1/jobs", response_model=list[JobView])
     def jobs() -> list[JobView]:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             return [
                 JobView.model_validate(j)
                 for j in session.scalars(select(Job).order_by(Job.created_at.desc()).limit(50))
@@ -454,7 +505,7 @@ def create_app(
         ),
         limit: int = Query(10, ge=1, le=100),
     ) -> JobList:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             if not session.get(Project, project_id):
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
             statement = select(Job).where(Job.project_id == project_id)
@@ -520,7 +571,7 @@ def create_app(
 
     @app.get("/api/v1/jobs/{job_id}", response_model=JobView)
     def get_job(job_id: str) -> JobView:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
@@ -678,9 +729,32 @@ def create_app(
     )
     def queue_pdf(project_id: str, body: PdfImport, idempotency_key: Key) -> JobView:
         path = Path(body.path)
-        if not path.is_absolute() or path.suffix.lower() != ".pdf":
-            raise failure(422, "INVALID_PDF_PATH", "请选择绝对路径的 PDF 文件")
-        payload = {"path": str(path.resolve()), "mode": body.mode, "project_id": project_id}
+        if not path.is_absolute() or path.suffix.lower() != ".pdf" or not path.is_file():
+            # Validate the native picker result before creating a Paper or an
+            # ImportSession. A stale/forged path must not leave a visible
+            # phantom paper that can never be parsed. The Tauri command still
+            # supplies an opaque one-time selection_id; this check protects
+            # direct local API callers and expired picker state alike.
+            raise failure(422, "INVALID_PDF_PATH", "请选择仍然存在且可读取的绝对路径 PDF 文件")
+        if body.post_import_plan is not None and not body.selection_id:
+            # Model-first imports must come from the native two-stage picker.
+            # Do not create a model parse session for a raw path submitted by a
+            # web caller without the opaque selection handle.
+            raise failure(422, "MISSING_PDF_SELECTION", "模型解析导入需要先通过文件选择器确认 PDF")
+        if body.post_import_plan is not None:
+            try:
+                UUID(body.selection_id or "")
+            except ValueError:
+                raise failure(
+                    422, "INVALID_PDF_SELECTION", "文件选择句柄无效，请重新选择 PDF"
+                ) from None
+        payload: dict[str, Any] = {
+            "path": str(path.resolve()),
+            "mode": body.mode,
+            "project_id": project_id,
+        }
+        if body.post_import_plan is not None:
+            payload["post_import_plan"] = body.post_import_plan.model_dump()
         key = f"pdf-import:{idempotency_key}"
         with Session(engine()) as session, session.begin():
             project = session.get(Project, project_id)
@@ -700,6 +774,52 @@ def create_app(
                 updated_at=now(),
             )
             session.add(job)
+            session.flush()
+            plan = normalize_post_import_plan(body.post_import_plan)
+            if plan is not None:
+                provider_snapshot = None
+                if plan.allow_network:
+                    from researchgraph.model_settings import snapshot_for
+
+                    provider_snapshot = snapshot_for(session, project_id, "extraction")
+                paper = Paper(
+                    id=str(uuid4()),
+                    project_id=project_id,
+                    title=path.stem,
+                    created_at=now(),
+                )
+                session.add(paper)
+                session.flush()
+                import_session, plan_items = create_import_session_record(
+                    session,
+                    project_id=project_id,
+                    source_kind="pdf",
+                    selection_id=body.selection_id or f"pdf-job:{job.id}",
+                    source_snapshot=SourceSnapshot(file_name=path.name, paper_id=paper.id),
+                    plan=plan,
+                )
+                job.payload = {
+                    **(job.payload or {}),
+                    "import_session_id": import_session.id,
+                    "model_first": True,
+                    "paper_id": paper.id,
+                    "source_snapshot": {"file_name": path.name},
+                    "modality": plan.modality,
+                    "require_multimodal": plan.require_multimodal,
+                    "allow_network": plan.allow_network,
+                    "provider_snapshot": provider_snapshot,
+                }
+                # Bind the first queued worker to the additive import plan so
+                # the desktop can follow the model parse independently from
+                # the legacy PDF job and later post-processing items.
+                document_item = next(
+                    item for item in plan_items if item.item_kind == "document_parse"
+                )
+                document_item.job_id = job.id
+                document_item.status = "queued"
+                document_item.updated_at = now()
+                import_session.status = "queued"
+                import_session.updated_at = now()
             response = JobView.model_validate(job)
             remember(session, key, payload, response.model_dump())
             return response
@@ -759,7 +879,7 @@ def create_app(
     def papers(
         project_id: str, cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)
     ) -> PaperList:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             if not session.get(Project, project_id):
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
             rows = session.scalars(
@@ -776,7 +896,7 @@ def create_app(
 
     @app.get("/api/v1/papers/{paper_id}", response_model=PaperDetail)
     def paper_detail(paper_id: str) -> PaperDetail:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             paper = session.get(Paper, paper_id)
             if not paper:
                 raise failure(404, "PAPER_NOT_FOUND", "文献不存在")
@@ -821,7 +941,7 @@ def create_app(
     def chunks(
         revision_id: str, cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)
     ) -> ChunkList:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             if not session.get(AttachmentRevision, revision_id):
                 raise failure(404, "REVISION_NOT_FOUND", "附件修订不存在")
             rows = session.scalars(

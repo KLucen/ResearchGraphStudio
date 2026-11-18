@@ -1908,3 +1908,270 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 **剩余与下一步**：先安装新包验证实际阅读工作流；公式原图保真定位优先，其后按需局部OCR的部署与质量评估；真实论文译文/批注/A03质量、实际Token费用、统一预算守卫、正式Zotero/原生GUI/干净机和跨平台仍待验。用户本轮授权只用于本轮代码交付，不自动开启真实收费或后续阶段。提交前安全与远端结果另补记。
 
 **本轮安全与Git交付补记**：源码内容/私人路径与Gitleaks315文件通过，完整历史39提交无泄露；逐项核对91条路径后通过pathspec暂存，未git add .，暂存内容/Gitleaks91文件通过。首轮暂存diff发现规范附件三处硬换行尾空格，调整为引用分段后通过；23改动文档/121本地链接无缺失。源码提交`29d598e3f470c2c1b5740f73b79c37260d91fe2a`已普通推送main，官方远端SHA一致，未上传运行数据/安装器/凭据。HTTPS预检曾成功，提交前fetch连接21秒失败；按github-transfer技能检查无Git代理/改写和代理环境变量，官方SSH443严格主机校验认证成功，fetch确认祖先关系，dry-run后普通push；未force或改origin/全局网络设置。GitHub Actions公开API返回403限流，CI状态未核实，不冒充通过。其后仅补本交付文档，运行源码及最终安装包保持。
+
+## DEV-0091 — 2026-11-16 16:59（Asia/Shanghai）：修复缺章与可逐级折叠的章节树
+
+**目标与边界**：用户反馈第一章后直接出现第五章，要求一级、二级、三级标题分别展开/收起。本轮继续Lite增量，保留旧原文/Span/结果/个人状态，不恢复完整Knowledge Engine或PDF翻译服务器。读取反馈对应PDF和数据库仅为只读诊断；刷新实验在SQLite只读连接备份的隔离副本进行。真实模型调用、真实Token、真实重试与新增费用全部0；没有操作正式Key、删除外部材料或覆盖日常安装。无新的上传授权，未Commit/Push。
+
+**原因与修改**：
+
+- `pdf_structure.py`增加`structure-v2`：非粗体混合字号小型大写标题、分离编号、书签与同块多个标题识别；候选保存精确字符范围/层级/角色/坐标/章节引用。印刷目录标为contents，不生成重复章节。拒收两个退化网格；残余网格只局部覆盖三个长正文块（41.6%/41.6%/6.2%），改为partial_block_refs，保留区域与提示，不再整块材料化。外置表头单独检查，未宣称检测网格一定是真实表格。
+- `document_structure.py`、`local_index.py`、`section_guide_api.py`、`reading_state_api.py`、`paper_overview_api.py`、`qa_api.py`分开当前/历史树。新树按精确核验后的原始块映射复用旧Span，不改Span.section_id。混合小节附完整来源块边界说明；混合References块不用于新模型输入/索引。FTS每块一行，章节过滤合法块集合，历史已完成QA保留冻结来源及原行。同秒解析排序明确新版优先。
+- `reading_projection.py/contracts.py`升为`reading-document-2`，显式同SHA刷新逐块验证后加性添加解析/章节并重建派生FTS；旧树/旧投影/笔记保留，旧稿可能STALE，不自动再生。候选类型/来源/持久Section身份终验，按片段自身Section分开References与Appendix。无新迁移，head仍lite0010。
+- `ReadingOutline.tsx`/CSS按parent_id构建嵌套树，独立分支折叠，标题负责导航，定位当前项展开祖先；循环/缺失父级安全回退，保留窄屏面板与段中字符锚点。`PaperCloseReading.tsx`/CSS/API同步父级和标题级别；`KnowledgeReading.tsx`刷新后清除失效选择/授权/辅助，A01/QA冻结原请求归档，普通搜索/D02用章节/搜索词/交互epoch防晚到结果污染新范围。
+- 补充解析/投影/新旧章节兼容、React、Edge回归及安装smoke投影版本；重新导出OpenAPI/TS契约。新增ADR0044和reading-tree验证报告，更新README、docs导航、Lite规范入口与progress。
+
+**实际验证**：
+
+- 最终后端完整回归326 passed/1 skipped/1 warning，65.14秒；Ruff、99文件格式、mypy64源与pip check通过。skip为Windows符号链接权限，warning为既有Starlette/httpx弃用。解析25/投影44/兼容16专项通过。独立审查首跑8项候选/References分片错误已修；重复启动全量造成日志占用的尝试已停止，不计通过，最终成绩来自backend-full-root.log。
+- 最终TypeScript/ESLint/Prettier通过，React9 files/83 passed、12.20秒；真实Edge13 passed、11.9秒，桌面/折叠/紧凑/QA四张截图已查看。80通过后再修异步范围并新增3条回归；没有改变UI/浏览器夹具，未无理由重复Edge。Rust fmt/clippy、API/TS契约导出通过。
+- 私有隔离副本刷新恢复主章1–5、4.1–4.5与三级层级，65当前章节/63可见标题/61印刷目录材料；重复第五章消失。逐行验证原业务数据与用量保持，旧Span/Chunk/结果/状态不变；重复刷新投影hash一致，integrity/foreign_key通过。正式库逻辑快照前后相同，Zotero来源PDF SHA前后相同，新增模型0。
+- PowerShell7完整PyInstaller/Tauri/NSIS通过，114个源码/配置打包前后SHA保持；Vite591.34KB单JS提示及PyInstaller可选模块警告保留。PS5.1隔离静默安装通过，schema lite0010、265个sidecar文件与封存逐一匹配、桌面EXE存在，旧翻译404且无运行时。本地解析/索引0模型/0输入输出Token。
+- 安装后普通引擎、匿名五页三级树/小节检索/重复刷新、A02+A03、A04 HTTP/SSE smoke通过。A02+A03合成46输入/82输出/128总Token，A04合成23/41/64，各缓存命中1/新增缓存请求0/重试0/费用未知/非loopback0/匿名PDF字节保持。真实模型与真实Token全部0，不将夹具用量当生产成本。安装后Rust Host11 passed/0 ignored，2.88秒，含启动/重启；首次Host相对路径错误在测试前退出，修正绝对安装路径后通过。
+
+**Windows交付**：`.local/releases/lite-reading-tree-20261116/ResearchGraph-Studio-Lite-Reading-Tree-0.0.1-x64-setup.exe`，38560200字节/36.77MiB，SHA256 `57C2D1821F01199C737F80D282C18860C8A599A7FC573C92B8901056D87B24D2`。完整sidecar含_internal，引擎EXE15221030字节，SHA256 `CA590F7D1C4167637EB371978ED4D140036155ACEE6B679D7880A18C8EF94E0D`；不可只复制EXE。未签名，旧包与日常安装保留。日志、匿名夹具、私有只读诊断/隔离库及包均在忽略目录，不进入Git。
+
+**剩余与下一步**：关闭旧程序安装新包，已有论文在全文精读点击“重新整理本地阅读版面”，无需删库或重导；目录箭头折叠子级、标题点击导航、定位展开当前祖先。旧全文笔记可能过期，保留但不自动收费；旧章节个人状态不自动转移。特殊字体/复杂版面/扫描页仍有识别边界，同块多小节只能保守提供完整来源上下文；公式OCR/局部原图未实现。用户原生GUI/干净机、真实笔记质量与真实成本待验。本轮完成后停止，不扩展新phase。
+
+**安全与文档收尾**：源码内容/私人路径规则与Gitleaks318文件通过；7个改动文档/91个本地链接均存在，git diff --check通过，暂存为空。最终114个运行源码/配置仍与打包冻结清单一致；未Commit/Push。
+
+## DEV-0092 — 2026-11-16 17:38（Asia/Shanghai）：本地阅读存档与只读并发修复
+
+**目标与边界**：用户反馈全文精读显示“本地数据库正在处理其他任务”，询问整理结果是否存档、是否每次重载。继续Lite增量修复，保留上轮未提交的缺章/目录树修改；不恢复旧业务、不运行迁移、不对正式数据库或Zotero材料实验，不读取真实Key。真实模型调用、Token、重试和新增费用全0。无新的上传授权，未Commit/Push。
+
+**实际原因与修改**：已有`lite_reading_documents.data.view`完整存档，但GET每次仍组装版面并flush；笔记GET的过期检查也走此路径。普通Session首次SELECT发BEGIN IMMEDIATE，多个读取互相竞争写锁。前端未自动PDF refresh，截图不能证明当时具体持锁任务。`reading_projection.py`增加来源/布局fingerprint、存档view哈希、Prepared只读准备及重验后乐观发布；暖读完整验源后直接复用存档，不_assemble/flush，补Span坐标校验。旧存档/首次读取仅用已存块组装，GET退出读快照后零等待短事务归档，busy只跳过本次可选保存、正文仍返回，下次再存；并发更新拒绝覆盖新scan/时间/警告。
+
+`reading_document_api.py`将显式刷新PDF扫描放在写事务前，发布前再次检查版本与SHA；仍加性保存章节/解析，旧原文/Span/结果保持。`storage.py`仅新增可选归档专用0超时选项，普通写入不变。`app.py`、`paper_reading_api.py`、Guide/QA/状态/概览/A02/A03/关键词/用量/设置的已审计纯GET使用受query_only保护的read_session；模型生成/保存保持写事务。关键词静态路由优先于qa_id，修正完整应用GET误匹配404。`PaperCloseReading.tsx`/CSS/测试增加仅GET的“重新读取本地存档”、就绪/实际整理时间；笔记失败保留已读正文。无新Prompt、模型Schema、API字段或数据库head变化。
+
+**实际验证**：后端全量342 passed/1 skipped/1 warning，66.68秒；skip既有Windows符号链接权限，warning既有Starlette/httpx弃用。新增存档专项13项、实际完整应用并发3项，覆盖7基础及19阅读/设置/用量读取、已完成notes真实_stale链，持未提交写事务响应不变，暖投影和Job/Usage/Cache不变。缓存重启/源缺失、坏view/source/Span坐标/layout、旧存档自动升级、冷读busy返回、乐观竞争、刷新扫描无写锁与版本变化均有回归。Ruff、94后端/测试文件格式、mypy64源、pip check通过。TypeScript/ESLint/Prettier通过，React9 files/86 passed、11.94秒，Edge13 passed、11.2秒。Rust fmt/clippy通过。
+
+**安装及零模型实测**：PowerShell7完整PyInstaller/Tauri/NSIS通过，114运行源码/配置打包前后SHA相同；PS5.1隔离安装通过，265个sidecar文件与封存逐一匹配、桌面EXE存在。安装后普通/A02+A03/A04 smoke通过，合成用量46/82/128与23/41/64分列，各缓存新增请求0/重试0/非loopback0，费用未知；不当真实成本。新增`scripts/smoke-reading-archive.py`源码/安装器引擎实测通过：3段匿名正文首次GET存档，独立SQLite持写锁时7条HTTP读取不变；关引擎并删除脚本自己生成的PDF，再同数据启动，全文/hash/行时间保持，模型/Token/Usage/新模型任务0。未删除用户PDF。安装引擎原生Host11 passed/0 ignored，2.84秒，含真实启动/重启；未用正式数据启动GUI。
+
+**Windows交付**：`.local/releases/lite-reading-cache-20261116/ResearchGraph-Studio-Lite-Reading-Cache-0.0.1-x64-setup.exe`，38,569,335字节/36.78MiB，SHA256 `D7576F3C24DA07830C9BB3A1C8F42659F178897AEE168CF7473C3F00285E2EDC`。完整sidecar含_internal，引擎15,226,267字节，SHA256 `45C95D7C5E45879700B6C70332D1CD2481A306842ADCC7394043A358FAECCA47`；不可只复制引擎EXE。未签名，旧封存包/日常安装保持。Vite592.08KB单包及PyInstaller可选模块警告保留。资料在忽略目录`.local/verify/reading-cache-20261116/`。
+
+**文档与剩余**：新增ADR0045、reading-cache验证报告，更新README、docs导航、Lite规范入口和progress。安装后正常打开已有论文即可，无需删库重导或重新生成；读取错误用新按钮，真正更新版面才显式整理。存档保存文字/结构，不是完整PDF副本，图像原图/重新扫描仍需外部PDF。公式/OCR、真实笔记质量/成本、用户GUI/干净机仍待验，不扩展后续phase。最终安全/链接检查在下方补记。
+
+**最终检查**：源码内容/私人路径规则与Gitleaks323文件通过，9个改动文档/101个本地链接全部存在，diff检查通过，暂存为空。新增smoke脚本Ruff/格式通过，最终114个运行源码/配置仍与封存安装包构建清单一致。没有Commit/Push，未上传运行数据或安装器。
+
+## DEV-0093 — 2026-11-16 19:24（Asia/Shanghai）：旧章节结构首次读取自动升级
+
+**目标与边界**：用户反馈安装版仍显示 `1 INTRODUCTION` 后直接到 `5 CONCLUSION`，并重复出现目录里的 `5 Conclusion`。只修复 Lite 本地章节结构兼容，不恢复旧完整 Knowledge Engine、Lint、Wiki 或 PDF 翻译；不读取或修改正式用户数据库、Zotero 库、私人 PDF、批注或真实 Key。真实模型调用、Token、重试和新增费用均为 0。本轮没有新的 Commit/Push 授权。
+
+**原因确认**：正式 Lite 数据库只登记了 `pymupdf/...;structure-v1`。旧解析把印刷目录条目写入章节树，同时漏识别若干正文标题；前端 `ReadingOutline` 只按后端顺序和 `parent_id` 渲染，因此不是折叠或排序问题，也不是论文 PDF 缺页。
+
+**实际修改**：新增 `services/engine/researchgraph/structure_upgrade.py`。全文阅读、章节列表和结构读取 GET 在返回前检查当前 `DocumentParse`；发现旧版本时，只读取已登记且 SHA-256 与 `AttachmentRevision` 一致的 PDF，复用现有 `_scan_pdf`、`parse_structure`、`apply_structure` 和 FTS 重建，在短事务中二次核对 revision 后加性发布 `structure-v2`。旧 `DocumentParse`、Section、Chunk、EvidenceSpan、模型结果、问答、个人理解状态、用量和外部 PDF 保持不变。已存在 v2 时普通读取不再扫描 PDF；并发请求最多一个发布新版，数据库忙、源缺失、哈希变化或锚点不匹配时保留旧树并下次重试。另加 `current_navigation_rows` 兼容投影，源 PDF 暂不可用时也不把可确定的印刷目录行展示为章节。
+
+**验证**：后端全量 `conda run -n researchgraph-studio pytest -q tests/engine` 为 **348 passed / 1 skipped / 1 warning，95.31 秒**；结构专项 **22 passed / 1 warning**，存档/结构/并发组合 **38 passed / 1 warning**。Ruff、Ruff format、mypy（65 个源文件）、pip check、TypeScript/ESLint/Prettier 和 React **9 files / 86 passed** 通过；Vite 生产构建完成，仅保留既有约 592.08KB 单 chunk 提示。隔离测试覆盖首次 sections/reading-document GET 自动升级、第二次不再扫描、旧数据保留和源文件不可用回退。
+
+**安装验证与交付**：`scripts/build-windows.ps1` 完成 PyInstaller、Tauri 和 NSIS 构建。PowerShell 5.1 静默安装验证通过，schema `lite0010`，匿名 PDF 导入/本地解析/索引模型调用为 0，翻译接口仍撤下且未打包运行时。安装包为 `.local/releases/lite-structure-auto-upgrade-20261116/ResearchGraph-Studio-Lite-Structure-Auto-Upgrade-0.0.1-x64-setup.exe`，38,575,252 bytes，SHA-256 `18523C9D4EF784EB310B8CC6F6F24194322710C7E8910AD30BE23C82D175A147`；同目录完整 `researchgraph-engine/` 含 `_internal`，引擎 EXE SHA-256 `A93FC736474AA785C5B3C4D361C0AAEC4085B1459027A1B91B26B6896C995DCA`。构建、安装验证、匿名数据库和日志均在 `.local` 忽略目录；未上传安装器或运行数据。
+
+**剩余问题**：如果原 PDF 已被移动、删除或字节发生变化，系统不会静默绑定新文件，仍会保留旧树并提示稍后整理；扫描页 OCR、复杂版面、公式恢复和表格语义仍未实现。用户安装新包后，直接从已有论文进入章节目录或全文精读即可触发一次自动升级，无需删库或重新导入 Zotero。
+
+## DEV-0094 — 2026-11-16 19:49（Asia/Shanghai）：补回目录提示识别并刷新章节缓存
+
+**目标与边界**：用户继续反馈安装版章节目录仍从 `1 INTRODUCTION` 跳到 `5 CONCLUSION`。在保留旧结构、原文、Span、笔记、个人状态和外部 PDF 的前提下，补强当前 `structure-v2` 解析对“正文标题与正文使用相同字体”的论文，并处理全文阅读投影完成后章节查询仍缓存旧树的并发窗口。本轮不调用模型、不产生真实 Token、不修改正式数据库、不提交或推送。
+
+**实际修改**：
+
+- `services/engine/researchgraph/pdf_structure.py` 新增 `_contents_hints`：仅从已标记的印刷目录材料提取规范化标题、层级、近似页码和角色；正文块必须在对应页之后精确匹配标题才可恢复章节，目录块仍不会生成章节。
+- `tests/engine/test_pdf_structure.py` 新增非粗体正文标题回归，覆盖一级、二级、三级标题及目录行不重复显示。
+- `apps/desktop/src/PaperCloseReading.tsx` 在本地阅读存档成功后失效 `sections` 查询，避免结构升级和目录请求并发时继续显示旧的 `1→5` 章节缓存。
+- `docs/progress.md` 补充本轮修复边界和实测结果。
+
+**验证**：后端解析/结构专项 `48 passed / 1 warning`；后端全量 `349 passed / 1 skipped / 1 warning`；前端 `PaperCloseReading` 与 `ReadingOutline` 共 `19 passed`，全套 Vitest 通过；TypeScript、ESLint 和 Ruff 通过。PowerShell 隔离安装、Lite 健康握手、匿名 PDF 导入/章节索引和 0 模型调用通过；安全扫描 `326 files` 与 `git diff --check` 通过。
+
+**Windows交付**：`.local/releases/lite-structure-outline-repair-20261116/ResearchGraph-Studio-Lite-Structure-Outline-Repair-0.0.1-x64-setup.exe`，38,583,034 字节，SHA-256 `854B436EEB2C50D987A4D416F03AD4F0359EB25691570F9016CF956A3E4F9CA6`。完整 sidecar 的 `researchgraph-engine.exe` 为 15,233,966 字节，SHA-256 `01E5B9A09A21522AA61733A72F8D9EC83655F0C5BA235F5BA660C7582E06F127`，目录内 265 个 sidecar 文件，必须与 `_internal/` 一起使用。安装器未签名，构建产物和验证数据在 `.local` 忽略目录，不进入 Git。
+
+**剩余问题**：自动升级仍需要已登记且 SHA 一致的 PDF。若源文件路径失效，应用只能保留旧结构并提示重新整理；此时需在同一安装包中确认 Zotero 源路径可读，不能把任意新 PDF 绑定到旧 revision。复杂版面、扫描页 OCR、公式恢复和表格语义仍在既定边界之外。
+
+## DEV-0095 — 2026-11-17 08:58（Asia/Shanghai）：公式候选原图预览与 revision-bound ID
+
+**目标与边界**：用户反馈 PDF 公式被线性文本破坏，希望后续可用 LaTeX 渲染。本轮只补零模型调用的保真链路，不从损坏文本猜公式，不下载 OCR 权重，不恢复完整 Knowledge Engine 或 PDF 翻译，也不读取正式数据库、私人 PDF 或 API Key。
+
+**实际修改**：
+
+- `formula_api.py` 抽出稳定 `formula_candidate_id`，新增 `FormulaPreview` JSON 合约和同 SHA 来源校验的 base64 PNG `/preview`；`/image` 复用同一裁剪和面积限制。
+- `pdf_structure.parse_structure` 接收可选 revision ID，在结构候选中保存 `id` 与 `formula_id`；阅读刷新传入真实 revision。旧结构缺少 revision-bound ID 时，`reading_projection.py` 按当前 revision、页码、bbox 和原文重算，保证 UI 预览路由可定位。
+- Tauri Host 只放行公式列表、预览和兼容 PNG 路由；revision 必须为 UUID，公式 ID 必须为 `formula-` 后 32 位十六进制，page/limit 要求为正数。OpenAPI/TypeScript 契约已重新导出。
+- 公式候选继续使用 `latex_unavailable`，前端只对明确 `recognized` 的 LaTeX 使用 KaTeX，未识别结果保留原文和原图入口。
+
+**验证**：公式/解析/投影专项 `73 passed / 1 warning`；Ruff、相关 mypy、Python 编译通过；Rust Host `10 passed / 0 failed / 1 ignored`，包含公式路由安全断言；`git diff --check` 通过。真实模型调用、Token、OCR 权重和新增费用均为 0。专用公式 OCR/图像转 LaTeX 的许可、权重、CPU 能力、缓存失效和结构准确率仍待独立评估。
+
+## DEV-0096 — 2026-11-17 09:21（Asia/Shanghai）：公式预览界面、契约与安装验证收尾
+
+**目标与边界**：在 DEV-0095 的候选定位基础上，完成桌面端公式原图入口和明确 `recognized` LaTeX 的安全显示。本轮不从损坏的 PDF 文本猜公式，不下载 OCR 权重，不恢复完整 Knowledge Engine、Lint、Wiki 或翻译服务，不读取正式数据库、私人 PDF、Zotero 正式库或真实 API Key。
+
+**实际修改**：`PaperCloseReading.tsx` 将 revision ID 传入公式材料，调用本地 preview JSON 接口显示 Base64 PNG、页码和错误状态，支持隐藏原图；`api.ts` 补齐 `FormulaPreview` 与后端 formula status；KaTeX 仅渲染 `recognized`，其它状态保留原始文本。同步更新 formula CSS、PaperCloseReading 测试、Tauri 路由白名单、OpenAPI/TypeScript 契约和公式评估文档。公式原图仍绑定登记 revision 的 SHA、页码、bbox；预览失败不会回退到其它路径。
+
+**验证**：后端 `352 passed / 1 skipped / 1 warning`；前端 `9 files / 87 passed`；TypeScript/ESLint/Prettier、Ruff、mypy（66 源文件）、compileall 通过；补充回归确认普通正文中的孤立 `a = b` 不会生成公式候选；Rust `cargo test -- --include-ignored` 使用最终打包引擎路径为 `11 passed / 0 failed / 0 ignored`；OpenAPI/TS 重新导出；`git diff --check` 与 `check-sensitive.py --gitleaks`（328 文件）通过。真实模型调用、Token、重试、OCR 权重和增量费用均为 0。
+
+**Windows 交付**：未签名安装包 `.local/releases/formula-preview-20261117-final/ResearchGraph-Studio-Formula-Preview-0.0.1-x64-setup.exe`，39,552,322 bytes，SHA-256 `184142B709E0146123CFD7F74D4F741D43C29F5435343B1BAAD75188317A1756`；完整 sidecar `researchgraph-engine/` 含 `_internal/`，引擎 15,246,198 bytes，SHA-256 `3BF0E5A26F846D40810CBDB988148188615E15D9C23C96AD42788EE2A3886408`。`verify-windows-install.ps1` 隔离静默安装通过，schema `lite0010`，匿名 PDF 导入与索引模型调用为 0。未提交、未推送。
+
+**未解决问题与下一步**：生产公式仍为 `latex_unavailable`，当前不提供自动 LaTeX 识别。P1 需独立评估专用图像转 LaTeX OCR 的部署、许可、缓存和结构准确率；识别结果必须保留原图、原始文本和待核对状态，不得写回作者原文或知识图谱。
+
+## DEV-0097 — 2026-11-17 10:55（Asia/Shanghai）：公式识别自动刷新与安装验收收尾
+
+**目标与边界**：继续完成公式候选的按需自动识别链路，并在识别后重新加载论文精读解析内容。本轮沿用 Lite 本地 PDF 来源和版本化结构存档；不从损坏的线性文本猜补公式，不读取正式用户数据库、私人 PDF、Zotero 正式库或 API Key，不恢复旧版完整 Knowledge Engine、PDF 翻译或云端视觉模型。没有新的 Commit/Push 授权。
+
+**实际完成**：
+
+- 后端 `POST /api/v1/revisions/{revision_id}/formulas/recognize` 已支持全部候选或指定 `formula_ids`、强制重跑和已识别缓存跳过。结果经过控制字符、长度、括号平衡和状态校验；`recognized` 才保存可渲染 LaTeX，`needs_review`/`failed` 保留原图和原始提取文本。
+- 识别结果写入当前 `DocumentParse.data.formulas` 派生字段，绑定 PDF SHA、revision、页码、bbox、原始文本哈希、识别器版本和配置哈希；同一短事务完成阅读投影重组，前端收到 `reading_document_refresh_required=true` 后重新读取 `reading-document`，并清除旧笔记/章节缓存，避免继续展示旧解析内容。
+- 桌面端 `PaperCloseReading` 新增“自动识别公式并刷新”。只有明确 `recognized` 的结果进入 KaTeX；不可用、失败或待核对状态继续显示原始文本、页码和 PDF 公式原图入口。默认安装包没有 Pix2Text/Torch/权重时，接口明确返回 `FORMULA_RECOGNIZER_UNAVAILABLE`，不伪造 LaTeX、不产生模型用量。
+- 可选本地 Pix2Text MFR-1.5 ONNX CPU 适配器保持惰性加载，只有显式设置 `RESEARCHGRAPH_FORMULA_OCR` 和本地模型目录时启用；应用启动、普通 PDF 解析和精读刷新均不会联网下载权重。
+
+**实际验证**：
+
+- 公式/解析/投影专项：`75 passed / 1 warning`；前端 PaperCloseReading、ReadingOutline、LiteReading：`3 files / 59 passed`。相关 TypeScript、ESLint、Prettier、Ruff、mypy、Python 编译和 `git diff --check` 通过。
+- Rust 普通测试：`10 passed / 1 ignored`；设置 `RGS_TEST_ENGINE_PATH` 指向隔离安装后的引擎后，原生 Host 启动、重启和公式路由白名单测试：`11 passed / 0 ignored`。
+- Windows NSIS 安装器构建完成。隔离静默安装和匿名 PDF 本地解析通过：schema `lite0010`、数据库 ready、FTS5 可用、模型调用 `0`、输入/输出 Token `0`；翻译接口返回 404，已确认旧翻译运行时未被打包。
+- 本轮安装器 SHA-256：`F14EB914F6ED0D3FCFCDD6035B0B99C76F5E737B187596ED3621A9AEF4970D77`，大小 `39,558,004` bytes。安装后引擎 SHA-256：`4D95B0E6BCB2BF40243786503171AF4DB9E674BBF5809FB7DCFE01480FC8F8BB`，大小 `15,259,686` bytes；完整 sidecar 共 `267` 个文件。交付目录为 `.local/releases/formula-auto-recognition-20261117/`，包含安装器、完整 `researchgraph-engine/` 和 `manifest.json`。
+- `scripts/check-sensitive.py --gitleaks .local/tools/gitleaks-8.24.3/gitleaks.exe` 扫描 `330` 个源码候选文件通过；未发现 API Key、Token、`.env`、私人 PDF、数据库或运行日志被纳入交付。真实模型调用、真实 Token、OCR 权重下载和新增费用均为 `0`。
+
+**剩余问题**：当前默认安装包只完成了识别器接口、缓存、校验、投影刷新和无 OCR 回退；没有随包分发 Pix2Text 依赖或模型权重，因此未完成真实公式符号/结构准确率验收。用户配置专用权重后仍需用可分发样本分别验证行内公式、分数、根号、矩阵、积分/求和上下限、双栏及扫描页，并始终保留原图对照。公式识别结果不能仅因 KaTeX 能渲染就视为科学正确。本轮未 Commit/Push。
+
+## DEV-0098 — 2026-11-17 15:19（Asia/Shanghai）：恢复会话后的公式识别链路复核
+
+**目标与边界**：上一次会话因模型工具通道返回 `gpt-6.1-sol requires Responses for tool calls` 中断。本轮从现有工作区继续，不依赖云端模型工具，复核“自动识别公式 → 保存识别结果 → 重建阅读投影 → 重新加载论文精读内容”的本地闭环；不下载 OCR 权重、不读取正式论文或用户数据库、不提交或推送。
+
+**实际修改**：修复 `formula_jobs.py` 的未使用导入、任务查询返回类型和任务对象可空类型处理；修复 `formula_ocr.py` 可选 Pix2Text/PIL 导入的 mypy 标注。运行行为不变：本地 OCR 未配置时返回 `FORMULA_RECOGNIZER_UNAVAILABLE` 并保留原图，配置本地识别器时才持久化通过校验的 LaTeX，并要求桌面端重新读取 `reading-document`。
+
+**验证**：引擎全量 `conda run -n researchgraph-studio pytest -q tests/engine` 为 **354 passed / 1 skipped / 1 warning**；公式与投影专项 **48 passed / 1 warning**；Ruff、mypy（公式 API/任务/OCR/投影）、TypeScript、ESLint、Prettier 和 `git diff --check` 全部通过。真实模型调用、Token、OCR 权重下载和费用仍为 0。
+
+**未解决问题**：默认安装包没有 Pix2Text 依赖和模型权重，因此只能验收候选定位、原图回退、缓存绑定和阅读重载，不能把当前结果记为公式符号/二维结构科学准确率通过。用户配置可分发权重后仍需单独验证分数、根号、矩阵、积分/求和上下限、双栏和扫描页样本。本轮未 Commit/Push。
+
+## DEV-0099 — 2026-11-17 16:01（Asia/Shanghai）：公式自动识别包的隔离安装验收
+
+**目标与边界**：继续用户已确认的自动修复、安装包构建和验证。使用匿名合成 PDF 与全新隔离数据目录验证 Windows 安装器及安装后的 sidecar；不读取正式用户数据库、Zotero 正式库、私人论文或 API Key，不提交或推送。
+
+**实际验证**：`scripts/verify-windows-install.ps1` 对安装器执行 PowerShell 5.1 隔离静默安装，Lite 健康握手为 `lite0010`，匿名 PDF 导入与本地解析通过，模型调用/输入 Token/输出 Token 均为 `0`，翻译接口保持 `404` 且未打包 `translation-runtime`。安装后的 `researchgraph-engine.exe` 与交付目录 sidecar 字节一致：`17,357,643` bytes，SHA-256 `B622E1FF2AB211017A597D1484C42381ED29CB8DAC61BB0B78746F3B21852DE3`。
+
+使用安装后 sidecar 导入匿名合成公式 PDF（独立公式候选 1 个）并调用公式接口：候选列表成功返回；未设置 `RESEARCHGRAPH_FORMULA_OCR` 时识别结果为 `status=unavailable`、`error_code=FORMULA_RECOGNIZER_UNAVAILABLE`，保留原图/原始文本，`model_calls=0`，没有因为打包的离线模型资源而自动启用识别。安装器 SHA-256 为 `5038AA4B3100E7B47C27E285772639F20A7A3A5019303A0A9192C08BB91ADA5F`，大小 `160,345,366` bytes；验证报告保存在 `.local/verify/formula-resume-20261117/verification.json` 与 `formula-endpoint-verification.json`。
+
+**结论与未解决问题**：Windows 构建、静默安装、sidecar 哈希、Lite 本地解析和未配置 OCR 时的安全回退均通过。当前结果证明安装与链路行为，不证明公式符号或二维结构科学准确率；需用户显式提供本地 Pix2Text MFR-1.5 依赖/权重后，再用可分发样本单独验证分数、根号、矩阵、积分/求和上下限、双栏和扫描页。真实模型调用、Token、OCR 权重下载和新增费用仍为 `0`，本轮未 Commit/Push。
+
+## DEV-0100 — 2026-11-17 16:48（Asia/Shanghai）：论文列表同步修复与导入后模型处理方案
+
+**目标与边界**：用户反馈右侧 `CURRENT PROJECT` 已显示两篇论文，但左侧个人研究空间仍只有一篇；同时提出在导入时选择概览、精读和中文翻译。本轮先修复显示同步，再记录导入方案；方案部分只设计，不新增模型调用、不改变导入 API、不迁移数据库、不提交或推送。
+
+**根因与修复**：右侧 `Papers` 查询每 3 秒轮询，左侧 `ProjectSidebar` 使用独立的 `sidebar-papers` 查询，仅设置 30 秒 `staleTime`。本地 PDF 导入返回的是刚入队的 Job，首次失效发生在 Paper 行写入前，随后左侧长期保留旧列表；Zotero 提交和成功路径也没有同步失效左侧查询。`App.tsx` 为侧栏论文查询增加 3 秒轮询；`ZoteroImport.tsx` 在批量提交成功及历史任务成功时同步失效 `sidebar-papers`。新增回归覆盖异步 worker 提交第二篇论文后左侧计数和标题更新。
+
+**实际验证**：`pnpm --dir apps/desktop exec vitest run src/LiteReading.test.tsx` 为 **39 passed**；`pnpm --dir apps/desktop check`（TypeScript + ESLint）通过；`git diff --check` 通过。后端接口没有发现项目计数与论文列表使用不同数据源的问题。当前侧栏仍读取单页最多 50 篇，超过 50 篇的总数/分页不在本轮处理。
+
+**设计产出**：新增 [ADR0047](docs/adr/0047-import-time-post-processing-plan.md)，提出“本地导入成功后执行用户选择的模型后处理计划”：先由本地解析器冻结 PDF SHA、段落、章节、坐标和公式候选，再独立执行语义段落、PaperCard + LightGraph、全文精读和可选逐段中文翻译。模型只能引用本地段落并生成可失效派生层；精读翻译通过新的 `translation_mode` 区分，继续属于阅读笔记，不恢复已撤下的 PDF 翻译服务。方案包含导入计划/计划项、缓存、预算、授权、失败恢复、单项重试和两阶段 native picker，但本轮没有实现这些接口或迁移。
+
+**未解决问题与下一步**：正式实施前需冻结 extraction/reasoning 模型角色映射，设计 `lite0011` 加性迁移和安全的 opaque 文件选择句柄，完成导入预检/授权 UI、`paper_reading_analysis.v2`、匿名 PDF + 合成 Provider 回归，再单独进行真实论文科学质量和成本验收。公式符号/二维结构准确率仍未通过。本轮未 Commit/Push。
+
+## DEV-0101 — 2026-11-17 18:11（Asia/Shanghai）：改为模型优先的章节解析方案（仅设计）
+
+**目标与边界**：用户明确要求取消 SHA-256 和本地 PDF 解析前置。选择论文后直接调用文档解析模型，按章节导出正文，并尽量提取公式与表格；模型没有多模态时允许跳过图片。本文档只调整设计，不新增模型调用、不改变当前运行逻辑、不迁移数据库、不提交或推送。
+
+**设计调整**：重写 [ADR0047](docs/adr/0047-import-time-post-processing-plan.md)，将流程改为 `ImportSession → llm_document_parse → 模型文档层/章节导出 → 概览或全文精读`。新流程使用 `source_snapshot_id`、`import_session_id` 和模型解析运行 ID 关联结果，不把 SHA-256 作为 UI 授权、发送门槛或缓存命中条件。模型可直接返回章节树、段落、公式、表格、图注和可选图像材料；程序只做 DTO、章节顺序、页码/bbox 格式、表格结构和状态校验，再生成正式 ID。
+
+**降级规则**：有多模态时优先恢复上下标、分数、矩阵、积分上下限和表格单元格；无多模态但支持 PDF/文档输入时，公式保留线性原文并标记 `unavailable|needs_review`，表格无法确认行列时保留 `raw_table_text` 并标记 `degraded|needs_review`；图片和图内标签只保留定位/图注。用户选择“需要多模态，否则暂停”时，模型能力不足则暂停，不自动降级。
+
+**验证与未解决问题**：本轮只通过文档检查确认设计与用户要求一致，未调用模型、未修改导入 API、未新增迁移。正式实施前仍需新增模型文档层和章节任务层，冻结 Provider 能力与模型快照，设计章节批次合并、公式/表格校验、缓存失效和失败恢复，并用匿名 PDF 与合成 Provider 回归后再进行真实论文科学质量验收。
+
+## DEV-0102 — 2026-11-17 18:22（Asia/Shanghai）：论文列表异步同步修复与导入方案约束校正
+
+**目标与边界**：继续处理用户反馈的“当前项目显示两篇论文、左侧个人研究空间仍显示一篇”。本轮只修复桌面列表同步并校正导入方案文档；不新增模型调用、不改变导入 API、不迁移数据库、不提交或推送。导入时调用大模型仍只保留为设计方案。
+
+**实际改动**：
+
+- `apps/desktop/src/App.tsx` 为 PDF/Zotero 导入任务建立稳定状态签名；任务状态或更新时间变化时，同时失效 `sidebar-papers` 和 `papers` 查询。侧栏查询取消 30 秒新鲜期，改为挂载时强制读取并保留 3 秒轮询，覆盖“入队时失效早于 worker 提交 Paper 行”的窗口。
+- `apps/desktop/src/LiteReading.test.tsx` 将侧栏回归改为模拟导入 worker 任务进入 `succeeded` 后自动刷新，验证第二篇论文标题出现在左侧，不再手工调用缓存失效。
+- `docs/adr/0047-import-time-post-processing-plan.md` 明确无多模态时的默认降级：正文章节仍可导出，公式保留线性/原始内容并标记 `unavailable|needs_review`，表格保留 `raw_table_text` 并标记 `degraded|needs_review`，图片和图内标签保留定位/图注；只有用户显式选择“必须多模态，否则暂停”时才暂停。
+
+**验证**：`pnpm --filter @researchgraph/desktop check`（TypeScript + ESLint）通过；桌面端 Vitest **9 files / 89 tests passed**，包含新增的异步侧栏同步回归；`pnpm --filter @researchgraph/desktop build` 生产构建通过（Vite 保留现有大 chunk 警告）；`git diff --check` 通过。未运行真实模型、未读取正式用户数据库或私人论文，未构建新安装包。
+
+**未解决问题与下一步**：当前运行逻辑仍是本地 PDF 解析和按需模型生成；ADR0047 的模型优先导入需要另行冻结 `ImportSession`、章节解析模型契约、公式/表格合并校验、Provider 多模态能力和缓存/失败恢复策略，完成匿名 PDF + 合成 Provider 回归后才能实施。超过单页 50 篇的侧栏分页/总数显示仍不在本轮范围内。
+
+## DEV-0103 — 2026-11-17 20:45（Asia/Shanghai）：模型优先导入的文档层验证与任务状态修复
+
+**目标与边界**：在已推送 ADR0047 设计基线后继续实现模型优先论文导入。模型解析结果独立写入 `llm_document_parses`/`llm_document_segments`，不回退到旧本地 PDF 解析，不以 SHA-256 作为导入前置；本轮未调用真实模型、未读取正式用户数据库或私人论文、未提交代码。
+
+**实际修改**：
+
+- 修复 FastAPI 文档结果桥接接口的 `Key` 前向引用问题；`POST /api/v1/import-sessions/{session_id}/document-parse/result` 可正常物化正文、公式和退化表格。
+- Provider 能力解析保留 PDF/图像输入、文件传输和多模态声明；读取 `/models` 元数据时不会丢失冻结的文档能力。文本模型不静默接收 PDF，也不回退本地解析。
+- 导入任务将 `document_parse` 计划项绑定到对应 Job，并在排队、运行、成功或失败时同步更新 ImportSession/计划项状态，便于桌面端展示恢复进度。
+- 导入计划增加显式联网授权字段；桌面导入卡片在发送 PDF 前显示授权复选框，默认不授权，避免打开导入界面或提交未授权时产生网络/付费请求。公式和表格选项仍强制开启。
+
+**验证**：后端 `tests/engine/test_import_plan_api.py` **7 passed**；模型文档、模型设置、Provider 流相关测试 **27 passed / 1 warning**；桌面端 `pnpm --dir apps/desktop run check` 和 Vitest **9 files / 91 tests passed**；Ruff、mypy（6 个引擎文件）通过。未进行真实 Provider、Token/费用、OCR 权重下载或安装包验收。
+
+**未解决问题与下一步**：真实 Provider 的 PDF/chat-file 兼容性、多模态能力声明和章节批次拆分仍需匿名合成 Provider 回归；概览、全文精读和逐段翻译计划项仍需在模型解析成功后排队执行。正式代码提交前需由主任务统一运行暂存内容敏感扫描并复核迁移/契约文件。
+
+## DEV-0104 — 2026-11-17 22:13（Asia/Shanghai）：Codex/CC Switch 工具调用失败链路诊断与导入实现复核
+
+**目标与边界**：用户要求确认 `gpt-6.1-sol requires Responses for tool calls` 到底由哪个 tool call 导致。本轮只读取 Codex session JSONL、复核工作区实现并运行本地静态检查；不调用真实模型、不读取正式数据库、不提交或推送实现代码。
+
+**诊断结论**：失败不是项目代码向模型发出的业务请求，也不是 `exec`、pytest、Ruff 或 PDF 传输参数触发的 HTTP 400。失败发生在 Codex runtime 收到工具结果、准备发起下一轮 `/responses` 请求时，CC Switch 的 TokenX 上游以 HTTP 400 拒绝，因为该账户只支持 Chat Completions。最近一次失败前最后的项目工具调用是 `write_stdin(session_id=60020, chars="", yield_time_ms=1000)`；它自身只返回 `Unknown process id 60020`，表示本地 pytest 进程已结束或被回收。更早的失败样本在同一配置下也分别出现在 `exec`、`collaboration.send_message`、`collaboration.list_agents` 和 `collaboration.wait_agent` 之后，说明没有某个具体业务 tool call 是根因。
+
+**实际复核**：`providers.py` 的文档传输能力校验、PDF 类型限制和 Base64 大小/格式校验已补齐；模型文档与 `lite0011` 隔离迁移测试通过，前端导入计划修复了多实例翻译单选框分组并通过全套桌面检查。当前 `compileall`、相关 Ruff 检查和 `git diff --check` 通过；真实 Provider 兼容性、真实模型成本和安装包原生反馈仍未验收。
+
+**后续配置方向**：要继续使用 Codex 工具调用，需在 CC Switch/TokenX 中为该模型配置真正支持 Responses API 的上游，或切换到支持 Chat Completions 工具调用的 Codex 模型；关闭工具调用只能进入纯聊天模式，不能继续本工程代理工作。
+
+## DEV-0105 — 2026-11-17 22:40（Asia/Shanghai）：模型优先导入后处理执行链与隔离回归
+
+**目标与边界**：按用户确认的新方案继续开发，导入解析成功后直接消费模型文档章节生成概览、全文精读和逐段翻译计划；不调用真实模型、不读取正式数据库、不提交或推送实现代码。
+
+**实际修改**：
+
+- `llm_document_outputs` 作为独立派生层加入 `lite0011`，不伪装成旧 `AttachmentRevision`/Chunk/Section，也不要求 SHA-256。
+- `materialize_document_parse` 成功后只为用户选择的 `paper_overview`、`paper_reading`、`translation` 计划项创建 `llm_document_postprocess` Job，冻结解析 ID、计划、Provider 快照和联网授权。
+- 新后处理 worker 直接读取 `llm_document_segments`，输出严格 DTO（摘要、章节结果、贡献、发现、限制及翻译槽位）到 `llm_document_outputs`；没有联网授权或 Provider 时显式失败，不进入旧本地解析链。
+- 新增导入会话的模型输出读取接口；解析失败、多模态暂停和后处理失败都会同步更新 Job、计划项和导入会话状态。
+- 补充匿名合成 Provider 回归，验证段落/公式/表格、无 Provider 不回退、必须多模态能力不足暂停，以及成功解析后独立后处理 Job 与输出表。
+
+**验证**：模型文档、导入计划、契约与迁移回归 **17 passed / 1 warning**；相关 Ruff、`compileall` 和 `git diff --check` 通过。迁移隔离测试确认旧论文、Chunk、章节和精读记录逐行保留，并新增 `llm_document_outputs`。真实模型调用、Token/费用、原生安装反馈仍未验收。
+
+**未解决问题与下一步**：后处理 DTO 尚未投影到现有 PaperCard/精读阅读 UI；需要继续设计模型文档专用展示接口和章节分页，完成匿名 Provider 端到端 API 回归后再考虑构建包。
+
+## DEV-0106 — 2026-11-18 00:22（Asia/Shanghai）：模型优先导入展示接线与原生选择句柄修复
+
+**目标与边界**：继续用户确认的模型优先导入方案，补齐导入结果的桌面可见性和失败状态一致性。使用匿名/合成数据，不调用真实模型，不读取正式数据库、Zotero 正式库、私人 PDF 或 API Key，不构建安装包，不提交或推送。
+
+**实际修改**：
+
+- Tauri 两阶段 PDF 选择流程现在把短期 `selection_id` 一并转发给引擎；带模型后处理计划的 PDF 导入不会再因后端缺少句柄而被错误拒绝。
+- PDF 模型优先会话的 `source_snapshot` 记录 `paper_id`；Zotero 模型优先导入在创建会话前建立对应 Paper，模型文档结果可以准确回到论文工作区。
+- 桌面 API 增加导入会话、模型文档解析、章节材料和后处理输出 DTO/读取接口；论文工作区在本地旧 revision 尚未生成时显示模型章节、公式、表格和概览/精读/翻译输出及其状态。
+- 后处理结果增加章节归属、段落原文引用和非空输出校验；Provider 快照读取异常、后处理失败都会收敛 Job、计划项、输出和 ImportSession，不遗留 running。
+- 导入计划重试同步重新排队原有终态 Job；重试/取消任务后同步失效左侧论文列表。
+
+**验证**：引擎全量 **371 passed / 1 skipped / 1 warning**；模型导入/迁移聚焦 **18 passed / 1 warning**；桌面 TypeScript/ESLint 通过，Vitest `LiteReading` + `ReadingOutline` **50 passed**；相关 Ruff、`compileall` 和 `git diff --check` 通过。Rust 测试本机未执行，原因是环境没有 `cargo` 命令。
+
+**未解决问题与下一步**：真实 Provider 的 PDF/chat-file 兼容性、多模态降级质量、真实论文科学质量、Token/费用和安装包原生体验仍未验收；模型文档展示目前是独立读取面板，尚未替换旧 PaperCard/全文精读数据源。实现代码仍未 Commit/Push。
+
+**补充校验**：翻译任务现在要求覆盖当前模型解析结果中的全部正文段落，并逐条核对 `chapter_ref` 与原文；专项回归仍为 **18 passed / 1 warning**，Ruff、compileall 和 `git diff --check` 通过。
+
+## DEV-0107 — 2026-11-18 10:51（Asia/Shanghai）：模型优先导入安装包与隔离安装验证
+
+**目标与边界**：为本轮模型优先论文导入实现提供可安装 Windows 包，并记录实际隔离验证。未使用真实 Provider/模型、未读取正式用户数据库或私人论文、未 Commit/Push。
+
+**交付与验证**：
+
+- 完整构建后核对 **131 个**引擎、桌面、宿主和脚本源文件的构建前后指纹，未发生变化。
+- 使用 PowerShell 5.1 对安装器执行隔离静默安装；健康握手返回 `lite0011`。匿名合成文档保存并读回 **3 个**章节/材料段，含公式和表格，Provider 调用数为 **0**。
+- 安装后 sidecar 的章节精读、全文精读、阅读存档 smoke 均通过。Rust Host **11 passed / 1 ignored**，安装后 sidecar Host 启动/重启测试 **1 passed**。合成 SSE Token 只用于测试夹具，不代表真实模型用量。
+- 安装包：`.local/releases/model-first-import-20261118/ResearchGraph-Studio-Model-First-Import-0.0.1-x64-setup.exe`，**160,407,722 bytes**，SHA-256 `A73CFF57B44ABC51031CB0D55186D3504E37A229FAF7327292956B21B8884B0C`。隔离验证报告在同目录 `verification.json`。
+
+**文档同步**：更新 README、文档导航和模型配置说明，统一当前迁移 head 为 `lite0011` 并说明模型优先导入的联网授权、公式/表格降级和旧本地数据边界；在 `docs/progress.md` 登记安装包与验收证据。
+
+**未解决问题与下一步**：真实 Provider 的 PDF 传输兼容性、多模态降级行为、真实论文章节/公式/表格质量与实际 Token/费用，以及用户桌面 GUI 原生操作仍需单独验收。此次包和合成 smoke 不代表上述项目已通过。
+
+## DEV-0108 — 2026-11-18 12:01（Asia/Shanghai）：论文管理、旧解析清理与发布验收
+
+**目标与边界**：修复导入/建项目对话框在窗口顶端固定的问题，增加论文与模型生成内容管理，提供逐篇清理旧本地解析/缓存和删除操作，并构建隔离验证安装包、推送 GitHub。清理保留个人笔记和源文件，不直接改动正式用户数据库、不读取私人 PDF/Zotero 正式库或 API Key。
+
+**实际修改**：
+
+- 导入和新建项目改用视口内原生模态对话框；侧栏论文列表跟随 PDF/Zotero worker 的持久状态刷新，避免项目论文数和左侧研究空间不同步。
+- 论文题名、模型章节正文/公式/表格与成功生成的概览、精读和翻译内容可编辑；用户可逐篇清理旧 Chunk/FTS/EvidenceSpan/DocumentParse/阅读投影/缓存，或删除论文。两项数据变更前创建并校验 SQLite 在线备份。
+- 清理保留笔记、个人理解状态、生成记录、模型章节输出、论文修订和源文件；清理后普通阅读不会自动重建旧存档。清理遇到仍排队的旧本地任务时返回冲突，防止任务完成后重新生成被清理的数据。模型优先解析继续使用 `llm_document_*`，不回退旧本地解析。
+- 整篇删除仅允许移除 `attachments` 根目录内真实托管的 PDF；引用文件、Zotero 原件、外部路径、符号链接/目录链接目标均保留。单篇删除不删除研究项目或全局模型配置。
+- 安装 smoke 覆盖题名更新、模型章节/公式/表格持久化与清理后保留、旧阅读不自动重建、论文删除及引用 PDF 保留；移除了无法由 smoke 实际证明的笔记保留硬编码字段。
+
+**验证与交付**：全量后端 **376 passed / 1 skipped / 1 warning**；管理 API 专项 **5 passed**；桌面 Vitest **10 files / 98 passed**。TypeScript/ESLint、Prettier、OpenAPI/TS 契约导出、全引擎 mypy（75 files）、Ruff、compileall 与 PowerShell 5.1 语法检查通过。Rust Host 使用隔离安装后的 sidecar 验证 **12 passed / 0 failed / 0 ignored**。NSIS 安装包隔离静默安装和管理 smoke 通过：schema `lite0011`、清理旧 Chunk **4**、模型章节材料清理后保留 **3**、旧阅读自动重建 **false**、论文删除成功、引用 PDF 保留、模型调用 **0**。安装包 `ResearchGraph-Studio-Paper-Management-0.0.1-x64-setup.exe` 为 **160,425,045 bytes**，SHA-256 `AB6F20489F884FFEB0DF8F3CA5C76C7655D6551819A39A16623FCB90F931F161`，位于 `.local/releases/paper-management-20261118/`；安装和验证数据均不进入 Git。
+
+**未解决问题与下一步**：真实 Provider 的 PDF 接收/多模态兼容、真实论文内容/公式/表格质量、真实 Token/费用及用户原生 GUI 操作仍待单独验收。对既有旧数据的清理是应用内逐篇显式操作；本轮没有批量删除或直接编辑用户数据库。相关 ADR 为 [0048](docs/adr/0048-paper-content-management-and-legacy-cleanup.md)。

@@ -23,7 +23,8 @@ const paragraph = local.units.find((unit) => unit.kind === "paragraph")!;
 local.sections = Array.from({ length: 18 }, (_, index) => ({
   section_id: `s${index + 1}`,
   title: `Section ${index + 1}`,
-  level: index % 3 === 1 ? 2 : 1,
+  level: (index % 3) + 1,
+  parent_id: index % 3 === 0 ? null : `s${index}`,
   role: "body",
 }));
 local.units = local.sections.flatMap((section, index) => [
@@ -54,7 +55,7 @@ api.sections = async () => ({
     id: section.section_id,
     title: section.title,
     level: section.level,
-    parent_id: null,
+    parent_id: section.parent_id ?? null,
     role: "body",
     ordinal: index,
     start_page: index,
@@ -84,6 +85,43 @@ const shortEntries = [
   { id: "intro", label: "Introduction", targetId: "short-intro" },
   { id: "last", label: "Final short section", targetId: "short-last" },
 ];
+const treeEntries = [
+  {
+    id: "chapter-1",
+    label: "1 Introduction",
+    targetId: "tree-chapter-1",
+    level: 1,
+    parentId: null,
+  },
+  {
+    id: "sub-1",
+    label: "1.1 Context",
+    targetId: "tree-sub-1",
+    level: 2,
+    parentId: "chapter-1",
+  },
+  {
+    id: "detail-1",
+    label: "1.1.1 Detail",
+    targetId: "tree-detail-1",
+    level: 1,
+    parentId: "sub-1",
+  },
+  {
+    id: "chapter-2",
+    label: "2 Methods",
+    targetId: "tree-chapter-2",
+    level: 1,
+    parentId: null,
+  },
+  { id: "sub-2", label: "2.1 Setup", targetId: "tree-sub-2", level: 2 },
+  {
+    id: "detail-2",
+    label: "2.1.1 Parameters",
+    targetId: "tree-detail-2",
+    level: 3,
+  },
+];
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={client}>
@@ -111,6 +149,20 @@ createRoot(document.getElementById("root")!).render(
               panel="qa"
               initialSectionId="s1"
             />
+          ) : scenario === "tree" ? (
+            <ReadingOutline entries={treeEntries} trackScroll>
+              {treeEntries.map((entry) => (
+                <section key={entry.id} style={{ minHeight: 650 }}>
+                  <h2 id={entry.targetId} tabIndex={-1}>
+                    {entry.label}
+                  </h2>
+                  <p data-reading-anchor>
+                    Local source for {entry.label}. Hierarchy navigation does
+                    not generate model requests.
+                  </p>
+                </section>
+              ))}
+            </ReadingOutline>
           ) : scenario === "short" ? (
             <ReadingOutline entries={shortEntries} trackScroll>
               <section style={{ minHeight: 1200 }}>

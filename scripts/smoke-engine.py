@@ -76,7 +76,7 @@ def run(
             base = f"http://127.0.0.1:{ready['port']}/api/v1"
             health = request(base, token, "GET", "/health")
             assert (
-                health["schema_version"] == "lite0010"
+                health["schema_version"] == "lite0011"
                 and health["database"] == "ready"
                 and health["fts5"]
             )

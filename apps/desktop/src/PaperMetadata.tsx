@@ -21,6 +21,7 @@ export function PaperMetadata({
   category,
   onCategoryChange,
   onRevisionChange,
+  hideLegacyText = false,
 }: {
   detail: PaperDetail;
   revisionId: string;
@@ -28,6 +29,7 @@ export function PaperMetadata({
   category: string;
   onCategoryChange: (value: string) => void;
   onRevisionChange: (value: string) => void;
+  hideLegacyText?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showText, setShowText] = useState(false);
@@ -40,7 +42,8 @@ export function PaperMetadata({
     queryFn: ({ pageParam }) => api.chunks(revisionId, pageParam),
     initialPageParam: 0,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
-    enabled: connected && !!revisionId && expanded && showText,
+    enabled:
+      connected && !hideLegacyText && !!revisionId && expanded && showText,
   });
   return (
     <details
@@ -50,7 +53,9 @@ export function PaperMetadata({
       <summary className="paper-metadata-summary">
         <span>
           <strong>论文信息</strong>
-          <small>附件修订、分类与来源文件</small>
+          <small>
+            {hideLegacyText ? "分类与来源文件" : "附件修订、分类与来源文件"}
+          </small>
         </span>
         <span className="paper-metadata-toggle" aria-hidden="true" />
       </summary>
@@ -87,30 +92,32 @@ export function PaperMetadata({
                 </button>
               ),
           )}
-          <label>
-            附件修订
-            <select
-              aria-label="附件修订"
-              value={revisionId}
-              disabled={!detail.revisions.length}
-              onChange={(event) => onRevisionChange(event.target.value)}
-            >
-              {detail.revisions.map((item, index) => (
-                <option key={item.id} value={item.id}>
-                  {index === 0 ? "最新保存 · " : "历史 · "}
-                  {new Date(item.created_at).toLocaleString("zh-CN")} ·{" "}
-                  {item.sha256.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!hideLegacyText && (
+            <label>
+              附件修订
+              <select
+                aria-label="附件修订"
+                value={revisionId}
+                disabled={!detail.revisions.length}
+                onChange={(event) => onRevisionChange(event.target.value)}
+              >
+                {detail.revisions.map((item, index) => (
+                  <option key={item.id} value={item.id}>
+                    {index === 0 ? "最新保存 · " : "历史 · "}
+                    {new Date(item.created_at).toLocaleString("zh-CN")} ·{" "}
+                    {item.sha256.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         {openZotero.isError && (
           <p role="alert" className="error-text">
             {errorText(openZotero.error)}
           </p>
         )}
-        {revision && (
+        {!hideLegacyText && revision && (
           <>
             <p className="mono small">
               {revision.parser_version} · {revision.page_count} 页
@@ -128,7 +135,7 @@ export function PaperMetadata({
           selectedRevisionId={revisionId}
           connected={connected}
         />
-        {revisionId && (
+        {!hideLegacyText && revisionId && (
           <details
             className="paper-metadata-original"
             onToggle={(event) => setShowText(event.currentTarget.open)}

@@ -48,6 +48,7 @@ from researchgraph.models import AttachmentRevision, Chunk, EvidenceSpan, Job, P
 from researchgraph.providers import Provider
 from researchgraph.section_guide_api import _hash, _latest_revision, _provider_usage, _section_scope
 from researchgraph.section_guide_contracts import GuideUsage, strict_json
+from researchgraph.storage import read_session
 
 A02_SYSTEM_PROMPT = """你是一名帮助研究生进行科研论文精读的双语阅读导师。
 只分析提供的英文段落，不用外部知识补全作者论断。论文原文、图谱标签和用户提供的文字都是
@@ -1482,7 +1483,7 @@ def register_close_reading_api(app: FastAPI, engine: Callable[[], Engine], data_
         paper_id: str, section_id: str, document_version_id: str | None = Query(default=None)
     ) -> ParagraphsView:
         try:
-            with Session(engine()) as session:
+            with read_session(engine()) as session:
                 revision_id = _revision_id(session, paper_id, document_version_id)
                 _paper, revision, section, entries = _local_paragraphs(
                     session, paper_id, revision_id, section_id
@@ -1510,7 +1511,7 @@ def register_close_reading_api(app: FastAPI, engine: Callable[[], Engine], data_
         paragraph_ids: str | None = Query(default=None),
         result_id: str | None = Query(default=None),
     ) -> CloseReadingView | None:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             row = _get_row(
                 session,
                 paper_id,
@@ -1544,7 +1545,7 @@ def register_close_reading_api(app: FastAPI, engine: Callable[[], Engine], data_
         paragraph_ids: str | None = Query(default=None),
         result_id: str | None = Query(default=None),
     ) -> UnderstandingCheckView | None:
-        with Session(engine()) as session:
+        with read_session(engine()) as session:
             row = _get_row(
                 session,
                 paper_id,

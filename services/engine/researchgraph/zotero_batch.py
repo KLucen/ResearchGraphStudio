@@ -11,9 +11,10 @@ from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError, StrictModel
+from researchgraph.import_plan_api import create_import_session_record, normalize_post_import_plan
 from researchgraph.integrations import ZoteroAdapter
-from researchgraph.models import Job, Project, now
-from researchgraph.schemas import JobView
+from researchgraph.models import Job, Paper, Project, now
+from researchgraph.schemas import JobView, PdfPostImportPlan, SourceSnapshot
 
 
 class CollectionBrowse(StrictModel):
@@ -33,6 +34,7 @@ class BatchImport(StrictModel):
     collection_key: str = Field(pattern=r"^[A-Z0-9]{8}$")
     selections: list[AttachmentChoice] = Field(min_length=1, max_length=50)
     mode: Literal["reference", "managed"] = "reference"
+    post_import_plan: PdfPostImportPlan | None = None
 
 
 class PdfChoice(StrictModel):
@@ -191,6 +193,11 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                     "library": body.library,
                     "collection_key": body.collection_key,
                     "mode": body.mode,
+                    **(
+                        {"post_import_plan": body.post_import_plan.model_dump()}
+                        if body.post_import_plan is not None
+                        else {}
+                    ),
                     **choice.model_dump(),
                 }
                 existing = session.scalar(
@@ -218,6 +225,55 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                 if existing is None:
                     session.add(job)
                     session.flush()
+                    plan = normalize_post_import_plan(body.post_import_plan)
+                    if plan is not None:
+                        provider_snapshot = None
+                        if plan.allow_network:
+                            from researchgraph.model_settings import snapshot_for
+
+                            provider_snapshot = snapshot_for(session, project_id, "extraction")
+                        paper = Paper(
+                            id=str(uuid4()),
+                            project_id=project_id,
+                            title=choice.item_key,
+                            created_at=now(),
+                        )
+                        session.add(paper)
+                        session.flush()
+                        job.payload = {**(job.payload or {}), "paper_id": paper.id}
+                        import_session, plan_items = create_import_session_record(
+                            session,
+                            project_id=project_id,
+                            source_kind="zotero",
+                            selection_id=(
+                                f"zotero:{body.library}:{choice.item_key}:{choice.attachment_key}"
+                            ),
+                            source_snapshot=SourceSnapshot(
+                                paper_id=paper.id,
+                                provider_file_id=(
+                                    f"{body.library}:{choice.attachment_key}"
+                                )
+                            ),
+                            plan=plan,
+                        )
+                        job.payload = {
+                            **(job.payload or {}),
+                            "import_session_id": import_session.id,
+                            "model_first": True,
+                            "modality": plan.modality,
+                            "require_multimodal": plan.require_multimodal,
+                            "allow_network": plan.allow_network,
+                            "provider_snapshot": provider_snapshot,
+                            "paper_id": paper.id,
+                        }
+                        document_item = next(
+                            item for item in plan_items if item.item_kind == "document_parse"
+                        )
+                        document_item.job_id = job.id
+                        document_item.status = "queued"
+                        document_item.updated_at = now()
+                        import_session.status = "queued"
+                        import_session.updated_at = now()
                 jobs.append(status(job))
             response = {"items": [x.model_dump() for x in jobs]}
             remember(session, "zotero-batch:" + idempotency_key, request, response)
