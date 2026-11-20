@@ -258,19 +258,26 @@ def test_current_tree_guide_search_qa_state_and_overview_read_existing_text(vers
 
 
 @pytest.mark.parametrize("target", ["span_hash", "chunk_bbox", "artifact_text"])
-def test_current_mapping_rejects_changed_source_or_anchor(versioned, target):
+@pytest.mark.parametrize("equal_timestamp", [False, True])
+def test_current_mapping_rejects_changed_source_or_anchor(versioned, target, equal_timestamp):
     engine, structure = versioned
     with Session(engine) as session, session.begin():
         add_current(session, structure)
+        if equal_timestamp:
+            for saved in session.scalars(select(DocumentParse)):
+                saved.created_at = "2026-01-01T00:00:00+00:00"
+            session.flush()
         method = active_section_rows(session, "revision")[1]
         if target == "span_hash":
             section_spans(session, method)[0].text_sha256 = "b" * 64
         elif target == "chunk_bbox":
             session.get(Chunk, "chunk-0").bbox = [0, 0, 1, 1]
         else:
-            artifact = session.scalar(
-                select(DocumentParse).order_by(DocumentParse.created_at.desc())
-            )
+            # Windows clocks can assign both versions the same timestamp.
+            # Mutate the artifact actually backing this section; a timestamp-
+            # only query may select an untouched historical version instead.
+            artifact = current_structure(session, "revision")
+            assert method.id in {item["section_id"] for item in artifact.data["sections"]}
             artifact.data = {
                 **artifact.data,
                 "blocks": [

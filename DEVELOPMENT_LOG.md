@@ -2405,3 +2405,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 依赖锁修复补充 — 2026-11-20 15:48（Asia/Shanghai）**：重新生成hash lock，旧46pin版本不变，新增numpy/Pillow/onnxruntime/tokenizers与9传递依赖，共59pin，全部与本机已打包distribution匹配。pip-tools包全历史元数据失败会逐平台下载大wheel，改为仅当前生成进程使用官方版本JSON的SHA256，未改pip-tools安装或系统索引/TLS；Conda freeze的本地file URL仅规范为已装版本，不上传.local约束或凭据。`pip install --dry-run --require-hashes --no-index`全部满足/0安装，pip check、runtime锁12项、mypy109、Ruff/178格式通过。知识库源与安装器保持，将普通推送修复并重跑干净环境CI。
+
+
+**DEV-0124 同时间戳回归修复 — 2026-11-20 16:03（Asia/Shanghai）**：run44697853179的锁复现/guard12/Ruff/178格式/mypy109通过；pytest819passed/1failed（448.49秒），后续未运行。结构版本测试timestamp-only选待篡改对象时同时间戳选到历史parse，非生产验源放行；本机强制相同时间戳隔离before准确复现失败。测试改精确current_structure+章节归属断言，补普通/同时间戳参数，专项27passed（1.94秒），生产代码不改。将普通上传此测试/文档修复再次跟进CI，不重打未变运行源安装包。
