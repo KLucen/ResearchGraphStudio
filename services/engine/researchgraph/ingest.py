@@ -120,7 +120,14 @@ def publish_pdf(
             AttachmentRevision.sha256 == result["sha256"],
         )
     )
-    paper_id = source.paper_id if source else revision.paper_id if revision else None
+    explicit_id = job.payload.get("paper_id")
+    if explicit_id:
+        target = session.get(Paper, explicit_id)
+        if target is None or target.project_id != job.project_id:
+            raise ValueError("论文已删除或不属于当前项目")
+    paper_id = explicit_id or (
+        source.paper_id if source else revision.paper_id if revision else None
+    )
     if paper_id is None and job.kind == "zotero_import":
         paper_id = session.scalar(
             select(ZoteroLink.paper_id)
@@ -158,6 +165,19 @@ def publish_pdf(
         session.add_all(
             Chunk(id=str(uuid4()), revision_id=revision.id, **block) for block in result["chunks"]
         )
+    # Explicit rebuilding after user cleanup restores missing chunks while
+    # keeping the revision, section identities, old notes and personal state.
+    if (
+        reused
+        and session.scalar(select(Chunk.id).where(Chunk.revision_id == revision.id).limit(1))
+        is None
+    ):
+        session.add_all(
+            Chunk(id=str(uuid4()), revision_id=revision.id, **block) for block in result["chunks"]
+        )
+        from researchgraph.structure_upgrade import clear_local_content_cleared
+
+        clear_local_content_cleared(revision)
     managed_path = None
     if mode == "managed":
         destination = data / "attachments" / (result["sha256"] + ".pdf")
@@ -241,7 +261,7 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
         command += ["-m", "researchgraph"]
         child_environment["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
     if kind in {"pdf_import", "zotero_import"}:
-        command += ["--parse-pdf", payload["path"]]
+        command += ["--parse-pdf", payload.get("parse_path", payload["path"])]
     else:
         request_file = work / "request.json"
         request_file.write_text(json.dumps(payload), encoding="utf-8")
@@ -321,6 +341,10 @@ async def run_file_job(engine: Engine, job_id: str, data: Path) -> None:
                     if paper.title == Path(payload["path"]).stem:
                         paper.title = str(metadata.get("data", {}).get("title") or paper.title)
                 current.status, current.updated_at = "succeeded", now()
+                if kind in {"pdf_import", "zotero_import"}:
+                    from researchgraph.knowledge_automation import note_parsed
+
+                    note_parsed(session, current)
     finally:
         if process is not None and process.poll() is None:
             process.terminate()

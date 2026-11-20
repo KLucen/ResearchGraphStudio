@@ -25,6 +25,16 @@ from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
 from researchgraph.core import KnowledgeError
+from researchgraph.document_batch_recovery import (
+    authorize_publication_retry,
+    compatibility_retry_available,
+    project_batch_recovery,
+    publication_retry_available,
+)
+from researchgraph.document_format_repair import (
+    clear_format_repair_intent,
+    ordinary_document_attempts,
+)
 from researchgraph.import_plan_api import (
     create_import_session_record,
     normalize_post_import_plan,
@@ -160,10 +170,75 @@ def finish_diagnostic(
             if result is not None:
                 current.result = result
             current.error, current.updated_at = error, now()
+            from researchgraph.model_document_api import synchronize_import_job
+
+            synchronize_import_job(session, current)
+
+
+def after_knowledge_job(engine: Engine, job_id: str) -> None:
+    """Queue only newly completed work under the user's saved library policy."""
+    from researchgraph.knowledge_automation import dispatch_collection_events
+    from researchgraph.knowledge_connection_models import KnowledgeAnalysisEvent
+    from researchgraph.knowledge_connections import queue_auto_connections
+
+    with Session(engine) as session, session.begin():
+        job = session.get(Job, job_id)
+        if job is None or job.status != "succeeded":
+            return
+        if job.kind == "knowledge_extract":
+            version_id = (job.result or {}).get("knowledge_version_id")
+            if version_id and session.get(KnowledgeAnalysisEvent, version_id) is not None:
+                queue_auto_connections(session, version_id)
+        else:
+            dispatch_collection_events(session)
+
+
+def dispatch_pending_knowledge(engine: Engine) -> None:
+    """Avoid acquiring a writer on ordinary idle polls or disabled policies."""
+    from researchgraph.knowledge_automation import dispatch_collection_events
+    from researchgraph.knowledge_connection_models import (
+        KnowledgeAnalysisEvent,
+        KnowledgeCollectionEvent,
+    )
+    from researchgraph.knowledge_connections import dispatch_pending_analysis
+    from researchgraph.knowledge_library import PERSONAL_LIBRARY_ID, library_view
+    from researchgraph.knowledge_library_models import KnowledgeLibrary
+
+    with read_session(engine) as session:
+        settings = library_view(session.get(KnowledgeLibrary, PERSONAL_LIBRARY_ID)).settings
+        pending = session.scalar(
+            select(KnowledgeAnalysisEvent.version_id)
+            .where(KnowledgeAnalysisEvent.state == "pending")
+            .limit(1)
+        )
+        collection_pending = session.scalar(
+            select(KnowledgeCollectionEvent.job_id)
+            .where(KnowledgeCollectionEvent.state == "pending")
+            .limit(1)
+        )
+        if not settings.allow_network or not (
+            settings.auto_connect
+            and pending is not None
+            or settings.auto_collect
+            and collection_pending is not None
+        ):
+            return
+    with Session(engine) as session, session.begin():
+        dispatch_collection_events(session)
+        dispatch_pending_analysis(session)
 
 
 async def worker(engine: Engine, data_dir: Path) -> None:
+    next_knowledge_dispatch = 0.0
     while True:
+        current_time = asyncio.get_running_loop().time()
+        if current_time >= next_knowledge_dispatch:
+            try:
+                await asyncio.to_thread(dispatch_pending_knowledge, engine)
+            except OperationalError as exc:
+                if not database_busy(exc):
+                    raise
+            next_knowledge_dispatch = current_time + 30
         claim_task = asyncio.create_task(asyncio.to_thread(claim_queued_job, engine))
         try:
             claimed = await asyncio.shield(claim_task)
@@ -184,6 +259,17 @@ async def worker(engine: Engine, data_dir: Path) -> None:
         result: dict[str, str | bool] | None = None
         error = None
         try:
+            if kind == "knowledge_extract":
+                from researchgraph.knowledge_tasks import run_knowledge_extract
+
+                await run_knowledge_extract(engine, job_id, data_dir)
+                await asyncio.to_thread(after_knowledge_job, engine, job_id)
+                continue
+            if kind == "knowledge_connect":
+                from researchgraph.knowledge_connections import run_knowledge_connect
+
+                await run_knowledge_connect(engine, job_id, data_dir)
+                continue
             if kind == "formula_recognition":
                 from researchgraph.formula_jobs import execute_formula_recognition
 
@@ -193,16 +279,19 @@ async def worker(engine: Engine, data_dir: Path) -> None:
                 from researchgraph.model_document_api import execute_document_parse
 
                 await execute_document_parse(engine, job_id, data_dir)
+                await asyncio.to_thread(after_knowledge_job, engine, job_id)
                 continue
             if kind == "llm_document_postprocess":
                 from researchgraph.model_document_api import execute_document_postprocess
 
                 await execute_document_postprocess(engine, job_id, data_dir)
+                await asyncio.to_thread(after_knowledge_job, engine, job_id)
                 continue
             if kind == "paper_overview":
                 from researchgraph.paper_overview_api import execute_overview
 
                 await execute_overview(engine, job_id, data_dir)
+                await asyncio.to_thread(after_knowledge_job, engine, job_id)
                 continue
             if kind == "section_guide":
                 from researchgraph.section_guide_api import execute_section_guide
@@ -246,8 +335,10 @@ async def worker(engine: Engine, data_dir: Path) -> None:
                     from researchgraph.model_document_api import execute_document_parse
 
                     await execute_document_parse(engine, job_id, data_dir)
+                    await asyncio.to_thread(after_knowledge_job, engine, job_id)
                     continue
                 await run_file_job(engine, job_id, data_dir)
+                await asyncio.to_thread(after_knowledge_job, engine, job_id)
                 continue
             if kind in {"source_check", "source_relocate"}:
                 await run_file_job(engine, job_id, data_dir)
@@ -292,6 +383,8 @@ def create_app(
                 # marked interrupted on restart without being sent again.
                 from researchgraph.close_reading_api import recover_close_reading
                 from researchgraph.keyword_api import recover_keywords
+                from researchgraph.knowledge_connections import recover_knowledge_connections
+                from researchgraph.knowledge_tasks import recover_knowledge_extractions
                 from researchgraph.paper_overview_api import recover_overviews
                 from researchgraph.paper_reading_api import recover_paper_readings
                 from researchgraph.qa_api import recover_qa
@@ -303,6 +396,8 @@ def create_app(
                 recover_paper_readings(engine)
                 recover_qa(engine)
                 recover_keywords(engine)
+                recover_knowledge_extractions(engine)
+                recover_knowledge_connections(engine)
                 with Session(engine) as session, session.begin():
                     retire_translation_jobs(session)
                     session.execute(
@@ -312,6 +407,9 @@ def create_app(
                             status="interrupted", error="上次运行中断，可手动重试", updated_at=now()
                         )
                     )
+                from researchgraph.model_document_api import recover_document_imports
+
+                recover_document_imports(engine)
                 if start_worker:
                     task = asyncio.create_task(worker(engine, data_dir))
                 if ready:
@@ -402,8 +500,12 @@ def create_app(
         return error_response(request, status, exc.code, str(exc))
 
     register_settings_api(app, engine, data_dir)
+    from researchgraph.paper_parse_api import register_paper_parse_api
+
+    register_paper_parse_api(app, engine, data_dir)
     register_zotero_batch_api(app, engine)
     register_import_plan_api(app, engine)
+    from researchgraph.chapter_reading_api import register_chapter_reading_api
     from researchgraph.close_reading_api import register_close_reading_api
     from researchgraph.formula_api import register_formula_api
     from researchgraph.formula_jobs import register_formula_jobs_api
@@ -439,6 +541,16 @@ def create_app(
     register_keyword_api(app, engine, data_dir)
     register_qa_api(app, engine, data_dir)
     register_model_document_api(app, engine)
+    from researchgraph.document_format_repair import register_document_format_repair_api
+    from researchgraph.knowledge_library_api import register_knowledge_library_api
+    from researchgraph.knowledge_workflow_api import register_knowledge_workflow_api
+    from researchgraph.model_document_overview import register_model_overview_api
+
+    register_model_overview_api(app, engine)
+    register_document_format_repair_api(app, engine)
+    register_chapter_reading_api(app, engine)
+    register_knowledge_library_api(app, engine, data_dir)
+    register_knowledge_workflow_api(app, engine, data_dir)
 
     @app.get("/api/v1/health", response_model=Health)
     def health() -> Health:
@@ -491,7 +603,9 @@ def create_app(
     def jobs() -> list[JobView]:
         with read_session(engine()) as session:
             return [
-                JobView.model_validate(j)
+                JobView.model_validate(j).model_copy(
+                    update={"result": project_batch_recovery(session, j)}
+                )
                 for j in session.scalars(select(Job).order_by(Job.created_at.desc()).limit(50))
             ]
 
@@ -543,7 +657,12 @@ def create_app(
                 statement.order_by(Job.created_at.desc(), Job.id.desc()).limit(limit + 1)
             ).all()
             return JobList(
-                items=[JobView.model_validate(j) for j in rows[:limit]],
+                items=[
+                    JobView.model_validate(j).model_copy(
+                        update={"result": project_batch_recovery(session, j)}
+                    )
+                    for j in rows[:limit]
+                ],
                 next_cursor=(
                     encode_job_cursor(rows[limit - 1].id, snapshot) if len(rows) > limit else None
                 ),
@@ -575,7 +694,9 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
-            return JobView.model_validate(job)
+            return JobView.model_validate(job).model_copy(
+                update={"result": project_batch_recovery(session, job)}
+            )
 
     @app.post("/api/v1/jobs/{job_id}/{action}", response_model=JobView)
     def change_job(job_id: str, action: str, idempotency_key: Key) -> JobView:
@@ -601,6 +722,8 @@ def create_app(
                 "understanding_check",
                 "grounded_qa",
                 "search_keywords",
+                "knowledge_extract",
+                "knowledge_connect",
             }:
                 raise failure(
                     409,
@@ -608,7 +731,39 @@ def create_app(
                     "请在对应阅读模块中手动重新生成；模型任务不会自动重发",
                 )
             if action == "cancel" and job.status in {"queued", "running"}:
-                if job.kind == "pdf_translation":
+                if job.kind == "knowledge_extract":
+                    from researchgraph.knowledge_extraction_models import KnowledgeExtractionRun
+
+                    extraction = session.scalar(
+                        select(KnowledgeExtractionRun).where(
+                            KnowledgeExtractionRun.job_id == job.id
+                        )
+                    )
+                    if extraction is not None:
+                        extraction.status = "cancelled"
+                        extraction.error_code, extraction.updated_at = "KNOWLEDGE_CANCELLED", now()
+                elif job.kind == "knowledge_connect":
+                    from researchgraph.knowledge_connection_models import (
+                        KnowledgeConnectionRequest,
+                        KnowledgeConnectionRun,
+                    )
+
+                    connection = session.scalar(
+                        select(KnowledgeConnectionRun).where(
+                            KnowledgeConnectionRun.job_id == job.id
+                        )
+                    )
+                    if connection is not None:
+                        connection.status = "cancelled"
+                        connection.error_code, connection.updated_at = "KNOWLEDGE_CANCELLED", now()
+                        for slot in session.scalars(
+                            select(KnowledgeConnectionRequest).where(
+                                KnowledgeConnectionRequest.run_id == connection.id,
+                                KnowledgeConnectionRequest.status == "planned",
+                            )
+                        ):
+                            slot.status = "cancelled"
+                elif job.kind == "pdf_translation":
                     # Defensive compatibility for work inserted after startup.
                     retire_translation_jobs(session, job.id)
                 elif job.kind == "paper_overview":
@@ -710,8 +865,15 @@ def create_app(
             elif (
                 action == "retry"
                 and job.status in {"failed", "interrupted", "cancelled"}
-                and job.attempt < 3
+                and (
+                    ordinary_document_attempts(job) < 3
+                    or compatibility_retry_available(session, job)
+                    or publication_retry_available(session, job)
+                )
             ):
+                if publication_retry_available(session, job):
+                    authorize_publication_retry(job)
+                clear_format_repair_intent(job)
                 # Keep observed local-file progress so retry resumes from the first
                 # failed/pending batch. KnowledgeOperation makes completed batches
                 # idempotent; clearing this result hid that progress from the UI.
@@ -720,6 +882,9 @@ def create_app(
             else:
                 raise failure(409, "JOB_STATE_CONFLICT", "任务状态已改变或达到重试上限")
             job.updated_at = now()
+            from researchgraph.model_document_api import synchronize_import_job
+
+            synchronize_import_job(session, job)
             response = JobView.model_validate(job)
             remember(session, key, payload, response.model_dump())
             return response
@@ -736,12 +901,13 @@ def create_app(
             # supplies an opaque one-time selection_id; this check protects
             # direct local API callers and expired picker state alike.
             raise failure(422, "INVALID_PDF_PATH", "请选择仍然存在且可读取的绝对路径 PDF 文件")
-        if body.post_import_plan is not None and not body.selection_id:
+        model_plan = normalize_post_import_plan(body.post_import_plan)
+        if model_plan is not None and not body.selection_id:
             # Model-first imports must come from the native two-stage picker.
             # Do not create a model parse session for a raw path submitted by a
             # web caller without the opaque selection handle.
             raise failure(422, "MISSING_PDF_SELECTION", "模型解析导入需要先通过文件选择器确认 PDF")
-        if body.post_import_plan is not None:
+        if model_plan is not None:
             try:
                 UUID(body.selection_id or "")
             except ValueError:
@@ -781,7 +947,7 @@ def create_app(
                 if plan.allow_network:
                     from researchgraph.model_settings import snapshot_for
 
-                    provider_snapshot = snapshot_for(session, project_id, "extraction")
+                    provider_snapshot = snapshot_for(session, project_id, "document_parse")
                 paper = Paper(
                     id=str(uuid4()),
                     project_id=project_id,

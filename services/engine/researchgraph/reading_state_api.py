@@ -21,6 +21,7 @@ from researchgraph.reading_state_contracts import (
     ConceptUnderstandingPut,
     ConceptUnderstandingView,
     ReaderContext,
+    ReadingProgressPatch,
     ReadingStatePut,
     ReadingStateView,
 )
@@ -516,6 +517,39 @@ def _http_error(exc: KnowledgeError) -> HTTPException:
 
 
 def register_reading_state_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
+    @app.patch(
+        "/api/v1/papers/{paper_id}/sections/{section_id}/reading-state",
+        response_model=ReadingStateView,
+    )
+    def patch_progress(
+        paper_id: str, section_id: str, body: ReadingProgressPatch
+    ) -> ReadingStateView:
+        try:
+            with Session(engine()) as session, session.begin():
+                revision, _section, source_hash, _paragraph_ids = _scope(
+                    session, paper_id, body.document_version_id, section_id
+                )
+                row = _state_row(session, paper_id, revision.id, section_id)
+                if row is None:
+                    row = ReadingState(
+                        id=str(uuid4()),
+                        paper_id=paper_id,
+                        document_version_id=revision.id,
+                        section_id=section_id,
+                        source_hash=source_hash,
+                        progress=body.progress,
+                    )
+                    session.add(row)
+                # Preserve original source baseline and every subjective field,
+                # including associations currently hidden as NEEDS_RELINK.
+                row.progress, row.updated_at = body.progress, now()
+                session.flush()
+                return ReadingStateView.model_validate(
+                    get_state_snapshot(session, paper_id, revision.id, section_id)
+                )
+        except KnowledgeError as exc:
+            raise _http_error(exc) from exc
+
     @app.get(
         "/api/v1/papers/{paper_id}/sections/{section_id}/reading-state",
         response_model=ReadingStateView,

@@ -5,6 +5,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { api, type Job } from "./api";
+import { jobStageLabel } from "./jobProgress";
+import { DocumentRequestStatus } from "./DocumentRequestStatus";
 
 const statuses: Record<Job["status"], string> = {
   queued: "等待执行",
@@ -17,6 +19,8 @@ const statuses: Record<Job["status"], string> = {
 const kinds: Record<string, string> = {
   pdf_import: "PDF 导入",
   zotero_import: "Zotero 导入",
+  llm_document_parse: "模型章节解析",
+  llm_document_postprocess: "模型阅读内容生成",
   source_check: "检查来源文件",
   source_relocate: "重新定位文件",
   diagnostics: "存储诊断",
@@ -29,18 +33,61 @@ const kinds: Record<string, string> = {
   search_keywords: "英文关键词辅助",
   pdf_translation: "文献翻译（已停用）",
 };
-const stages: Record<string, string> = {
-  starting: "准备任务",
-  reading: "读取 PDF",
-  parsing: "解析原文",
-  checking: "检查文件",
-  saving: "保存结果",
-  indexing: "建立本地索引",
-  diagnostics: "检查存储",
-  generating: "生成论文概览",
-  guide: "生成章节导读",
-};
-
+function isDocumentModelJob(job: Job): boolean {
+  return (
+    job.kind === "llm_document_parse" ||
+    !!job.result?.document_batches ||
+    !!job.result?.document_request
+  );
+}
+function boundaryCompatibilityRetryAvailable(job: Job): boolean {
+  const batches = job.result?.document_batches;
+  return (
+    !!batches &&
+    typeof batches === "object" &&
+    !Array.isArray(batches) &&
+    (batches as Record<string, unknown>).compatibility_retry_available === true
+  );
+}
+function publicationRetryAvailable(job: Job): boolean {
+  const batches = job.result?.document_batches;
+  return (
+    !!batches &&
+    typeof batches === "object" &&
+    !Array.isArray(batches) &&
+    (batches as Record<string, unknown>).publication_retry_available === true
+  );
+}
+function databaseFailureLabel(job: Job): string | null {
+  const value = job.result?.failure_diagnostics;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const diagnostics = value as Record<string, unknown>;
+  const dialect = diagnostics.database_dialect;
+  const category = diagnostics.constraint_category;
+  const labels: Record<string, string> = {
+    check: "检查约束",
+    foreign_key: "外键约束",
+    not_null: "非空约束",
+    primary_key: "主键约束",
+    unique: "唯一约束",
+    constraint: "完整性约束",
+  };
+  if (
+    typeof dialect !== "string" ||
+    !["sqlite", "postgresql", "mysql", "mssql"].includes(dialect) ||
+    typeof category !== "string" ||
+    !Object.hasOwn(labels, category)
+  ) {
+    return null;
+  }
+  const name = diagnostics.sqlite_errorname;
+  const code = diagnostics.sqlite_errorcode;
+  const detail =
+    typeof name === "string" && /^SQLITE_CONSTRAINT(?:_[A-Z]+)?$/.test(name)
+      ? ` · ${name}${typeof code === "number" && Number.isInteger(code) ? ` (${code})` : ""}`
+      : "";
+  return `${dialect.toUpperCase()} · ${labels[category]}${detail}`;
+}
 export function JobHistory({
   projectId,
   connected,
@@ -124,32 +171,25 @@ export function JobHistory({
               </small>
               {job.kind !== "pdf_translation" &&
                 job.status === "running" &&
-                job.stage && (
-                  <p role="status">
-                    {job.kind === "section_guide" && job.stage === "generating"
-                      ? "生成章节导读"
-                      : job.kind === "paper_reading_notes" &&
-                          job.stage === "generating"
-                        ? "一次生成全文译文与精读笔记"
-                        : job.kind === "section_close_reading" &&
-                            job.stage === "generating"
-                          ? "生成所选范围译文与批注"
-                          : job.kind === "understanding_check" &&
-                              job.stage === "generating"
-                            ? "检查用户复述"
-                            : job.kind === "grounded_qa" &&
-                                job.stage === "generating"
-                              ? "生成局部证据问答"
-                              : job.kind === "search_keywords" &&
-                                  job.stage === "generating"
-                                ? "生成英文关键词"
-                                : stages[job.stage] || "正在处理"}
-                  </p>
-                )}
+                job.stage && <p role="status">{jobStageLabel(job)}</p>}
               {typeof job.result?.title === "string" && (
                 <p>{job.result.title}</p>
               )}
               {job.error && <p className="error-text">{job.error}</p>}
+              {databaseFailureLabel(job) && (
+                <p className="muted">
+                  安全数据库诊断：{databaseFailureLabel(job)}
+                </p>
+              )}
+              <DocumentRequestStatus job={job} />
+              {isDocumentModelJob(job) &&
+                ["failed", "interrupted", "cancelled"].includes(job.status) && (
+                  <p className="muted">
+                    {!publicationRetryAvailable(job)
+                      ? "分批任务只继续未成功批次，保留已成功检查点。若请求已发送但结果不确定，点击继续即确认再次请求，可能再次收费；系统不会自动重发。修改配置后请到论文页使用“使用模型重新解析”。"
+                      : "所有正文和边界检查点已校验，本次只重新发布章节；模型批次不会重发。"}
+                  </p>
+                )}
               {job.kind === "paper_overview" && job.status === "failed" && (
                 <p className="muted">
                   概览未自动重发。请到论文概览查看原因，再决定是否重新生成。
@@ -215,15 +255,28 @@ export function JobHistory({
                 "search_keywords",
                 "pdf_translation",
               ].includes(job.kind) &&
-              job.attempt < 3 ? (
+              (job.attempt < 3 ||
+                boundaryCompatibilityRetryAvailable(job) ||
+                publicationRetryAvailable(job)) ? (
               <button
                 className="text-button"
                 disabled={!connected || action.isPending}
                 onClick={() => action.mutate({ id: job.id, kind: "retry" })}
               >
-                重试本地处理
+                {publicationRetryAvailable(job)
+                  ? "仅重新发布章节（不重发批次）"
+                  : boundaryCompatibilityRetryAvailable(job)
+                    ? "确认继续边界复核（可能收费）"
+                    : isDocumentModelJob(job)
+                      ? "确认继续未完成解析（可能收费）"
+                      : "重试本地处理"}
               </button>
             ) : null}
+            {publicationRetryAvailable(job) && (
+              <p className="muted">
+                本次不重发已校验批次；原计划选中的概览或精读任务仍会继续，可能产生模型请求。
+              </p>
+            )}
           </article>
         ))}
       </div>

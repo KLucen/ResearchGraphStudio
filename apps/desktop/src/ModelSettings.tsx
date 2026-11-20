@@ -9,11 +9,16 @@ export type ModelParameters = {
   capabilities?: {
     max_output_tokens: number | null;
     context_window: number | null;
+    document_input?: "text" | "pdf" | "image";
+    multimodal?: boolean;
+    document_transport?: "none" | "chat_file" | "chat_images";
     source: string;
   };
   reasoning_effort:
     "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | null;
   timeout_seconds: number;
+  document_timeout_seconds?: number;
+  document_total_timeout_seconds?: number;
   json_mode: boolean;
 };
 
@@ -41,12 +46,23 @@ export type ModelProfile = {
 export type GlobalModels = {
   connections: ModelConnection[];
   profiles: ModelProfile[];
-  roles: { extraction: string | null; reasoning: string | null };
+  roles: {
+    extraction: string | null;
+    reasoning: string | null;
+    document_parse?: string | null;
+    knowledge_extract?: string | null;
+    knowledge_connect?: string | null;
+  };
 };
 
 type ProviderKind = ModelConnection["provider"];
 type ProviderTab = "common" | "custom";
-type ModelDraft = { id?: string; model: string; name: string };
+type ModelDraft = {
+  id?: string;
+  model: string;
+  name: string;
+  parameters?: ModelParameters;
+};
 
 type ProviderPreset = {
   id: string;
@@ -123,8 +139,38 @@ const defaults: ModelParameters = {
   top_p: null,
   reasoning_effort: null,
   timeout_seconds: 90,
+  document_timeout_seconds: 600,
+  document_total_timeout_seconds: 1800,
   json_mode: true,
 };
+
+function visualPlanEndpoint(base: string): boolean {
+  try {
+    const url = new URL(base);
+    const path = url.pathname.replace(/\/+$/, "");
+    return (
+      (url.hostname === "ark.cn-beijing.volces.com" &&
+        path === "/api/plan/v3") ||
+      (url.hostname === "tokenhub.tencentmaas.com" && path === "/plan/v3")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validDocumentTimeouts(parameters?: ModelParameters): boolean {
+  const wait = parameters?.document_timeout_seconds ?? 600;
+  const total = parameters?.document_total_timeout_seconds ?? 1800;
+  return (
+    Number.isInteger(wait) &&
+    wait >= 30 &&
+    wait <= 1800 &&
+    Number.isInteger(total) &&
+    total >= 60 &&
+    total <= 3600 &&
+    total >= wait
+  );
+}
 
 function providerLabel(provider: ProviderKind) {
   if (provider === "openai") return "官方接口";
@@ -236,7 +282,7 @@ export function ModelSettings({ connected }: { connected: boolean }) {
           name: model.name.trim() || model.model.trim(),
           connection_id: saved.id,
           model: model.model.trim(),
-          parameters: defaults,
+          parameters: { ...defaults, ...model.parameters },
         };
         if (model.id) {
           await request(
@@ -369,14 +415,30 @@ export function ModelSettings({ connected }: { connected: boolean }) {
         <div>
           <h3>阅读任务模型</h3>
           <p>
-            为论文概览和阅读辅助分别选择已配置的模型。选择不会再次要求 API
-            地址或密钥。
+            分别选择论文解析、概览和阅读辅助模型。论文解析需要该端点与模型支持
+            PDF 文件输入，联网授权不等于文件能力。
           </p>
         </div>
         <div className="model-role-grid">
-          {(["extraction", "reasoning"] as const).map((role) => (
+          {(
+            [
+              "document_parse",
+              "extraction",
+              "reasoning",
+              "knowledge_extract",
+              "knowledge_connect",
+            ] as const
+          ).map((role) => (
             <label key={role}>
-              {role === "extraction" ? "论文概览模型" : "章节精读与问答模型"}
+              {role === "document_parse"
+                ? "论文解析模型"
+                : role === "knowledge_extract"
+                  ? "论文知识建模模型"
+                  : role === "knowledge_connect"
+                    ? "跨论文联系分析模型"
+                    : role === "extraction"
+                      ? "论文概览模型"
+                      : "章节精读与问答模型"}
               <select
                 value={settings.data?.roles[role] ?? ""}
                 disabled={!connected || busy}
@@ -408,12 +470,28 @@ export function ModelSettings({ connected }: { connected: boolean }) {
                   .map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.name} · {profile.model}
+                      {role === "document_parse"
+                        ? profile.parameters.capabilities?.document_input !==
+                            "text" &&
+                          profile.parameters.capabilities?.document_input &&
+                          ["chat_file", "chat_images"].includes(
+                            profile.parameters.capabilities
+                              ?.document_transport ?? "none",
+                          )
+                          ? " · 已声明 PDF 输入"
+                          : " · 未声明 PDF 输入"
+                        : ""}
                     </option>
                   ))}
               </select>
             </label>
           ))}
         </div>
+        <p>
+          编辑提供商，在每个模型下声明 PDF
+          输入与文件传输方式。连接测试只验证文本 JSON，不验证 PDF
+          能力；不支持文件的模型请使用本地解析。
+        </p>
       </section>
       {editorOpen && (
         <ProviderEditor
@@ -573,6 +651,7 @@ function ProviderEditor({
           id: profile.id,
           model: profile.model,
           name: profile.name,
+          parameters: profile.parameters,
         }))
       : initialPreset
         ? [{ model: initialPreset.model, name: initialPreset.model }]
@@ -596,10 +675,79 @@ function ProviderEditor({
     setModels((current) => [...current, { model: "", name: "" }]);
   }
 
-  function updateModel(index: number, field: keyof ModelDraft, value: string) {
+  function updateModel(index: number, field: "model" | "name", value: string) {
     setModels((current) =>
       current.map((model, currentIndex) =>
         currentIndex === index ? { ...model, [field]: value } : model,
+      ),
+    );
+  }
+
+  function updateDocumentCapability(
+    index: number,
+    patch: Partial<NonNullable<ModelParameters["capabilities"]>>,
+  ) {
+    setModels((current) =>
+      current.map((model, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...model,
+              parameters: {
+                ...(model.parameters ?? defaults),
+                capabilities: {
+                  max_output_tokens: null,
+                  context_window: null,
+                  document_input: "text",
+                  multimodal: false,
+                  document_transport: "none",
+                  ...model.parameters?.capabilities,
+                  ...patch,
+                  source: "user_declared",
+                },
+              },
+            }
+          : model,
+      ),
+    );
+  }
+
+  function updateParameters(index: number, patch: Partial<ModelParameters>) {
+    setModels((current) =>
+      current.map((model, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...model,
+              parameters: { ...defaults, ...model.parameters, ...patch },
+            }
+          : model,
+      ),
+    );
+  }
+
+  function applyVisualParsing(index: number) {
+    setModels((current) =>
+      current.map((model, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...model,
+              parameters: {
+                ...defaults,
+                ...model.parameters,
+                document_timeout_seconds: 600,
+                document_total_timeout_seconds: 1800,
+                reasoning_effort: "none",
+                capabilities: {
+                  max_output_tokens: null,
+                  context_window: null,
+                  ...model.parameters?.capabilities,
+                  document_input: "image",
+                  multimodal: true,
+                  document_transport: "chat_images",
+                  source: "user_declared",
+                },
+              },
+            }
+          : model,
       ),
     );
   }
@@ -775,40 +923,194 @@ function ProviderEditor({
           </div>
           <div className="model-directory" aria-label="模型目录">
             {models.map((model, index) => (
-              <div
-                className="model-directory-row"
-                key={model.id ?? "new-" + index}
-              >
-                <span className="model-drag-handle" aria-hidden="true">
-                  ≡
-                </span>
-                <input
-                  aria-label={"模型 ID " + (index + 1)}
-                  placeholder="模型 ID"
-                  value={model.model}
-                  onChange={(event) =>
-                    updateModel(index, "model", event.target.value)
-                  }
-                  required
-                />
-                <input
-                  aria-label={"模型显示名称 " + (index + 1)}
-                  placeholder="显示名称"
-                  value={model.name}
-                  onChange={(event) =>
-                    updateModel(index, "name", event.target.value)
-                  }
-                  required
-                />
-                <button
-                  type="button"
-                  className="model-remove"
-                  aria-label={"删除模型 " + (index + 1)}
-                  onClick={() => removeModel(index)}
-                  disabled={models.length === 1}
-                >
-                  ×
-                </button>
+              <div key={model.id ?? "new-" + index}>
+                <div className="model-directory-row">
+                  <span className="model-drag-handle" aria-hidden="true">
+                    ≡
+                  </span>
+                  <input
+                    aria-label={"模型 ID " + (index + 1)}
+                    placeholder="模型 ID"
+                    value={model.model}
+                    onChange={(event) =>
+                      updateModel(index, "model", event.target.value)
+                    }
+                    required
+                  />
+                  <input
+                    aria-label={"模型显示名称 " + (index + 1)}
+                    placeholder="显示名称"
+                    value={model.name}
+                    onChange={(event) =>
+                      updateModel(index, "name", event.target.value)
+                    }
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="model-remove"
+                    aria-label={"删除模型 " + (index + 1)}
+                    onClick={() => removeModel(index)}
+                    disabled={models.length === 1}
+                  >
+                    ×
+                  </button>
+                </div>
+                <fieldset disabled={disabled}>
+                  <legend>{"模型 " + (index + 1) + " 文档能力"}</legend>
+                  <label>
+                    PDF / 文档输入
+                    <select
+                      aria-label={"文档输入能力 " + (index + 1)}
+                      value={
+                        model.parameters?.capabilities?.document_input ?? "text"
+                      }
+                      onChange={(event) => {
+                        const input = event.target.value as
+                          "text" | "pdf" | "image";
+                        updateDocumentCapability(index, {
+                          document_input: input,
+                          multimodal: input === "image",
+                          document_transport:
+                            input === "text"
+                              ? "none"
+                              : input === "image"
+                                ? "chat_images"
+                                : "chat_file",
+                        });
+                      }}
+                    >
+                      <option value="text">仅文本 / 未声明 PDF 能力</option>
+                      <option value="pdf">支持直接 PDF 文件输入</option>
+                      <option value="image">
+                        支持图片理解，可识别 PDF 页面
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    文件传输方式
+                    <select
+                      aria-label={"文件传输方式 " + (index + 1)}
+                      value={
+                        model.parameters?.capabilities?.document_transport ??
+                        "none"
+                      }
+                      disabled={
+                        (model.parameters?.capabilities?.document_input ??
+                          "text") === "text"
+                      }
+                      onChange={(event) =>
+                        updateDocumentCapability(index, {
+                          document_transport: event.target.value as
+                            "none" | "chat_file" | "chat_images",
+                          ...(event.target.value === "chat_images"
+                            ? { document_input: "image", multimodal: true }
+                            : {}),
+                        })
+                      }
+                    >
+                      <option value="none">未声明文件传输</option>
+                      <option value="chat_file">
+                        Chat Completions 文件内容（chat_file）
+                      </option>
+                      <option value="chat_images">
+                        PDF 页面转图片（适用于视觉模型）
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    文档等待超时（秒）
+                    <input
+                      type="number"
+                      aria-label={"文档等待超时 " + (index + 1)}
+                      min={30}
+                      max={1800}
+                      step={1}
+                      value={model.parameters?.document_timeout_seconds ?? 600}
+                      onChange={(event) =>
+                        updateParameters(index, {
+                          document_timeout_seconds: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    文档解析总时限（秒）
+                    <input
+                      type="number"
+                      aria-label={"文档解析总时限 " + (index + 1)}
+                      min={60}
+                      max={3600}
+                      step={1}
+                      value={
+                        model.parameters?.document_total_timeout_seconds ?? 1800
+                      }
+                      onChange={(event) =>
+                        updateParameters(index, {
+                          document_total_timeout_seconds: Number(
+                            event.target.value,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  {!validDocumentTimeouts(model.parameters) && (
+                    <p role="alert">
+                      等待超时须为 30–1800 秒；总时限须为 60–3600
+                      秒，且不小于等待超时。
+                    </p>
+                  )}
+                  <label>
+                    推理强度
+                    <select
+                      aria-label={"推理强度 " + (index + 1)}
+                      value={model.parameters?.reasoning_effort ?? ""}
+                      onChange={(event) =>
+                        updateParameters(index, {
+                          reasoning_effort:
+                            (event.target
+                              .value as ModelParameters["reasoning_effort"]) ||
+                            null,
+                        })
+                      }
+                    >
+                      <option value="">使用默认适配配置</option>
+                      <option value="none">none（关闭推理，需端点支持）</option>
+                      <option value="minimal">minimal</option>
+                      <option value="low">low</option>
+                      <option value="medium">medium</option>
+                      <option value="high">high</option>
+                      <option value="xhigh">xhigh</option>
+                      <option value="max">max</option>
+                    </select>
+                  </label>
+                  {visualPlanEndpoint(base) && (
+                    <div>
+                      <p>
+                        此套餐端点的视觉模型建议使用 PDF 页面图片输入。
+                        请先确认所选模型支持图片；文件格式与实际解析质量仍需验证。
+                      </p>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => applyVisualParsing(index)}
+                        aria-label={"应用推荐解析配置 " + (index + 1)}
+                      >
+                        应用推荐解析配置
+                      </button>
+                      <small>
+                        选择页面转图片，等待 600 秒、总时限 1800
+                        秒，推理强度设为 none（关闭推理，需端点支持）。
+                      </small>
+                    </div>
+                  )}
+                  <small>
+                    页面转图片仅在本地渲染页面，正文、公式和表格由模型识别。
+                    能力声明和文本连接测试不能证明文件兼容性。
+                    保存设置后请在论文页选择“使用模型重新解析”；旧任务重试沿用旧配置。
+                    文档超时独立于普通文字任务；推理强度用于该模型的全部新任务。
+                  </small>
+                </fieldset>
               </div>
             ))}
           </div>
@@ -827,7 +1129,11 @@ function ProviderEditor({
               disabled ||
               !name.trim() ||
               !base.trim() ||
-              models.some((model) => !model.model.trim())
+              models.some(
+                (model) =>
+                  !model.model.trim() ||
+                  !validDocumentTimeouts(model.parameters),
+              )
             }
             onClick={() =>
               void onSave({

@@ -54,10 +54,24 @@ class JobView(BaseModel):
             "diagnostics",
             "generating",
             "recognizing",
+            "document_source",
+            "preparing_provider",
+            "model_parsing",
+            "document_rendering",
+            "document_connecting",
+            "document_uploading",
+            "document_waiting",
+            "document_receiving",
+            "document_batching",
+            "document_repairing",
+            "document_boundary",
+            "validating_document",
+            "saving_document",
             "indexing",
             "completed",
             "failed",
             "interrupted",
+            "paused",
         ]
         | None
     ) = None
@@ -130,6 +144,7 @@ class SourceSnapshot(InputModel):
 
 
 class ImportPlan(InputModel):
+    postprocess_contract_version: Literal[2, 3, 4] = 4
     overview: bool = False
     reading: bool = False
     translation_mode: Literal["full", "none"] = "none"
@@ -137,6 +152,10 @@ class ImportPlan(InputModel):
     require_multimodal: bool = False
     allow_network: bool = False
     provider_profile_id: str | None = Field(default=None, max_length=160)
+    document_batching: bool = False
+    pages_per_batch: int = Field(default=5, ge=2, le=8)
+    allow_format_repair: bool = False
+    allow_boundary_review: bool = True
 
     @model_validator(mode="after")
     def validate_translation(self) -> "ImportPlan":
@@ -155,7 +174,7 @@ class ImportPlan(InputModel):
 class PdfPostImportPlan(InputModel):
     """Desktop import choices translated into the model-first plan."""
 
-    parse: Literal[True] = True
+    parse: bool = True
     overview: bool = False
     reading: bool = False
     translation_mode: Literal["full", "none"] = "none"
@@ -167,6 +186,10 @@ class PdfPostImportPlan(InputModel):
     # import panel never creates a network request or a paid task.
     allow_network: bool = False
     provider_profile_id: str | None = Field(default=None, max_length=160)
+    document_batching: bool = True
+    pages_per_batch: int = Field(default=5, ge=2, le=8)
+    allow_format_repair: bool = False
+    allow_boundary_review: bool = True
 
     @model_validator(mode="after")
     def validate_translation(self) -> "PdfPostImportPlan":
@@ -180,6 +203,23 @@ class ImportSessionCreate(InputModel):
     selection_id: str = Field(min_length=1, max_length=200)
     source_snapshot: SourceSnapshot = Field(default_factory=SourceSnapshot)
     plan: ImportPlan = Field(default_factory=ImportPlan)
+
+
+class PaperParseRequest(InputModel):
+    mode: Literal["local", "model"]
+    post_import_plan: PdfPostImportPlan | None = None
+
+    @model_validator(mode="after")
+    def validate_parse_mode(self) -> "PaperParseRequest":
+        if self.mode == "model" and (
+            self.post_import_plan is None
+            or not self.post_import_plan.parse
+            or not self.post_import_plan.allow_network
+        ):
+            raise ValueError("模型解析需要选择模型解析并明确允许发送 PDF")
+        if self.mode == "local" and self.post_import_plan is not None:
+            raise ValueError("本地解析不接受模型生成计划，请选择本地解析或模型解析")
+        return self
 
 
 class ImportPlanItemView(BaseModel):

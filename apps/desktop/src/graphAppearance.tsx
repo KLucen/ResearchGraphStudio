@@ -28,6 +28,7 @@ export const graphKindLabels = Object.fromEntries(
 const unknownAppearance = { label: "其他", color: "#74847b" };
 
 export function getGraphAppearance(kind: string) {
+  if (kind === "PAPER") return { label: "论文", color: "#365e70" };
   return Object.hasOwn(graphNodeKinds, kind)
     ? graphNodeKinds[kind as VisualKind]
     : unknownAppearance;

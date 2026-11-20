@@ -77,6 +77,141 @@ def test_sse_utf8_chunks_reasoning_and_last_content_usage(monkeypatch):
 
 
 @pytest.mark.parametrize(
+    "envelope_usage,expected",
+    [(None, {}), ({"total_tokens": 12, "completion_tokens_details": None}, {"total_tokens": 12})],
+)
+def test_json_fallback_accepts_text_with_unavailable_usage(monkeypatch, envelope_usage, expected):
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": '{"ok":true}'}, "finish_reason": "stop"}],
+                "usage": envelope_usage,
+            },
+        )
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: original(**kw, transport=httpx.MockTransport(respond))
+    )
+    provider = ConfiguredProvider(base_url="https://model.example/v1", model="test")
+    provider.capabilities_checked = True
+    assert asyncio.run(provider.complete("JSON", {}, {})) == '{"ok":true}'
+    assert provider.usage == expected
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "reason,extra,category,partial",
+    [
+        ("tool_calls", {}, "response", None),
+        ("error", {}, "response", None),
+        ("cancelled", {}, "response", None),
+        ("stop", {"tool_calls": [{"id": "synthetic"}]}, "response", None),
+        ("content_filter", {}, "structured_output_refused", None),
+        ("length", {}, "output_limit", '{"ok":true}'),
+    ],
+)
+def test_json_fallback_does_not_accept_unsuccessful_completion(
+    monkeypatch, reason, extra, category, partial
+):
+    response = httpx.Response(
+        200,
+        json={
+            "choices": [{"message": {"content": '{"ok":true}', **extra}, "finish_reason": reason}],
+            "usage": {"total_tokens": 42},
+        },
+    )
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kw: original(**kw, transport=httpx.MockTransport(lambda _: response)),
+    )
+    provider = ConfiguredProvider(base_url="https://model.example/v1", model="test")
+    provider.capabilities_checked = True
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(provider.complete("JSON", {}, {}))
+    assert caught.value.category == category
+    assert provider.partial_output == partial
+    assert provider.usage == {"total_tokens": 42}
+
+
+def test_conflicting_sse_end_cannot_hide_a_truncated_result(monkeypatch):
+    provider, stream, requests = provider_with_stream(
+        monkeypatch,
+        [event({"content": '{"ok":true}'}), event(finish="length"), event(finish="stop")],
+    )
+    with pytest.raises(ProviderError, match="结束状态"):
+        asyncio.run(provider.complete("JSON", {}, {}))
+    assert stream.closed and len(requests) == 1
+
+
+@pytest.mark.parametrize("sse", [False, True])
+def test_empty_success_is_a_provider_failure_not_a_contract_failure(monkeypatch, sse):
+    if sse:
+        provider, stream, requests = provider_with_stream(
+            monkeypatch,
+            [event({"content": "  "}), event(finish="stop"), b"data: [DONE]\n\n"],
+        )
+    else:
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            return httpx.Response(
+                200,
+                json={"choices": [{"message": {"content": "  "}, "finish_reason": "stop"}]},
+            )
+
+        original = httpx.AsyncClient
+        monkeypatch.setattr(
+            httpx,
+            "AsyncClient",
+            lambda **kw: original(**kw, transport=httpx.MockTransport(respond)),
+        )
+        provider = ConfiguredProvider(base_url="https://model.example/v1", model="test")
+        provider.capabilities_checked = True
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(provider.complete("JSON", {}, {}))
+    assert caught.value.category == "empty_response"
+    assert len(requests) == 1
+    if sse:
+        assert stream.closed
+
+
+def test_failed_stream_keeps_usage_receipt_without_publishing_partial_json(monkeypatch):
+    provider, stream, requests = provider_with_stream(
+        monkeypatch,
+        [
+            event({"content": '{"partial":'}),
+            event(finish="length", usage={"total_tokens": 42}),
+            httpx.ReadError("private diagnostic"),
+        ],
+    )
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(provider.complete("JSON", {}, {}))
+    assert caught.value.category == "incomplete_stream"
+    assert provider.usage == {"total_tokens": 42}
+    assert provider.partial_output == '{"partial":'
+    assert stream.closed and len(requests) == 1
+
+
+@pytest.mark.parametrize("override,expected", [(1800, 1800), (3601, 180), (True, 180), (0, 180)])
+def test_long_text_timeout_override_is_internal_and_bounded(override, expected):
+    provider = ConfiguredProvider(
+        base_url="https://model.example/v1",
+        model="test",
+        parameters={"timeout_seconds": 90, "text_total_timeout_seconds": override},
+    )
+    assert provider.total_timeout == expected
+    assert "text_total_timeout_seconds" not in provider._build_body("JSON", {}, {})
+
+
+@pytest.mark.parametrize(
     "ending,category",
     [
         ([], "incomplete_stream"),

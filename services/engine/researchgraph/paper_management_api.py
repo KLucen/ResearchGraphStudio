@@ -15,11 +15,13 @@ from sqlalchemy import Engine, bindparam, delete, func, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
+from researchgraph.chapter_reading_models import ModelChapterReadingState
 from researchgraph.close_reading_models import (
     SectionCloseReadingResult,
     UnderstandingCheckResult,
 )
 from researchgraph.core import StrictModel
+from researchgraph.document_batch_models import LlmDocumentBatch, LlmDocumentBatchRun
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
 from researchgraph.keyword_models import LiteKeywordRecord
 from researchgraph.lite_models import LiteCacheEntry, LiteTokenUsage
@@ -381,6 +383,23 @@ def _delete_paper_data(db: Session, context: dict[str, Any]) -> tuple[dict[str, 
     counts["import_plan_items"] = _delete_rows(
         db, ImportPlanItem, ImportPlanItem.session_id, session_ids
     )
+    batch_run_ids = (
+        set(
+            db.scalars(
+                select(LlmDocumentBatchRun.id).where(
+                    LlmDocumentBatchRun.import_session_id.in_(session_ids)
+                )
+            ).all()
+        )
+        if session_ids
+        else set()
+    )
+    counts["llm_document_batches"] = _delete_rows(
+        db, LlmDocumentBatch, LlmDocumentBatch.run_id, batch_run_ids
+    )
+    counts["llm_document_batch_runs"] = _delete_rows(
+        db, LlmDocumentBatchRun, LlmDocumentBatchRun.id, batch_run_ids
+    )
     parse_ids = (
         {
             row.id
@@ -393,6 +412,9 @@ def _delete_paper_data(db: Session, context: dict[str, Any]) -> tuple[dict[str, 
     )
     counts["llm_document_outputs"] = _delete_rows(
         db, LlmDocumentOutput, LlmDocumentOutput.import_session_id, session_ids
+    )
+    counts["llm_chapter_reading_states"] = _delete_rows(
+        db, ModelChapterReadingState, ModelChapterReadingState.parse_id, parse_ids
     )
     counts["llm_document_segments"] = _delete_rows(
         db, LlmDocumentSegment, LlmDocumentSegment.parse_id, parse_ids
@@ -457,15 +479,11 @@ def register_paper_management_api(
     def clear_legacy_content(paper_id: str) -> PaperManagementResult:
         with Session(get_engine()) as db:
             context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(
-                context, preserve_model_first=True, reject_queued_legacy=True
-            )
+            _ensure_no_running_jobs(context, preserve_model_first=True, reject_queued_legacy=True)
         backup_file = _backup_database(get_engine(), data_dir, paper_id, "legacy-content")
         with Session(get_engine()) as db, db.begin():
             context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(
-                context, preserve_model_first=True, reject_queued_legacy=True
-            )
+            _ensure_no_running_jobs(context, preserve_model_first=True, reject_queued_legacy=True)
             counts = _remove_legacy_content(db, context)
         return PaperManagementResult(
             ok=True,

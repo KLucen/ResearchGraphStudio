@@ -18,7 +18,6 @@ import {
   type LiteUsage,
   type KeywordView,
   type QAView,
-  type SectionGuide,
   type PaperDetail,
   type Structure,
   type SearchResult,
@@ -68,7 +67,7 @@ vi.mock("./ForceGraph", () => ({
 vi.mock("./api", () => ({
   request: vi.fn(),
   defaultPostImportPlan: () => ({
-    parse: true,
+    parse: false,
     overview: true,
     reading: false,
     translation_mode: "none",
@@ -86,9 +85,15 @@ vi.mock("./api", () => ({
     importSessions: vi.fn(),
     modelDocumentParse: vi.fn(),
     modelDocumentOutputs: vi.fn(),
+    importSession: vi.fn(),
+    job: vi.fn(),
+    retryImportItem: vi.fn(),
+    modelChapterReadingStates: vi.fn(),
+    saveModelChapterReadingState: vi.fn(),
     updateModelDocumentSegment: vi.fn(),
     updateModelDocumentOutput: vi.fn(),
     updatePaper: vi.fn(),
+    parsePaper: vi.fn(),
     clearPaperLegacyContent: vi.fn(),
     deletePaper: vi.fn(),
     projectJobs: vi.fn(),
@@ -109,6 +114,7 @@ vi.mock("./api", () => ({
     generateCloseReading: vi.fn(),
     readingState: vi.fn(),
     saveReadingState: vi.fn(),
+    saveReadingProgress: vi.fn(),
     understandingCheck: vi.fn(),
     generateUnderstandingCheck: vi.fn(),
     qa: vi.fn(),
@@ -303,6 +309,13 @@ beforeEach(() => {
   vi.mocked(api.sectionGuide).mockResolvedValue(null);
   vi.mocked(api.readingDocument).mockResolvedValue(paperReadingDocument);
   vi.mocked(api.paperReadingNotes).mockResolvedValue(paperReadingComplete);
+  vi.mocked(api.importSession).mockRejectedValue(
+    new Error("No active fixture import"),
+  );
+  vi.mocked(api.modelChapterReadingStates).mockResolvedValue({
+    parse_id: "model-parse",
+    items: [],
+  });
   vi.mocked(api.conceptUnderstanding).mockResolvedValue([]);
   vi.mocked(api.sectionParagraphs).mockResolvedValue(readingSource);
   vi.mocked(api.closeReading).mockResolvedValue(readingComplete);
@@ -615,79 +628,23 @@ test("D02 keyword helper requires consent and reruns local search", async () => 
     await screen.findByRole("region", { name: "英文关键词检索结果" }),
   ).toHaveTextContent("Shared memory improves coordination.");
 });
-test("section guide requires an explicit click and keeps depth-specific status", async () => {
+test("section guide and separate understanding screens are absent from normal reading", async () => {
   const user = userEvent.setup();
-  vi.mocked(api.sectionGuide).mockResolvedValue(null);
-  const guide: SectionGuide = {
-    id: "guide",
-    paper_id: "paper",
-    document_version_id: "v",
-    section_id: "s",
-    depth: "standard",
-    source_hash: "source",
-    input_hash: "input",
-    schema_version: "reading_guide.v1",
-    prompt_version: "a01_section_guide_v1",
-    provider_id: "configured",
-    model_id: "model",
-    status: "COMPLETED",
-    guide: {
-      section_id: "s",
-      overview_zh: "本节概览",
-      key_points: ["重点"],
-      reading_questions: ["问题一", "问题二"],
-      difficult_terms: [],
-      evidence_span_ids: ["sp-1"],
-      needs_more_context: false,
-      caveats: [],
-    },
-    usage: {
-      input_tokens: 20,
-      output_tokens: 10,
-      total_tokens: 30,
-      calls: 1,
-      retry_count: 0,
-      cost: null,
-      usage_source: "provider",
-    },
-    generated_at: "2026-11-09T00:00:00Z",
-    cache_hit: false,
-    job_id: null,
-    error_code: null,
-    error: null,
-    stale_reason: null,
-    evidence: [],
-  };
-  vi.mocked(api.generateSectionGuide).mockResolvedValue(guide);
   mount(<KnowledgeReading versionId="v" paperId="paper" connected />);
-  expect(await screen.findByText("本地索引已就绪：1 个章节。")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Results" }));
-  expect(await screen.findByRole("region", { name: "章节导读" })).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "Results" }));
+  expect(
+    screen.queryByRole("region", { name: "章节导读" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "小节导读 A01" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "理解状态与旧笔记" }),
+  ).not.toBeInTheDocument();
+  expect(api.sectionGuide).not.toHaveBeenCalled();
   expect(api.generateSectionGuide).not.toHaveBeenCalled();
-  expect(api.sectionGuide).toHaveBeenCalledWith(
-    "paper",
-    "s",
-    "v",
-    "standard",
-    false,
-  );
-  await user.click(
-    screen.getByRole("checkbox", {
-      name: "允许本次把当前小节发送给已配置模型",
-    }),
-  );
-  await user.click(screen.getByRole("button", { name: "生成导读" }));
-  expect(api.generateSectionGuide).toHaveBeenCalledWith(
-    "paper",
-    "s",
-    "v",
-    "standard",
-    true,
-    false,
-    false,
-    false,
-  );
 });
+
 test("local QA requires a question and explicit model consent", async () => {
   const user = userEvent.setup();
   mount(<KnowledgeReading versionId="v" paperId="paper" connected />);
@@ -744,11 +701,6 @@ test("directory replacement clears a missing selected chapter and all consent be
       name: "允许本次把检索片段发送给已配置模型",
     }),
   );
-  await user.click(
-    screen.getByRole("checkbox", {
-      name: "允许本次把当前小节发送给已配置模型",
-    }),
-  );
   await user.type(screen.getByLabelText("搜索论文原文"), "old memory");
   await user.click(screen.getByRole("button", { name: "本地搜索" }));
   const helper = await screen.findByRole("region", { name: "英文关键词辅助" });
@@ -791,11 +743,6 @@ test("directory replacement clears a missing selected chapter and all consent be
   expect(
     screen.getByRole("checkbox", {
       name: "允许本次把检索片段发送给已配置模型",
-    }),
-  ).not.toBeChecked();
-  expect(
-    screen.getByRole("checkbox", {
-      name: "允许本次把当前小节发送给已配置模型",
     }),
   ).not.toBeChecked();
   expect(screen.getByRole("button", { name: "提交问题" })).toBeDisabled();
@@ -858,7 +805,7 @@ test("a keyword result arriving after its chapter disappears cannot restore old 
       initialSectionId="s"
     />,
   );
-  await screen.findByRole("region", { name: "章节导读" });
+  await screen.findByText("本地索引已就绪：1 个章节。");
   await user.type(screen.getByLabelText("搜索论文原文"), "old memory");
   await user.click(screen.getByRole("button", { name: "本地搜索" }));
   const helper = await screen.findByRole("region", { name: "英文关键词辅助" });
@@ -1034,122 +981,6 @@ function addSecondValidSection(client: QueryClient) {
   });
 }
 
-test("a late A01 response keeps the original section, depth and adaptive cache identity", async () => {
-  const user = userEvent.setup();
-  let finishGuide!: (value: SectionGuide) => void;
-  const pending = new Promise<SectionGuide>((resolve) => {
-    finishGuide = resolve;
-  });
-  vi.mocked(api.generateSectionGuide).mockReturnValue(pending);
-  const mounted = mount(
-    <KnowledgeReading
-      versionId="v"
-      paperId="paper"
-      connected
-      initialSectionId="s"
-    />,
-  );
-  await screen.findByRole("region", { name: "章节导读" });
-  addSecondValidSection(mounted.client);
-  await user.click(
-    screen.getByRole("checkbox", {
-      name: "允许本次把当前小节发送给已配置模型",
-    }),
-  );
-  await user.click(screen.getByRole("button", { name: "生成导读" }));
-  expect(api.generateSectionGuide).toHaveBeenCalledExactlyOnceWith(
-    "paper",
-    "s",
-    "v",
-    "standard",
-    true,
-    false,
-    false,
-    false,
-  );
-  await user.selectOptions(screen.getByLabelText("选择章节"), "s2");
-  await user.selectOptions(screen.getByLabelText("导读深度"), "deep");
-  await user.click(
-    screen.getByRole("checkbox", { name: "参考已记录的理解状态调整侧重点" }),
-  );
-  const response: SectionGuide = {
-    id: "late-guide",
-    paper_id: "paper",
-    document_version_id: "v",
-    section_id: "s",
-    depth: "standard",
-    source_hash: "source",
-    input_hash: "input",
-    schema_version: "reading_guide.v1",
-    prompt_version: "a01_section_guide_v1",
-    provider_id: "synthetic",
-    model_id: "synthetic",
-    status: "COMPLETED",
-    guide: {
-      section_id: "s",
-      overview_zh: "仅属于旧导读范围",
-      key_points: [],
-      reading_questions: [],
-      difficult_terms: [],
-      evidence_span_ids: [],
-      needs_more_context: false,
-      caveats: [],
-    },
-    usage: {
-      input_tokens: 0,
-      output_tokens: 0,
-      total_tokens: 0,
-      calls: 0,
-      retry_count: 0,
-      cost: null,
-      usage_source: "unknown",
-    },
-    generated_at: null,
-    cache_hit: false,
-    job_id: null,
-    error_code: null,
-    error: null,
-    stale_reason: null,
-    evidence: [],
-  };
-  await act(async () => {
-    finishGuide(response);
-    await pending;
-  });
-  expect(
-    mounted.client.getQueryData([
-      "section-guide",
-      "paper",
-      "v",
-      "s",
-      "standard",
-      false,
-    ]),
-  ).toEqual(response);
-  expect(
-    mounted.client.getQueryData([
-      "section-guide",
-      "paper",
-      "v",
-      "s",
-      "standard",
-      true,
-    ]),
-  ).toBeUndefined();
-  expect(
-    mounted.client.getQueryData([
-      "section-guide",
-      "paper",
-      "v",
-      "s2",
-      "deep",
-      true,
-    ]),
-  ).toBeNull();
-  expect(screen.queryByText("仅属于旧导读范围")).not.toBeInTheDocument();
-  expect(api.generateSectionGuide).toHaveBeenCalledTimes(1);
-});
-
 test("an old expanded search cannot publish into another still-valid section", async () => {
   const user = userEvent.setup();
   let finishExpanded!: (value: SearchResult) => void;
@@ -1199,7 +1030,7 @@ test("an old expanded search cannot publish into another still-valid section", a
       initialSectionId="s"
     />,
   );
-  await screen.findByRole("region", { name: "章节导读" });
+  await screen.findByText("本地索引已就绪：1 个章节。");
   addSecondValidSection(mounted.client);
   await user.type(screen.getByLabelText("搜索论文原文"), "memory");
   await user.click(screen.getByRole("button", { name: "本地搜索" }));
@@ -1274,7 +1105,7 @@ test("a late ordinary search does not replace new local results or withdraw the 
       initialSectionId="s"
     />,
   );
-  await screen.findByRole("region", { name: "章节导读" });
+  await screen.findByText("本地索引已就绪：1 个章节。");
   addSecondValidSection(mounted.client);
   await user.type(screen.getByLabelText("搜索论文原文"), "memory");
   await user.click(screen.getByRole("button", { name: "本地搜索" }));
@@ -1570,7 +1401,7 @@ test("completed overview only regenerates after consent and sends force flag", a
   );
   expect(await screen.findByText(/正在生成概览…/)).toBeVisible();
 });
-test("PDF selection sends the explicit model-first plan to the native picker", async () => {
+test("PDF import defaults to local parsing without model consent or plan", async () => {
   const user = userEvent.setup();
   vi.mocked(api.selectPdfImport).mockResolvedValue({
     selection_id: "selection-1",
@@ -1585,16 +1416,7 @@ test("PDF selection sends the explicit model-first plan to the native picker", a
     "p",
     "managed",
     "selection-1",
-    {
-      parse: true,
-      overview: true,
-      reading: false,
-      translation_mode: "none",
-      modality: "auto",
-      extract_formulas: true,
-      extract_tables: true,
-      allow_network: false,
-    },
+    undefined,
   );
   expect(api.generateOverview).not.toHaveBeenCalled();
 });
@@ -1614,6 +1436,7 @@ test("import plan can select reading translation and require multimodal without 
   });
   vi.mocked(api.submitPdfImport).mockResolvedValue(null);
   mount(<Papers projectId="p" connected />);
+  await user.click(screen.getByRole("radio", { name: "模型解析 PDF" }));
   expect(
     screen.queryByRole("radio", { name: "生成逐段中文翻译" }),
   ).not.toBeInTheDocument();
@@ -1812,92 +1635,139 @@ test("paper deletion returns to project paper selection after confirmation", asy
   expect(api.deletePaper).toHaveBeenCalledWith("paper");
 });
 
-test("model-first paper workspace ignores legacy revision content", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.paper).mockResolvedValue(metadataPaper());
-  vi.mocked(api.importSessions).mockResolvedValue([
-    {
-      id: "model-session",
-      project_id: "p",
-      source_kind: "pdf",
-      selection_id: "selection",
-      source_snapshot: { paper_id: "paper", file_name: "synthetic.pdf" },
-      plan: {
-        overview: true,
-        reading: true,
-        translation_mode: "none",
-        modality: "pdf",
-        require_multimodal: false,
-        allow_network: false,
-      },
-      status: "succeeded",
-      error: null,
-      created_at: "2026-11-18T00:00:00Z",
-      updated_at: "2026-11-18T00:00:01Z",
-      items: [],
-    },
-  ]);
-  vi.mocked(api.modelDocumentParse).mockResolvedValue({
-    id: "model-parse",
-    import_session_id: "model-session",
-    parse_version: "synthetic-v1",
-    modality: "pdf",
-    status: "succeeded",
-    warnings: [],
-    error_code: null,
-    error: null,
-    segments: [
+test.each([true, false])(
+  "model paper uses unified tabs and source menu with local source %s",
+  async (hasLocal) => {
+    const user = userEvent.setup();
+    vi.mocked(api.paper).mockResolvedValue({
+      ...metadataPaper(),
+      revisions: hasLocal ? metadataPaper().revisions : [],
+    });
+    vi.mocked(api.importSessions).mockResolvedValue([
       {
-        id: "model-paragraph",
-        chapter_ref: "intro",
-        chapter_title: "Introduction",
-        chapter_level: 1,
-        chapter_order: 0,
-        kind: "paragraph",
-        ordinal: 0,
-        text: "Model-first source paragraph",
-        latex: null,
-        mathml: null,
-        raw_table_text: null,
-        table_data: null,
-        locator: null,
-        status: "ok",
-        warnings: [],
+        id: "model-session",
+        project_id: "p",
+        source_kind: "pdf",
+        selection_id: "selection",
+        source_snapshot: { paper_id: "paper", file_name: "synthetic.pdf" },
+        plan: {
+          overview: true,
+          reading: true,
+          translation_mode: "none",
+          modality: "pdf",
+          require_multimodal: false,
+          allow_network: false,
+        },
+        status: "succeeded",
+        error: null,
+        created_at: "2026-11-18T00:00:00Z",
+        updated_at: "2026-11-18T00:00:01Z",
+        items: [],
       },
-    ],
-  });
-  vi.mocked(api.modelDocumentOutputs).mockResolvedValue([
-    {
-      id: "model-overview",
+    ]);
+    vi.mocked(api.modelDocumentParse).mockResolvedValue({
+      id: "model-parse",
       import_session_id: "model-session",
-      parse_id: "model-parse",
-      item_kind: "paper_overview",
+      parse_version: "synthetic-v1",
+      modality: "pdf",
       status: "succeeded",
-      output_json: { summary: "Model-first overview content" },
+      warnings: [],
       error_code: null,
       error: null,
-    },
-  ]);
-  mount(<Papers projectId="p" connected initialPaperId="paper" />);
+      segments: [
+        {
+          id: "model-paragraph",
+          chapter_ref: "intro",
+          chapter_title: "Introduction",
+          chapter_level: 1,
+          chapter_order: 0,
+          kind: "paragraph",
+          ordinal: 0,
+          text: "Model-first source paragraph",
+          latex: null,
+          mathml: null,
+          raw_table_text: null,
+          table_data: null,
+          locator: null,
+          status: "ok",
+          warnings: [],
+        },
+      ],
+    });
+    vi.mocked(api.modelDocumentOutputs).mockResolvedValue([
+      {
+        id: "model-overview",
+        import_session_id: "model-session",
+        parse_id: "model-parse",
+        item_kind: "paper_overview",
+        status: "succeeded",
+        output_json: { summary: "Model-first overview content" },
+        error_code: null,
+        error: null,
+      },
+    ]);
+    mount(<Papers projectId="p" connected initialPaperId="paper" />);
 
-  expect(await screen.findByText("Model-first overview content")).toBeVisible();
-  expect(screen.getByRole("button", { name: "章节材料" })).toBeEnabled();
-  expect(screen.getByText("分类与来源文件")).toBeInTheDocument();
-  expect(
-    screen.queryByRole("combobox", { name: "附件修订" }),
-  ).not.toBeInTheDocument();
-  expect(api.chunks).not.toHaveBeenCalled();
-  expect(api.overview).not.toHaveBeenCalled();
+    await user.click(await screen.findByText("查看旧版概览摘要"));
+    expect(
+      await screen.findByText("Model-first overview content"),
+    ).toBeVisible();
+    for (const name of ["论文概览", "论文精读", "论文回答"])
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "章节材料" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("分类与来源文件")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "附件修订" }),
+    ).not.toBeInTheDocument();
+    expect(api.chunks).not.toHaveBeenCalled();
+    expect(api.overview).not.toHaveBeenCalled();
 
-  await user.click(screen.getByRole("button", { name: "章节材料" }));
-  expect(await screen.findByText("Model-first source paragraph")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "论文精读" }));
-  expect(
-    await screen.findByText("此导入计划没有生成论文精读或中文翻译。"),
-  ).toBeVisible();
-  expect(api.sections).not.toHaveBeenCalled();
-  expect(api.paperReadingNotes).not.toHaveBeenCalled();
-});
+    await user.click(screen.getByRole("button", { name: "论文精读" }));
+    expect(
+      await screen.findByText("Model-first source paragraph"),
+    ).toBeVisible();
+    await user.click(screen.getByText("查看/编辑本次模型解析章节材料"));
+    expect(
+      await screen.findByRole("button", { name: "编辑paragraph内容" }),
+    ).toBeVisible();
+    expect(
+      await screen.findByRole("group", { name: "Introduction 阅读状态" }),
+    ).toBeVisible();
+    expect(api.sections).not.toHaveBeenCalled();
+    expect(api.paperReadingNotes).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "论文回答" }));
+    if (hasLocal) {
+      await user.click(await screen.findByRole("button", { name: "Results" }));
+      expect(
+        await screen.findByRole("region", { name: "局部证据问答" }),
+      ).toBeVisible();
+      expect(
+        screen.getByText("论文回答使用这篇论文的本地解析原文作为引用来源。"),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(api.sections).toHaveBeenCalledWith("v", { includeText: false }),
+      );
+    } else {
+      expect(
+        screen.getByText(/论文回答需要本地解析建立原文索引/),
+      ).toBeVisible();
+      expect(api.sections).not.toHaveBeenCalled();
+      expect(api.qa).not.toHaveBeenCalled();
+    }
+    await user.click(screen.getByRole("button", { name: "论文解析操作" }));
+    expect(
+      screen.getByRole("button", { name: "查看模型解析内容" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "查看本地解析内容" }),
+    ).toHaveProperty("disabled", !hasLocal);
+    expect(api.parsePaper).not.toHaveBeenCalled();
+    expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
+    expect(api.askQA).not.toHaveBeenCalled();
+  },
+);
 
 function metadataPaper(id = "paper", revisionId = "v"): PaperDetail {
   return {
@@ -1972,7 +1842,7 @@ test("reading workspace starts with three reading actions and ends with collapse
   expect(
     within(header).getByRole("navigation", { name: "论文阅读板块" }),
   ).toBeVisible();
-  for (const name of ["论文概览", "论文精读", "论文问答"])
+  for (const name of ["论文概览", "论文精读", "论文回答"])
     expect(within(header).getByRole("button", { name })).toBeEnabled();
   expect(
     within(header).queryByRole("button", { name: "文献翻译" }),
@@ -2012,7 +1882,9 @@ test("revision selection still drives reading and switching papers resets the co
     expect(api.overview).toHaveBeenCalledWith("paper", "v-old"),
   );
   await user.click(screen.getByRole("button", { name: "论文精读" }));
-  await waitFor(() => expect(api.sections).toHaveBeenCalledWith("v-old"));
+  await waitFor(() =>
+    expect(api.readingDocument).toHaveBeenCalledWith("paper", "v-old"),
+  );
   rerender(
     <QueryClientProvider client={client}>
       <Papers projectId="p" connected initialPaperId="second" />
@@ -2139,7 +2011,7 @@ test.each([
   },
 );
 
-test("Zotero batch body contains local parsing choices only", async () => {
+test("Zotero batch keeps the paper title and defaults to local import", async () => {
   const user = userEvent.setup();
   vi.mocked(request).mockImplementation(async (_method, path) =>
     path.includes("collections")
@@ -2190,18 +2062,14 @@ test("Zotero batch body contains local parsing choices only", async () => {
   expect(call[2]).toEqual({
     library: "users/0",
     collection_key: "COLL0001",
-    selections: [{ item_key: "PAPER001", attachment_key: "ATTACH01" }],
+    selections: [
+      {
+        item_key: "PAPER001",
+        attachment_key: "ATTACH01",
+        title: "Synthetic paper",
+      },
+    ],
     mode: "reference",
-    post_import_plan: {
-      parse: true,
-      overview: true,
-      reading: false,
-      translation_mode: "none",
-      modality: "auto",
-      extract_formulas: true,
-      extract_tables: true,
-      allow_network: false,
-    },
   });
   expect(request).toHaveBeenCalledWith(
     "POST",

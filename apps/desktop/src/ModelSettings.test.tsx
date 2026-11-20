@@ -108,6 +108,159 @@ test("common provider preset saves a connection and its model directory", async 
   ).not.toContain("unit-credential-value");
 });
 
+test("PDF capability can be declared and remains on provider edits", async () => {
+  const user = userEvent.setup();
+  const pdfProfile = {
+    ...profile,
+    parameters: {
+      ...profile.parameters,
+      capabilities: {
+        document_input: "pdf" as const,
+        document_transport: "chat_file" as const,
+        multimodal: false,
+        source: "user_declared",
+        context_window: null,
+        max_output_tokens: null,
+      },
+    },
+  };
+  vi.mocked(request).mockImplementation(async (method, path) => {
+    if (method === "GET")
+      return {
+        connections: [connection],
+        profiles: [pdfProfile],
+        roles: { ...empty.roles, document_parse: "m" },
+      };
+    if (path.includes("connections") && path.endsWith("update"))
+      return connection;
+    return {};
+  });
+  mount();
+  await waitFor(() =>
+    expect(screen.getByLabelText("论文解析模型")).toHaveValue("m"),
+  );
+  await user.click(screen.getByRole("button", { name: "编辑" }));
+  expect(screen.getByLabelText("文档输入能力 1")).toHaveValue("pdf");
+  expect(screen.getByLabelText("文件传输方式 1")).toHaveValue("chat_file");
+  await user.click(screen.getByRole("button", { name: "保存提供商" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/settings/models/m/update",
+      expect.objectContaining({
+        parameters: {
+          ...pdfProfile.parameters,
+          document_timeout_seconds: 600,
+          document_total_timeout_seconds: 1800,
+        },
+      }),
+    ),
+  );
+});
+
+test("visual plan recommendation is explicit and preserves unrelated model parameters", async () => {
+  const user = userEvent.setup();
+  const planConnection = {
+    ...connection,
+    base_url: "https://ark.cn-beijing.volces.com/api/plan/v3",
+  };
+  const planProfile = {
+    ...profile,
+    base_url: planConnection.base_url,
+    parameters: {
+      ...profile.parameters,
+      temperature: 0.25,
+      top_p: 0.7,
+      reasoning_effort: "max" as const,
+    },
+  };
+  vi.mocked(request).mockImplementation(async (method, path) => {
+    if (method === "GET")
+      return {
+        connections: [planConnection],
+        profiles: [planProfile],
+        roles: { ...empty.roles, document_parse: "m" },
+      };
+    if (path.includes("connections") && path.endsWith("update"))
+      return planConnection;
+    return {};
+  });
+  mount();
+  await user.click(await screen.findByRole("button", { name: "编辑" }));
+  expect(screen.getByLabelText("文件传输方式 1")).toHaveValue("none");
+  expect(screen.getByLabelText("推理强度 1")).toHaveValue("max");
+  expect(screen.getByLabelText("文档等待超时 1")).toHaveValue(600);
+  await user.click(screen.getByRole("button", { name: "应用推荐解析配置 1" }));
+  expect(screen.getByLabelText("文件传输方式 1")).toHaveValue("chat_images");
+  expect(screen.getByLabelText("文档输入能力 1")).toHaveValue("image");
+  expect(screen.getByLabelText("推理强度 1")).toHaveValue("none");
+  await user.clear(screen.getByLabelText("文档等待超时 1"));
+  await user.type(screen.getByLabelText("文档等待超时 1"), "720");
+  await user.click(screen.getByRole("button", { name: "保存提供商" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/settings/models/m/update",
+      expect.objectContaining({
+        parameters: expect.objectContaining({
+          temperature: 0.25,
+          top_p: 0.7,
+          timeout_seconds: 90,
+          document_timeout_seconds: 720,
+          document_total_timeout_seconds: 1800,
+          reasoning_effort: "none",
+          capabilities: expect.objectContaining({
+            document_input: "image",
+            multimodal: true,
+            document_transport: "chat_images",
+          }),
+        }),
+      }),
+    ),
+  );
+});
+
+test("document timeout controls reject an invalid total and allow a corrected save", async () => {
+  const user = userEvent.setup();
+  vi.mocked(request).mockImplementation(async (method, path) => {
+    if (method === "GET")
+      return {
+        connections: [connection],
+        profiles: [profile],
+        roles: empty.roles,
+      };
+    if (path.includes("connections") && path.endsWith("update"))
+      return connection;
+    return {};
+  });
+  mount();
+  await user.click(await screen.findByRole("button", { name: "编辑" }));
+  await user.clear(screen.getByLabelText("文档解析总时限 1"));
+  await user.type(screen.getByLabelText("文档解析总时限 1"), "300");
+  expect(screen.getByRole("button", { name: "保存提供商" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("不小于等待超时");
+  await user.clear(screen.getByLabelText("文档解析总时限 1"));
+  await user.type(screen.getByLabelText("文档解析总时限 1"), "900");
+  expect(screen.getByRole("button", { name: "保存提供商" })).toBeEnabled();
+  await user.selectOptions(screen.getByLabelText("文档输入能力 1"), "image");
+  expect(screen.getByLabelText("文件传输方式 1")).toHaveValue("chat_images");
+  await user.selectOptions(screen.getByLabelText("推理强度 1"), "low");
+  await user.click(screen.getByRole("button", { name: "保存提供商" }));
+  await waitFor(() =>
+    expect(request).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/settings/models/m/update",
+      expect.objectContaining({
+        parameters: expect.objectContaining({
+          document_timeout_seconds: 600,
+          document_total_timeout_seconds: 900,
+          reasoning_effort: "low",
+        }),
+      }),
+    ),
+  );
+});
+
 test("custom provider exposes protocol and editable model directory", async () => {
   const user = userEvent.setup();
   mount();

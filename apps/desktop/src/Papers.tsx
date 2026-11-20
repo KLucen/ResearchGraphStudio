@@ -18,6 +18,7 @@ import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
 import { ZoteroImport } from "./ZoteroImport";
 import { ModelDocumentPanel } from "./ModelDocumentPanel";
+import { PaperParsing } from "./PaperParsing";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -82,7 +83,7 @@ export function Papers({
             <div>
               <h2>从左侧选择一篇论文</h2>
               <p>
-                选中文献后，这里显示对应的论文阅读工作区：论文概览、论文精读和论文问答。
+                选中文献后，这里显示对应的论文阅读工作区：论文概览、论文精读和论文回答。
               </p>
             </div>
           </div>
@@ -145,7 +146,7 @@ export function PaperImport({
         projectId,
         mode,
         selection.selection_id,
-        postImportPlan,
+        postImportPlan.parse ? postImportPlan : undefined,
       );
     },
     onSuccess: () => {
@@ -194,7 +195,11 @@ export function PaperImport({
           </label>
           <button
             className="button primary"
-            disabled={!connected || importing.isPending}
+            disabled={
+              !connected ||
+              importing.isPending ||
+              (postImportPlan.parse && !postImportPlan.allow_network)
+            }
             onClick={() => importing.mutate()}
           >
             {importing.isPending ? "正在选择…" : "选择 PDF 导入"}
@@ -206,7 +211,7 @@ export function PaperImport({
         />
         {!compact && (
           <p className="muted">
-            选择 PDF 后按计划调用模型解析章节、正文、公式和表格。每次一份，最多
+            默认使用本地解析；选择模型解析时才发送已授权的 PDF。每次一份，最多
             50 MiB / 300 页。
           </p>
         )}
@@ -262,19 +267,22 @@ function PaperText({
         : false,
   });
   const [chosen, setChosen] = useState("");
-  const [activePanel, setActivePanel] = useState<
-    "overview" | "guide" | "qa" | "materials"
-  >("overview");
+  const [activePanel, setActivePanel] = useState<"overview" | "guide" | "qa">(
+    "overview",
+  );
   const [readingSection, setReadingSection] = useState("");
   const [readingParagraph, setReadingParagraph] = useState("");
   const [graphNode, setGraphNode] = useState("");
   const [qaParagraph, setQaParagraph] = useState<ReadingParagraph | null>(null);
-  const revisionId = chosen || detail.data?.revisions[0]?.id || "";
-  const modelSession = (importSessions.data ?? [])
+  const revisionId =
+    detail.data?.revisions.find((revision) => revision.id === chosen)?.id ??
+    detail.data?.revisions[0]?.id ??
+    "";
+  const [showLocal, setShowLocal] = useState(false);
+  const latestModelSession = (importSessions.data ?? [])
     .filter((session) => session.source_snapshot.paper_id === paperId)
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
-  const currentPanel =
-    modelSession && activePanel === "qa" ? "overview" : activePanel;
+  const modelSession = showLocal ? undefined : latestModelSession;
   const client = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -339,17 +347,11 @@ function PaperText({
       deletePaper.mutate();
     }
   };
-  const visibleTabs = modelSession
-    ? ([
-        ["overview", "论文概览"],
-        ["guide", "论文精读"],
-        ["materials", "章节材料"],
-      ] as const)
-    : ([
-        ["overview", "论文概览"],
-        ["guide", "论文精读"],
-        ["qa", "论文问答"],
-      ] as const);
+  const visibleTabs = [
+    ["overview", "论文概览"],
+    ["guide", "论文精读"],
+    ["qa", "论文回答"],
+  ] as const;
   return (
     <div className="paper-reading paper-reading-focused">
       {detail.isError && (
@@ -468,59 +470,56 @@ function PaperText({
                       : managementMessage}
               </p>
             )}
-            <nav
-              className="reading-panels paper-workspace-tabs"
-              aria-label="论文阅读板块"
+            <PaperParsing
+              paperId={paperId}
+              projectId={projectId}
+              connected={connected}
+              hasLocal={!!revisionId}
+              hasModel={!!latestModelSession}
+              source={modelSession ? "model" : "local"}
+              onViewSource={(mode) => setShowLocal(mode === "local")}
+              onQueued={(mode) => {
+                setShowLocal(mode === "local");
+                if (activePanel !== "qa") setActivePanel("guide");
+              }}
             >
-              {visibleTabs.map(([value, label]) => (
-                <button
-                  type="button"
-                  key={value}
-                  className={
-                    currentPanel === value
-                      ? "button primary"
-                      : "button secondary"
-                  }
-                  aria-pressed={currentPanel === value}
-                  disabled={
-                    modelSession
-                      ? ![
-                          "succeeded",
-                          "queued",
-                          "running",
-                          "paused",
-                          "failed",
-                          "interrupted",
-                        ].includes(modelSession.status)
-                      : !revisionId
-                  }
-                  onClick={() => setActivePanel(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
+              <nav
+                className="reading-panels paper-workspace-tabs"
+                aria-label="论文阅读板块"
+              >
+                {visibleTabs.map(([value, label]) => (
+                  <button
+                    type="button"
+                    key={value}
+                    className={
+                      activePanel === value
+                        ? "button primary"
+                        : "button secondary"
+                    }
+                    aria-pressed={activePanel === value}
+                    onClick={() => setActivePanel(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+            </PaperParsing>
           </header>
-          {modelSession && (
+          {modelSession && activePanel !== "qa" && (
             <ModelDocumentPanel
+              paperId={paperId}
               sessionId={modelSession.id}
               connected={connected}
-              activeView={
-                currentPanel === "guide"
-                  ? "reading"
-                  : currentPanel === "materials"
-                    ? "materials"
-                    : "overview"
-              }
+              activeView={activePanel === "guide" ? "reading" : "overview"}
               sessionStatus={modelSession.status}
               sessionError={modelSession.error}
             />
           )}
-          {!modelSession && !revisionId && (
+          {!modelSession && !revisionId && activePanel !== "qa" && (
             <div className="quality-note" role="status">
               <strong>正在准备论文阅读功能</strong>
               <p>
-                当前论文还没有完成的模型解析版本。系统正在等待按导入计划生成章节、正文、公式和表格；完成后会启用论文概览、论文精读和论文问答。
+                当前论文尚无可读的解析版本。打开“论文解析操作”，选择本地或模型解析。
               </p>
               <p className="muted">
                 如果长时间没有变化，请打开左侧“任务记录”查看 PDF 导入是否失败。
@@ -529,7 +528,7 @@ function PaperText({
           )}
           {!modelSession && revisionId && (
             <>
-              {currentPanel === "overview" && (
+              {activePanel === "overview" && (
                 <section className="reading-panel" aria-label="论文概览">
                   <PaperOverview
                     key={`overview-${revisionId}-${graphNode}`}
@@ -551,7 +550,7 @@ function PaperText({
                   />
                 </section>
               )}
-              {currentPanel === "guide" && (
+              {activePanel === "guide" && (
                 <section className="reading-panel" aria-label="论文精读">
                   <KnowledgeReading
                     key={`guide-${revisionId}`}
@@ -577,8 +576,17 @@ function PaperText({
                   />
                 </section>
               )}
-              {currentPanel === "qa" && (
-                <section className="reading-panel" aria-label="论文问答">
+            </>
+          )}
+          {activePanel === "qa" && (
+            <section className="reading-panel" aria-label="论文回答">
+              {revisionId ? (
+                <>
+                  {modelSession && (
+                    <p className="quality-note">
+                      论文回答使用这篇论文的本地解析原文作为引用来源。
+                    </p>
+                  )}
                   <KnowledgeReading
                     key={`qa-${revisionId}-${qaParagraph?.paragraph_id ?? ""}`}
                     versionId={revisionId}
@@ -592,9 +600,14 @@ function PaperText({
                       setQaParagraph(null);
                     }}
                   />
-                </section>
+                </>
+              ) : (
+                <p className="quality-note" role="status">
+                  论文回答需要本地解析建立原文索引。打开圆形“论文解析操作”菜单，选择“本地解析
+                  / 重试”。
+                </p>
               )}
-            </>
+            </section>
           )}
           <PaperMetadata
             key={paperId}

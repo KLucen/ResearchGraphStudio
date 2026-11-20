@@ -148,9 +148,15 @@ test("QA directory selects and locates a local chapter while retaining the chose
   ).toHaveAttribute("aria-current", "location");
   await expect(scope).toHaveValue("paper");
   await expect(page.locator("#reading-section-s12")).toBeFocused();
+  expect(await page.evaluate(() => window.__outlineSourceReads)).toEqual([]);
+  await expect(page.locator(".section-text")).toHaveCount(0);
+  await page.getByText("Section 12 · 查看章节原文", { exact: true }).click();
   await expect(page.locator(".section-text")).toContainText(
     "Original source for Section 12",
   );
+  expect(await page.evaluate(() => window.__outlineSourceReads)).toEqual([
+    "s12",
+  ]);
   await page.getByRole("button", { name: "收起文章目录" }).click();
   await page.getByRole("button", { name: "在目录中定位当前章节" }).click();
   await expect(

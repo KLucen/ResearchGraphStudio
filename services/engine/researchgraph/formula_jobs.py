@@ -99,9 +99,7 @@ def register_formula_jobs_api(app: FastAPI, get_engine: Callable[[], Engine]) ->
                 )
             session.add(row)
             session.flush()
-            session.add(
-                Idempotency(key=key, request_hash=digest, response={"job_id": row.id})
-            )
+            session.add(Idempotency(key=key, request_hash=digest, response={"job_id": row.id}))
             return JobView.model_validate(row)
 
 

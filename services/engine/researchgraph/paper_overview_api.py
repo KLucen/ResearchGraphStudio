@@ -615,6 +615,9 @@ async def execute_overview(
                 )
                 job.status, job.stage, job.updated_at = "succeeded", "completed", now()
                 job.result = {"overview_result_id": row.id}
+                from researchgraph.knowledge_automation import note_parsed
+
+                note_parsed(session, job)
                 return
             if not job.payload.get("allow_network"):
                 raise KnowledgeError("NETWORK_CONSENT_REQUIRED", "请明确允许本次概览模型调用")
@@ -730,6 +733,9 @@ async def execute_overview(
                 now(),
             )
             current_job.result = {"overview_result_id": current_row.id}
+            from researchgraph.knowledge_automation import note_parsed
+
+            note_parsed(session, current_job)
     except Exception as exc:
         from researchgraph.providers import ProviderError
 

@@ -128,7 +128,7 @@ def test_real_lite0009_upgrade_preserves_every_existing_row_and_backup(tmp_path)
         "import_plan_items",
         "llm_document_parses",
         "llm_document_segments",
-            "llm_document_outputs",
+        "llm_document_outputs",
     }
     assert after["chunks"][0][5] == "Unmodified original\n58.0"
     backups = list((tmp_path / "backups").glob("before-migration-*.sqlite3"))

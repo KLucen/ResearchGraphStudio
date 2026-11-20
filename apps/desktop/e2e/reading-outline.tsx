@@ -12,10 +12,12 @@ declare global {
   interface Window {
     __outlineModelCalls: number;
     __outlineQAScopes: string[];
+    __outlineSourceReads: string[];
   }
 }
 window.__outlineModelCalls = 0;
 window.__outlineQAScopes = [];
+window.__outlineSourceReads = [];
 const scenario =
   new URLSearchParams(location.search).get("scenario") || "paper";
 const local = structuredClone(paperReadingDocument);
@@ -49,22 +51,32 @@ local.units = local.sections.flatMap((section, index) => [
 local.warnings = [];
 api.readingDocument = async () => structuredClone(local);
 api.paperReadingNotes = async () => null;
-api.sections = async () => ({
-  document_version_id: "v",
-  sections: local.sections.map((section, index) => ({
-    id: section.section_id,
-    title: section.title,
-    level: section.level,
-    parent_id: section.parent_id ?? null,
-    role: "body",
-    ordinal: index,
-    start_page: index,
-    end_page: index,
-    excluded: false,
-    text: `Original source for ${section.title}. `.repeat(300),
-    chunk_ids: [`c${index}`],
-  })),
-});
+api.sections = async (_revisionId, options) => {
+  if (options?.sectionId) window.__outlineSourceReads.push(options.sectionId);
+  return {
+    document_version_id: "v",
+    sections: local.sections
+      .map((section, index) => ({
+        id: section.section_id,
+        title: section.title,
+        level: section.level,
+        parent_id: section.parent_id ?? null,
+        role: "body",
+        ordinal: index,
+        start_page: index,
+        end_page: index,
+        excluded: false,
+        text:
+          options?.includeText === false
+            ? ""
+            : `Original source for ${section.title}. `.repeat(300),
+        chunk_ids: [`c${index}`],
+      }))
+      .filter(
+        (section) => !options?.sectionId || section.id === options.sectionId,
+      ),
+  };
+};
 api.sectionGuide = async () => null;
 api.qa = async (_paper, _revision, _section, scope) => {
   window.__outlineQAScopes.push(scope || "section");

@@ -168,6 +168,42 @@
 .reading-outline-content {
   min-width: 0;
 }
+.reading-outline-resume {
+  padding: 0 12px 10px;
+  font-size: 11px;
+  color: #6f806f;
+  overflow-wrap: anywhere;
+}
+.reading-outline-resume p {
+  margin: 0 0 4px;
+}
+.reading-outline-list .reading-outline-progress[data-progress="COMPLETED"] {
+  color: #39714d;
+}
+.reading-outline-list .reading-outline-progress[data-progress="READING"] {
+  color: #88611f;
+}
+.chapter-reading-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6f806f;
+}
+.chapter-reading-progress button {
+  min-height: 30px;
+  padding: 4px 9px;
+  border: 1px solid #dce3d8;
+  border-radius: 5px;
+}
+.chapter-reading-progress button[aria-pressed="true"] {
+  color: #2e6046;
+  background: #e7efe0;
+  border-color: #93b29b;
+}
 .reading-outline-section {
   min-width: 0;
   scroll-margin-top: 24px;
@@ -187,6 +223,11 @@
 .reading-outline-layout[data-narrow="true"] {
   display: block;
   margin-top: 18px;
+}
+.reading-outline-layout[data-narrow="true"]
+  :is(.reading-outline-section, .paper-reading-section-heading) {
+  /* Leave the compact sticky toolbar and a reading gap above chapter targets. */
+  scroll-margin-top: 72px;
 }
 .reading-outline-layout[data-narrow="true"] .reading-outline-sidebar {
   top: 10px;

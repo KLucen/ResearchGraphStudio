@@ -1,0 +1,47 @@
+.reading-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 20px 0;
+  font-size: 12px;
+}
+.reading-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.reading-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.reading-legend small {
+  color: #7e867b;
+}
+.argument-mark {
+  padding: 1px 0;
+  border-radius: 2px;
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.mark-thesis {
+  background: #eab30829;
+  border-bottom: 2px solid #eab308;
+}
+.mark-concept {
+  background: #dc26261a;
+  border-bottom: 2px solid #dc2626;
+}
+.mark-evidence {
+  background: #2563eb1a;
+  border-bottom: 2px solid #2563eb;
+}
+.mark-counterargument {
+  background: #16a34a1a;
+  border-bottom: 2px solid #16a34a;
+}
+.mark-method {
+  background: #9333ea1a;
+  border-bottom: 2px solid #9333ea;
+}

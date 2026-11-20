@@ -11,6 +11,7 @@ import {
   type SelfAssessment,
 } from "./api";
 import { highlightSegments, readingHighlightTypes } from "./readingHighlights";
+import "./readingHighlights.css";
 import "./sectionCloseReading.css";
 
 const functions = {

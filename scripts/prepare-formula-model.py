@@ -3,6 +3,7 @@
 Only this explicit developer command downloads weights. Installed applications
 never contact Hugging Face or download a model on startup or during recognition.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -42,10 +43,7 @@ def prepare(target: Path, *, download: bool = False) -> None:
             continue
         if not download:
             raise SystemExit(f"Missing or invalid formula asset: {name}; run with --download")
-        url = (
-            f"https://huggingface.co/{manifest['model_id']}/resolve/"
-            f"{manifest['revision']}/{name}"
-        )
+        url = f"https://huggingface.co/{manifest['model_id']}/resolve/{manifest['revision']}/{name}"
         temporary = path.with_name(name + ".partial")
         print(f"Downloading pinned formula asset: {name}", flush=True)
         request = urllib.request.Request(url, headers={"User-Agent": "ResearchGraph-build/1"})

@@ -191,6 +191,66 @@ def _put_concept(f, level="UNSURE", note="我需要回看定义。"):
     return response.json()
 
 
+def test_progress_patch_preserves_subjective_fields_unlinked_ids_and_source_baseline(fixture):
+    f = fixture
+    with Session(f.engine) as session, session.begin():
+        row = ReadingState(
+            id=str(uuid4()),
+            paper_id=f.paper_id,
+            document_version_id=f.revision_id,
+            section_id=f.section_id,
+            source_hash="old-source-baseline",
+            progress="READING",
+            self_assessment="PARTIAL",
+            unresolved_concept_ids=["old-unlinked-concept"],
+            graph_reference_json={"old-unlinked-concept": {"fingerprint": "old"}},
+            questions=[{"paragraph_id": f.chunk_id, "text": "Keep my question", "resolved": False}],
+            updated_at=now(),
+        )
+        session.add(row)
+    response = f.client.patch(
+        _state_url(f),
+        json={"document_version_id": f.revision_id, "progress": "COMPLETED"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["progress"] == "COMPLETED"
+    assert response.json()["source_changed"] is True
+    assert response.json()["unresolved_unlinked_ids"] == ["old-unlinked-concept"]
+    with Session(f.engine) as session:
+        row = session.scalar(select(ReadingState))
+        assert row.source_hash == "old-source-baseline"
+        assert row.self_assessment == "PARTIAL"
+        assert row.questions[0]["text"] == "Keep my question"
+        assert row.unresolved_concept_ids == ["old-unlinked-concept"]
+        assert row.graph_reference_json == {"old-unlinked-concept": {"fingerprint": "old"}}
+        assert session.scalar(select(LiteTokenUsage)) is None
+    assert (
+        f.client.patch(
+            _state_url(f), json={"document_version_id": "foreign", "progress": "READING"}
+        ).status_code
+        == 409
+    )
+    assert (
+        f.client.patch(
+            _state_url(f), json={"document_version_id": f.revision_id, "progress": "INVENTED"}
+        ).status_code
+        == 422
+    )
+
+
+def test_progress_patch_creates_missing_state_without_model_use(fixture):
+    f = fixture
+    response = f.client.patch(
+        _state_url(f),
+        json={"document_version_id": f.revision_id, "progress": "READING"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["self_assessment"] == "UNSET"
+    assert response.json()["questions"] == []
+    with Session(f.engine) as session:
+        assert session.scalar(select(LiteTokenUsage)) is None
+
+
 def test_empty_get_and_state_save_are_local_and_persist(fixture):
     f = fixture
     empty = f.client.get(_state_url(f)).json()

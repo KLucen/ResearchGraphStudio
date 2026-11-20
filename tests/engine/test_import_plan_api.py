@@ -2,8 +2,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from researchgraph.document_batch_models import LlmDocumentBatch, LlmDocumentBatchRun
+from researchgraph.document_batch_recovery import PUBLICATION_RECOVERY_VERSION
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
-from researchgraph.models import Job
+from researchgraph.models import Job, Paper, now
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -73,6 +75,141 @@ def test_import_session_creation_is_idempotent_and_validates_choices(tmp_path):
         assert invalid_multimodal.status_code == 422
 
 
+@pytest.mark.parametrize("link", ["valid", "job_project", "paper_project", "session"])
+def test_legacy_pdf_session_projects_verified_paper_identity_without_database_write(tmp_path, link):
+    with client(tmp_path) as api:
+        project_id = make_project(api)
+        other_project = post(api, "/projects", {"name": "Other project"}, "other-project").json()[
+            "id"
+        ]
+        session_id = create_session(api, project_id, key="legacy-pdf-session").json()["id"]
+        paper_id, job_id = str(uuid4()), str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            db.add(
+                Paper(
+                    id=paper_id,
+                    project_id=other_project if link == "paper_project" else project_id,
+                    title="Anonymous legacy PDF",
+                    created_at=now(),
+                )
+            )
+            db.add(
+                Job(
+                    id=job_id,
+                    project_id=other_project if link == "job_project" else project_id,
+                    kind="pdf_import",
+                    status="succeeded",
+                    attempt=1,
+                    created_at=now(),
+                    updated_at=now(),
+                    payload={
+                        "paper_id": paper_id,
+                        "import_session_id": "different-session"
+                        if link == "session"
+                        else session_id,
+                    },
+                )
+            )
+            db.flush()
+            item = db.scalar(
+                select(ImportPlanItem).where(
+                    ImportPlanItem.session_id == session_id,
+                    ImportPlanItem.item_kind == "document_parse",
+                )
+            )
+            item.job_id, item.status = job_id, "succeeded"
+            original = dict(db.get(ImportSession, session_id).source_snapshot)
+        detail = api.get(f"/api/v1/import-sessions/{session_id}").json()
+        listing = api.get(f"/api/v1/projects/{project_id}/import-sessions").json()
+        listed = next(value for value in listing if value["id"] == session_id)
+        expected = paper_id if link == "valid" else None
+        assert detail["source_snapshot"]["paper_id"] == expected
+        assert listed["source_snapshot"]["paper_id"] == expected
+        # The desktop filters by this projected identity to select the model panel.
+        matches = [
+            value["id"] for value in listing if value["source_snapshot"]["paper_id"] == paper_id
+        ]
+        assert matches == ([session_id] if link == "valid" else [])
+        with Session(api.app.state.engine) as db:
+            assert db.get(ImportSession, session_id).source_snapshot == original
+            assert db.get(Job, job_id).status == "succeeded"
+
+
+def test_job_cancel_and_retry_keep_import_plan_and_session_in_sync(tmp_path):
+    with client(tmp_path) as api:
+        project_id = make_project(api)
+        session_id = create_session(api, project_id).json()["id"]
+        job_id = str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            db.add(
+                Job(
+                    id=job_id,
+                    project_id=project_id,
+                    kind="llm_document_parse",
+                    status="queued",
+                    payload={"import_session_id": session_id},
+                    attempt=0,
+                    created_at="2026-11-18T00:00:00Z",
+                    updated_at="2026-11-18T00:00:00Z",
+                )
+            )
+            item = db.scalar(
+                select(ImportPlanItem).where(
+                    ImportPlanItem.session_id == session_id,
+                    ImportPlanItem.item_kind == "document_parse",
+                )
+            )
+            item.status, item.job_id = "queued", job_id
+        cancelled = api.post(
+            f"/api/v1/jobs/{job_id}/cancel", headers={"Idempotency-Key": "import-cancel"}
+        )
+        assert cancelled.status_code == 200 and cancelled.json()["status"] == "cancelled"
+        value = api.get(f"/api/v1/import-sessions/{session_id}").json()
+        assert value["status"] == value["items"][0]["status"] == "interrupted"
+        retried = api.post(
+            f"/api/v1/jobs/{job_id}/retry", headers={"Idempotency-Key": "import-retry"}
+        )
+        assert retried.status_code == 200 and retried.json()["status"] == "queued"
+        value = api.get(f"/api/v1/import-sessions/{session_id}").json()
+        assert value["status"] == value["items"][0]["status"] == "queued"
+        assert value["error"] is None and value["items"][0]["error"] is None
+        assert value["items"][0]["attempt"] == 1
+
+
+def test_startup_repairs_stale_import_session_after_old_job_failure(tmp_path):
+    with client(tmp_path) as api:
+        project_id = make_project(api)
+        session_id = create_session(api, project_id).json()["id"]
+        job_id = str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            db.add(
+                Job(
+                    id=job_id,
+                    project_id=project_id,
+                    kind="llm_document_parse",
+                    status="failed",
+                    payload={"import_session_id": session_id},
+                    error="old DetachedInstanceError",
+                    attempt=1,
+                    created_at="2026-11-18T00:00:00Z",
+                    updated_at="2026-11-18T00:00:00Z",
+                )
+            )
+            item = db.scalar(
+                select(ImportPlanItem).where(
+                    ImportPlanItem.session_id == session_id,
+                    ImportPlanItem.item_kind == "document_parse",
+                )
+            )
+            item.status, item.job_id = "running", job_id
+            db.get(ImportSession, session_id).status = "running"
+    with client(tmp_path) as reopened:
+        value = reopened.get(f"/api/v1/import-sessions/{session_id}").json()
+        assert value["status"] == value["items"][0]["status"] == "failed"
+        assert value["error"] == "old DetachedInstanceError"
+        assert reopened.get(f"/api/v1/jobs/{job_id}").json()["status"] == "failed"
+
+
 def test_retry_changes_only_failed_item_and_is_idempotent(tmp_path):
     with client(tmp_path) as api:
         project_id = make_project(api)
@@ -140,6 +277,180 @@ def test_retry_requeues_terminal_worker_job_for_model_item(tmp_path):
             assert retried.status == "queued"
             assert retried.stage is None
             assert retried.error is None
+
+
+@pytest.mark.parametrize("via_item", [False, True])
+@pytest.mark.parametrize("legacy_fk", [False, True])
+def test_exhausted_document_job_can_retry_only_when_all_batches_are_publishable(
+    tmp_path, via_item, legacy_fk
+):
+    with client(tmp_path) as api:
+        project_id = make_project(api)
+        session_id = create_session(api, project_id, key="publication-session").json()["id"]
+        job_id = str(uuid4())
+        run_id = str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            session = db.get(ImportSession, session_id)
+            session.status = "failed"
+            session.plan = {**session.plan, "document_batching": True}
+            item = db.scalar(
+                select(ImportPlanItem).where(
+                    ImportPlanItem.session_id == session_id,
+                    ImportPlanItem.item_kind == "document_parse",
+                )
+            )
+            item.status = "failed"
+            db.add(
+                Job(
+                    id=job_id,
+                    project_id=project_id,
+                    kind="pdf_import",
+                    status="failed",
+                    stage="failed",
+                    payload={"import_session_id": session_id},
+                    result={
+                        **(
+                            {
+                                "publication_recovery_attempts": 2,
+                                "failure_diagnostics": {
+                                    "database_dialect": "sqlite",
+                                    "sqlite_errorcode": 787,
+                                    "sqlite_errorname": "SQLITE_CONSTRAINT_FOREIGNKEY",
+                                    "constraint_category": "foreign_key",
+                                },
+                            }
+                            if legacy_fk
+                            else {}
+                        ),
+                        "document_batches": {
+                            "total": 1,
+                            "completed": 1,
+                            "phase": "publication_failed",
+                            "current_kind": "boundary",
+                        },
+                    },
+                    error="publication failure",
+                    attempt=4,
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+            db.flush()
+            item.job_id = job_id
+            db.add(
+                LlmDocumentBatchRun(
+                    id=run_id,
+                    import_session_id=session_id,
+                    job_id=job_id,
+                    source_version={"size": 1},
+                    settings={
+                        "version": "document-batch-1",
+                        "ranges": [
+                            {
+                                "index": 0,
+                                "page_start": 1,
+                                "page_end": 1,
+                                "send_start": 1,
+                                "send_end": 1,
+                            }
+                        ],
+                    },
+                    page_count=1,
+                    status="failed",
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+            db.flush()
+            db.add(
+                LlmDocumentBatch(
+                    id=str(uuid4()),
+                    run_id=run_id,
+                    ordinal=0,
+                    kind="extract",
+                    page_start=1,
+                    page_end=1,
+                    send_start=1,
+                    send_end=1,
+                    status="validated",
+                    attempts=1,
+                    repair_attempts=0,
+                    request_count=1,
+                    result_json={"validated": True},
+                    validation_errors=[],
+                    usage={},
+                    request_metadata={},
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+
+        if legacy_fk:
+            with Session(api.app.state.engine) as db:
+                saved_result = dict(db.get(Job, job_id).result)
+            invalid_legacy_results = (
+                [
+                    {**saved_result, "publication_recovery_attempts": value}
+                    for value in (True, 2.0, -1, 3)
+                ]
+                + [
+                    {**saved_result, "publication_recovery_version": value}
+                    for value in (None, "unknown-version", PUBLICATION_RECOVERY_VERSION)
+                ]
+                + [
+                    {**saved_result, "failure_diagnostics": {"constraint_category": "unique"}},
+                    {**saved_result, "document_batches": {"phase": "failed"}},
+                ]
+            )
+            for invalid in invalid_legacy_results:
+                with Session(api.app.state.engine) as db, db.begin():
+                    db.get(Job, job_id).result = invalid
+                unavailable = api.get(f"/api/v1/jobs/{job_id}")
+                assert not unavailable.json()["result"]["document_batches"][
+                    "publication_retry_available"
+                ]
+            with Session(api.app.state.engine) as db, db.begin():
+                db.get(Job, job_id).result = saved_result
+        projected = api.get(f"/api/v1/jobs/{job_id}")
+        assert projected.status_code == 200
+        assert projected.json()["result"]["document_batches"]["publication_retry_available"]
+        assert projected.json()["result"]["document_batches"]["current_kind"] == "publication"
+        with Session(api.app.state.engine) as db:
+            assert "publication_recovery_version" not in db.get(Job, job_id).result
+        path = (
+            f"/api/v1/import-sessions/{session_id}/items/document_parse/retry"
+            if via_item
+            else f"/api/v1/jobs/{job_id}/retry"
+        )
+        headers = {"Idempotency-Key": "publication-only-retry"}
+        retried = api.post(path, headers=headers)
+        assert retried.status_code == 200, retried.text
+        assert retried.json()["status"] == "queued"
+        assert api.post(path, headers=headers).json() == retried.json()
+        with Session(api.app.state.engine) as db:
+            task = db.get(Job, job_id)
+            assert task.attempt == 4
+            assert task.result["publication_recovery_attempts"] == (3 if legacy_fk else 1)
+            assert task.result["publication_recovery_version"] == PUBLICATION_RECOVERY_VERSION
+            assert task.result["publication_recovery_only"] is True
+            assert db.get(ImportSession, session_id).status == "queued"
+        if legacy_fk:
+            for state in ("failed", "cancelled", "interrupted"):
+                with Session(api.app.state.engine) as db, db.begin():
+                    db.get(Job, job_id).status = state
+                    item = db.scalar(
+                        select(ImportPlanItem).where(
+                            ImportPlanItem.session_id == session_id,
+                            ImportPlanItem.item_kind == "document_parse",
+                        )
+                    )
+                    item.status = "failed"
+                assert (
+                    api.post(
+                        path, headers={"Idempotency-Key": f"used-fk-recovery-{state}"}
+                    ).status_code
+                    == 409
+                )
 
 
 def test_pdf_import_captures_model_first_plan_without_content_hash_gate(tmp_path):

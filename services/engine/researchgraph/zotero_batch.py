@@ -27,6 +27,7 @@ class CollectionBrowse(StrictModel):
 class AttachmentChoice(StrictModel):
     item_key: str = Field(pattern=r"^[A-Z0-9]{8}$")
     attachment_key: str = Field(pattern=r"^[A-Z0-9]{8}$")
+    title: str | None = Field(default=None, max_length=4000)
 
 
 class BatchImport(StrictModel):
@@ -231,11 +232,11 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                         if plan.allow_network:
                             from researchgraph.model_settings import snapshot_for
 
-                            provider_snapshot = snapshot_for(session, project_id, "extraction")
+                            provider_snapshot = snapshot_for(session, project_id, "document_parse")
                         paper = Paper(
                             id=str(uuid4()),
                             project_id=project_id,
-                            title=choice.item_key,
+                            title=(choice.title or "").strip() or choice.item_key,
                             created_at=now(),
                         )
                         session.add(paper)
@@ -250,9 +251,7 @@ def register_zotero_batch_api(app: FastAPI, engine: Callable[[], Engine]) -> Non
                             ),
                             source_snapshot=SourceSnapshot(
                                 paper_id=paper.id,
-                                provider_file_id=(
-                                    f"{body.library}:{choice.attachment_key}"
-                                )
+                                provider_file_id=(f"{body.library}:{choice.attachment_key}"),
                             ),
                             plan=plan,
                         )
