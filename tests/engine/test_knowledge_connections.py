@@ -31,7 +31,7 @@ from researchgraph.model_capabilities import ModelCapabilities
 from researchgraph.model_document_models import LlmDocumentSegment
 from researchgraph.models import Job, now
 from researchgraph.providers import ConfiguredProvider
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from test_knowledge_extraction import SNAPSHOT, FixtureProvider, model_fixture, queued, run_record
 
@@ -233,8 +233,12 @@ def test_source_change_after_queue_stops_before_any_model_request(tmp_path):
     engine, versions, originals = built_papers(tmp_path)
     job_id = queue_connection(engine, versions[1])
     with Session(engine) as db, db.begin():
+        db.execute(text("PRAGMA reverse_unordered_selects=ON"))
         segment = db.scalar(
-            select(LlmDocumentSegment).where(LlmDocumentSegment.parse_id == originals[0][2])
+            select(LlmDocumentSegment).where(
+                LlmDocumentSegment.parse_id == originals[0][2],
+                LlmDocumentSegment.chapter_ref == "c0",
+            )
         )
         segment.text += " Changed original source."
     provider = ConnectionProvider()

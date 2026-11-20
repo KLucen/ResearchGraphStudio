@@ -34,7 +34,7 @@ from researchgraph.paper_knowledge import (
 from researchgraph.paper_overview_contracts import SCHEMA_VERSION as LEGACY_SCHEMA
 from researchgraph.paper_overview_contracts import PaperOverviewDraft
 from researchgraph.storage import make_engine
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from test_reading_projection import store, textbox
 
@@ -362,8 +362,12 @@ def test_source_mutation_stops_send_or_publication_but_keeps_raw(tmp_path, when)
 
     def change():
         with Session(values[0]) as db, db.begin():
+            db.execute(text("PRAGMA reverse_unordered_selects=ON"))
             segment = db.scalar(
-                select(LlmDocumentSegment).where(LlmDocumentSegment.parse_id == values[2])
+                select(LlmDocumentSegment).where(
+                    LlmDocumentSegment.parse_id == values[2],
+                    LlmDocumentSegment.chapter_ref == "c0",
+                )
             )
             segment.text = (segment.text or "") + " Changed source."
 

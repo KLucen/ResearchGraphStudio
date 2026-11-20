@@ -68,3 +68,6 @@ Rust `cargo fmt --check`、`cargo clippy --locked --all-targets -- -D warnings`�
 锁修复后的run44697853179（head3379169）已通过干净依赖复现、12项锁覆盖、Ruff/178格式/mypy109；后端实际819passed/1failed（448.49秒），后续前端/打包/安装未执行。唯一失败为`test_current_mapping_rejects_changed_source_or_anchor[artifact_text]`：测试只按created_at.desc选待篡改解析，两个版本同时间戳时改到历史记录，当前来源实际未变。
 
 保留原断言的隔离副本强制相同时间戳后，本机准确复现DID NOT RAISE；改为`current_structure`精确选当前章节材料并断言归属，再参数化普通/相同时间戳，结构版本专项27passed（1.94秒）。未改生产来源校验或关闭断言。修复只改测试与报告，运行源/本机安装器保持；后续远端结果以PR检查和最终交付消息为准。
+
+
+相同时间戳只读复核另把81项K1/K2/K3/API/用量测试的时钟全部固定，全部通过。SQLite反向未排序读取检查发现两处来源修改夹具仅parse_id scalar，可能误选被排除的References，已实际复现3个参数失败；改为明确chapter_ref=c0正文，并在测试修改事务启用reverse_unordered_selects。此为同类夹具加固，生产来源门槛和运行源不变，专项结果另记。

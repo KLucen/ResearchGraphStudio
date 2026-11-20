@@ -2408,3 +2408,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 同时间戳回归修复 — 2026-11-20 16:03（Asia/Shanghai）**：run44697853179的锁复现/guard12/Ruff/178格式/mypy109通过；pytest819passed/1failed（448.49秒），后续未运行。结构版本测试timestamp-only选待篡改对象时同时间戳选到历史parse，非生产验源放行；本机强制相同时间戳隔离before准确复现失败。测试改精确current_structure+章节归属断言，补普通/同时间戳参数，专项27passed（1.94秒），生产代码不改。将普通上传此测试/文档修复再次跟进CI，不重打未变运行源安装包。
+
+
+**DEV-0124 来源修改夹具稳定性 — 2026-11-20 16:08（Asia/Shanghai）**：新增知识库81项固定同一时刻全部通过；反向未排序SQL发现K2/K3两处修改来源夹具可能选References（3项已实际复现失败），补明确c0正文并在修改事务使用reverse_unordered_selects，继续保持生产验源不变。本轮将与时钟夹具修复共同进入最终CI，不以随机选中材料代表来源保护测试通过。
