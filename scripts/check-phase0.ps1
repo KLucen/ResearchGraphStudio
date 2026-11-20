@@ -3,6 +3,8 @@ $python = Get-ProjectPython
 Push-Location $ProjectRoot
 try {
     $env:PYTHONPATH = Join-Path $ProjectRoot 'services/engine'
+    & $python scripts/check-runtime-lock.py
+    Assert-NativeSuccess 'Runtime dependency lock coverage'
     & $python -m ruff check services/engine tests/engine scripts/*.py
     Assert-NativeSuccess 'Python lint'
     & $python -m ruff format --check services/engine tests/engine scripts/*.py

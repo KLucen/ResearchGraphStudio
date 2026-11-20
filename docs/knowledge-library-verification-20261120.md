@@ -54,3 +54,10 @@ Rust `cargo fmt --check`、`cargo clippy --locked --all-targets -- -D warnings`�
 ## 尚未验证
 
 真实收费模型0、正式用户库实验0。合成Provider说明机制，不能证明跨论文关系科学成立；严格引文也不等于科学语义正确。用户原生WebView、实际旧库升级、真实论文科学样本、干净机和K4规模/语义召回/实体聚合未通过本轮分项验收。当前容量不足不自动拆批、不承诺长文完整建模；费用未提供保持未知，不以估算Token或固定候选数承诺价格或SLA。
+
+
+## 远端锁定环境问题与修复
+
+最终首个远端run `44696102100`（head15739be）在mypy前后发现本机/锁定环境差异：`formula_ocr.py:70`无法导入PIL；Ruff和177文件格式通过，其后浏览器/打包/Rust/安装步骤未执行，不记为通过。根因是pyproject已经声明的numpy2.2.6、Pillow12.0.0、onnxruntime1.24.4和tokenizers0.22.2未纳入requirements-win-64.lock，本机已安装所以本机回归未揭露缺口。新增check-runtime-lock.py并置于check-phase0最前面，实际在旧锁上准确拒绝这4项；Windows锁已重新生成：原46个固定版本保持，新增4个runtime及9个transitive，共59 pins。新增版本与本机已打包环境精确匹配；官方PyPI版本JSON提供SHA-256，生成时只对当前pip-tools子进程使用版本元数据，未改系统/pip-tools或放宽TLS/哈希。初次freeze含Conda本机构建file URL，已仅规范化成实际distribution版本；原失败尝试不当作生成成功。
+
+实际 `pip install --dry-run --require-hashes --no-index -r requirements-win-64.lock` 返回所有依赖已满足，零安装/升级；`pip check`、12项runtime锁覆盖、mypy109、Ruff及178文件格式通过。修复只涉及冻结依赖/构建前置检查/说明，知识库运行源、已验本机安装器和334资源保持；修复上传后远端从干净锁定环境重新验收，结果以PR检查为准。

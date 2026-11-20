@@ -2399,3 +2399,9 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 Git上传补充 — 2026-11-20 15:34（Asia/Shanghai）**：实际暂存198个源码/测试/文档文件经私人路径与Gitleaks、diff检查通过后，提交`9a618946af6ee4c0718bf843556c52e999a9cd1d`并通过官方SSH443普通推送`codex/research-knowledge-library-k1-k3`。创建并附加PR https://github.com/KLucen/ResearchGraphStudio/pull/1 ，未合并main。Windows build and acceptance已启动，包含新packaged知识库HTTP烟测；此日志时仍运行，不把启动写成通过。此后提交仅补本轮验证/进度/日志，runtime181项与安装包保持，远端最终结果看PR检查和本轮最终交付消息。真实收费模型和正式库实验继续0。
+
+
+**DEV-0124 远端环境诊断 — 2026-11-20 15:40（Asia/Shanghai）**：最终head15739be的CI run44696102100在mypy报formula_ocr.py缺PIL后终止；Ruff/177格式通过，后续测试/打包/安装均跳过。已确认pyproject的numpy/Pillow/onnxruntime/tokenizers四项未进入Windows pip hash lock，本机已装依赖掩盖该复现差异。新增check-runtime-lock并接入check-phase0前置检查，旧锁确实拒绝4项；正在仅修冻结依赖/构建检查，不关闭mypy或忽略PIL错误。知识库运行源与本机交付包保持。
+
+
+**DEV-0124 依赖锁修复补充 — 2026-11-20 15:48（Asia/Shanghai）**：重新生成hash lock，旧46pin版本不变，新增numpy/Pillow/onnxruntime/tokenizers与9传递依赖，共59pin，全部与本机已打包distribution匹配。pip-tools包全历史元数据失败会逐平台下载大wheel，改为仅当前生成进程使用官方版本JSON的SHA256，未改pip-tools安装或系统索引/TLS；Conda freeze的本地file URL仅规范为已装版本，不上传.local约束或凭据。`pip install --dry-run --require-hashes --no-index`全部满足/0安装，pip check、runtime锁12项、mypy109、Ruff/178格式通过。知识库源与安装器保持，将普通推送修复并重跑干净环境CI。
