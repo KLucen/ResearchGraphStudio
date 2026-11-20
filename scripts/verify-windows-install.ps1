@@ -69,6 +69,12 @@ Write-Phase 'sidecar_starting'
 $token=[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N')
 $data=Join-Path $OutputRoot 'data'; New-Item -ItemType Directory -Path $data | Out-Null
 $info=New-Object Diagnostics.ProcessStartInfo; $info.FileName=$EnginePath; $info.Arguments='--data-dir "'+$data+'"'; $info.UseShellExecute=$false; $info.CreateNoWindow=$true; $info.RedirectStandardInput=$true; $info.RedirectStandardOutput=$true; $info.RedirectStandardError=$true; $info.EnvironmentVariables.Clear(); foreach($k in @('SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA')){$info.EnvironmentVariables[$k]=[Environment]::GetEnvironmentVariable($k)}; $info.EnvironmentVariables['PATH']=Join-Path $env:SystemRoot 'System32'
+# cmd preserves the redirected standard handles for the GUI-subsystem sidecar
+# on the clean Windows runner. The token still travels only through stdin.
+$resolvedEngine=(Resolve-Path -LiteralPath $EnginePath).Path
+if($resolvedEngine.Contains('"') -or $data.Contains('"')){throw 'Invalid engine probe path.'}
+$info.FileName=Join-Path $env:SystemRoot 'System32\cmd.exe'
+$info.Arguments='/d /s /c ""'+$resolvedEngine+'" --data-dir "'+$data+'""'
 $p=[Diagnostics.Process]::Start($info)
 $stderrTask=$p.StandardError.ReadToEndAsync()
 $readyTask=$p.StandardOutput.ReadLineAsync()

@@ -2423,3 +2423,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 安装stdin定位 — 2026-11-20 17:28（Asia/Shanghai）**：独立复用产物run44710439335明确安装11.33秒成功，ready45s超时、EOF后stdin JSONDecodeError；不能据此确定乱码。原CI产物本机隔离15.11秒全部通过，包SHA b3ab665a与GitHub ZIP digest已核对。仅验收脚本改用单一StandardInput.WriteLine/Flush，避免TextWriter/BaseStream混写，安全记录编码/字符数/flush；实际CI sidecar本机新目录验收通过，runtime不变，将继续复用原artifact远端诊断。
+
+
+**DEV-0124 Runner句柄诊断 — 2026-11-20 17:34（Asia/Shanghai）**：单TextWriter复验run44711114607仍在ready45s失败，phase记录UTF8/76字符/flush，安装15.7秒成功；不能确认编码原因。验收脚本下一步只将GUI sidecar通过Windows cmd中转同一stdin/stdout/stderr管道，token仍不入参数/文件/日志；实际CI sidecar本机完整原断言通过。此为Runner探针句柄诊断，不改应用启动器/引擎，不把假设当根因，继续原artifact专测。
