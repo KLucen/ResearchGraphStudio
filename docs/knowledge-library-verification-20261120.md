@@ -1,6 +1,6 @@
 # 研究内容知识库 K1–K3 验证记录
 
-日期：2026-11-20（Asia/Shanghai）。范围：按用户明确授权实施前三阶段闭环、回归并上传GitHub；K4未启动。决策见[ADR0060](adr/0060-durable-research-knowledge-library.md)，实施差异见[方案](research-knowledge-base-plan-20261120.md)。当前为分项实测记录，整体最终验收块由协调交付补充，不以旧成绩替代本轮重跑。
+日期：2026-11-20（Asia/Shanghai）。范围：按用户明确授权实施前三阶段闭环、回归并上传GitHub；K4未启动。决策见[ADR0060](adr/0060-durable-research-knowledge-library.md)，实施差异见[方案](research-knowledge-base-plan-20261120.md)。K1–K3应用实现、闭环回归、本机安装和GitHub上传均已完成；远端构建/回归与最终同产物安装分别记录，不把失败尝试算作通过。
 
 ## 实施范围
 
@@ -98,3 +98,14 @@ run44704598036（head8028b11）的Windows任务全部成功：后端823passed（
 cmd中转专测44711692319仍失败。进一步在本机把Console.InputEncoding设为带3字节preamble的UTF8后，旧探针准确复现同一启动JSON错误/ready45秒超时，并产生用户截图中的PyInstaller错误弹窗；本次隔离复现进程已退出，正式用户库未访问。根因是.NET Process按Console.InputEncoding创建StandardInput writer，干净Runner的UTF8带preamble，而本机原GB2312无preamble；仅换WriteLine或中转不能移除已创建writer的前缀。
 
 验收脚本现在仅在Process.Start期间把当前子PowerShell进程的Console.InputEncoding设为UTF8无BOM，随后finally恢复原值；直接启动原sidecar，不再中转。记录stdin_preamble_bytes=0，token仍在私有管道，不入参数或文件。带BOM环境下实际CI sidecar新目录全部原验收断言通过；旧版相同环境失败与修复后成功分开留在.local。应用Rust Host原本使用无BOM字节管道，未修改运行源或安装包。远端专测待确认此确切修复。
+
+
+## 最终交付确认（2026-11-20 17:43 Asia/Shanghai）
+
+应用运行源码自已验收构建后未改：GitHub [run44704598036 Windows任务](https://github.com/KLucen/ResearchGraphStudio/actions/runs/44704598036) 全部成功，含后端823、React194、Edge37、真实打包引擎/知识库HTTP闭环、Rust/Host及NSIS产物。其原始安装步骤超时保留历史，不记全run成功。
+
+启动探针BOM修复提交`e51d71a79ebe7bb844bb68dd0109c2f77edd4ff2`对该同一CI安装器执行[独立安装专测44712751549](https://github.com/KLucen/ResearchGraphStudio/actions/runs/44712751549)，最终 **success**。下载的verification artifact14618355643确认：安装16.99秒、ready1.91秒、完整24.63秒；stdin UTF8/preamble0/flushed=true，phase complete/passed、stderr0字节；lite0018、模型0、4原块清理、3模型段/章节进度保留、删除与源PDF保持均通过。CI安装器SHA `b3ab665a849aba12668b03378dc3dc154554a7818a2edbba71e159d8baa79794`与原成功构建一致，和本机交付包指纹分列。此专测明确复用原产物，未冒称又重编应用。
+
+最终应用开发、测试及脚本/文档修复已普通上传[PR #1](https://github.com/KLucen/ResearchGraphStudio/pull/1)，main未合并；逐次Commit前检查实际暂存路径、diff/Gitleaks，未上传私人库/PDF/raw/凭据/本地安装器。最终只补此交付记录、progress与日志。最新PR整合流程可能仍显示复跑中；它与已完成的同应用源码构建回归和最终同产物安装专测分别呈现，不将进行中误写通过。
+
+K1–K3本轮范围闭环完成；真实付费模型0、正式用户库实验0，科学质量与用户日常WebView反馈仍待独立验收，K4未启动。用户截图中的PyInstaller JSON错误来自本轮隔离启动复现实验；相关测试进程均已退出，原生Rust Host的无BOM启动管道保持。

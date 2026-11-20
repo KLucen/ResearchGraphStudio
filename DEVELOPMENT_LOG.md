@@ -2429,3 +2429,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 BOM确定性复现 — 2026-11-20 17:40（Asia/Shanghai）**：用户报告测试弹窗后核对本次隔离进程；Console.InputEncoding=UTF8带preamble3字节可在本机准确复现CI启动JSON错误，旧中转/WriteLine都不能消掉.NET writer已发前缀。只在Process.Start期间设置UTF8(false)并finally恢复后，同一CI sidecar全部原断言通过，phase记录preamble0。移除中转，直接引擎启动；本轮复现引擎进程已退出，无正式库操作。此结论替代之前未经证实的句柄/混写猜测；将再次原CI artifact专测验证，runtime不改。
+
+
+**DEV-0124 最终闭环 — 2026-11-20 17:43（Asia/Shanghai）**：K1–K3应用源码完整远端构建/回归在run44704598036 Windows job成功：823后端/194React/37Edge/打包引擎与新知识库HTTP/Rust/Host/NSIS。同一CI安装器经e51d71a无BOM探针在专测44712751549最终success；artifact14618355643记录preamble0、安装16.99秒、ready1.91秒、完整24.63秒，lite0018/model0/stderr0及原全部断言通过。原失败/超时保留，不冒称该旧全run成功。PR #1已上传、main未合并；当前仅补最终验证/progress/日志并普通上传，runtime不改，本机160752786bytes包SHA b5c20fa8保持，CI包SHA b3ab665a另列。用户截图对应本轮隔离BOM复现，测试进程已全退出。K1–K3闭环及回归完成，真实模型/正式库实验0、K4未启；最新PR整合复跑状态和已完成的两份远端证据分开说明。

@@ -2,7 +2,9 @@
 
 更新：2026-11-20（Asia/Shanghai）。
 
-## 2026-11-20 · 研究内容知识库K1–K3实施与验证（已上传，远端CI跟进）
+## 2026-11-20 · 研究内容知识库K1–K3完成并上传
+
+最终交付：已上传[PR #1](https://github.com/KLucen/ResearchGraphStudio/pull/1)，未合并main；[同应用源码Windows构建与回归](https://github.com/KLucen/ResearchGraphStudio/actions/runs/44704598036)全部成功（后端823/React194/Edge37/打包HTTP/Rust/Host/NSIS）。最初安装探针超时经BOM确定性复现后修复，[同原CI产物最终安装专测](https://github.com/KLucen/ResearchGraphStudio/actions/runs/44712751549) **success**：UTF8 preamble0、安装16.99秒/就绪1.91秒/完整24.63秒、lite0018/模型0/stderr0。最新PR整合复跑与此两份已完成证据分开，见完整验证末尾。应用运行源和本机交付包指纹保持；用户截图对应隔离复现探针，相关测试进程已退出。
 
 用户明确授权按方案完成前三阶段、闭环与回归并上传GitHub，覆盖上一条仅方案状态。已新增研究项目与任务记录之间的独立知识库，三视图为知识地图/论文知识/联系汇报；旧概览可零模型收藏，新paper-knowledge-1从本地或模型解析材料生成卡片与五类有引文知识，程序题名根与版本身份、逐项exact quote/occurrence终验。新lite0016–lite0018加性持久库/建模/关联及原子解析事件；可靠来源身份、多项目链接、专题/备注/归档/独立布局/导出与永久删除前备份、脱离应用论文保留快照已接。新模型用途knowledge_extract/knowledge_connect；默认自动策略关闭，明确范围/预算授权后，仅后续成功解析/新知识事件可自动建模及联系，旧无授权成果不回溯收费。累计预算同时包含建模/关联发送及预留/删除消费墓碑。
 
