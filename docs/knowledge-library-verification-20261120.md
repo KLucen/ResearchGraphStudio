@@ -71,3 +71,10 @@ Rust `cargo fmt --check`、`cargo clippy --locked --all-targets -- -D warnings`�
 
 
 相同时间戳只读复核另把81项K1/K2/K3/API/用量测试的时钟全部固定，全部通过。SQLite反向未排序读取检查发现两处来源修改夹具仅parse_id scalar，可能误选被排除的References，已实际复现3个参数失败；改为明确chapter_ref=c0正文，并在测试修改事务启用reverse_unordered_selects。此为同类夹具加固，生产来源门槛和运行源不变，专项结果另记。
+
+
+## 远端浏览器测量竞态修复
+
+run44700256767（head956286e）远端完整检查通过：后端823passed（438.20秒，新增同时间戳3项；Runner可创建符号链接故无本机跳过）、React194passed、契约/类型/格式/生产构建均成功。真实Edge36passed/1failed，新知识库3项均通过；旧paper-reading窄屏用例分别读取译文和批注boundingBox时布局/目录滚动变化，取到不同时刻视口坐标。后续引擎打包/Rust/安装因该失败未执行。
+
+仅修该E2E测试：等待fonts.ready，逐行在一次evaluate原子读取所有矩形，并重试实际anchored/stacked模式及原严格几何条件；顶部差<2px/严格右侧/严格译文下方/窄屏宽度>300px均保留，无固定sleep、无生产源码修改。实际Edge目标普通repeat10为10/10（18.3秒），CDP四倍CPU repeat10为10/10（29.9秒），整文件3/3（4.2秒），Prettier/diff检查通过。安装包指纹不变，后续最终CI继续验证。

@@ -1,4 +1,26 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
+
+async function paragraphLayout(row: Locator) {
+  // ResizeObserver/rAF changes the paragraph layout after viewport updates,
+  // and the reading outline may restore its scroll anchor in the meantime.
+  // Read every box in one browser task so a scroll cannot split the sample.
+  return row.evaluate((element) => {
+    const source = element.querySelector(".paper-paragraph-source");
+    const translation = element.querySelector(".paper-paragraph-translation");
+    const note = element.querySelector(".paper-paragraph-note");
+    if (!source || !translation || !note) return null;
+    const sourceBox = source.getBoundingClientRect();
+    const translationBox = translation.getBoundingClientRect();
+    const noteBox = note.getBoundingClientRect();
+    return {
+      mode: (element as HTMLElement).dataset.noteLayout,
+      topDifference: Math.abs(sourceBox.top - noteBox.top),
+      rightGap: noteBox.left - sourceBox.right,
+      belowTranslationGap: noteBox.top - translationBox.bottom,
+      noteWidth: noteBox.width,
+    };
+  });
+}
 
 test("local chapter progress is available after its complete text and folded materials", async ({
   page,
@@ -48,8 +70,14 @@ test("local chapter progress is available after its complete text and folded mat
 test("full-paper reading renders headings and body paragraphs while preserving folded material source information", async ({
   page,
 }, testInfo) => {
+  const cpuRate = Number(process.env.RGS_E2E_CPU_RATE ?? 1);
+  if (cpuRate > 1) {
+    const session = await page.context().newCDPSession(page);
+    await session.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
+  }
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto("/e2e/paper-reading.html");
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await expect(page.getByText("缓存命中 · 新增调用 0")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "2. Synthetic Methods" }),
@@ -77,11 +105,13 @@ test("full-paper reading renders headings and body paragraphs while preserving f
     page.locator(".paper-close-reading img,.paper-close-reading script"),
   ).toHaveCount(0);
   for (const row of await page.locator(".paper-reading-paragraph").all()) {
-    const source = await row.locator(".paper-paragraph-source").boundingBox();
-    const note = await row.locator(".paper-paragraph-note").boundingBox();
-    expect(source && note).toBeTruthy();
-    expect(Math.abs(source!.y - note!.y)).toBeLessThan(2);
-    expect(note!.x).toBeGreaterThan(source!.x + source!.width);
+    await expect(async () => {
+      const geometry = await paragraphLayout(row);
+      expect(geometry).not.toBeNull();
+      expect(geometry!.mode).toBe("anchored");
+      expect(geometry!.topDifference).toBeLessThan(2);
+      expect(geometry!.rightGap).toBeGreaterThan(0);
+    }).toPass({ timeout: 5000 });
   }
   expect(await page.evaluate(() => window.__paperReadingCalls)).toEqual([]);
   await page.screenshot({
@@ -111,12 +141,13 @@ test("full-paper reading renders headings and body paragraphs while preserving f
   });
   await page.setViewportSize({ width: 390, height: 900 });
   for (const row of await page.locator(".paper-reading-paragraph").all()) {
-    const translation = await row
-      .locator(".paper-paragraph-translation")
-      .boundingBox();
-    const note = await row.locator(".paper-paragraph-note").boundingBox();
-    expect(note!.y).toBeGreaterThan(translation!.y + translation!.height);
-    expect(note!.width).toBeGreaterThan(300);
+    await expect(async () => {
+      const geometry = await paragraphLayout(row);
+      expect(geometry).not.toBeNull();
+      expect(geometry!.mode).toBe("stacked");
+      expect(geometry!.belowTranslationGap).toBeGreaterThan(0);
+      expect(geometry!.noteWidth).toBeGreaterThan(300);
+    }).toPass({ timeout: 5000 });
   }
   expect(
     await page.evaluate(

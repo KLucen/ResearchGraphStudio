@@ -2411,3 +2411,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 来源修改夹具稳定性 — 2026-11-20 16:08（Asia/Shanghai）**：新增知识库81项固定同一时刻全部通过；反向未排序SQL发现K2/K3两处修改来源夹具可能选References（3项已实际复现失败），补明确c0正文并在修改事务使用reverse_unordered_selects，继续保持生产验源不变。本轮将与时钟夹具修复共同进入最终CI，不以随机选中材料代表来源保护测试通过。
+
+
+**DEV-0124 浏览器测量竞态 — 2026-11-20 16:27（Asia/Shanghai）**：run44700256767后端823/React194及合同/格式/类型/build通过；Edge36/1（新库3全过），旧paper-reading窄屏拆次boundingBox跨越异步布局/scroll，后续package/安装跳过。仅test改字体ready+原子几何+重试实际layout模式/原阈值，无runtime变化。实际Edge普通目标10/10（18.3秒）、4倍CPU10/10（29.9秒）、文件3/3（4.2秒），格式/diff通过，将上传测试/文档修复继续CI。本机安装器/181项运行源保持。
