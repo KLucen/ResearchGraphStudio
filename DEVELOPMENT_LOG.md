@@ -2414,3 +2414,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 浏览器测量竞态 — 2026-11-20 16:27（Asia/Shanghai）**：run44700256767后端823/React194及合同/格式/类型/build通过；Edge36/1（新库3全过），旧paper-reading窄屏拆次boundingBox跨越异步布局/scroll，后续package/安装跳过。仅test改字体ready+原子几何+重试实际layout模式/原阈值，无runtime变化。实际Edge普通目标10/10（18.3秒）、4倍CPU10/10（29.9秒）、文件3/3（4.2秒），格式/diff通过，将上传测试/文档修复继续CI。本机安装器/181项运行源保持。
+
+
+**DEV-0124 E2E类型补正 — 2026-11-20 16:40（Asia/Shanghai）**：run44702786033引擎823passed/401.02秒，锁/Ruff/mypy/契约通过；新E2E降速环境开关依赖process全局，前端tsc失败，后续未执行。前次仅跑Playwright/Prettier而漏完整tsc复查已纠正；移除可选降速开关，不增加Node依赖，原子几何与原严格断言保留。pnpm check和format已复查通过，再跑完整Edge；runtime及安装器无改动。

@@ -70,11 +70,6 @@ test("local chapter progress is available after its complete text and folded mat
 test("full-paper reading renders headings and body paragraphs while preserving folded material source information", async ({
   page,
 }, testInfo) => {
-  const cpuRate = Number(process.env.RGS_E2E_CPU_RATE ?? 1);
-  if (cpuRate > 1) {
-    const session = await page.context().newCDPSession(page);
-    await session.send("Emulation.setCPUThrottlingRate", { rate: cpuRate });
-  }
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto("/e2e/paper-reading.html");
   await page.evaluate(() => document.fonts.ready.then(() => undefined));

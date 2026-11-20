@@ -78,3 +78,6 @@ Rust `cargo fmt --check`、`cargo clippy --locked --all-targets -- -D warnings`�
 run44700256767（head956286e）远端完整检查通过：后端823passed（438.20秒，新增同时间戳3项；Runner可创建符号链接故无本机跳过）、React194passed、契约/类型/格式/生产构建均成功。真实Edge36passed/1failed，新知识库3项均通过；旧paper-reading窄屏用例分别读取译文和批注boundingBox时布局/目录滚动变化，取到不同时刻视口坐标。后续引擎打包/Rust/安装因该失败未执行。
 
 仅修该E2E测试：等待fonts.ready，逐行在一次evaluate原子读取所有矩形，并重试实际anchored/stacked模式及原严格几何条件；顶部差<2px/严格右侧/严格译文下方/窄屏宽度>300px均保留，无固定sleep、无生产源码修改。实际Edge目标普通repeat10为10/10（18.3秒），CDP四倍CPU repeat10为10/10（29.9秒），整文件3/3（4.2秒），Prettier/diff检查通过。安装包指纹不变，后续最终CI继续验证。
+
+
+run44702786033（head67a4abb）后端823passed（401.02秒）及锁/格式/mypy/契约通过；新E2E可选CPU环境开关引用process，项目不引入Node全局类型，前端tsc报TS2591，React/浏览器/打包未执行。移除只用于降速补验的开关，不添加新依赖，保留原子测量与严格布局断言；实际pnpm check/format复查通过，再完整跑浏览器。此前10次四倍CPU成绩来自明确临时降速测试，不作为应用运行依赖。此次缺完整tsc复查的遗漏和失败记录保留。
