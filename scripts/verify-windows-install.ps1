@@ -72,8 +72,12 @@ $info=New-Object Diagnostics.ProcessStartInfo; $info.FileName=$EnginePath; $info
 $p=[Diagnostics.Process]::Start($info)
 $stderrTask=$p.StandardError.ReadToEndAsync()
 $readyTask=$p.StandardOutput.ReadLineAsync()
-$cfg=([Text.Encoding]::UTF8.GetBytes((@{token=$token}|ConvertTo-Json -Compress)+"`n")); $p.StandardInput.BaseStream.Write($cfg,0,$cfg.Length); $p.StandardInput.BaseStream.Flush()
-Write-Phase 'sidecar_ready_wait' 'running' @{timeout_seconds=45;sidecar_process_id=$p.Id}
+$configuration=@{token=$token}|ConvertTo-Json -Compress
+# Keep one TextWriter for the private pipe. Mixing BaseStream writes with its
+# buffered wrapper behaved differently on the clean Windows PowerShell runner.
+$p.StandardInput.WriteLine($configuration)
+$p.StandardInput.Flush()
+Write-Phase 'sidecar_ready_wait' 'running' @{timeout_seconds=45;sidecar_process_id=$p.Id;configuration_characters=$configuration.Length;configuration_flushed=$true;stdin_encoding=$p.StandardInput.Encoding.WebName}
 if(-not $readyTask.Wait(45000)){throw 'Engine readiness exceeded 45 seconds.'}
 $line=$readyTask.GetAwaiter().GetResult()
 if($null -eq $line -or -not $line.StartsWith('RGS_READY ')){throw 'Engine readiness failed.'}

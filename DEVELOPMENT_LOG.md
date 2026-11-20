@@ -2420,3 +2420,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 安装超时可诊断性 — 2026-11-20 17:22（Asia/Shanghai）**：run44704598036 Windows全部成功：823后端/194React/37Edge、打包HTTP闭环、Rust/Host/NSIS和artifact；installed-app下载安装器后旧脚本等待10min被取消，整体cancelled，不能记远端安装通过。改验收脚本安装300s/ready45s有界、stderr异步排空、phase.json/逐阶段输出、失败finally清理，原断言保持；workflow增加显式复用指定成功artifact的单独安装验证输入，避免无关重编，普通PR依旧完整验证。PowerShell5.1语法通过，旧包负向验证能明确health失败；新本机包和CI原artifact正在分开复验，runtime不动。
+
+
+**DEV-0124 安装stdin定位 — 2026-11-20 17:28（Asia/Shanghai）**：独立复用产物run44710439335明确安装11.33秒成功，ready45s超时、EOF后stdin JSONDecodeError；不能据此确定乱码。原CI产物本机隔离15.11秒全部通过，包SHA b3ab665a与GitHub ZIP digest已核对。仅验收脚本改用单一StandardInput.WriteLine/Flush，避免TextWriter/BaseStream混写，安全记录编码/字符数/flush；实际CI sidecar本机新目录验收通过，runtime不变，将继续复用原artifact远端诊断。

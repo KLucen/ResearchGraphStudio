@@ -88,3 +88,6 @@ run44702786033（head67a4abb）后端823passed（401.02秒）及锁/格式/mypy/
 run44704598036（head8028b11）的Windows任务全部成功：后端823passed（434.19秒）、React194passed、Edge37passed（45.4秒）、锁/类型/格式/契约/生产构建、PyInstaller及两项HTTP烟测、Rust16项及显式Host握手1项、NSIS构建与安装器artifact上传。知识库烟测依旧真实模型0、夹具3请求192Token，GET/重启额外0。
 
 独立installed-app成功下载该CI安装器，但旧脚本无阶段日志且安装/ready均无限等待，10分钟被GitHub取消；完整run结论cancelled，不记远端安装通过。补安装最多300秒、ready45秒、stderr异步排空与finally保存、逐阶段phase.json/Write-Host及失败清理；原所有功能断言保持。workflow增加可选installer_run_id，只读下载已成功构建的原artifact独立复验，来源run与哈希记录分开，不假装重编成功；普通PR流程仍完整运行。
+
+
+复用CI产物安装专测44710439335有界失败，已确定安装11.33秒/exit0，超时发生在sidecar_ready_wait45秒；stderr为启动stdin JSONDecodeError。CI同一安装器（160667912bytes/SHA b3ab665a849aba12668b03378dc3dc154554a7818a2edbba71e159d8baa79794）本机隔离安装15.11秒全过，ready1.51秒、stderr0；ZIP官方artifact digest也匹配。JSON异常可能是超时finally关pipe才收到EOF，不能断言原始字节乱码。验收脚本改为同一StandardInput TextWriter WriteLine/Flush，不混BaseStream，记录安全字符数/编码/flush状态；CI实际sidecar本机新目录全部原断言通过，下一轮复用原artifact再验。引擎运行源不改。
