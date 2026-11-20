@@ -81,3 +81,10 @@ run44700256767（head956286e）远端完整检查通过：后端823passed（438.
 
 
 run44702786033（head67a4abb）后端823passed（401.02秒）及锁/格式/mypy/契约通过；新E2E可选CPU环境开关引用process，项目不引入Node全局类型，前端tsc报TS2591，React/浏览器/打包未执行。移除只用于降速补验的开关，不添加新依赖，保留原子测量与严格布局断言；实际pnpm check/format复查通过，再完整跑浏览器。此前10次四倍CPU成绩来自明确临时降速测试，不作为应用运行依赖。此次缺完整tsc复查的遗漏和失败记录保留。
+
+
+## 完整构建成功与安装验收超时诊断
+
+run44704598036（head8028b11）的Windows任务全部成功：后端823passed（434.19秒）、React194passed、Edge37passed（45.4秒）、锁/类型/格式/契约/生产构建、PyInstaller及两项HTTP烟测、Rust16项及显式Host握手1项、NSIS构建与安装器artifact上传。知识库烟测依旧真实模型0、夹具3请求192Token，GET/重启额外0。
+
+独立installed-app成功下载该CI安装器，但旧脚本无阶段日志且安装/ready均无限等待，10分钟被GitHub取消；完整run结论cancelled，不记远端安装通过。补安装最多300秒、ready45秒、stderr异步排空与finally保存、逐阶段phase.json/Write-Host及失败清理；原所有功能断言保持。workflow增加可选installer_run_id，只读下载已成功构建的原artifact独立复验，来源run与哈希记录分开，不假装重编成功；普通PR流程仍完整运行。

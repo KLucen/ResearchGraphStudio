@@ -2417,3 +2417,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 E2E类型补正 — 2026-11-20 16:40（Asia/Shanghai）**：run44702786033引擎823passed/401.02秒，锁/Ruff/mypy/契约通过；新E2E降速环境开关依赖process全局，前端tsc失败，后续未执行。前次仅跑Playwright/Prettier而漏完整tsc复查已纠正；移除可选降速开关，不增加Node依赖，原子几何与原严格断言保留。pnpm check和format已复查通过，再跑完整Edge；runtime及安装器无改动。
+
+
+**DEV-0124 安装超时可诊断性 — 2026-11-20 17:22（Asia/Shanghai）**：run44704598036 Windows全部成功：823后端/194React/37Edge、打包HTTP闭环、Rust/Host/NSIS和artifact；installed-app下载安装器后旧脚本等待10min被取消，整体cancelled，不能记远端安装通过。改验收脚本安装300s/ready45s有界、stderr异步排空、phase.json/逐阶段输出、失败finally清理，原断言保持；workflow增加显式复用指定成功artifact的单独安装验证输入，避免无关重编，普通PR依旧完整验证。PowerShell5.1语法通过，旧包负向验证能明确health失败；新本机包和CI原artifact正在分开复验，runtime不动。
