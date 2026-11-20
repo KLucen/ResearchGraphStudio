@@ -2396,3 +2396,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 安装交付补充 — 2026-11-20 15:32（Asia/Shanghai）**：新未签名安装器`.local/releases/knowledge-library-20261120/ResearchGraph-Studio-Knowledge-Library-0.0.1-x64-setup.exe`，160752786bytes，SHA256 `b5c20fa89d4d9e075d08424cec8cd5e471737416ac2bf082fd85a19f4054f7ce`。PowerShell5.1隔离安装/本地PDF/模型材料/阅读状态/清理重建和删除/原文件保留通过，lite0018、模型0。安装版真实HTTP K1–K3闭环通过2建模+1关联/双侧引用/汇报与元数据重启保持/GET和重启0重发，均loopback合成；安装版全部Host17passed/0ignored（3.93秒）。181项源/配置稳定，sidecar405af6f0与334内部资源匹配，证据`.local/verify/knowledge-library-20261120/`。未覆盖日常安装或修改正式用户库；即将按本轮明确授权提交/上传分支，远端状态另记。
+
+
+**DEV-0124 Git上传补充 — 2026-11-20 15:34（Asia/Shanghai）**：实际暂存198个源码/测试/文档文件经私人路径与Gitleaks、diff检查通过后，提交`9a618946af6ee4c0718bf843556c52e999a9cd1d`并通过官方SSH443普通推送`codex/research-knowledge-library-k1-k3`。创建并附加PR https://github.com/KLucen/ResearchGraphStudio/pull/1 ，未合并main。Windows build and acceptance已启动，包含新packaged知识库HTTP烟测；此日志时仍运行，不把启动写成通过。此后提交仅补本轮验证/进度/日志，runtime181项与安装包保持，远端最终结果看PR检查和本轮最终交付消息。真实收费模型和正式库实验继续0。

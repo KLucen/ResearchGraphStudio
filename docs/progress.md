@@ -2,13 +2,13 @@
 
 更新：2026-11-20（Asia/Shanghai）。
 
-## 2026-11-20 · 研究内容知识库K1–K3实施与验证（交付收尾中）
+## 2026-11-20 · 研究内容知识库K1–K3实施与验证（已上传，远端CI跟进）
 
 用户明确授权按方案完成前三阶段、闭环与回归并上传GitHub，覆盖上一条仅方案状态。已新增研究项目与任务记录之间的独立知识库，三视图为知识地图/论文知识/联系汇报；旧概览可零模型收藏，新paper-knowledge-1从本地或模型解析材料生成卡片与五类有引文知识，程序题名根与版本身份、逐项exact quote/occurrence终验。新lite0016–lite0018加性持久库/建模/关联及原子解析事件；可靠来源身份、多项目链接、专题/备注/归档/独立布局/导出与永久删除前备份、脱离应用论文保留快照已接。新模型用途knowledge_extract/knowledge_connect；默认自动策略关闭，明确范围/预算授权后，仅后续成功解析/新知识事件可自动建模及联系，旧无授权成果不回溯收费。累计预算同时包含建模/关联发送及预留/删除消费墓碑。
 
 K3按保存知识双语词面召回冻结候选，从双侧科学节点/引文发布联系和带关系引用的结构化汇报；无候选零请求，部分批次保留partial与检查点，重启不重复已发槽。报告保存已读/置顶/个人备注、比较范围与旧版本标记；地图与报告双向定位及原文摘录/真实论文返回，浏览零模型。版本对可跨配置复用，只有显式重新分析才绕过复用且受预算限制。当前K2完整材料容量不足整体拒绝，未自动拆长文；来源合法不等于科学正确。
 
-本分项实际：K1/K2/K3/usage后端专项**79 passed**（20.15秒），K1+app+自动授权事件专项**21 passed**；source匿名HTTP闭环2自动K2+1自动K3、首篇no_candidates/双侧引文/GET和重启0重发，usage为合成192 Token。知识库React/API **15 passed**、实际Edge新库 **3 passed**，最终前端TypeScript/ESLint通过；较早兼容子集64通过单列、不作最终全量。最终完整检查已通过：引擎819 passed/1权限跳过、React194/19文件、Edge37；mypy109、Ruff/格式/契约/依赖/前端生产构建及Rust fmt/clippy通过，Host16项和最终打包引擎连接/重启1项通过。暂存198文件私人路径/Gitleaks通过；新安装包160752786 bytes/SHA `b5c20fa89d4d9e075d08424cec8cd5e471737416ac2bf082fd85a19f4054f7ce`已完成PowerShell5.1隔离安装及安装版知识库闭环，Host17/0ignored通过，334资源逐项匹配；Git提交/PR/CI交付收尾中，见[本轮验证](knowledge-library-verification-20261120.md)、[ADR0060](adr/0060-durable-research-knowledge-library.md)和[实施方案](research-knowledge-base-plan-20261120.md)。真实模型0、正式用户库实验0，用户原生与科学验收另计；K4未启动。
+本分项实际：K1/K2/K3/usage后端专项**79 passed**（20.15秒），K1+app+自动授权事件专项**21 passed**；source匿名HTTP闭环2自动K2+1自动K3、首篇no_candidates/双侧引文/GET和重启0重发，usage为合成192 Token。知识库React/API **15 passed**、实际Edge新库 **3 passed**，最终前端TypeScript/ESLint通过；较早兼容子集64通过单列、不作最终全量。最终完整检查已通过：引擎819 passed/1权限跳过、React194/19文件、Edge37；mypy109、Ruff/格式/契约/依赖/前端生产构建及Rust fmt/clippy通过，Host16项和最终打包引擎连接/重启1项通过。暂存198文件私人路径/Gitleaks通过；新安装包160752786 bytes/SHA `b5c20fa89d4d9e075d08424cec8cd5e471737416ac2bf082fd85a19f4054f7ce`已完成PowerShell5.1隔离安装及安装版知识库闭环，Host17/0ignored通过，334资源逐项匹配；源码9a61894已上传codex/research-knowledge-library-k1-k3并建立PR #1，远端CI已启动，最终状态查看PR检查，见[本轮验证](knowledge-library-verification-20261120.md)、[ADR0060](adr/0060-durable-research-knowledge-library.md)和[实施方案](research-knowledge-base-plan-20261120.md)。真实模型0、正式用户库实验0，用户原生与科学验收另计；K4未启动。
 
 ## 2026-11-20 · 研究内容知识库方案（未实施）
 

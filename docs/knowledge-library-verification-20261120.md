@@ -47,7 +47,9 @@ Rust `cargo fmt --check`、`cargo clippy --locked --all-targets -- -D warnings`�
 新未签名安装器：[ResearchGraph-Studio-Knowledge-Library-0.0.1-x64-setup.exe](../.local/releases/knowledge-library-20261120/ResearchGraph-Studio-Knowledge-Library-0.0.1-x64-setup.exe)，**160,752,786 bytes**，SHA-256 `b5c20fa89d4d9e075d08424cec8cd5e471737416ac2bf082fd85a19f4054f7ce`。2026-11-20 15:30:54完成封装。Windows PowerShell5.1隔离安装通过：lite0018、本地匿名PDF/三段模型材料、阅读状态/题名修改、清理重建/删除及原PDF保持，模型0。安装目录sidecar再跑知识库HTTP闭环：两自动K2+一自动K3、双侧引文/报告元数据/重启保持，GET和重启0重发；3请求均loopback合成，不是收费模型。
 
 使用实际安装sidecar执行完整Host `cargo test --locked -- --include-ignored`：**17 passed /0 ignored，3.93秒**。181项源/测试/构建配置保持，sidecar SHA-256 `405af6f088b0e88c479642662c7007fd6d4a0e760b7f75cd68c9e79173dfa94c`，334内部资源与打包源逐项哈希匹配。本机证据目录`.local/verify/knowledge-library-20261120/`，保留source-manifest、fingerprints及源码/安装HTTP结果，不上传该目录。
-- Git分支、提交、PR/远端CI：本轮用户已授权上传，待填实际结果；本分项记录时未由本子任务提交或推送。
+本轮已按用户明确授权普通推送分支`codex/research-knowledge-library-k1-k3`，源码提交`9a618946af6ee4c0718bf843556c52e999a9cd1d`；已建立[PR #1](https://github.com/KLucen/ResearchGraphStudio/pull/1)，未合并main。GitHub官方SSH443读取/上传预检和实际push通过，保留origin官方HTTPS配置，没有force或全局网络改动。GitHub API操作仅在内存使用现有Git凭据，不把凭据写入源码/日志。
+
+提交前实际暂存198文件私人路径规则/Gitleaks与diff-check通过，完整工作区源码扫描也通过。收尾只补本验证、progress和开发日志，运行源及本机安装包指纹保持。PR已启动Windows build and acceptance，包含完整check-phase0、真实Edge、打包引擎两种HTTP烟测、Rust/Host、NSIS及安装版PowerShell验收；此记录提交时远端仍在运行，实时结果查看[PR检查](https://github.com/KLucen/ResearchGraphStudio/pull/1/checks)，最终结论由本轮交付消息记录，不把启动当作通过。
 
 ## 尚未验证
 
