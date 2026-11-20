@@ -197,6 +197,7 @@ def test_formula_recognition_persists_in_versioned_structure_and_is_reused(tmp_p
         assert saved["status"] == "recognized"
         assert saved["recognition_source_sha256"] == digest
         assert saved["recognition_source_text_hash"] == candidate.source_text_hash
+
     class FakeRecognizer:
         name = "synthetic-formula-ocr"
         config_hash = "config-hash"

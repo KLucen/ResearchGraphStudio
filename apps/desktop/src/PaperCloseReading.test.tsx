@@ -8,6 +8,7 @@ import {
   paperReadingDocument,
   paperReadingComplete,
 } from "./paperReadingFixtures";
+import { readingState } from "./closeReadingFixtures";
 
 vi.mock("./api", () => ({
   api: {
@@ -18,6 +19,8 @@ vi.mock("./api", () => ({
     jobAction: vi.fn(),
     formulaPreview: vi.fn(),
     recognizeFormulas: vi.fn(),
+    readingState: vi.fn(),
+    saveReadingProgress: vi.fn(),
   },
 }));
 function mount(
@@ -34,6 +37,15 @@ function mount(
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(api.readingState).mockResolvedValue(structuredClone(readingState));
+  vi.mocked(api.saveReadingProgress).mockImplementation(
+    async (_paperId, sectionId, body) => ({
+      ...readingState,
+      ...body,
+      section_id: sectionId,
+      updated_at: "2026-11-18T06:00:00Z",
+    }),
+  );
   vi.mocked(api.readingDocument).mockResolvedValue(
     structuredClone(paperReadingDocument),
   );
@@ -62,6 +74,310 @@ beforeEach(() => {
     reading_document_refresh_required: false,
     model_calls: 0,
   });
+});
+
+test("chapter progress saves with a narrow edit that does not submit questions or self assessment", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.readingState).mockResolvedValue({
+    ...readingState,
+    progress: "READING",
+    self_assessment: "PARTIAL",
+    questions: [{ text: "Which condition applies?", resolved: false }],
+    unresolved_concept_ids: ["n1"],
+  });
+  mount();
+  const controls = await screen.findByRole("group", {
+    name: "2. Synthetic Methods 阅读状态",
+  });
+  await waitFor(() =>
+    expect(
+      within(controls).getByRole("button", { name: "阅读中" }),
+    ).toHaveAttribute("aria-pressed", "true"),
+  );
+  const footer = controls.closest("footer")!;
+  const chapter = footer.closest(".paper-reading-chapter")!;
+  expect(chapter.lastElementChild).toBe(footer);
+  expect(chapter.querySelector("header [role=group]")).toBeNull();
+  expect(chapter.querySelector(".paper-reading-materials")).not.toBeNull();
+  expect(footer.previousElementSibling).toHaveClass("paper-reading-materials");
+  await user.click(within(controls).getByRole("button", { name: "已读完" }));
+  await waitFor(() =>
+    expect(api.saveReadingProgress).toHaveBeenCalledWith("paper", "s", {
+      document_version_id: "v",
+      progress: "COMPLETED",
+    }),
+  );
+  expect(await screen.findByText("已读完 1 / 1 个大章节")).toBeVisible();
+  expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
+});
+
+test("local chapter footers include child-section materials appended after the complete body projection", async () => {
+  const user = userEvent.setup();
+  const document = structuredClone(paperReadingDocument);
+  const heading = document.units.find((unit) => unit.kind === "heading")!;
+  const paragraph = document.units.find((unit) => unit.kind === "paragraph")!;
+  const material = document.units.find((unit) => unit.kind === "material")!;
+  document.sections = [
+    {
+      section_id: "intro",
+      title: "1 Introduction",
+      level: 1,
+      role: "body",
+      parent_id: null,
+    },
+    {
+      section_id: "context",
+      title: "1.1 Context",
+      level: 2,
+      role: "body",
+      parent_id: "intro",
+    },
+    {
+      section_id: "context-figure",
+      title: "Context figure",
+      level: 3,
+      role: "body",
+      parent_id: "context",
+    },
+    {
+      section_id: "methods",
+      title: "2 Methods",
+      level: 1,
+      role: "body",
+      parent_id: null,
+    },
+  ];
+  document.units = [
+    {
+      ...heading,
+      id: "intro-heading",
+      text: "1 Introduction",
+      section_id: "intro",
+      ordinal: 0,
+      heading_level: 1,
+    },
+    {
+      ...paragraph,
+      id: "intro-body",
+      text: "Introduction source.",
+      section_id: "intro",
+      ordinal: 1,
+    },
+    {
+      ...heading,
+      id: "context-heading",
+      text: "1.1 Context",
+      section_id: "context",
+      ordinal: 2,
+      heading_level: 2,
+    },
+    {
+      ...paragraph,
+      id: "context-body",
+      text: "Final source within the child chapter.",
+      section_id: "context",
+      ordinal: 3,
+    },
+    {
+      ...heading,
+      id: "methods-heading",
+      text: "2 Methods",
+      section_id: "methods",
+      ordinal: 5,
+      heading_level: 1,
+    },
+    {
+      ...paragraph,
+      id: "methods-body",
+      text: "Second chapter source.",
+      section_id: "methods",
+      ordinal: 6,
+    },
+    {
+      ...material,
+      id: "context-material",
+      material_type: "figure",
+      text: "Child chapter figure labels",
+      sources: [],
+      section_id: "context-figure",
+      ordinal: 7,
+    },
+  ];
+  vi.mocked(api.readingDocument).mockResolvedValue(document);
+  mount();
+  const firstControls = await screen.findByRole("group", {
+    name: "1 Introduction 阅读状态",
+  });
+  const firstChapter = firstControls.closest(
+    ".paper-reading-chapter",
+  )! as HTMLElement;
+  const secondControls = screen.getByRole("group", {
+    name: "2 Methods 阅读状态",
+  });
+  expect(
+    screen.queryByRole("group", { name: "1.1 Context 阅读状态" }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(firstChapter).getByText("Final source within the child chapter."),
+  ).toBeVisible();
+  expect(
+    firstChapter.querySelectorAll(".paper-reading-paragraph"),
+  ).toHaveLength(2);
+  expect(
+    firstChapter.querySelector(".paper-reading-materials"),
+  ).toHaveTextContent("Child chapter figure labels");
+  expect(firstChapter.lastElementChild).toBe(firstControls.closest("footer"));
+  expect(firstControls.closest("footer")?.previousElementSibling).toHaveClass(
+    "paper-reading-materials",
+  );
+  expect(firstChapter.nextElementSibling).toBe(
+    secondControls.closest(".paper-reading-chapter"),
+  );
+  await waitFor(() =>
+    expect(
+      within(firstControls).getByRole("button", { name: "已读完" }),
+    ).toBeEnabled(),
+  );
+  await user.click(
+    within(firstControls).getByRole("button", { name: "已读完" }),
+  );
+  await waitFor(() =>
+    expect(api.saveReadingProgress).toHaveBeenCalledWith("paper", "intro", {
+      document_version_id: "v",
+      progress: "COMPLETED",
+    }),
+  );
+  expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
+});
+
+test("historical reused sections assign tail materials only with unique sources or page coverage and preserve ambiguous items separately", async () => {
+  const document = structuredClone(paperReadingDocument);
+  const heading = document.units.find((unit) => unit.kind === "heading")!;
+  const paragraph = document.units.find((unit) => unit.kind === "paragraph")!;
+  const material = document.units.find((unit) => unit.kind === "material")!;
+  document.sections = [
+    {
+      section_id: "s",
+      title: "Old shared section",
+      level: 1,
+      role: "body",
+      parent_id: null,
+    },
+  ];
+  const introSource = {
+    ...paragraph.sources[0],
+    chunk_id: "intro-chunk",
+    span_ids: ["intro-span"],
+    page: 1,
+  };
+  const methodSource = {
+    ...paragraph.sources[0],
+    chunk_id: "method-chunk",
+    span_ids: ["method-span"],
+    page: 3,
+  };
+  document.units = [
+    {
+      ...heading,
+      id: "intro-h",
+      text: "1 Introduction",
+      heading_level: 1,
+      page_start: 1,
+      page_end: 1,
+      ordinal: 0,
+    },
+    {
+      ...paragraph,
+      id: "intro-p",
+      text: "First recovered chapter.",
+      sources: [introSource],
+      page_start: 1,
+      page_end: 1,
+      ordinal: 1,
+    },
+    {
+      ...heading,
+      id: "method-h",
+      text: "2 Methods",
+      heading_level: 1,
+      page_start: 3,
+      page_end: 3,
+      ordinal: 2,
+    },
+    {
+      ...paragraph,
+      id: "method-p",
+      text: "Second recovered chapter.",
+      sources: [methodSource],
+      page_start: 3,
+      page_end: 3,
+      ordinal: 3,
+    },
+    {
+      ...material,
+      id: "intro-material",
+      text: "Earlier page figure",
+      sources: [],
+      page_start: 1,
+      page_end: 1,
+      ordinal: 4,
+    },
+    {
+      ...material,
+      id: "method-material",
+      text: "Explicit method source",
+      sources: [methodSource],
+      page_start: 3,
+      page_end: 3,
+      ordinal: 5,
+    },
+    {
+      ...material,
+      id: "ambiguous-material",
+      text: "Unassigned gap-page figure",
+      sources: [],
+      page_start: 2,
+      page_end: 2,
+      ordinal: 6,
+    },
+    {
+      ...material,
+      id: "unknown-section-material",
+      text: "Unknown section figure",
+      section_id: "missing-section",
+      sources: [],
+      page_start: 1,
+      page_end: 1,
+      ordinal: 7,
+    },
+  ];
+  vi.mocked(api.readingDocument).mockResolvedValue(document);
+  const { container } = mount();
+  const introControls = await screen.findByRole("group", {
+    name: "1 Introduction 阅读状态",
+  });
+  const methodsControls = screen.getByRole("group", {
+    name: "2 Methods 阅读状态",
+  });
+  const intro = introControls.closest(".paper-reading-chapter")!;
+  const methods = methodsControls.closest(".paper-reading-chapter")!;
+  expect(intro.querySelector(".paper-reading-materials")).toHaveTextContent(
+    "Earlier page figure",
+  );
+  expect(methods.querySelector(".paper-reading-materials")).toHaveTextContent(
+    "Explicit method source",
+  );
+  expect(methods).not.toHaveTextContent("Earlier page figure");
+  expect(intro.lastElementChild).toBe(introControls.closest("footer"));
+  expect(methods.lastElementChild).toBe(methodsControls.closest("footer"));
+  const unassigned = container.querySelector(
+    '[data-unassigned-materials="true"]',
+  )!;
+  expect(unassigned).toHaveTextContent("未确定章节的图表与其他材料（2）");
+  expect(unassigned).toHaveTextContent("Unassigned gap-page figure");
+  expect(unassigned).toHaveTextContent("Unknown section figure");
+  expect(unassigned.closest(".paper-reading-chapter")).toBeNull();
+  expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
 });
 
 test("busy local reads recover through read-only retry without refreshing the PDF or generating notes", async () => {

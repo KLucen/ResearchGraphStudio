@@ -1,6 +1,138 @@
 # ResearchGraph Lite 进度
 
-更新：2026-11-18（Asia/Shanghai）。
+更新：2026-11-20（Asia/Shanghai）。
+
+## 2026-11-20 · 研究内容知识库K1–K3实施与验证（交付收尾中）
+
+用户明确授权按方案完成前三阶段、闭环与回归并上传GitHub，覆盖上一条仅方案状态。已新增研究项目与任务记录之间的独立知识库，三视图为知识地图/论文知识/联系汇报；旧概览可零模型收藏，新paper-knowledge-1从本地或模型解析材料生成卡片与五类有引文知识，程序题名根与版本身份、逐项exact quote/occurrence终验。新lite0016–lite0018加性持久库/建模/关联及原子解析事件；可靠来源身份、多项目链接、专题/备注/归档/独立布局/导出与永久删除前备份、脱离应用论文保留快照已接。新模型用途knowledge_extract/knowledge_connect；默认自动策略关闭，明确范围/预算授权后，仅后续成功解析/新知识事件可自动建模及联系，旧无授权成果不回溯收费。累计预算同时包含建模/关联发送及预留/删除消费墓碑。
+
+K3按保存知识双语词面召回冻结候选，从双侧科学节点/引文发布联系和带关系引用的结构化汇报；无候选零请求，部分批次保留partial与检查点，重启不重复已发槽。报告保存已读/置顶/个人备注、比较范围与旧版本标记；地图与报告双向定位及原文摘录/真实论文返回，浏览零模型。版本对可跨配置复用，只有显式重新分析才绕过复用且受预算限制。当前K2完整材料容量不足整体拒绝，未自动拆长文；来源合法不等于科学正确。
+
+本分项实际：K1/K2/K3/usage后端专项**79 passed**（20.15秒），K1+app+自动授权事件专项**21 passed**；source匿名HTTP闭环2自动K2+1自动K3、首篇no_candidates/双侧引文/GET和重启0重发，usage为合成192 Token。知识库React/API **15 passed**、实际Edge新库 **3 passed**，最终前端TypeScript/ESLint通过；较早兼容子集64通过单列、不作最终全量。最终完整检查已通过：引擎819 passed/1权限跳过、React194/19文件、Edge37；mypy109、Ruff/格式/契约/依赖/前端生产构建及Rust fmt/clippy通过，Host16项和最终打包引擎连接/重启1项通过。暂存198文件私人路径/Gitleaks通过；新安装包160752786 bytes/SHA `b5c20fa89d4d9e075d08424cec8cd5e471737416ac2bf082fd85a19f4054f7ce`已完成PowerShell5.1隔离安装及安装版知识库闭环，Host17/0ignored通过，334资源逐项匹配；Git提交/PR/CI交付收尾中，见[本轮验证](knowledge-library-verification-20261120.md)、[ADR0060](adr/0060-durable-research-knowledge-library.md)和[实施方案](research-knowledge-base-plan-20261120.md)。真实模型0、正式用户库实验0，用户原生与科学验收另计；K4未启动。
+
+## 2026-11-20 · 研究内容知识库方案（未实施）
+
+按用户提出的长期维护方向完成当前源码只读评估及[实施讨论稿](research-knowledge-base-plan-20261120.md)：建议在研究项目和任务记录之间增加独立工作空间，以论文题名根组织问题/概念/方法/贡献/结果，新知识版本完成后在已设置范围/预算内增量发现跨论文联系并保存汇报。现有五类LightGraph、画布、任务/用量可复用；当前图无逐节点原文引用、节点ID按名称生成、论文删除会删概览，需先补独立快照/真实来源/版本与删除生命周期。推荐K1收藏与库基础、K2带来源知识、K3联系/报告形成首版闭环，再做K4规模及概念聚合。该稿为建议，不表示已增加入口/表/迁移/自动收费任务；当前head仍lite0015。无运行代码改动、正式库访问、真实模型请求或Commit/Push。
+
+## 2026-11-20 · 根据反馈改为右侧直接分析与章末状态
+
+用户指出重复原文卡无必要、分析被推到下方、章首阅读状态不便读完操作。本轮移除英文摘录卡，右侧直接显示一份实际整段分析，仅保留紧凑类型/编号定位；正文起点对齐、实际宽度至少560px保留双栏，更窄才按段堆叠。两种解析稿的阅读状态统一移到大章全部小节与可归属材料之后，原ID和目录续读/保存路径保持。正文尾追加图/公式按真实章节分组；旧共享section无法唯一消歧的材料独立可见，不误归最后章。已有合法笔记无需重生成，无迁移或模型请求。
+
+最终TypeScript/ESLint、Prettier通过，React **179 passed/17文件（17.67秒）**，Edge **34 passed（28.7秒）**，Gitleaks与私人路径 **434文件通过**。末次全量在尾追加材料归属加固后执行；初次夹具断言和review发现保留记录，不沿用旧后端/Host成绩。实施见[ADR0059](adr/0059-reading-analysis-and-chapter-end-progress.md)及[本轮验证](reading-sidebar-footer-verification-20261120.md)。
+
+新未签名安装器：[ResearchGraph-Studio-Reading-Sidebar-Footer-0.0.1-x64-setup.exe](../.local/releases/reading-sidebar-footer-20261120/ResearchGraph-Studio-Reading-Sidebar-Footer-0.0.1-x64-setup.exe)，**160,584,055 bytes**，SHA-256 `9f5833771a7f154eb109c0b31c2fb5e5a3b267481ccdcb4c3bf4c0ca79d2140e`。PowerShell5.1新隔离安装/sidecar烟测通过，schema lite0015、3段模型材料/进度、匿名本地PDF清理重建/删除与源文件保留，模型0。142项运行源/配置构建前后稳定，安装EXE及328内部资源与打包源逐项匹配，sidecar复用前次相同版本。正式库/私人PDF/凭据未读取，无真实模型、Commit/Push或日常目录安装；用户原生阅读体验待反馈。
+
+## 2026-11-20 · 精读标记逐项对应与贴近布局
+
+本地与模型精读共用组件增加每条高亮的段号.标记号、类型及精确原文摘录卡，原文/卡片双向定位、Enter/Space可操作。相邻同色、重叠标记及重复原文保留独立身份，原文DOM文字不增加编号内容。卡片按段内高亮首行相对位置显示，密集时顺延避让；整段说明明确标为“第N段·整段批注”，不伪造成逐片段独有解读。已有合法结果重新读取即可，不需要重新生成或模型调用。实际阅读宽度不足760px时段内单栏，字号、来源信息展开和窗口尺寸变化后重新排布；五色样式直接由共享组件加载。
+
+最终TypeScript/ESLint、Prettier通过，React **177 passed/17文件（15.65秒）**，Edge **32 passed（22.7秒）**；首轮12px定位偏差及独立复核的尺寸观察/列标题问题已修正并补验，失败记录保留。私人路径规则与Gitleaks **431文件通过**、diff检查通过。仅前端变更，无迁移，head仍`lite0015`，本轮不重跑或借用历史后端全量/Host成绩。见[ADR0058](adr/0058-anchored-reading-annotations.md)及[本轮验证](reading-annotations-verification-20261120.md)。
+
+新未签名安装器：[ResearchGraph-Studio-Reading-Annotations-0.0.1-x64-setup.exe](../.local/releases/reading-annotations-20261120/ResearchGraph-Studio-Reading-Annotations-0.0.1-x64-setup.exe)，**160,575,183 bytes**，SHA-256 `1d69670fb373705ac86ac4f9993a7f978530713505258927e421fd41b5d25720`。PowerShell5.1隔离安装和sidecar烟测通过，匿名PDF、3段模型材料/章节状态、清理/重建、删除/源文件保留、模型调用0；复用前次相同sidecar，安装EXE及328资源与打包源一致。141项运行源/配置在构建前后稳定。正式库/私人论文/凭据未读取，真实模型0，未Commit/Push或覆盖日常安装。密集标记会增加段落高度，用户原生GUI/真实阅读体验仍待反馈。
+
+## 2026-11-19 · 精读标记显式本地部分恢复
+
+续接用户指出“译文正常但精读标记失败”。对单条失败输出只读检查发现150条标记中11条写成不支持的`CLAIM`；映射到`THESIS`后另有2条引文与对应段落不匹配。两种任务彼此独立，翻译成功不证明精读合同通过；失败raw没有在报告输出。
+
+新精读合同v4沿用v3固定slot和schema，只强化prompt中的规范类型枚举、THESIS含义和禁止CLAIM。旧任务及译文不变。用户明确点击后，后端严格重验raw与当前解析：只允许精确CLAIM→THESIS和隔离来源不匹配高亮；其它类型、字段、slot/段落覆盖或错误来源一律拒绝。结果以`partial`供精读使用，独立成功翻译继续单独显示。lite0015新增本地恢复表，保留原失败行、raw、错误及账本；GET重新由raw重算并核验来源版本。流程无Provider调用，不收费。正式库实验写入0、真实模型/HTTP调用0、未Commit/Push或覆盖日常安装。
+
+全量引擎**728 passed /1 skipped /1 warning（220.68秒）**；读取回算加固后定向**84 passed /1 warning**。React **173 passed/16文件**，Playwright **25 passed**，Rust Host **15 passed/1 ignored**，另在已安装sidecar上运行被默认忽略的Host启动/重启集成测试并通过。Ruff、核心模块mypy、TypeScript/ESLint和Prettier通过。
+
+新未签名安装器：[ResearchGraph-Studio-Reading-Recovery-0.0.1-x64-setup.exe](../.local/releases/reading-local-recovery-20261119/ResearchGraph-Studio-Reading-Recovery-0.0.1-x64-setup.exe)，**160,603,654 bytes**，SHA-256 `0caf84b9cb2317fd84d9e099aca929f494ece772bc1f55831f43efd8b600986d`。PowerShell 5.1隔离安装及产品sidecar smoke通过，schema为lite0015、模型调用0、源PDF保留；Host实际连接并重启已安装sidecar通过。验证材料在`.local/verify/reading-local-recovery-20261119/`。真实论文模型质量及用户日常目录安装/原生GUI仍由用户验收；正式库实验写入0、真实模型/外部HTTP请求0，未Commit/Push。详见[ADR0057](adr/0057-reading-output-and-workspace-recovery.md)及[补充验证](workspace-fixes-verification-20261119.md)。
+
+## 2026-11-19 · 精读失败分类、论文回答读取与工作区四项修复
+
+本轮继续中断现场，已完成代码、全量回归及新安装包。旧精读两次失败没有可校验正文，旧提示误归格式/来源错误；历史传输类型不能还原。新增安全分类区分超时、空响应、断流、截断、契约、来源和存储问题，有效raw及预算齐备才提供一次格式修复。新后处理合同v3用完整编号槽位减少重复输出，程序绑定段落ID/章节/原文后严格核对引文与来源，旧v1/v2和raw保持；长篇新精读/译文读取所选模型文档时限，仍不保证全文容量或语义准确。共享Provider补齐兼容空用量、未知结束状态、工具调用、空正文及失败回执处理，未自动重发。
+
+WorldGraph仅只读诊断32页/65章/633块：全章节正文6.911秒、仅目录0.185秒，不能证明历史请求确实超时。论文回答改只读目录、单章原文按需加载，Host分开提示超时与断连。本地/模型来源均为“论文概览、论文精读、论文回答”；模型章节材料保留在精读内。圆形“论文解析操作”始终显示并展开四项操作，缺少来源显示禁用原因，切换不调用模型。模型稿的问答继续要求本地索引，不伪用证据身份。见[ADR0057](adr/0057-reading-output-and-workspace-recovery.md)和[验证报告](workspace-fixes-verification-20261119.md)。
+
+最终引擎 **710 passed /1 skipped /1 warning（123.46秒）**，React **170 passed /16文件**，Edge **25 passed**，Rust Host **16 passed /0 ignored**。Ruff/151文件格式、mypy91、TypeScript/ESLint/Prettier和依赖检查通过。首轮Edge24通过/1失败因旧夹具和原文区断言未适配，修正后专项和全量通过，旧失败记录保留。源码/安装版各9个loopback综合请求、一次后处理/一次批次格式修复、历史保留及两次重启零重发通过；安装版32页匿名论文33章目录0.046549秒/按需1章、模型0。168项运行源/配置稳定，sidecar及326资源逐文件配对。
+
+最终未签名安装器：[ResearchGraph-Studio-Workspace-Fixes-0.0.1-x64-setup.exe](../.local/releases/workspace-fixes-20261119/ResearchGraph-Studio-Workspace-Fixes-0.0.1-x64-setup.exe)，**160,575,660 bytes**，17:14:04构建，Windows PowerShell5.1隔离安装及实际安装引擎验证通过。当前head仍`lite0014`，正式库实验写入0，真实模型/外部HTTP请求0，未Commit/Push或替用户安装日常目录。真实Provider、长篇/科学/译文质量及用户原生GUI/干净机仍待验收；安装不自动重发旧失败精读。
+
+## 2026-11-19 · 统一本地与模型论文概览/全文精读
+
+正式库只读元数据确认最近成功模型解析保存74正文段、8个带LaTeX公式、1结构化表格、3图/3图注，数据库检查正常；旧概览仅通用摘要，冻结计划为overview=true/reading=false/translation=none。前端概览默认选中造成用户未额外选择也可能生成，已改概览/精读都默认不选，页面显示实际冻结选择。
+
+两种来源仍分表保留真实身份，现共用PaperOverview的PaperCard+LightGraph及ReadingContent双栏精读、译文占位、五类论证高亮/批注和安全KaTeX。模型公式预览明确待核对；表格安全预览且保留原始材料。新精读/译文合同完整绑定segment ID、章节/原文/引文occurrence，旧摘要不伪造成图谱或批注。用户可在原材料上显式补生成概览、精读或仅译文，无需再次上传PDF；生成失败保留上次有效稿，编辑材料使旧输出stale。
+
+新增报错后显式一次文本格式修复：批次失败raw本机私有保存、校验无损、只修失败响应；概览/精读/译文保留失败raw并可明确确认一次修复，不能递归链式收费。请求/来源/数据库错误不冒充格式问题，发送前后记持久账本，取消/重启保留已发槽。lite0014加性新增失败响应表及模型图谱布局表，升级前备份；旧PDF会话只读补真实论文关联，不改冻结计划。详情见[ADR0056](adr/0056-unified-reading-from-parser-sources.md)及[验证报告](unified-reading-verification-20261119.md)。
+
+最终固定源码引擎 **664 passed /1 skipped /1 warning（215.12秒）**、React **167 passed /16 files**、Edge真实组件 **21 passed**，Ruff/mypy91与418文件安全扫描通过。首轮引擎4失败暴露JSON回执未持久化问题，已修并通过定向及最终全量。源码与安装版HTTP综合smoke均覆盖9个loopback请求、一次后处理/一次批次修复、仅发布恢复及两次重启0重发。Windows PowerShell5.1隔离安装通过，Host **15 passed /0 ignored（4.81秒）**；**168项**运行源/配置稳定，sidecar与**326项**资源逐文件配对。正式库只读诊断、实验写入0，真实模型/外部HTTP请求0；未Commit/Push或替用户安装日常目录。
+
+最终未签名安装包：[ResearchGraph-Studio-Unified-Reading-0.0.1-x64-setup.exe](../.local/releases/unified-reading-20261119/ResearchGraph-Studio-Unified-Reading-0.0.1-x64-setup.exe)，**160,566,627 bytes**，2026-11-19 11:17:16构建。安装后原论文可显式生成新版概览与全文精读，或在已有新版笔记上仅补中文译文，无需重传PDF；旧摘要不会自动升级，生成及一次修复可能产生模型费用。真实供应商兼容、论文科学质量、复杂公式表格与翻译准确性、用户原生GUI及干净机仍待实际验收，安装不会自动消耗该验收预算。
+
+## 2026-11-19 · 已定位并修复章节发布外键写入顺序
+
+用户再次仅发布失败后，读取正式库安全诊断确认 `SQLITE_CONSTRAINT_FOREIGNKEY (787)`、累计发布恢复2次；正文3/3、边界2/2检查点均通过，数据库 `quick_check=ok`、现存外键违规0。隔离启用生产外键检查后稳定复现：新概览 Job 尚未 INSERT，计划项就先 UPDATE 引用其 ID，导致发布事务回滚。现在先 flush 新 Job 再关联计划项，仍在同一事务中；之前批次测试没有启用外键，是漏检原因，已改用生产 `make_engine`。
+
+对于旧版本已耗尽2次恢复、明确787外键失败且检查点完整的任务，增加一次修复版显式仅发布恢复，累计数保留并追加为3，写入版本和仅发布意图；失败/取消/中断后不再追加。授权后检查点改变直接停止，不能回落模型初始化或普通批次请求。论文页和任务记录均显示“仅重新发布章节（不重发批次）”，后续所选概览/精读可能另行调用模型。
+
+实际源码验证：引擎 **586 passed / 1 skipped / 1 warning（147.95秒）**；专项 **50 passed（16.06秒，包含在全量内）**；桌面 **15 files / 155 passed**；Ruff、mypy86、TypeScript/ESLint通过。开发模式两条HTTP恢复入口通过，5个检查点/请求账本不变、1成功parse/1概览Job、GET只读、同幂等重放及重启不追加请求。安装版验证及本轮包记录见 [验证报告](document-fk-order-verification-20261119.md)，决策见 [ADR0055](adr/0055-document-postprocess-foreign-key-order.md)。正式库仅只读诊断，未替用户重试；本轮真实模型/外部HTTP请求与正式库实验写入0，未Commit/Push。下方旧“约束未知”是新增诊断前的历史结论，本条已由新记录定位为外键写入顺序问题。
+
+最终安装包：[ResearchGraph-Studio-Publication-FK-Fix-0.0.1-x64-setup.exe](../.local/releases/document-fk-order-20261119/ResearchGraph-Studio-Publication-FK-Fix-0.0.1-x64-setup.exe)，**160,518,000 bytes**，2026-11-19 09:49:08构建。PowerShell5.1隔离安装烟测、安装版两条仅发布恢复入口及各自重启通过，新增模型请求0；Host **14 passed /0 ignored**。161项运行源/配置稳定，sidecar与324资源逐项配对一致。安装版覆盖与开发模式相同的5检查点/账本保留、旧count2兼容、无效Provider快照绕过和单次概览排队；概览在测试中禁网未生成，不冒称真实模型质量验收。用户可安装后打开原任务，点击“仅重新发布章节（不重发批次）”；无需重新导入或重新模型解析。
+
+## 2026-11-18 · 模型章节发布 IntegrityError 恢复
+
+用户最新模型论文任务的3/3正文批次和2/2边界检查点均已通过，失败发生在最终解析发布事务；早期任务只记录异常类型，无法反推出具体数据库约束。新增脱敏 SQLite 错误码/名称/约束类别记录，以及严格的“仅重新发布章节”恢复：仅在所有冻结检查点完整、源文件 stat 版本匹配且没有成功解析时开放，跳过 Provider 初始化和 PDF 上传，原模型批次不重发；每个任务最多2次显式发布恢复。所选概览/精读仍会作为独立任务继续，可能产生模型请求。见 [ADR0054](adr/0054-document-publication-integrity-recovery.md) 和[验证报告](document-integrity-verification-20261118.md)。
+
+完整后端 **579 passed / 1 skipped / 1 warning（109.30秒）**；分批/导入重试专项 **34 passed**；桌面 **148 passed（14.51秒）**；Ruff、86文件 mypy、TypeScript/ESLint通过。Windows安装包已在PowerShell 5.1隔离安装并完成既有导入/模型文档/阅读状态/清理 smoke，模型调用为0；输出为 `lite0013`。包为 [Integrity Recovery](../.local/releases/document-integrity-recovery-20261118/ResearchGraph-Studio-Integrity-Recovery-0.0.1-x64-setup.exe)，**160,496,071 bytes**。新恢复事务由合成数据库唯一约束失败的引擎集成测试覆盖；未对用户失败任务重试，没有真实模型或外部HTTP请求、正式库写入、Commit/Push或替用户日常安装。旧任务因原版本诊断信息不足，具体 SQLite 约束仍未知。安装后可从原任务点击“仅重新发布章节（不重发批次）”；若 PDF 的 stat 版本已变化，任务会安全拒绝恢复。用户原选概览会随后独立执行。
+
+## 2026-11-18 · 边界HTTP400与原任务恢复修复
+
+只读任务元数据确认：新论文正文3批均已校验/HTTP200，失败发生于原第5–6页第一个边界复核，已尝试3次，最近约1.218秒返回400。边界提示遗漏JSON字样但启用json_object，兼容服务可复现拒绝；旧版未保留400服务正文，所以不声称看到供应商确切错误参数。已补明确JSON输出要求，并提供一次受控兼容恢复：安装新包后原任务明确确认，只续未完成边界，保留正文、页码、原3次账本和冻结模型，不必重新导入。修复请求发送前持久标记，崩溃或再次400也不能重复享受例外；发送前取消不耗该槽。全局/项目/详情只读显示恢复资格，UI分开正文与边界进度。见 [ADR0053](adr/0053-boundary-json-compatibility-recovery.md) 和 [验证](document-http400-verification-20261118.md)。
+
+最终完整后端 **576 passed /1 skipped /1 warning（139.99秒）**，React **147 passed（16.72秒）**、Edge **19 passed（18.9秒）**，静态与契约检查通过。新包PowerShell5.1隔离安装、安装版4个旧边界恢复案例和普通两种分页路线通过：只发1次边界、extract零重发，修复仍400后两个retry入口409/零POST，重启零POST；Host **14 passed（3.68秒）**。**161项**源/配置保持一致，sidecar及**324项**资源配对。新包 [Boundary HTTP400 Fix](../.local/releases/document-boundary-http400-20261118/ResearchGraph-Studio-Boundary-HTTP400-Fix-0.0.1-x64-setup.exe)，**160,516,874 bytes**，21:46:26构建。
+
+本轮正式库仅只读非敏感任务/参数元数据，未读正文、模型材料或凭据；没有修改用户正式任务/配置，没有真实模型或外部HTTP请求，没有Commit/Push或替用户日常安装。用户此前请求和费用保留事实；修复后真实服务兼容与论文科学质量仍待用户显式继续验证。
+
+## 2026-11-18 · 可续接分页解析与一次格式修复
+
+按用户7点方案完成新模型PDF分批流程：新任务默认每批最多5页（可选2–8、包含前1页共享），按实际模型/图片容量缩批并顺序执行；核心页以材料或明确缺页警告覆盖。新 document-batch-1 / document-boundary-1 与 lite0013 加性迁移保存成功检查点、冻结源元数据/快照/范围和请求账本，解析不以SHA-256为前置。失败只续未成功批次，已发未定请求须显式继续，可能再次收费。旧无分批计划的失败任务不会由“重试”自动升级，需在论文页“使用模型重新解析”创建新任务。
+
+每批格式修复默认关闭、独立授权且最多一次，只发送失败响应文本/Schema/安全错误，不重传PDF；修后仍核对文字、公式、表格、页码和顺序，无法证明只改格式则拒绝。相邻批仅在末首续接标记要求时额外复核两页，模型只作决定，程序确定性合并；复杂表格/不确定关系保留片段和质量状态。界面显示批次、原始页、校验/边界进度、实际请求与预算，字段错误不回显正文。详见 [ADR0052](adr/0052-resumable-document-batches.md) 和 [本轮验证](document-batches-verification-20261118.md)。
+
+最后质量状态修正后完整后端 **562 passed / 1 skipped / 1 warning（105.55秒）**，React **15 files / 133 passed（13.93秒）**，Edge **19 passed（13.1秒）**；Ruff、mypy85、TypeScript/ESLint及契约导出通过。Windows构建、PowerShell5.1隔离安装及安装版图片/PDF两条本机HTTP链路通过：匿名7页3批、5次模拟POST含一次纯文本修复及一次边界复核、重启零追加请求。Host **14 passed / 0 ignored（2.82秒）**；**160项**运行源/配置构建前后不变，sidecar与**324项**资源逐文件配对。
+
+本轮未签名安装包：[Document Batches](../.local/releases/document-batches-20261118/ResearchGraph-Studio-Document-Batches-0.0.1-x64-setup.exe)，**160,485,540 bytes**，构建于20:28:56。真实模型/外部HTTP请求及正式库实验均为0，未读取私人论文或凭据，未Commit/Push，未替用户安装日常目录。真实供应商兼容、公式表格/跨页科学质量、用户原生GUI及干净机仍待验收；页码声明完整与结构校验不等于科学正确，600/1800秒为单次请求时限，不承诺整篇更快或更便宜。
+
+## 2026-11-18 · 文档超时修复与页面图片传输
+
+按用户继续解决故障的要求，新增文档独立等待/总时限600/1800秒及设置控件，旧任务快照不重写；增加显式PDF页面图片传输，仅本地144dpi渲染，不本地提取正文/公式/表格，由视觉模型识别。超时区分连接/上传/等待/接收/总时限，任务与论文页显示真实阶段/用时/页面准备数，安全诊断落Job.result白名单。火山/腾讯精确套餐地址提供显式推荐配置按钮，不自动改用户正式配置。
+
+最终后端 **477 passed / 1 skipped / 1 warning（152.60秒）**、React **118 passed（17.33秒）**、Edge **17 passed（20.8秒）**，Ruff/mypy80/TypeScript/ESLint及契约通过。开发进程烟测发现并修复新阶段DTO遗漏，5项公开API阶段回归补齐，隔离两页图像端到端保存3种材料通过。首次中间构建不交付。ADR、输入上限与真实验证边界见 [ADR0051](adr/0051-document-timeouts-and-visual-pdf-input.md) 和 [本轮验证](document-timeout-fix-verification-20261118.md)。
+
+最终 Windows 安装器已生成并通过 PowerShell 5.1 隔离安装、安装版两页图片解析链路（仅本机模拟Provider）、14项Host测试及322项资源配对；155项运行源/配置保持不变。安装包 [Document Timeout Fix](../.local/releases/document-timeout-fix-20261118/ResearchGraph-Studio-Document-Timeout-Fix-0.0.1-x64-setup.exe)，160,454,363 bytes。真实端点兼容与论文识别质量、原生GUI和干净机仍待验收；本轮未Commit/Push。
+
+## 2026-11-18 · 模型文档超时调查（未改产品行为）
+
+用户最新 PDF 模型导入从 17:57:06.956 到 17:58:37.148，创建到失败 **90.191 秒**；只读任务参数确认使用火山 `deepseek-v4.1-flash`、冻结 timeout=90 秒、reasoning_effort=max、PDF chat_file。失败已越过能力声明检查，直接落在 HTTP timeout 分支。整篇非流式请求与 90 秒读取/上传阈值高度吻合，等待响应是主要候选；当前没有保存 timeout 子类，不能断定一定是读取超时，也不能由此证明 PDF 支持或不支持。
+
+合成 MockTransport **5 cases passed**，四类网络超时均显示同一文案，总时限显示另一文案；调查时两家端点 DNS/TCP/TLS 直连通过，无 HTTP/模型请求。按用户调查要求只读正式库的任务元数据和配置，不读正文/密钥；文件仅取大小，未读内容。未改产品、配置、任务状态，未重试收费请求、未构建新包或 Commit/Push。此前开发“正式库未访问/真实模型0”的边界只属于各自开发轮次，不用于否认此次只读诊断或用户已经执行的请求。完整证据与未确定项见 [超时调查](document-timeout-investigation-20261118.md)。
+
+## 2026-11-18 · 本地/模型双解析与文档能力设置
+
+按用户新要求，PDF/Zotero 导入默认本地解析建库，只有显式选择模型并授权才发送 PDF。修复保存 profile 时重置文件能力、编辑提供商覆盖参数的问题；新增每模型 PDF/文件传输声明和独立“论文解析模型”选择，不把联网勾选或文本连接成功当作 PDF 能力。论文页提供本地解析/重试、使用当前配置的模型重新解析和本地/模型材料查看切换，保留原论文身份、源文件、笔记和历史结果。新入口和规则见 [ADR0050](adr/0050-explicit-local-and-model-parsing.md)，覆盖旧“新导入仅模型优先”的界面限制；显式模型失败仍不自动回退。
+
+最终引擎 **429 passed / 1 skipped / 1 warning（98.01 秒）**；桌面 **12 files / 109 passed（15.14 秒）**；Edge **16 passed（12.5 秒）**；mypy 79 files、Ruff、TypeScript/ESLint 和契约导出通过。新包 [Dual Parse](../.local/releases/dual-parse-20261118/ResearchGraph-Studio-Dual-Parse-0.0.1-x64-setup.exe) 为 **160,435,399 bytes**，153 项运行源/配置构建前后不变，sidecar 与 322 项安装资源配对一致。PowerShell 5.1 隔离安装实测清旧后本地重新解析、同 paper_id、不重复论文与再次清理通过；安装后 Host **14 passed / 0 ignored**。
+
+schema 保持 `lite0012`，无新迁移。真实模型调用/费用 0、正式用户数据库未访问；截图端点的真实 PDF 兼容、论文科学质量、原生 GUI 和干净机仍待验收。修改模型配置后需“使用模型重新解析”采用当前配置，旧任务“重试”沿用原快照。未 Commit/Push。详见 [本轮验证](dual-parse-verification-20261118.md)。
+
+## 2026-11-18 · 导入失败、管理授权与全文章节阅读状态
+
+本轮修复用户安装反馈的四项问题：Host 现在放行精确 UUID 的论文重命名、删除和旧内容清理；模型解析在事务内冻结普通计划/授权值，修复关闭 Session 后读取 ORM 导致的 `DetachedInstanceError`；Zotero 选择保留真实题名并在模型解析前显示；全文精读整合大章节“未开始 / 阅读中 / 已读完”、目录完成标记与继续阅读，小节导读和独立理解状态入口已移除。
+
+解析任务与论文面板显示真实阶段：读取 Zotero 附件、准备模型、等待模型解析、校验结果、保存章节。当前是单次非流式请求，等待阶段没有逐章百分比。Job、计划项、解析和导入会话的失败/取消/重试同步；升级时把旧终态 Job 遗留的“解析中”计划对齐为终态，不自动重发。联网已授权的失败解析可由用户显式点击“重试模型解析”；原计划未授权联网时提示重新导入。
+
+`lite0012` 加性增加模型章节阅读状态，按 `parse_id + chapter_ref` 保存，大章取模型章节的最小层级。新解析不继承旧已读标记，旧记录保留；模型章节状态的读取与标记均不调用模型。旧 Section 的进度通过窄范围 PATCH 更新，保留自评、问题、失去关联的概念和来源基线。清理旧本地解析保留模型章节状态；整篇删除仅移除对应论文状态，其他论文与源文件边界保持。升级前仍自动备份。
+
+最终后端全量 **419 passed / 1 skipped / 1 warning（83.96 秒）**；最终桌面 Vitest **11 files / 106 passed（13.62 秒）**，Edge 真实 React 渲染回归 **15 passed（12.1 秒）**。全 Ruff lint、全引擎 mypy（78 files）、compileall、TypeScript/ESLint、Prettier、OpenAPI/TS 契约导出通过；全局 Python format 仍有此前无关文件格式欠账，本轮修改文件格式检查通过。浏览器覆盖已读状态、重新打开后的续读、620px/390px 下标题避开固定工具栏及无横向溢出。
+
+取消守卫覆盖附件路径读取、PDF 异步读取和 HTTP 客户端准备：真正 POST 前重新检查 Job，终态任务不发送请求；已发出的供应商请求无法撤回，但取消后不会发布解析输出。合成 MockTransport 覆盖这两个边界，没有真实外发。
+
+最终安装包为 [Import Reading Fix](../.local/releases/import-reading-fix-final-20261118/ResearchGraph-Studio-Import-Reading-Fix-0.0.1-x64-setup.exe)，**160,413,261 bytes**。构建前后 151 项运行源/配置不变，安装前后 sidecar 与 322 项资源配对一致；PowerShell 5.1 隔离安装通过，schema `lite0012`，已读状态保存/清旧保留/整篇删除，以及引用 PDF 保留均实测通过。安装后 sidecar 的 Rust Host **14 passed / 0 ignored**，含实际启动与重启。不交付前两次已被后续修复替代的构建，失败与中间证据保留。
+
+真实 Provider/模型调用与费用为 0，正式用户库和私人论文未用作开发实验；真实论文质量、用户原生 GUI 和干净机兼容性仍待验收。未 Commit/Push。完整结果见 [本轮验证](import-reading-fix-verification-20261118.md) 与 [ADR0049](adr/0049-import-recovery-and-chapter-reading-progress.md)。
 
 本轮会话终止原因已从 Codex session JSONL 还原：最近一次失败前最后的工具调用是 `write_stdin(session_id=60020)`，其返回 `Unknown process id`；随后 Codex 向 CC Switch 发起下一轮 `/responses` 工具请求，TokenX 上游返回 HTTP 400，原因是该账户只支持 Chat Completions。该错误与项目业务 tool call、pytest、Ruff 或 PDF 请求参数无关；同一配置在更早失败中也出现在 `exec`、`collaboration.send_message`、`list_agents`、`wait_agent` 之后。需调整 CC Switch/TokenX 的 Responses 能力或切换支持 Chat Completions 工具调用的 Codex 模型。
 
@@ -40,18 +172,18 @@ Rust Host 测试为 **11 passed / 1 ignored**，针对安装后 sidecar 的宿�
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tauri 2 + React/TypeScript + FastAPI + SQLite/FTS5 | 保留并已精简，静态检查通过                                                                                                                                                       |
 | Zotero 连接、论文选择、PDF/章节解析、文本索引      | 本地解析/索引仍为 0 模型调用；另提供用户授权后运行的模型优先导入，详见 `lite0011` 和下方安装验证                                                                                  |
-| Lite 模式、`lite0011`、用量与缓存基础              | `lite0010` 阅读投影/全文笔记及历史保持；新增导入计划、模型章节文档和后处理输出表，采用加性迁移 |
+| Lite 模式、`lite0012`、用量与缓存基础              | 保留旧阅读投影/全文笔记及模型文档；新增按解析版本绑定的大章节阅读进度，采用加性迁移 |
 | PaperCard + LightGraph                             | P1 联合抽取、缓存、任务、布局 API 与交互已实现；由一次模型调用生成                                                                                                               |
 | 图谱交互                                           | 已支持节点拖动、缩放、点击详情、关系详情、布局/相机持久化和重置                                                                                                                  |
-| A01 章节导读                                       | 保留单节显式生成、quick/standard/deep、缓存/失效、证据白名单、复制；新增可关闭的自适应模式，最多附带三项可靠相关理解状态 |
+| A01 章节导读                                       | 正常入口已移除；旧接口、缓存和历史兼容保留，正常精读直接进入全文 |
 | 本地阅读整理                                       | `reading-document-2` 正文/标题/材料分离、双栏顺序、保守连续段组合；同 SHA 本地刷新增量修复当前章节，原始来源和旧结果保留；图片/矢量只定位，公式支持受限原图预览和可选本地识别 |
 | 公式定位与显示                                     | 同 SHA PDF 的保守候选、revision-bound `formula_id`、PNG/JSON base64 原图预览、版本化识别缓存、Pix2Text 可选适配器和 KaTeX 可信结果渲染已接入；默认安装包不带 OCR 权重 |
 | A04 全文精读 / A02 历史                            | A04 一次完整正文请求，译文/高亮/批注/全文摘要联合生成，完整/部分/过期分开；保留 A02 历史读取，默认界面不再逐范围生成 |
 | 文章目录侧栏                                       | 精读/问答共用，可逐级折叠一级/二级/三级标题，定位当前项展开祖先；保留段中锚点，刷新清除失效选择，晚到响应按原请求范围归档；操作零模型 |
-| 个人理解状态与 A03                                 | 已实现：本地进度、自评、疑问、概念笔记；LightGraph 独立阅读圈层和章节/段落/问答跳转；主动复述检查不覆盖自评 |
+| 章节进度与旧个人理解状态                           | 大章节下直接标记未开始/阅读中/已读完，目录显示已读并支持续读；独立理解状态入口已移除，旧自评、疑问、概念笔记与 A03 历史保持 |
 | D 证据问答                                         | P3 D01 已实现最小闭环：section/paper/selection 契约、FTS5 Top-K Span、显式授权、严格引用校验、缓存、失败/取消/重启记录和桌面问答区；D02 已实现为本地无命中后的可选英文关键词辅助 |
 | 完整图谱抽取、跨论文推理、Lint/Wiki                | 已从活跃 Lite 工程移除；历史工程只保留在备份分支                                                                                                                                 |
-| 设置与阅读信息架构                                 | Lite 用量在设置按全部项目查看；模型连接单独保存 Base URL/API Key；论文工作区为论文概览、论文精读、论文问答，A01/个人状态是精读辅助入口 |
+| 设置与阅读信息架构                                 | Lite 用量在设置按全部项目查看；模型连接单独保存 Base URL/API Key；论文工作区为论文概览、论文精读、论文问答，阅读进度融合于全文和目录 |
 | 文献翻译                                           | 已按用户要求撤下界面、业务 API、执行器、模型代理、服务启停和打包资源；历史记录只读，未完成任务停止为已取消，不删除旧文件 |
 
 ## 2026-11-17 · 公式候选定位与原图预览增量
@@ -378,3 +510,11 @@ Lite P4 仍需完成真实 Provider/论文质量与费用标定、全部 A/B/D �
 验证：后端全量 **376 passed / 1 skipped / 1 warning**；论文管理 API **5 passed**；桌面 Vitest **10 files / 98 passed**。TypeScript/ESLint、Prettier、OpenAPI/TypeScript 契约导出、mypy **75 files**、Ruff、compileall、PowerShell 5.1 脚本解析与 `git diff --check` 通过。Rust Host 使用隔离安装 sidecar **12 passed / 0 failed / 0 ignored**。新 NSIS 安装器静默安装和 smoke 通过：schema `lite0011`、旧 Chunk 移除 **4**、模型章节材料清理后仍为 **3**、旧阅读存档没有自动重建、论文删除成功、引用源文件保留、模型调用 **0**。
 
 安装包：[ResearchGraph-Studio-Paper-Management-0.0.1-x64-setup.exe](../.local/releases/paper-management-20261118/ResearchGraph-Studio-Paper-Management-0.0.1-x64-setup.exe)，**160,425,045 bytes**，SHA-256 `AB6F20489F884FFEB0DF8F3CA5C76C7655D6551819A39A16623FCB90F931F161`；隔离安装数据位于 `.local/verify/paper-management-20261118-retry1/`，不进入 Git。本轮未使用真实 Provider/模型、正式用户数据库、私人论文或 API Key。真实论文质量与用户桌面 GUI 原生反馈仍待验收。
+
+## 2026-11-19 · IntegrityError 发布状态投影修正
+
+继续复核 2026-11-18 的仅发布恢复后，发现任务仍可能从最后一次边界步骤继承 `current_kind=boundary`，导致最终数据库发布失败被显示为“边界复核失败”。只读投影现会优先呈现可恢复的章节发布阶段；前端显示发布失败/等待/进行中状态，并隐藏不再相关的边界页范围。有效边界兼容恢复仍显示边界阶段，正文批次和边界已通过计数继续保留。新增后端 API 与前端回归。
+
+最终验证：引擎 **579 passed / 1 skipped / 1 warning**；桌面 **15 files / 151 passed**；TypeScript、ESLint、Prettier 通过。PowerShell 7 完整重建安装器；PowerShell 5.1 隔离安装烟测通过，schema `lite0013`、匿名 PDF、模型章节材料/进度、旧内容清理与源文件保留均通过，模型调用 **0**。
+
+最新未签名安装包：[ResearchGraph-Studio-Integrity-Recovery-0.0.1-x64-setup.exe](../.local/releases/document-integrity-recovery-20261119-final/ResearchGraph-Studio-Integrity-Recovery-0.0.1-x64-setup.exe)，**160,512,380 bytes**，SHA-256 `DEE14B90B8911661CCD45C4C91C5BC601DC1137C32E1A9B0085A3EB2A1A8B16D`。隔离安装证据位于 `.local/verify/document-integrity-recovery-20261119/install-smoke/`。历史 IntegrityError 的具体 SQLite 约束仍无法由旧任务追溯；未访问正式用户数据库、未发真实模型请求，未 Commit/Push。真实供应商质量、原生 GUI 与干净机仍待验收。

@@ -1,11 +1,15 @@
+import asyncio
 import json
 import os
 from uuid import uuid4
 
+import httpx
 import pytest
+from pydantic import ValidationError
 from researchgraph.credentials import SecretStore
-from researchgraph.model_settings import from_snapshot, snapshot_for
-from researchgraph.providers import ConfiguredProvider
+from researchgraph.model_capabilities import ModelCapabilities, parse_capabilities
+from researchgraph.model_settings import ModelParameters, ModelProfile, from_snapshot, snapshot_for
+from researchgraph.providers import ConfiguredProvider, ProviderError, require_document_capability
 from sqlalchemy.orm import Session
 from test_engine import client, post
 
@@ -101,6 +105,284 @@ def test_connection_uses_fixed_text_not_documents(tmp_path, vault, monkeypatch):
         response = post(api, f"/projects/{project}/models/{p}/test")
         assert response.json()["connected"] and response.json()["valid_json"]
         assert requests == [{"purpose": "connection_test_no_paper_data"}]
+
+
+def test_document_declaration_survives_save_snapshot_and_restart(tmp_path, vault):
+    with client(tmp_path) as api:
+        project = post(api, "/projects", {"name": "Document settings"}).json()["id"]
+        text_profile = post(api, "/settings/models", profile_body(), "text-profile").json()
+        document = post(
+            api,
+            "/settings/models",
+            profile_body(
+                model="document-model",
+                parameters={
+                    "temperature": 0.2,
+                    "capabilities": {
+                        "document_input": "pdf",
+                        "document_transport": "chat_file",
+                        "multimodal": False,
+                        "context_window": 500_000,
+                        "max_output_tokens": 200_000,
+                        "source": "pretend_endpoint_metadata",
+                    },
+                },
+            ),
+            "document-profile",
+        )
+        assert document.status_code == 200, document.text
+        profile = document.json()
+        capabilities = profile["parameters"]["capabilities"]
+        assert capabilities == {
+            "document_input": "pdf",
+            "document_transport": "chat_file",
+            "multimodal": False,
+            "context_window": None,
+            "max_output_tokens": None,
+            "source": "user_declared",
+        }
+        assert (
+            post(
+                api,
+                "/settings/model-roles",
+                {
+                    "document_parse": profile["id"],
+                    "reasoning": text_profile["id"],
+                },
+                "document-role",
+            ).status_code
+            == 200
+        )
+        with Session(api.app.state.engine) as session:
+            frozen = snapshot_for(session, project, "document_parse")
+            text_snapshot = snapshot_for(session, project, "reasoning")
+        require_document_capability(from_snapshot(frozen, tmp_path, True), "pdf")
+        with pytest.raises(ProviderError, match="未声明"):
+            require_document_capability(from_snapshot(text_snapshot, tmp_path, True), "pdf")
+        updated = post(
+            api,
+            f"/settings/models/{profile['id']}/update",
+            profile_body(
+                model="document-model",
+                parameters={
+                    "capabilities": {
+                        "document_input": "text",
+                        "multimodal": False,
+                        "document_transport": "none",
+                    }
+                },
+            ),
+            "correct-to-text",
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["parameters"]["capabilities"]["document_input"] == "text"
+        # Editing current settings does not mutate a queued task's frozen declaration.
+        assert frozen["parameters"]["capabilities"]["document_input"] == "pdf"
+        with Session(api.app.state.engine) as session:
+            current = snapshot_for(session, project, "document_parse")
+        with pytest.raises(ProviderError, match="未声明"):
+            require_document_capability(from_snapshot(current, tmp_path, True), "pdf")
+    with client(tmp_path) as reopened:
+        saved = reopened.get("/api/v1/settings/models").json()
+        assert saved["roles"]["document_parse"] == profile["id"]
+        assert (
+            next(item for item in saved["profiles"] if item["id"] == profile["id"])["parameters"][
+                "capabilities"
+            ]["document_input"]
+            == "text"
+        )
+
+
+def test_visual_document_timeouts_survive_save_restart_and_freeze(tmp_path, vault):
+    parameters = {
+        "temperature": 0.3,
+        "top_p": 0.8,
+        "timeout_seconds": 90,
+        "document_timeout_seconds": 720,
+        "document_total_timeout_seconds": 2100,
+        "reasoning_effort": "low",
+        "capabilities": {
+            "document_input": "image",
+            "multimodal": True,
+            "document_transport": "chat_images",
+        },
+    }
+    with client(tmp_path) as api:
+        project = post(api, "/projects", {"name": "Visual settings"}).json()["id"]
+        saved = post(
+            api,
+            "/settings/models",
+            profile_body(model="visual-model", parameters=parameters),
+            "visual-profile",
+        )
+        assert saved.status_code == 200, saved.text
+        profile_id = saved.json()["id"]
+        assert (
+            post(
+                api,
+                "/settings/model-roles",
+                {"document_parse": profile_id},
+                "visual-role",
+            ).status_code
+            == 200
+        )
+        with Session(api.app.state.engine) as session:
+            frozen = snapshot_for(session, project, "document_parse")
+        assert frozen["parameters"]["document_timeout_seconds"] == 720
+        assert frozen["parameters"]["document_total_timeout_seconds"] == 2100
+        assert frozen["parameters"]["timeout_seconds"] == 90
+        assert frozen["parameters"]["capabilities"]["document_transport"] == "chat_images"
+        updated = post(
+            api,
+            f"/settings/models/{profile_id}/update",
+            profile_body(
+                model="visual-model",
+                parameters={**parameters, "document_timeout_seconds": 800},
+            ),
+            "visual-update",
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["parameters"]["document_timeout_seconds"] == 800
+        assert frozen["parameters"]["document_timeout_seconds"] == 720
+    with client(tmp_path) as reopened:
+        profiles = reopened.get("/api/v1/settings/models").json()["profiles"]
+        current = next(item["parameters"] for item in profiles if item["id"] == profile_id)
+        assert current["document_timeout_seconds"] == 800
+        assert current["document_total_timeout_seconds"] == 2100
+        assert current["temperature"] == 0.3 and current["top_p"] == 0.8
+        assert current["reasoning_effort"] == "low"
+        assert current["capabilities"]["document_transport"] == "chat_images"
+        assert current["capabilities"]["source"] == "user_declared"
+
+
+def test_new_document_snapshot_defaults_do_not_change_legacy_profiles_or_snapshots(tmp_path, vault):
+    with client(tmp_path) as api:
+        project = post(api, "/projects", {"name": "Legacy document settings"}).json()["id"]
+        saved = post(api, "/settings/models", profile_body(), "legacy-profile").json()
+        profile_id = saved["id"]
+        assert (
+            post(
+                api,
+                "/settings/model-roles",
+                {"document_parse": profile_id, "reasoning": profile_id},
+                "legacy-roles",
+            ).status_code
+            == 200
+        )
+        legacy_parameters = {"timeout_seconds": 90, "json_mode": True}
+        with Session(api.app.state.engine) as session, session.begin():
+            stored = session.get(ModelProfile, profile_id)
+            assert stored is not None
+            stored.parameters = dict(legacy_parameters)
+        legacy_snapshot = {
+            "provider": "compatible",
+            "base_url": "https://models.example/v1",
+            "model": "test-model",
+            "parameters": dict(legacy_parameters),
+        }
+        with Session(api.app.state.engine) as session:
+            document = snapshot_for(session, project, "document_parse")
+            text = snapshot_for(session, project, "reasoning")
+            stored = session.get(ModelProfile, profile_id)
+            assert stored is not None and stored.parameters == legacy_parameters
+        assert document["parameters"]["document_timeout_seconds"] == 600
+        assert document["parameters"]["document_total_timeout_seconds"] == 1800
+        assert "document_timeout_seconds" not in text["parameters"]
+        old_provider = from_snapshot(legacy_snapshot, tmp_path, True)
+        assert old_provider.parameters == legacy_parameters
+        assert old_provider.total_timeout == 180
+        assert legacy_snapshot["parameters"] == legacy_parameters
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"document_timeout_seconds": 29},
+        {"document_timeout_seconds": 1801},
+        {"document_total_timeout_seconds": 59},
+        {"document_total_timeout_seconds": 3601},
+        {"document_timeout_seconds": 700, "document_total_timeout_seconds": 600},
+    ],
+)
+def test_document_timeout_validation_rejects_invalid_limits(parameters):
+    with pytest.raises(ValidationError):
+        ModelParameters.model_validate(parameters)
+
+
+def test_visual_transport_requires_explicit_visual_capabilities():
+    for document_input, multimodal in [("text", False), ("pdf", True), ("image", False)]:
+        with pytest.raises(ValidationError, match="图片输入和多模态"):
+            ModelCapabilities(
+                document_input=document_input,
+                multimodal=multimodal,
+                document_transport="chat_images",
+            )
+    metadata = parse_capabilities(
+        {"input_modalities": ["text", "image"], "document_transport": "chat_images"}
+    )
+    assert metadata.document_input == "image" and metadata.multimodal
+    assert metadata.document_transport == "none"
+
+
+@pytest.mark.parametrize("declared", ["text", "pdf"])
+def test_explicit_document_declaration_wins_over_metadata(monkeypatch, declared):
+    requests = []
+
+    def response(request):
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "document-model",
+                        "context_window": 128000,
+                        "max_output_tokens": 8192,
+                        "document_input": "image",
+                        "multimodal": True,
+                        "file_input": True,
+                    }
+                ]
+            },
+        )
+
+    original_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: original_client(
+            **kwargs,
+            transport=httpx.MockTransport(response),
+        ),
+    )
+    provider = ConfiguredProvider(
+        base_url="https://models.example/v1",
+        model="document-model",
+        key="",
+        parameters={
+            "capabilities": {
+                "document_input": declared,
+                "document_transport": "none" if declared == "text" else "chat_file",
+                "multimodal": False,
+                "source": "user_declared",
+            }
+        },
+    )
+    asyncio.run(provider.prepare())
+    assert [request.method for request in requests] == ["GET"]
+    assert provider.capabilities.document_input == declared
+    assert not provider.capabilities.multimodal
+    assert provider.capabilities.document_transport == (
+        "none" if declared == "text" else "chat_file"
+    )
+    assert provider.capabilities.context_window == 128000
+    assert provider.capabilities.max_output_tokens == 8192
+    assert provider.capabilities.source.startswith("user_declared")
+    if declared == "text":
+        with pytest.raises(ProviderError, match="未声明"):
+            require_document_capability(provider, "pdf")
+    else:
+        require_document_capability(provider, "pdf")
 
 
 def test_global_connection_test_uses_a_profile_model_without_paper_data(

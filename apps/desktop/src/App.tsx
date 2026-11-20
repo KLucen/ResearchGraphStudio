@@ -14,6 +14,7 @@ import {
   FileText,
   FolderOpen,
   Layers3,
+  Library,
   LoaderCircle,
   Network,
   PanelLeftClose,
@@ -31,6 +32,8 @@ import { ModelSettings } from "./ModelSettings";
 import { PaperImport, Papers } from "./Papers";
 import { JobHistory } from "./JobHistory";
 import { LiteUsageSummary } from "./LiteUsageSummary";
+import { ResearchKnowledgeBase } from "./ResearchKnowledgeBase";
+import { knowledgeApi } from "./knowledgeApi";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -43,9 +46,9 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("rgs.sidebar.collapsed") === "true",
   );
-  const [page, setPage] = useState<"projects" | "tasks" | "settings">(
-    "projects",
-  );
+  const [page, setPage] = useState<
+    "projects" | "knowledge" | "tasks" | "settings"
+  >("projects");
   const [creating, setCreating] = useState(false);
   const [importProjectId, setImportProjectId] = useState<string | null>(null);
   const importDialogRef = useRef<HTMLDialogElement>(null);
@@ -88,6 +91,21 @@ export default function App() {
   const activeTaskCount =
     globalJobs.data?.filter((job) => ["queued", "running"].includes(job.status))
       .length ?? 0;
+  const knowledgeReports = useQuery({
+    queryKey: ["knowledge", "reports"],
+    queryFn: knowledgeApi.reports,
+    enabled:
+      connected &&
+      (page === "knowledge" ||
+        !!globalJobs.data?.some((job) =>
+          String(job.kind).startsWith("knowledge_"),
+        )),
+    refetchInterval: 5000,
+  });
+  const unreadKnowledgeReports =
+    knowledgeReports.data?.unread ??
+    knowledgeReports.data?.items.filter((report) => !report.read).length ??
+    0;
   const paperJobSignature = (globalJobs.data ?? [])
     .filter((job) => job.kind === "pdf_import" || job.kind === "zotero_import")
     .map((job) => `${job.id}:${job.status}:${job.updated_at}`)
@@ -202,6 +220,23 @@ export default function App() {
             <span className="nav-count">{allProjects.length}</span>
           </button>
           <button
+            aria-label="研究内容知识库"
+            title="研究内容知识库"
+            className={page === "knowledge" ? "nav active" : "nav"}
+            onClick={() => setPage("knowledge")}
+          >
+            <Library size={18} />
+            <span className="nav-label">研究内容知识库</span>
+            {unreadKnowledgeReports > 0 && (
+              <span
+                className="nav-count"
+                aria-label={`${unreadKnowledgeReports} 份未读联系汇报`}
+              >
+                {unreadKnowledgeReports}
+              </span>
+            )}
+          </button>
+          <button
             aria-label="任务记录"
             title="任务记录"
             className={page === "tasks" ? "nav active" : "nav"}
@@ -255,16 +290,18 @@ export default function App() {
               ? "设置与诊断"
               : page === "tasks"
                 ? "任务记录"
-                : selected
-                  ? selected.name
-                  : "研究项目"}
+                : page === "knowledge"
+                  ? "研究内容知识库"
+                  : selected
+                    ? selected.name
+                    : "研究项目"}
           </span>
           <span className="local-tag">
             <CircleDot size={13} /> LOCAL WORKSPACE
           </span>
         </header>
         <div
-          className={`content${selected && page !== "settings" ? " project-content" : ""}`}
+          className={`content${selected && page === "projects" ? " project-content" : ""}`}
         >
           {health.isError && (
             <div role="alert" className="error-banner">
@@ -290,6 +327,22 @@ export default function App() {
               connected={connected}
               projects={projectNames}
               activeCount={activeTaskCount}
+            />
+          ) : page === "knowledge" ? (
+            <ResearchKnowledgeBase
+              connected={connected}
+              projects={allProjects}
+              onOpenTasks={() => setPage("tasks")}
+              onOpenPaper={(projectId, paperId) => {
+                const project = allProjects.find(
+                  (item) => item.id === projectId,
+                );
+                if (project) {
+                  setSelected(project);
+                  setSelectedPaperId(paperId);
+                  setPage("projects");
+                }
+              }}
             />
           ) : selected ? (
             <section>

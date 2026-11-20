@@ -104,3 +104,17 @@ class LlmDocumentOutput(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(40))
     updated_at: Mapped[str] = mapped_column(String(40))
+
+
+class LlmDocumentOutputLocalRecovery(Base):
+    """User-triggered, source-versioned partial reading recovery."""
+
+    __tablename__ = "llm_document_output_local_recoveries"
+
+    output_id: Mapped[str] = mapped_column(
+        ForeignKey("llm_document_outputs.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_updated_at: Mapped[str] = mapped_column(String(40))
+    output_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    audit_json: Mapped[list[dict[str, str]]] = mapped_column(JSON)
+    created_at: Mapped[str] = mapped_column(String(40))

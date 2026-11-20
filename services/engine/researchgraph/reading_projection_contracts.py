@@ -56,13 +56,16 @@ class ReadingUnit(StrictModel):
     reason: str | None = None
     solution: str | None = None
     formula_latex: str | None = None
-    formula_status: Literal[
-        "source_only",
-        "latex_unavailable",
-        "recognized",
-        "needs_review",
-        "failed",
-    ] | None = None
+    formula_status: (
+        Literal[
+            "source_only",
+            "latex_unavailable",
+            "recognized",
+            "needs_review",
+            "failed",
+        ]
+        | None
+    ) = None
     formula_confidence: Literal["suspected", "high"] | None = None
     formula_source_text: str | None = None
     formula_id: str | None = None

@@ -12,8 +12,17 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.document_batch_recovery import (
+    authorize_publication_retry,
+    compatibility_retry_available,
+    publication_retry_available,
+)
+from researchgraph.document_format_repair import (
+    clear_format_repair_intent,
+    ordinary_document_attempts,
+)
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
-from researchgraph.models import Job, Project, now
+from researchgraph.models import Job, Paper, Project, now
 from researchgraph.schemas import (
     ImportPlan,
     ImportPlanItemView,
@@ -30,8 +39,26 @@ def _failure(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status, {"code": code, "message": message})
 
 
-def _view(session: ImportSession, items: list[ImportPlanItem]) -> ImportSessionView:
+def _view(
+    session: ImportSession, items: list[ImportPlanItem], db: Session | None = None
+) -> ImportSessionView:
     value = ImportSessionView.model_validate(session)
+    # Early PDF imports bound their paper only on the parse Job. Project the
+    # verified ownership into the response without rewriting the frozen plan.
+    if value.source_snapshot.paper_id is None and db is not None:
+        parse_item = next((item for item in items if item.item_kind == "document_parse"), None)
+        job = db.get(Job, parse_item.job_id) if parse_item and parse_item.job_id else None
+        payload = job.payload if job and isinstance(job.payload, dict) else {}
+        paper_id = payload.get("paper_id")
+        paper = db.get(Paper, paper_id) if isinstance(paper_id, str) and paper_id else None
+        if (
+            job is not None
+            and job.project_id == session.project_id
+            and payload.get("import_session_id") == session.id
+            and paper is not None
+            and paper.project_id == session.project_id
+        ):
+            value.source_snapshot = value.source_snapshot.model_copy(update={"paper_id": paper.id})
     rank = {kind: index for index, kind in enumerate(ITEM_KINDS)}
     ordered = sorted(items, key=lambda item: (rank.get(item.item_kind, len(rank)), item.id))
     value.items = [ImportPlanItemView.model_validate(item) for item in ordered]
@@ -62,6 +89,10 @@ def normalize_post_import_plan(value: PdfPostImportPlan | None) -> ImportPlan | 
         require_multimodal=value.modality == "required",
         allow_network=value.allow_network,
         provider_profile_id=value.provider_profile_id,
+        document_batching=value.document_batching,
+        pages_per_batch=value.pages_per_batch,
+        allow_format_repair=value.allow_format_repair,
+        allow_boundary_review=value.allow_boundary_review,
     )
 
 
@@ -138,7 +169,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
                 source_snapshot=body.source_snapshot,
                 plan=body.plan,
             )
-            response = _view(session, items)
+            response = _view(session, items, db)
             remember(db, key, request, response.model_dump())
             return response
 
@@ -153,7 +184,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
                 .where(ImportPlanItem.session_id == session_id)
                 .order_by(ImportPlanItem.created_at, ImportPlanItem.id)
             ).all()
-            return _view(session, list(items))
+            return _view(session, list(items), db)
 
     @app.get(
         "/api/v1/projects/{project_id}/import-sessions",
@@ -179,6 +210,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
                             .order_by(ImportPlanItem.created_at, ImportPlanItem.id)
                         ).all()
                     ),
+                    db,
                 )
                 for session in sessions
             ]
@@ -220,20 +252,41 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
             # changing the item status would leave that Job invisible to the
             # worker and make the advertised retry a no-op.  Requeue the same
             # idempotent payload, matching the ordinary /jobs/{id}/retry path.
+            publication_retry = False
             if item.job_id:
                 job = db.get(Job, item.job_id)
+                publication_retry = bool(
+                    item_kind == "document_parse"
+                    and job is not None
+                    and publication_retry_available(db, job)
+                )
                 if job is not None and job.status in {
                     "failed",
                     "interrupted",
                     "cancelled",
                     "paused",
                 }:
+                    if (
+                        item_kind == "document_parse"
+                        and ordinary_document_attempts(job) >= 3
+                        and isinstance((job.result or {}).get("document_batches"), dict)
+                        and not compatibility_retry_available(db, job)
+                        and not publication_retry_available(db, job)
+                    ):
+                        raise _failure(
+                            409,
+                            "DOCUMENT_BATCH_RETRY_LIMIT",
+                            "已达到显式执行上限或已使用边界兼容恢复；已成功批次保留，未发送请求",
+                        )
                     job.status, job.stage, job.error, job.updated_at = (
                         "queued",
                         None,
                         None,
                         now(),
                     )
+                    if publication_retry:
+                        authorize_publication_retry(job)
+                    clear_format_repair_intent(job)
             session.status = "queued"
             session.error = None
             session.updated_at = now()
@@ -244,6 +297,6 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
                     .order_by(ImportPlanItem.created_at, ImportPlanItem.id)
                 ).all()
             )
-            response = _view(session, items)
+            response = _view(session, items, db)
             remember(db, key, request, response.model_dump())
             return response

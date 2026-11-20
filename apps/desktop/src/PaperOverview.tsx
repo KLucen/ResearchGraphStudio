@@ -12,6 +12,7 @@ import { ForceGraph } from "./ForceGraph";
 import { GraphLegend } from "./graphAppearance";
 import type { GraphData } from "./graphTypes";
 import { assessmentLabels, checkLabels } from "./SectionCloseReading";
+import { knowledgeApi } from "./knowledgeApi";
 
 const errorText = (value: unknown) =>
   value instanceof Error ? value.message : String(value);
@@ -21,6 +22,7 @@ type PaperOverviewProps = {
   revisionId: string;
   projectId: string;
   connected: boolean;
+  source?: "local" | "model";
   initialNodeId?: string;
   onOpenSection?: (sectionId: string, paragraphId?: string) => void;
   onAskParagraph?: (sectionId: string, paragraph: ReadingParagraph) => void;
@@ -29,7 +31,7 @@ type PaperOverviewProps = {
 export function PaperOverview(props: PaperOverviewProps) {
   return (
     <PaperOverviewSession
-      key={`${props.paperId}:${props.revisionId}`}
+      key={`${props.source ?? "local"}:${props.paperId}:${props.revisionId}`}
       {...props}
     />
   );
@@ -40,11 +42,15 @@ function PaperOverviewSession({
   revisionId,
   projectId,
   connected,
+  source = "local",
   initialNodeId = "",
   onOpenSection,
   onAskParagraph,
 }: PaperOverviewProps) {
   const client = useQueryClient();
+  const queryName = source === "model" ? "model-overview" : "overview";
+  const layoutQueryName =
+    source === "model" ? "model-overview-layout" : "overview-layout";
   const [allowNetwork, setAllowNetwork] = useState(false);
   const [selectedNode, setSelectedNode] = useState(initialNodeId);
   const [selectedEdge, setSelectedEdge] = useState("");
@@ -55,8 +61,11 @@ function PaperOverviewSession({
   const layoutWrites = useRef<Promise<unknown>>(Promise.resolve());
   const previousStatus = useRef<string | undefined>(undefined);
   const overview = useQuery({
-    queryKey: ["overview", paperId, revisionId],
-    queryFn: () => api.overview(paperId, revisionId),
+    queryKey: [queryName, paperId, revisionId],
+    queryFn: () =>
+      source === "model"
+        ? api.modelOverview(paperId, revisionId)
+        : api.overview(paperId, revisionId),
     enabled: connected,
     refetchInterval: (query) =>
       query.state.data?.status === "PENDING" ? 1500 : false,
@@ -69,7 +78,7 @@ function PaperOverviewSession({
       retryFailed: boolean;
       forceRegenerate: boolean;
     }) =>
-      api.generateOverview(
+      (source === "model" ? api.generateModelOverview : api.generateOverview)(
         paperId,
         revisionId,
         allowNetwork,
@@ -81,7 +90,7 @@ function PaperOverviewSession({
       setAllowNetwork(false);
       setSelectedNode("");
       setSelectedEdge("");
-      client.setQueryData(["overview", paperId, revisionId], value);
+      client.setQueryData([queryName, paperId, revisionId], value);
     },
     onSettled: () => {
       void client.invalidateQueries({ queryKey: ["lite-usage", projectId] });
@@ -90,12 +99,28 @@ function PaperOverviewSession({
   });
   const data = overview.data;
   const completed =
-    data?.status === "COMPLETED" && !!data.paper_card && !!data.graph;
-  const resultId = data?.id ?? "";
+    !!data?.paper_card &&
+    !!data.graph &&
+    (data.status === "COMPLETED" || source === "model");
+  const showingPrevious =
+    source === "model" &&
+    !!data?.display_result_id &&
+    data.display_result_id !== data.id;
+  const resultId = data?.display_result_id ?? data?.id ?? "";
+  const collectKnowledge = useMutation({
+    mutationFn: () =>
+      knowledgeApi.collect({
+        paper_id: paperId,
+        source_kind: source === "model" ? "model_parse" : "local_revision",
+        source_id: revisionId,
+        overview_result_id: resultId,
+      }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["knowledge"] }),
+  });
   const understanding = useQuery({
     queryKey: ["concept-understanding", paperId, revisionId, resultId],
     queryFn: () => api.conceptUnderstanding(paperId, revisionId, resultId),
-    enabled: connected && completed && !!resultId,
+    enabled: connected && source === "local" && completed && !!resultId,
     retry: false,
   });
   useEffect(() => {
@@ -110,21 +135,26 @@ function PaperOverviewSession({
     previousStatus.current = data?.status ?? undefined;
   }, [client, data?.status, projectId]);
   const layoutQuery = useQuery({
-    queryKey: ["overview-layout", paperId, resultId],
-    queryFn: () => api.overviewLayout(paperId, resultId),
+    queryKey: [layoutQueryName, paperId, resultId],
+    queryFn: () =>
+      source === "model"
+        ? api.modelOverviewLayout(paperId, resultId)
+        : api.overviewLayout(paperId, resultId),
     enabled: connected && !!resultId && completed,
   });
   const { mutate: persistLayout, error: layoutError } = useMutation({
     mutationFn: (value: OverviewLayout) => {
       const write = layoutWrites.current.then(() =>
-        api.saveOverviewLayout(paperId, value),
+        source === "model"
+          ? api.saveModelOverviewLayout(paperId, value)
+          : api.saveOverviewLayout(paperId, value),
       );
       layoutWrites.current = write.catch(() => undefined);
       return write;
     },
     onSuccess: (value) =>
       client.setQueryData(
-        ["overview-layout", paperId, value.overview_result_id],
+        [layoutQueryName, paperId, value.overview_result_id],
         value,
       ),
   });
@@ -134,14 +164,16 @@ function PaperOverviewSession({
         window.clearTimeout(layoutTimer.current);
       pendingLayout.current = null;
       const write = layoutWrites.current.then(() =>
-        api.resetOverviewLayout(paperId, overviewResultId),
+        source === "model"
+          ? api.resetModelOverviewLayout(paperId, overviewResultId)
+          : api.resetOverviewLayout(paperId, overviewResultId),
       );
       layoutWrites.current = write.catch(() => undefined);
       return write;
     },
     onSuccess: (value) => {
       client.setQueryData(
-        ["overview-layout", paperId, value.overview_result_id],
+        [layoutQueryName, paperId, value.overview_result_id],
         value,
       );
       setLayout(null);
@@ -245,14 +277,26 @@ function PaperOverviewSession({
           {errorText(overview.error)}
         </p>
       )}
+      {overview.isSuccess && !data && (
+        <p className="quality-note">
+          尚未生成知识卡片和轻量图谱。允许一次模型调用后，可在这里生成论文概览。
+        </p>
+      )}
       {data?.status === "PENDING" && (
-        <p role="status">正在生成概览…本地章节和全文索引仍可继续使用。</p>
+        <p role="status">正在生成概览…章节内容仍可继续阅读。</p>
       )}
       {data?.status === "FAILED" && (
         <div role="alert" className="quality-note">
           <strong>概览生成失败</strong>
           <p>{data.error || data.error_code || "模型响应未通过校验"}</p>
         </div>
+      )}
+      {showingPrevious && (
+        <p role="status" className="quality-note">
+          {data?.status === "PENDING"
+            ? "正在重新生成概览，以下保留上一次成功的知识卡片与图谱。"
+            : "本次概览生成未完成，以下显示上一次成功的知识卡片与图谱。"}
+        </p>
       )}
       {data?.status !== "PENDING" && (
         <div className="import-controls">
@@ -299,10 +343,36 @@ function PaperOverviewSession({
       )}
       {completed && data?.paper_card && graph && (
         <>
+          <div className="import-controls">
+            <button
+              className="button secondary"
+              disabled={
+                !connected ||
+                collectKnowledge.isPending ||
+                collectKnowledge.isSuccess
+              }
+              onClick={() => collectKnowledge.mutate()}
+            >
+              {collectKnowledge.isSuccess
+                ? "已存入知识库"
+                : "加入研究内容知识库"}
+            </button>
+            <small className="muted">收藏当前概览，不调用模型。</small>
+          </div>
+          {collectKnowledge.isSuccess && (
+            <p role="status">
+              已收藏到研究内容知识库，当前概览与图谱会独立保存。
+            </p>
+          )}
+          {collectKnowledge.error && (
+            <p role="alert" className="error-text">
+              {errorText(collectKnowledge.error)}
+            </p>
+          )}
           <Card
             card={data.paper_card}
             cacheHit={data.cache_hit}
-            usage={data.usage}
+            usage={showingPrevious ? null : data.usage}
           />
           <div className="graph-layout">
             <div className="graph-canvas">
@@ -369,11 +439,13 @@ function PaperOverviewSession({
                 )}
               </div>
               <GraphLegend />
-              <div className="graph-reading-legend" aria-label="阅读状态图例">
-                <span>实线圈：自认为已理解</span>
-                <span>虚线圈：部分理解 / 还不确定</span>
-                <span>外侧光环：待解问题 / 需复查</span>
-              </div>
+              {source === "local" && (
+                <div className="graph-reading-legend" aria-label="阅读状态图例">
+                  <span>实线圈：自认为已理解</span>
+                  <span>虚线圈：部分理解 / 还不确定</span>
+                  <span>外侧光环：待解问题 / 需复查</span>
+                </div>
+              )}
             </div>
             <aside className="graph-detail" aria-label="图谱详情">
               {selected ? (

@@ -2,15 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api,
-  type GuideDepth,
   type QAScope,
   type SearchHit,
   type QAView,
-  type ReadingGuide,
   type ReadingParagraph,
+  type Section,
   type Structure,
 } from "./api";
-import { SectionCloseReading } from "./SectionCloseReading";
 import { PaperCloseReading } from "./PaperCloseReading";
 import { ReadingOutline } from "./ReadingOutline";
 
@@ -18,17 +16,44 @@ const sectionTargetId = (id: string) => `reading-section-${id || "all"}`;
 type DirectoryNotice = { sectionId: string; spanKey: string };
 type LocalSearchScope = { sectionId: string; query: string; epoch: number };
 
-export function KnowledgeReading({
+type KnowledgeReadingProps = {
+  versionId: string;
+  paperId: string;
+  connected: boolean;
+  panel?: "guide" | "qa" | "all";
+  initialSectionId?: string;
+  initialParagraphId?: string;
+  selectedSpanIds?: string[];
+  onSectionChange?: (sectionId: string) => void;
+  onOpenGraph?: (nodeId: string) => void;
+  onAskParagraph?: (sectionId: string, paragraph: ReadingParagraph) => void;
+};
+
+export function KnowledgeReading(props: KnowledgeReadingProps) {
+  if (props.panel === "guide") {
+    return (
+      <PaperCloseReading
+        key={`${props.paperId}:${props.versionId}`}
+        paperId={props.paperId}
+        revisionId={props.versionId}
+        connected={props.connected}
+        initialParagraphId={props.initialParagraphId}
+        onOpenGraph={props.onOpenGraph}
+        onAskParagraph={props.onAskParagraph}
+      />
+    );
+  }
+  return <LegacyKnowledgeReading {...props} />;
+}
+
+function LegacyKnowledgeReading({
   versionId,
   paperId,
   connected,
   panel = "all",
   initialSectionId = "",
-  initialParagraphId,
   selectedSpanIds = [],
   onSectionChange,
-  onOpenGraph,
-  onAskParagraph,
 }: {
   versionId: string;
   paperId: string;
@@ -56,12 +81,6 @@ export function KnowledgeReading({
     blockedSpanKey === selectedSpanKey ? [] : selectedSpanIds;
   const [query, setQuery] = useState("");
   const [sectionId, setSectionId] = useState(initialSectionId);
-  const [readingMode, setReadingMode] = useState<"paper" | "close" | "guide">(
-    panel === "guide" ? "paper" : "guide",
-  );
-  const [adaptive, setAdaptive] = useState(false);
-  const [depth, setDepth] = useState<GuideDepth>("standard");
-  const [allowNetwork, setAllowNetwork] = useState(false);
   const [qaQuestion, setQaQuestion] = useState("");
   const [qaScope, setQaScope] = useState<QAScope>(
     usableSpanIds.length ? "selection" : "section",
@@ -73,13 +92,10 @@ export function KnowledgeReading({
     null,
   );
   const [keywordRecordId, setKeywordRecordId] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
-    "idle",
-  );
   const searchEpoch = useRef(0);
   const sections = useQuery({
     queryKey: ["sections", versionId],
-    queryFn: () => api.sections(versionId),
+    queryFn: () => api.sections(versionId, { includeText: false }),
     enabled: connected,
     retry: false,
   });
@@ -229,53 +245,6 @@ export function KnowledgeReading({
     query,
     currentSectionExists,
   ]);
-  const guide = useQuery({
-    queryKey: ["section-guide", paperId, versionId, sectionId, depth, adaptive],
-    queryFn: () =>
-      api.sectionGuide(paperId, sectionId, versionId, depth, adaptive),
-    enabled: connected && readable,
-    retry: false,
-    refetchInterval: (query) =>
-      query.state.data?.status === "PENDING" ? 1200 : false,
-  });
-  const generateGuide = useMutation({
-    mutationFn: (input: {
-      sectionId: string;
-      depth: GuideDepth;
-      adaptive: boolean;
-      retry: boolean;
-      force: boolean;
-    }) => {
-      if (!input.sectionId || !currentSectionExists(input.sectionId, true))
-        throw new Error("章节目录已更新，请重新选择正文小节并确认本次授权。");
-      return api.generateSectionGuide(
-        paperId,
-        input.sectionId,
-        versionId,
-        input.depth,
-        true,
-        input.retry,
-        input.force,
-        input.adaptive,
-      );
-    },
-    onSuccess: (value, input) => {
-      client.setQueryData(
-        [
-          "section-guide",
-          value.paper_id,
-          value.document_version_id,
-          input.sectionId,
-          input.depth,
-          input.adaptive,
-        ],
-        value,
-      );
-      void client.invalidateQueries({ queryKey: ["lite-usage"] });
-      setAllowNetwork(false);
-    },
-  });
-  const guideText = guide.data?.guide ? formatGuide(guide.data.guide) : "";
   const qaHistory = useQuery({
     queryKey: [
       "paper-qa",
@@ -360,7 +329,6 @@ export function KnowledgeReading({
   });
   const resetSearch = search.reset;
   const resetExpansion = expandKeywords.reset;
-  const resetGuide = generateGuide.reset;
   const resetQA = askQA.reset;
   useEffect(() => {
     if (!sections.isSuccess || !sectionId || selected) return;
@@ -376,7 +344,6 @@ export function KnowledgeReading({
     setDirectoryNotice(notice);
     setBlockedSpanKey(selectedSpanKey);
     setSectionId("");
-    setAllowNetwork(false);
     setQaAllowNetwork(false);
     setKeywordAllowNetwork(false);
     setQaScope("section");
@@ -384,10 +351,8 @@ export function KnowledgeReading({
     setExpandedKeywords([]);
     setExpandedResults(null);
     setKeywordRecordId(null);
-    setCopyState("idle");
     resetSearch();
     resetExpansion();
-    resetGuide();
     resetQA();
     onSectionChange?.("");
   }, [
@@ -401,7 +366,6 @@ export function KnowledgeReading({
     onSectionChange,
     resetSearch,
     resetExpansion,
-    resetGuide,
     resetQA,
   ]);
 
@@ -411,90 +375,29 @@ export function KnowledgeReading({
     setDirectoryNotice(null);
     client.setQueryData(["reading-directory-notice", paperId, versionId], null);
     onSectionChange?.(id);
-    setAllowNetwork(false);
     setQaAllowNetwork(false);
     setKeywordAllowNetwork(false);
     setExpandedKeywords([]);
     setExpandedResults(null);
     setKeywordRecordId(null);
-    setCopyState("idle");
     resetSearch();
     resetExpansion();
   };
-  const copyGuide = async () => {
-    if (!guideText) return;
-    try {
-      await navigator.clipboard.writeText(guideText);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  };
   return (
     <section className="knowledge-area" aria-label="章节与本地索引">
-      {panel === "guide" ? (
-        <>
-          <nav className="reading-mode-tabs" aria-label="精读方式">
-            <button
-              type="button"
-              className={
-                readingMode === "paper" ? "button primary" : "button secondary"
-              }
-              aria-pressed={readingMode === "paper"}
-              onClick={() => setReadingMode("paper")}
-            >
-              全文精读
-            </button>
-            <button
-              type="button"
-              className={
-                readingMode === "guide" ? "button primary" : "button secondary"
-              }
-              aria-pressed={readingMode === "guide"}
-              onClick={() => setReadingMode("guide")}
-            >
-              小节导读 A01
-            </button>
-            <button
-              type="button"
-              className={
-                readingMode === "close" ? "button primary" : "button secondary"
-              }
-              aria-pressed={readingMode === "close"}
-              onClick={() => setReadingMode("close")}
-            >
-              理解状态与旧笔记
-            </button>
-          </nav>
-          {readingMode === "paper" && (
-            <PaperCloseReading
-              key={`${paperId}:${versionId}`}
-              paperId={paperId}
-              revisionId={versionId}
-              connected={connected}
-              initialParagraphId={initialParagraphId}
-              onOpenGraph={onOpenGraph}
-              onAskParagraph={onAskParagraph}
-            />
-          )}
-        </>
-      ) : (
-        <>
-          <h4>章节与本地索引</h4>
-          <p className="muted">章节识别和原文搜索在本机完成，不调用模型。</p>
-        </>
-      )}
+      <h4>章节与本地索引</h4>
+      <p className="muted">章节识别和原文搜索在本机完成，不调用模型。</p>
       {sections.isPending && connected && <p role="status">正在读取章节…</p>}
       {sections.isError && (
-        <p role="alert" className="error-text">
-          {sections.error.message}
+        <div role="alert" className="error-text">
+          <p>章节目录读取失败。{sections.error.message}</p>
           <button
             className="text-button"
             onClick={() => void sections.refetch()}
           >
-            重试读取
+            重新读取目录
           </button>
-        </p>
+        </div>
       )}
       {directoryNotice && (
         <p role="status" className="quality-note">
@@ -502,9 +405,9 @@ export function KnowledgeReading({
           历史图谱或链接可能指向旧解析；当前入口无法定位该历史章节，不会自动将其归入新章节。
         </p>
       )}
-      {sections.data && (panel !== "guide" || readingMode !== "paper") && (
+      {sections.data && (
         <ReadingOutline
-          key={`${paperId}:${versionId}:${readingMode}:${panel}`}
+          key={`${paperId}:${versionId}:${panel}`}
           entries={sections.data.sections
             .filter(
               (section) => !section.excluded && section.role !== "references",
@@ -548,182 +451,14 @@ export function KnowledgeReading({
             <p role="status">
               本地索引已就绪：{sections.data.sections.length} 个章节。
             </p>
-            {panel === "guide" && !readable && (
-              <p className="muted">
-                请从目录选择一个正文小节，查看导读或记录理解状态。
-              </p>
+            {selected && (
+              <SectionTextPreview
+                key={selected.id}
+                section={selected}
+                versionId={versionId}
+                connected={connected}
+              />
             )}
-            {selected &&
-              readable &&
-              panel === "guide" &&
-              readingMode === "close" && (
-                <SectionCloseReading
-                  key={`${versionId}:${sectionId}`}
-                  paperId={paperId}
-                  revisionId={versionId}
-                  sectionId={sectionId}
-                  title={selected.title}
-                  connected={connected}
-                  onOpenGraph={onOpenGraph}
-                  onAskParagraph={
-                    onAskParagraph
-                      ? (paragraph) => onAskParagraph(sectionId, paragraph)
-                      : undefined
-                  }
-                  initialParagraphId={initialParagraphId}
-                  historyOnly
-                />
-              )}
-            {selected && (panel !== "guide" || readingMode === "guide") && (
-              <details key={selected.id} open>
-                <summary>{selected.title} · 查看章节原文</summary>
-                {selected.start_page !== null && (
-                  <p className="muted">
-                    PDF 第 {selected.start_page + 1} 页
-                    {selected.end_page !== null &&
-                    selected.end_page !== selected.start_page
-                      ? ` 至第 ${selected.end_page + 1} 页`
-                      : ""}
-                  </p>
-                )}
-                <pre className="section-text" data-reading-anchor>
-                  {selected.text || "此章节没有可提取文本。"}
-                </pre>
-              </details>
-            )}
-            {selected &&
-              readable &&
-              ((panel === "guide" && readingMode === "guide") ||
-                panel === "all") && (
-                <section className="section-guide" aria-label="章节导读">
-                  <div className="section-guide-header">
-                    <div>
-                      <h5>章节导读</h5>
-                      <p className="muted">
-                        只处理当前小节。切换章节只读取缓存状态，不会自动调用模型。
-                      </p>
-                    </div>
-                    <span className="pill">
-                      {guide.isPending
-                        ? "正在读取状态…"
-                        : guide.data?.status === "PENDING"
-                          ? "正在生成…"
-                          : guide.data?.status === "COMPLETED"
-                            ? guide.data.cache_hit
-                              ? "缓存命中"
-                              : "已有导读"
-                            : guide.data?.status === "STALE"
-                              ? "版本已变化"
-                              : guide.data?.status === "FAILED"
-                                ? "生成失败"
-                                : "尚未生成"}
-                    </span>
-                  </div>
-                  <div className="guide-controls">
-                    <label>
-                      导读深度{" "}
-                      <select
-                        value={depth}
-                        onChange={(e) => {
-                          setDepth(e.target.value as GuideDepth);
-                          setAllowNetwork(false);
-                          setCopyState("idle");
-                        }}
-                      >
-                        <option value="quick">快速</option>
-                        <option value="standard">标准</option>
-                        <option value="deep">深入</option>
-                      </select>
-                    </label>
-                    <label className="consent-inline">
-                      <input
-                        type="checkbox"
-                        checked={adaptive}
-                        onChange={(event) => {
-                          setAdaptive(event.target.checked);
-                          setAllowNetwork(false);
-                        }}
-                      />
-                      参考已记录的理解状态调整侧重点
-                    </label>
-                    <label className="consent-inline">
-                      <input
-                        type="checkbox"
-                        checked={allowNetwork}
-                        onChange={(e) => setAllowNetwork(e.target.checked)}
-                      />
-                      允许本次把当前小节发送给已配置模型
-                    </label>
-                    <button
-                      type="button"
-                      className="button primary"
-                      disabled={
-                        !connected ||
-                        !allowNetwork ||
-                        guide.isPending ||
-                        generateGuide.isPending ||
-                        guide.data?.status === "PENDING"
-                      }
-                      onClick={() =>
-                        generateGuide.mutate({
-                          sectionId,
-                          depth,
-                          adaptive,
-                          retry: guide.data?.status === "FAILED",
-                          force:
-                            guide.data?.status === "COMPLETED" ||
-                            guide.data?.status === "STALE",
-                        })
-                      }
-                    >
-                      {generateGuide.isPending ||
-                      guide.data?.status === "PENDING"
-                        ? "正在生成…"
-                        : guide.data?.status === "COMPLETED"
-                          ? "重新生成导读"
-                          : "生成导读"}
-                    </button>
-                  </div>
-                  {guide.isError && (
-                    <p role="alert" className="error-text">
-                      {guide.error.message}
-                    </p>
-                  )}
-                  {generateGuide.isError && (
-                    <p role="alert" className="error-text">
-                      {generateGuide.error.message}
-                    </p>
-                  )}
-                  {guide.data?.error && guide.data.status === "FAILED" && (
-                    <p role="alert" className="error-text">
-                      {guide.data.error}
-                    </p>
-                  )}
-                  {guide.data?.status === "STALE" && (
-                    <p className="quality-note">
-                      当前导读来自旧文献版本，保留旧内容；请确认后重新生成当前版本。
-                    </p>
-                  )}
-                  {guide.data?.guide && (
-                    <GuideResult
-                      guide={guide.data.guide}
-                      evidence={guide.data.evidence}
-                      onCopy={copyGuide}
-                      copyState={copyState}
-                    />
-                  )}
-                  {adaptive && guide.data?.reader_context && (
-                    <p className="quality-note">
-                      本次导读参考了少量已记录状态。侧重点：
-                      {String(
-                        guide.data.reader_context.preferred_focus ||
-                          "回顾相关概念与论证联系",
-                      )}
-                      。关闭上方选项可使用普通导读缓存。
-                    </p>
-                  )}
-                </section>
-              )}
             {readable && (panel === "qa" || panel === "all") && (
               <section className="qa-panel" aria-label="局部证据问答">
                 <div className="section-guide-header">
@@ -856,7 +591,7 @@ export function KnowledgeReading({
           </div>
         </ReadingOutline>
       )}
-      {(panel === "guide" || panel === "all") && (
+      {panel === "all" && (
         <>
           <form
             className="import-controls"
@@ -950,6 +685,67 @@ export function KnowledgeReading({
         </>
       )}
     </section>
+  );
+}
+
+function SectionTextPreview({
+  section,
+  versionId,
+  connected,
+}: {
+  section: Section;
+  versionId: string;
+  connected: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const preview = useQuery({
+    queryKey: ["section-text", versionId, section.id],
+    queryFn: async () => {
+      const result = await api.sections(versionId, { sectionId: section.id });
+      if (
+        result.document_version_id !== versionId ||
+        result.sections.length !== 1 ||
+        result.sections[0]?.id !== section.id
+      ) {
+        throw new Error("章节与当前目录不一致，请重新读取目录。");
+      }
+      return result.sections[0].text;
+    },
+    enabled: connected && open,
+    retry: false,
+  });
+  return (
+    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>{section.title} · 查看章节原文</summary>
+      {section.start_page !== null && (
+        <p className="muted">
+          PDF 第 {section.start_page + 1} 页
+          {section.end_page !== null && section.end_page !== section.start_page
+            ? ` 至第 ${section.end_page + 1} 页`
+            : ""}
+        </p>
+      )}
+      {open && preview.isPending && connected && (
+        <p role="status">正在读取所选章节的原文…</p>
+      )}
+      {open && preview.isError && (
+        <div role="alert" className="error-text">
+          <p>{preview.error.message}</p>
+          <button
+            className="text-button"
+            disabled={!connected}
+            onClick={() => void preview.refetch()}
+          >
+            重新读取原文
+          </button>
+        </div>
+      )}
+      {preview.isSuccess && (
+        <pre className="section-text" data-reading-anchor>
+          {preview.data || "此章节没有可提取文本。"}
+        </pre>
+      )}
+    </details>
   );
 }
 
@@ -1064,126 +860,6 @@ function QAResult({ qa }: { qa: QAView }) {
         <p className="quality-note">
           模型认为更大范围可能有帮助，请由你决定是否切换作用范围。
         </p>
-      )}
-    </article>
-  );
-}
-
-function formatGuide(guide: ReadingGuide): string {
-  const lines = [
-    `章节导读（${guide.section_id}）`,
-    "",
-    guide.overview_zh,
-    "",
-    "重点：",
-    ...guide.key_points.map((item) => `- ${item}`),
-    "",
-    "阅读问题：",
-    ...guide.reading_questions.map((item) => `- ${item}`),
-  ];
-  if (guide.difficult_terms.length) {
-    lines.push(
-      "",
-      "困难术语：",
-      ...guide.difficult_terms.map(
-        (item) => `- ${item.term_en}：${item.hint_zh}`,
-      ),
-    );
-  }
-  if (guide.caveats.length)
-    lines.push("", "限制：", ...guide.caveats.map((item) => `- ${item}`));
-  if (guide.evidence_span_ids.length) {
-    lines.push("", `原文依据 Span：${guide.evidence_span_ids.join(", ")}`);
-  }
-  return lines.join("\n");
-}
-
-function GuideResult({
-  guide,
-  evidence,
-  onCopy,
-  copyState,
-}: {
-  guide: ReadingGuide;
-  evidence: {
-    span_id: string;
-    page_start: number;
-    page_end: number;
-    quote: string;
-  }[];
-  onCopy: () => void;
-  copyState: "idle" | "copied" | "failed";
-}) {
-  return (
-    <article className="guide-result">
-      <div className="guide-result-actions">
-        <strong>导读结果</strong>
-        <button type="button" className="button secondary" onClick={onCopy}>
-          复制导读
-        </button>
-        {copyState === "copied" && <span className="muted">已复制</span>}
-        {copyState === "failed" && (
-          <span className="error-text">复制失败，请手动选择文本</span>
-        )}
-      </div>
-      <p>{guide.overview_zh}</p>
-      <h6>重点</h6>
-      <ul>
-        {guide.key_points.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      <h6>阅读问题</h6>
-      <ul>
-        {guide.reading_questions.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      {guide.difficult_terms.length > 0 && (
-        <>
-          <h6>困难术语</h6>
-          <ul>
-            {guide.difficult_terms.map((item) => (
-              <li key={item.term_en}>
-                <strong>{item.term_en}</strong>：{item.hint_zh}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {guide.evidence_span_ids.length > 0 && (
-        <div className="guide-evidence">
-          <h6>原文位置</h6>
-          <ul>
-            {guide.evidence_span_ids.map((spanId) => {
-              const item = evidence.find(
-                (candidate) => candidate.span_id === spanId,
-              );
-              return (
-                <li key={spanId}>
-                  <span className="mono">
-                    {item
-                      ? `PDF 第 ${item.page_start}${item.page_end !== item.page_start ? `–${item.page_end}` : ""} 页`
-                      : "原文 Span"}
-                  </span>{" "}
-                  <span>{item?.quote || spanId}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-      {guide.needs_more_context && (
-        <p className="quality-note">
-          当前导读需要更多上下文，不能据此补造缺失内容。
-        </p>
-      )}
-      {guide.caveats.length > 0 && (
-        <ul className="quality-note">
-          {guide.caveats.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
       )}
     </article>
   );

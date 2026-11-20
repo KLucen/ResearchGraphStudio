@@ -2,6 +2,9 @@
   min-width: 0;
   color: #293c35;
 }
+.paper-close-reading .reading-outline-content {
+  container: paper-reading / inline-size;
+}
 .paper-reading-header,
 .paper-reading-local-status {
   display: flex;
@@ -107,6 +110,29 @@
 .paper-paragraph-note {
   min-width: 0;
 }
+.paper-paragraph-source {
+  align-self: start;
+}
+.paper-reading-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+.paper-reading-table table {
+  border-collapse: collapse;
+  min-width: min(100%, 480px);
+  line-height: 1.7;
+}
+.paper-reading-table th,
+.paper-reading-table td {
+  border: 1px solid #d8e1d2;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.paper-reading-table th {
+  background: #f4f5ef;
+}
 .paper-paragraph-meta {
   display: flex;
   justify-content: space-between;
@@ -144,8 +170,10 @@
   overflow-wrap: anywhere;
 }
 .paper-paragraph-note {
-  padding: 28px 0 0 20px;
-  border-left: 1px solid #e5e9e0;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  padding: 0;
   font-size: 14px;
   line-height: 1.9;
   overflow-wrap: anywhere;
@@ -155,7 +183,95 @@
   font-size: 11px;
 }
 .paper-paragraph-note p {
-  margin: 8px 0 15px;
+  margin: 6px 0 12px;
+}
+.paper-paragraph-comment {
+  margin: 0;
+  padding: 0 0 0 18px;
+  border-left: 1px solid #dce3d7;
+  scroll-margin-block: 100px;
+}
+.paper-highlight-references {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 10px 0 14px;
+}
+.paper-highlight-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  padding: 3px 0;
+  background: transparent;
+  color: #354e40;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+.paper-highlight-reference::before {
+  content: "";
+  flex: 0 0 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--annotation-color);
+}
+.paper-highlight-number {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+  color: #526650;
+}
+.paper-highlight-reference:focus-visible {
+  outline: 2px solid #567f70;
+  outline-offset: 4px;
+}
+.paper-highlight-reference[data-active="true"] {
+  text-decoration: underline;
+  text-decoration-color: var(--annotation-color);
+  text-underline-offset: 4px;
+}
+.paper-paragraph-english .argument-mark[role="button"] {
+  cursor: pointer;
+  scroll-margin-block: 100px;
+}
+.paper-paragraph-english .argument-mark[data-note-number]::after {
+  content: " " attr(data-note-number);
+  font-family: sans-serif;
+  font-size: 10px;
+  line-height: 0;
+  vertical-align: super;
+  font-weight: 600;
+  color: #365640;
+}
+.paper-paragraph-english .argument-mark[data-active="true"],
+.paper-paragraph-english .argument-mark:focus-visible {
+  outline: 2px solid #567f70;
+  outline-offset: 2px;
+}
+.paper-paragraph-comment-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12px;
+}
+.paper-paragraph-comment-heading > span {
+  color: #7b8877;
+  font-size: 11px;
+}
+.paper-comment-scope {
+  display: block;
+  margin: 6px 0 12px;
+  font-size: 11px;
+  color: #7b8877;
+}
+.paper-paragraph-comment h6 {
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: #6c7f66;
+  font-weight: 500;
 }
 .paper-critical-note {
   color: #746a55;
@@ -297,17 +413,6 @@
   line-height: 1.6;
 }
 @media (max-width: 850px) {
-  .paper-reading-column-labels {
-    display: none;
-  }
-  .paper-reading-paragraph {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 20px;
-  }
-  .paper-paragraph-note {
-    padding: 14px 0 0 14px;
-    border-top: 1px solid #e5e9e0;
-  }
   .paper-reading-actions {
     padding: 16px;
   }
@@ -317,4 +422,18 @@
   .paper-reading-materials {
     padding: 18px 16px;
   }
+}
+@container paper-reading (max-width: 559px) {
+  .paper-reading-column-labels {
+    display: none;
+  }
+}
+
+.paper-reading-paragraph[data-note-layout="stacked"] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+.paper-reading-paragraph[data-note-layout="stacked"] .paper-paragraph-note {
+  padding: 16px 0 0;
+  border-top: 1px solid #e5e9e0;
 }

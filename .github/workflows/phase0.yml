@@ -56,6 +56,8 @@ jobs:
           ./scripts/build-engine.ps1
           conda run -n researchgraph-studio python scripts/smoke-engine.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          conda run -n researchgraph-studio python scripts/smoke-knowledge-library.py --executable apps/desktop/src-tauri/binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Check Rust and build installer
         shell: pwsh
         run: |

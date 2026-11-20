@@ -1,5 +1,50 @@
 import { expect, test } from "@playwright/test";
 
+test("local chapter progress is available after its complete text and folded materials", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/e2e/paper-reading.html");
+  const chapter = page.locator(".paper-reading-chapter").first();
+  await expect(chapter.locator(".paper-reading-paragraph")).toHaveCount(2);
+  await expect(chapter.locator("header .chapter-reading-progress")).toHaveCount(
+    0,
+  );
+  const footer = chapter.locator("footer[data-chapter-progress-footer]");
+  await expect(footer).toHaveCount(1);
+  await expect(footer).toContainText("2. Synthetic Methods");
+  expect(
+    await chapter.evaluate((element) => {
+      const footer = element.querySelector("[data-chapter-progress-footer]")!;
+      return [
+        ...element.querySelectorAll(
+          ".paper-reading-paragraph, .paper-reading-materials",
+        ),
+      ].every((content) =>
+        Boolean(
+          content.compareDocumentPosition(footer) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        ),
+      );
+    }),
+  ).toBeTruthy();
+  await footer.getByRole("button", { name: "已读完", exact: true }).click();
+  await expect(
+    footer.getByRole("button", { name: "已读完", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await page.evaluate(() => window.__paperReadingProgressWrites),
+  ).toEqual([
+    {
+      paperId: "paper",
+      sectionId: "s",
+      document_version_id: "v",
+      progress: "COMPLETED",
+    },
+  ]);
+  expect(await page.evaluate(() => window.__paperReadingCalls)).toEqual([]);
+});
+
 test("full-paper reading renders headings and body paragraphs while preserving folded material source information", async ({
   page,
 }, testInfo) => {
@@ -10,9 +55,11 @@ test("full-paper reading renders headings and body paragraphs while preserving f
     page.getByRole("heading", { name: "2. Synthetic Methods" }),
   ).toBeVisible();
   await expect(page.locator(".paper-reading-paragraph")).toHaveCount(2);
-  await expect(page.locator(".paper-reading-body .paper-material")).toHaveCount(
-    0,
-  );
+  await expect(
+    page.locator(
+      ".paper-reading-chapter .paper-reading-materials .paper-material",
+    ),
+  ).toHaveCount(3);
   await expect(page.locator(".paper-material-raw").first()).not.toBeVisible();
   await expect(page.locator(".paper-paragraph-english").first()).toHaveText(
     "We test a bounded method. A bounded method may fail under noise.",
@@ -62,14 +109,14 @@ test("full-paper reading renders headings and body paragraphs while preserving f
     path: testInfo.outputPath("paper-reading-materials.png"),
     fullPage: true,
   });
-  await page.setViewportSize({ width: 620, height: 900 });
+  await page.setViewportSize({ width: 390, height: 900 });
   for (const row of await page.locator(".paper-reading-paragraph").all()) {
     const translation = await row
       .locator(".paper-paragraph-translation")
       .boundingBox();
     const note = await row.locator(".paper-paragraph-note").boundingBox();
     expect(note!.y).toBeGreaterThan(translation!.y + translation!.height);
-    expect(note!.width).toBeGreaterThan(500);
+    expect(note!.width).toBeGreaterThan(300);
   }
   expect(
     await page.evaluate(

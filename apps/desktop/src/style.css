@@ -2233,6 +2233,105 @@ main {
   margin: 20px 0 0;
   padding: 0;
 }
+.paper-parsing-controls {
+  margin-top: 20px;
+}
+.paper-parsing-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.paper-parsing-action-row > .paper-workspace-tabs {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.paper-parsing-menu {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+.paper-parsing-toggle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid #d3decf;
+  border-radius: 50%;
+  color: #44664e;
+  background: #fff;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.paper-parsing-toggle[aria-expanded="true"] {
+  border-color: #8da985;
+  background: #e8f0e3;
+}
+.paper-parsing-toggle:active {
+  transform: scale(0.97);
+}
+.paper-parsing-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: min(272px, calc(100vw - 40px));
+  padding: 6px;
+  border: 1px solid #dce4d6;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow:
+    0 12px 36px #283c2826,
+    0 2px 6px #283c280d;
+}
+.paper-parsing-options[hidden] {
+  display: none;
+}
+.paper-parsing-menu.opens-above .paper-parsing-options {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+.paper-parsing-options > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: 8px;
+  color: #405741;
+  background: transparent;
+  text-align: left;
+}
+.paper-parsing-options > button > span {
+  flex: 1;
+}
+.paper-parsing-options small {
+  display: block;
+  margin-top: 2px;
+  color: #7b8775;
+  font-size: 11px;
+}
+.paper-parsing-options > button[aria-pressed="true"] {
+  background: #eff4eb;
+}
+@media (hover: hover) and (pointer: fine) {
+  .paper-parsing-toggle:hover {
+    border-color: #9bb592;
+    background: #f1f6ed;
+  }
+  .paper-parsing-options > button:not(:disabled):hover {
+    background: #f1f6ed;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paper-parsing-toggle {
+    transition: none;
+  }
+}
 .paper-reading-focused > .reading-panel > .settings-card {
   margin-top: 0;
 }

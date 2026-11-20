@@ -18,6 +18,72 @@ export type HighlightSegment = {
   type: HighlightType | null;
 };
 
+export type ReadingHighlightRange = ReadingHighlight & {
+  index: number;
+  start: number;
+  end: number;
+};
+
+export function readingHighlightRanges(
+  text: string,
+  highlights: ReadingHighlight[],
+): ReadingHighlightRange[] {
+  return highlights.flatMap((highlight, index) => {
+    if (
+      !Object.hasOwn(readingHighlightTypes, highlight.type) ||
+      !highlight.quote_en ||
+      !Number.isSafeInteger(highlight.occurrence_index) ||
+      highlight.occurrence_index < 0
+    )
+      return [];
+    let start = -1;
+    for (
+      let occurrence = 0;
+      occurrence <= highlight.occurrence_index;
+      occurrence++
+    ) {
+      start = text.indexOf(highlight.quote_en, start + 1);
+      if (start < 0) return [];
+    }
+    return [
+      { ...highlight, index, start, end: start + highlight.quote_en.length },
+    ];
+  });
+}
+
+// Preserve every annotation identity, including adjacent marks of the same type
+// and fully overlapping ranges. Color precedence stays the same as the legacy
+// renderer, while all covered annotations retain a source anchor.
+export function readingAnnotationSegments(
+  text: string,
+  ranges: ReadingHighlightRange[],
+) {
+  const priority = Object.keys(readingHighlightTypes);
+  const boundaries = [
+    ...new Set([
+      0,
+      text.length,
+      ...ranges.flatMap(({ start, end }) => [start, end]),
+    ]),
+  ].sort((a, b) => a - b);
+  return boundaries.slice(0, -1).map((start, i) => {
+    const end = boundaries[i + 1];
+    const covered = ranges
+      .filter((range) => range.start <= start && range.end >= end)
+      .sort(
+        (a, b) =>
+          priority.indexOf(a.type) - priority.indexOf(b.type) ||
+          a.index - b.index,
+      );
+    return {
+      start,
+      text: text.slice(start, end),
+      type: covered[0]?.type ?? null,
+      highlightIndices: covered.map((range) => range.index),
+    };
+  });
+}
+
 // Exact local text is authoritative. Earlier enum types win overlapping text;
 // ties use the response order. Splitting at boundaries preserves every byte of
 // the displayed source, including whitespace and repeated occurrences.

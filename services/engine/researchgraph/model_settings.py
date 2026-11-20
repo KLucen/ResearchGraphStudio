@@ -28,8 +28,16 @@ class ModelParameters(StrictModel):
     )
     adapter_policy: Literal["tencent-deepseek-v41-structured-v1"] | None = None
     timeout_seconds: int = Field(default=90, ge=5, le=180)
+    document_timeout_seconds: int = Field(default=600, ge=30, le=1800)
+    document_total_timeout_seconds: int = Field(default=1800, ge=60, le=3600)
     json_mode: bool = True
     output_policy: OutputPolicy | None = None
+
+    @model_validator(mode="after")
+    def validate_document_timeouts(self) -> "ModelParameters":
+        if self.document_total_timeout_seconds < self.document_timeout_seconds:
+            raise ValueError("文档解析总时限不能小于文档等待超时")
+        return self
 
 
 class ConnectionInput(StrictModel):
@@ -153,6 +161,9 @@ class ConnectionView(StrictModel):
 class RolesInput(StrictModel):
     extraction: str | None = None
     reasoning: str | None = None
+    document_parse: str | None = None
+    knowledge_extract: str | None = None
+    knowledge_connect: str | None = None
 
 
 class SettingsView(StrictModel):
@@ -300,7 +311,19 @@ def save_profile(
     profile.name, profile.model = body.name, body.model
     parameters = body.parameters.model_dump()
     parameters["max_output_tokens"] = None
-    parameters["capabilities"] = ModelCapabilities().model_dump()
+    # Users may explicitly declare file input for this endpoint/model. Token
+    # limits still come from endpoint metadata/documented adapters; accepting a
+    # file declaration must not re-enable former arbitrary manual token caps.
+    declared = body.parameters.capabilities
+    explicit_document = bool(
+        {"document_input", "multimodal", "document_transport"} & declared.model_fields_set
+    )
+    parameters["capabilities"] = ModelCapabilities(
+        document_input=declared.document_input,
+        multimodal=declared.multimodal,
+        document_transport=declared.document_transport,
+        source="user_declared" if explicit_document else "provider_default",
+    ).model_dump()
     # A profile cannot claim strict support; only new task creation freezes it.
     parameters["output_policy"] = None
     profile.parameters, profile.updated_at = parameters, now()
@@ -375,11 +398,16 @@ def _update_connection_secret(
     connection.updated_at = now()
 
 
-def snapshot_for(session: Session, project_id: str, role: str) -> dict[str, Any]:
+def snapshot_for(session: Session, project_id: str | None, role: str) -> dict[str, Any]:
     require_project(session, project_id)
     selection = session.get(GlobalModelRole, role)
     if selection is None:
-        raise KnowledgeError("MODEL_NOT_CONFIGURED", f"请先在设置与诊断选择全局 {role} 模型")
+        label = {
+            "document_parse": "论文解析",
+            "knowledge_extract": "论文知识建模",
+            "knowledge_connect": "跨论文联系分析",
+        }.get(role, role)
+        raise KnowledgeError("MODEL_NOT_CONFIGURED", f"请先在设置与诊断选择全局 {label} 模型")
     p = require_profile(session, selection.profile_id, project_id)
     connection = _connection_for_profile(session, p)
     provider = connection.provider if connection else p.provider
@@ -407,7 +435,13 @@ def snapshot_for(session: Session, project_id: str, role: str) -> dict[str, Any]
     )
     from researchgraph.model_adapters import new_task_parameters
 
-    snapshot["parameters"] = new_task_parameters(base_url, p.model, p.parameters, role)
+    snapshot["parameters"] = {**new_task_parameters(base_url, p.model, p.parameters, role)}
+    if role == "document_parse":
+        # New document tasks receive the same defaults shown in settings even
+        # when the persisted profile predates these fields. Existing profiles
+        # and already queued task snapshots remain unchanged.
+        snapshot["parameters"].setdefault("document_timeout_seconds", 600)
+        snapshot["parameters"].setdefault("document_total_timeout_seconds", 1800)
     snapshot["parameters"] = {
         **snapshot["parameters"],
         "output_policy": freeze_output_policy(provider, base_url, p.model, snapshot["parameters"]),

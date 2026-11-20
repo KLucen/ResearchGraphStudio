@@ -68,7 +68,10 @@ def test_local_job_api_and_usage_are_available(tmp_path):
 def test_old_routes_are_not_registered(tmp_path):
     with client(tmp_path) as api:
         assert api.get("/api/v1/lint/runs").status_code == 404
-        assert api.post("/api/v1/knowledge/extract").status_code == 404
+        # The new source-grounded library uses this namespace with a distinct
+        # contract; the old full-graph extraction payload remains invalid.
+        assert api.post("/api/v1/knowledge/extract").status_code == 422
+        assert api.post("/api/v1/knowledge/rebuild").status_code == 404
         assert api.get("/api/v1/projects/x/query/runs").status_code == 404
 
 
@@ -219,6 +222,68 @@ def test_zotero_browse_returns_pdf_choices_without_model_calls(tmp_path, monkeyp
         "/users/0/collections/COLL1234/items/top?limit=10&start=0&q=method&qmode=titleCreatorYear",
         "/users/0/items/PAPER123/children?limit=100",
     ]
+
+
+@pytest.mark.parametrize(
+    ("title", "expected_title"),
+    [("  A synthetic paper title  ", "A synthetic paper title"), (None, "PAPER123")],
+)
+def test_model_first_zotero_import_has_title_before_parsing(tmp_path, title, expected_title):
+    with client(tmp_path) as api:
+        project = api.post(
+            "/api/v1/projects",
+            json={"name": "Title fixture"},
+            headers={"Idempotency-Key": "title-project"},
+        ).json()["id"]
+        response = api.post(
+            f"/api/v1/projects/{project}/zotero-imports",
+            json={
+                "library": "users/0",
+                "collection_key": "COLL1234",
+                "selections": [
+                    {"item_key": "PAPER123", "attachment_key": "ATTACH12", "title": title}
+                ],
+                "post_import_plan": {"parse": True, "allow_network": False},
+            },
+            headers={"Idempotency-Key": "title-import"},
+        )
+        assert response.status_code == 202, response.text
+        assert response.json()[0]["job"]["status"] == "queued"
+        with Session(api.app.state.engine) as db:
+            paper = db.query(Paper).filter_by(project_id=project).one()
+            assert paper.title == expected_title
+        assert api.get(f"/api/v1/projects/{project}/lite/usage").json()["calls"] == 0
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "document_source",
+        "preparing_provider",
+        "model_parsing",
+        "validating_document",
+        "saving_document",
+        "paused",
+    ],
+)
+def test_model_document_job_phases_are_readable_through_job_api(tmp_path, stage):
+    with client(tmp_path) as api:
+        job_id = str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            db.add(
+                Job(
+                    id=job_id,
+                    kind="llm_document_parse",
+                    status="failed" if stage == "paused" else "running",
+                    stage=stage,
+                    attempt=1,
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+        response = api.get(f"/api/v1/jobs/{job_id}")
+        assert response.status_code == 200, response.text
+        assert response.json()["stage"] == stage
 
 
 @pytest.mark.parametrize(

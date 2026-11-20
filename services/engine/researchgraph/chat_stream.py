@@ -77,8 +77,13 @@ class ChatStream:
         if isinstance(reasoning, str):
             # Keep counters only; reasoning is not scientific content or an evidence source.
             self.reasoning_characters += len(reasoning)
-        if choice.get("finish_reason") is not None:
-            self.finish_reason = choice["finish_reason"]
+        finish_reason = choice.get("finish_reason")
+        if finish_reason is not None:
+            if not isinstance(finish_reason, str) or (
+                self.finish_reason is not None and self.finish_reason != finish_reason
+            ):
+                raise ProviderError("response", "模型流返回了无效或冲突的结束状态")
+            self.finish_reason = finish_reason
 
     def envelope(self) -> dict[str, Any]:
         from researchgraph.providers import ProviderError

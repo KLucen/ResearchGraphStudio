@@ -611,6 +611,81 @@ def test_sections_route_upgrades_legacy_tree_before_returning_outline(versioned,
     assert len(calls) == 1
 
 
+def test_qa_directory_reads_only_committed_headings_without_source_scan(versioned, monkeypatch):
+    engine, _original = versioned
+    with Session(engine) as session:
+        before = {
+            model: snapshot(session, model)
+            for model in (Chunk, Section, EvidenceSpan, DocumentParse)
+        }
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail("QA directory must not scan a PDF or materialize any section text")
+
+    monkeypatch.setattr("researchgraph.local_index.ensure_structure_v2", unexpected)
+    monkeypatch.setattr("researchgraph.local_index.section_spans", unexpected)
+    app = FastAPI()
+    register_local_index_api(app, lambda: engine)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/revisions/revision/sections?include_text=false")
+    assert response.status_code == 200, response.text
+    rows = response.json()["sections"]
+    assert len(rows) == 1 and rows[0]["title"] == "Document"
+    assert rows[0]["text"] == "" and rows[0]["chunk_ids"] == []
+    with Session(engine) as session:
+        for model, saved in before.items():
+            assert snapshot(session, model) == saved
+
+
+def test_qa_preview_materializes_only_selected_current_section(versioned, monkeypatch):
+    engine, structure = versioned
+    with Session(engine) as session, session.begin():
+        old_section_id = active_section_rows(session, "revision")[0].id
+        add_current(session, structure)
+        method = active_section_rows(session, "revision")[1]
+        method_id = method.id
+    calls = []
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail("QA preview must not reopen or upgrade a PDF")
+
+    original_spans = section_spans
+
+    def selected_spans(session, selected):
+        calls.append(selected.id)
+        return original_spans(session, selected)
+
+    monkeypatch.setattr("researchgraph.local_index.ensure_structure_v2", unexpected)
+    monkeypatch.setattr("researchgraph.local_index.section_spans", selected_spans)
+    app = FastAPI()
+    register_local_index_api(app, lambda: engine)
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/revisions/revision/sections", params={"section_id": method_id}
+        )
+        assert response.status_code == 200, response.text
+        rows = response.json()["sections"]
+        assert len(rows) == 1 and rows[0]["id"] == method_id
+        assert rows[0]["chunk_ids"] == ["chunk-0"]
+        assert "shared memory" in rows[0]["text"]
+        assert calls == [method_id]
+        for unavailable in (old_section_id, "foreign-or-missing"):
+            with pytest.raises(KnowledgeError) as caught:
+                client.get(
+                    "/api/v1/revisions/revision/sections", params={"section_id": unavailable}
+                )
+            assert caught.value.code == "SECTION_NOT_FOUND"
+        # A preview still validates the immutable source before exposing text.
+        with Session(engine) as session, session.begin():
+            span = session.scalar(
+                select(EvidenceSpan).where(EvidenceSpan.paragraph_id == "chunk-0")
+            )
+            span.text_sha256 = "b" * 64
+        with pytest.raises(KnowledgeError) as caught:
+            client.get("/api/v1/revisions/revision/sections", params={"section_id": method_id})
+        assert caught.value.code == "PARSE_ANCHOR_MISMATCH"
+
+
 def test_reading_document_route_upgrades_legacy_tree_before_projection(versioned, monkeypatch):
     engine, original = versioned
     fresh = deepcopy(original)

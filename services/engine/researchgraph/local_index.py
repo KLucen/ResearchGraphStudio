@@ -85,18 +85,25 @@ def index_document(session: Session, revision_id: str) -> None:
         )
 
 
-def section_views(session: Session, revision_id: str) -> list[SectionView]:
+def section_views(
+    session: Session, revision_id: str, *, include_text: bool = True, section_id: str | None = None
+) -> list[SectionView]:
     if session.get(AttachmentRevision, revision_id) is None:
         raise KnowledgeError("DOCUMENT_NOT_FOUND", "文献版本不存在")
     # Keep legacy printed-contents rows out of navigation even when the
     # registered PDF is temporarily unavailable for the one-time v2 upgrade.
     rows = current_navigation_rows(session, revision_id)
+    if section_id is not None:
+        rows = [row for row in rows if row.id == section_id]
+        if not rows:
+            raise KnowledgeError("SECTION_NOT_FOUND", "章节已不在当前目录中，请刷新后重新选择")
     out = []
     for row in rows:
         view = SectionView.model_validate(row)
-        selected = section_spans(session, row)
-        view.text = "\n".join(span.quote for span in selected)
-        view.chunk_ids = [span.paragraph_id for span in selected]
+        if include_text:
+            selected = section_spans(session, row)
+            view.text = "\n".join(span.quote for span in selected)
+            view.chunk_ids = [span.paragraph_id for span in selected]
         out.append(view)
     return out
 
@@ -221,18 +228,26 @@ def register_local_index_api(
             )
 
     @app.get("/api/v1/revisions/{revision_id}/sections", response_model=SectionList)
-    def revision_sections(revision_id: str) -> SectionList:
+    def revision_sections(
+        revision_id: str, include_text: bool = True, section_id: str | None = None
+    ) -> SectionList:
         # Existing Lite databases may still have the old parse where printed
         # contents entries were promoted to chapters. Upgrade once from the
         # registered, hash-checked PDF before returning the tree.
-        with read_session(engine()) as session:
-            revision = session.get(AttachmentRevision, revision_id)
-            paper_id = revision.paper_id if revision else None
-        if paper_id:
-            ensure_structure_v2(engine(), paper_id, revision_id, data_dir)
+        if include_text and section_id is None:
+            with read_session(engine()) as session:
+                revision = session.get(AttachmentRevision, revision_id)
+                paper_id = revision.paper_id if revision else None
+            if paper_id:
+                ensure_structure_v2(engine(), paper_id, revision_id, data_dir)
+        # The QA directory and its single-section preview use committed rows
+        # only. Opening them must never synchronously reopen or upgrade a PDF.
         with read_session(engine()) as session:
             return SectionList(
-                document_version_id=revision_id, sections=section_views(session, revision_id)
+                document_version_id=revision_id,
+                sections=section_views(
+                    session, revision_id, include_text=include_text, section_id=section_id
+                ),
             )
 
     @app.get("/api/v1/revisions/{revision_id}/structure", response_model=DocumentStructure)

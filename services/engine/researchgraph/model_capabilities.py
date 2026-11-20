@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from researchgraph.core import StrictModel
 
@@ -18,8 +18,16 @@ class ModelCapabilities(StrictModel):
     multimodal: bool = False
     # File transport is deliberately explicit.  A model advertising PDF/image
     # input without a known transport must not receive a file by accident.
-    document_transport: Literal["none", "chat_file"] = "none"
+    document_transport: Literal["none", "chat_file", "chat_images"] = "none"
     source: str = "provider_default"
+
+    @model_validator(mode="after")
+    def validate_visual_transport(self) -> "ModelCapabilities":
+        if self.document_transport == "chat_images" and (
+            self.document_input != "image" or not self.multimodal
+        ):
+            raise ValueError("PDF 页面图片传输需要声明图片输入和多模态能力")
+        return self
 
 
 def parse_capabilities(value: dict[str, Any]) -> ModelCapabilities:
@@ -43,7 +51,7 @@ def parse_capabilities(value: dict[str, Any]) -> ModelCapabilities:
 
     document_input: Literal["text", "pdf", "image"] = "text"
     multimodal = False
-    document_transport: Literal["none", "chat_file"] = "none"
+    document_transport: Literal["none", "chat_file", "chat_images"] = "none"
     discovered_document = False
     for container in containers:
         raw_input = container.get("document_input")
@@ -51,6 +59,8 @@ def parse_capabilities(value: dict[str, Any]) -> ModelCapabilities:
             document_input = raw_input
             discovered_document = True
         raw_transport = container.get("document_transport")
+        # Image input metadata alone does not authorize local PDF rendering or
+        # select a new transport. chat_images remains an explicit user choice.
         if raw_transport in {"none", "chat_file"}:
             document_transport = raw_transport
             discovered_document = True
@@ -80,8 +90,6 @@ def parse_capabilities(value: dict[str, Any]) -> ModelCapabilities:
         multimodal=multimodal,
         document_transport=document_transport,
         source=(
-            "endpoint_metadata"
-            if output or context or discovered_document
-            else "provider_default"
+            "endpoint_metadata" if output or context or discovered_document else "provider_default"
         ),
     )

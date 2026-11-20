@@ -76,7 +76,7 @@ def run(
             base = f"http://127.0.0.1:{ready['port']}/api/v1"
             health = request(base, token, "GET", "/health")
             assert (
-                health["schema_version"] == "lite0011"
+                health["schema_version"] == "lite0018"
                 and health["database"] == "ready"
                 and health["fts5"]
             )
@@ -94,7 +94,7 @@ def run(
                 {"name": "Lite smoke", "description": "synthetic"},
                 "project-1",
             )
-            fixture = fixture or root / "tests" / "fixtures" / "pdf" / "two-pages.pdf"
+            fixture = (fixture or root / "tests" / "fixtures" / "pdf" / "two-pages.pdf").resolve()
             job = request(
                 base,
                 token,
@@ -115,10 +115,25 @@ def run(
             paper_id = papers["items"][0]["id"]
             detail = request(base, token, "GET", f"/papers/{paper_id}")
             version = detail["revisions"][0]["id"]
+            directory_start = time.perf_counter()
+            directory = request(
+                base, token, "GET", f"/revisions/{version}/sections?include_text=false"
+            )
+            directory_seconds = time.perf_counter() - directory_start
+            assert directory["sections"] and all(
+                row["text"] == "" and row["chunk_ids"] == [] for row in directory["sections"]
+            )
             sections = request(base, token, "GET", f"/revisions/{version}/sections")
             section = next(
                 item for item in sections["sections"] if not item["excluded"] and item["chunk_ids"]
             )
+            preview = request(
+                base,
+                token,
+                "GET",
+                f"/revisions/{version}/sections?section_id={section['id']}",
+            )
+            assert preview["document_version_id"] == version and preview["sections"] == [section]
             scope = f"/papers/{paper_id}/sections/{section['id']}"
             paragraphs = request(
                 base, token, "GET", f"{scope}/paragraphs?document_version_id={version}"
@@ -160,6 +175,9 @@ def run(
                 "model_calls": usage["calls"],
                 "local_reading_paragraphs": len(paragraphs["paragraphs"]),
                 "local_reading_state": restored["progress"],
+                "qa_directory_sections": len(directory["sections"]),
+                "qa_directory_seconds": round(directory_seconds, 6),
+                "qa_lazy_preview_sections": len(preview["sections"]),
                 "translation_available": False,
                 "status": "passed",
             }
@@ -179,8 +197,15 @@ def main() -> None:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--executable", type=Path)
     group.add_argument("--source-python", type=Path)
+    parser.add_argument("--fixture", type=Path)
     args = parser.parse_args()
-    print(json.dumps(run(args.executable, args.source_python), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            run(args.executable, args.source_python, fixture=args.fixture),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

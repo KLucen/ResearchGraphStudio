@@ -40,6 +40,11 @@ class ReadingStatePut(StrictModel):
         return value
 
 
+class ReadingProgressPatch(StrictModel):
+    document_version_id: str
+    progress: Progress
+
+
 class ReadingStateView(StrictModel):
     paper_id: str
     document_version_id: str

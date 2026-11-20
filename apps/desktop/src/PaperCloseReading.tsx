@@ -1,18 +1,26 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import katex from "katex";
-import "katex/dist/katex.min.css";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   api,
   type DocumentReadingUnit,
   type DocumentReadingView,
-  type FormulaPreview,
   type ParagraphAnalysis,
   type ReadingParagraph,
+  type ChapterProgress,
 } from "./api";
 import { ArgumentSummary, UsageNote } from "./SectionCloseReading";
-import { highlightSegments, readingHighlightTypes } from "./readingHighlights";
+import {
+  ReadingFormulaDisplay,
+  ReadingLegend,
+  ReadingParagraphCard,
+} from "./ReadingContent";
 import { ReadingOutline, type OutlineEntry } from "./ReadingOutline";
+import { ChapterProgressControls } from "./ChapterProgress";
 import "./paperCloseReading.css";
 
 const statusLabels = {
@@ -41,140 +49,19 @@ function FormulaDisplay({
   unit: DocumentReadingUnit;
   revisionId: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [preview, setPreview] = useState<FormulaPreview | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const latex = unit.formula_latex?.trim();
-  const status = unit.formula_status ?? (latex ? "recognized" : "detected");
-  const source = unit.formula_source_text || unit.text;
-  const togglePreview = async () => {
-    if (preview) {
-      setPreviewOpen((open) => !open);
-      return;
-    }
-    if (!unit.formula_id) {
-      setPreviewError("当前公式没有可用的原图定位信息。");
-      return;
-    }
-    setPreviewLoading(true);
-    setPreviewError(null);
-    try {
-      const value = await api.formulaPreview(revisionId, unit.formula_id);
-      setPreview(value);
-      setPreviewOpen(true);
-    } catch (error) {
-      setPreviewError(
-        error instanceof Error ? error.message : "公式原图预览读取失败。",
-      );
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-  const previewControl = (
-    <>
-      <button
-        className="text-button"
-        type="button"
-        disabled={previewLoading}
-        onClick={() => void togglePreview()}
-      >
-        {previewLoading
-          ? "正在读取原图…"
-          : previewOpen
-            ? "隐藏原图区域"
-            : "查看原图区域"}
-      </button>
-      {previewError && (
-        <span className="paper-formula-preview-error" role="alert">
-          {previewError}
-        </span>
-      )}
-      {previewOpen && preview && (
-        <figure className="paper-formula-preview">
-          <img
-            src={`data:${preview.mime_type};base64,${preview.data_base64}`}
-            alt={`PDF 第 ${preview.page} 页公式原图区域`}
-          />
-          <figcaption>
-            PDF 第 {preview.page} 页 · 原始区域已按登记来源截取；请以此核对
-            LaTeX、上下标和积分上下限。
-          </figcaption>
-        </figure>
-      )}
-    </>
-  );
-  if (!latex || status !== "recognized") {
-    return (
-      <div className="paper-formula-fallback" role="note">
-        <span className="paper-formula-status">
-          {status === "uncertain" || status === "detected"
-            ? "公式已定位，LaTeX 尚未可靠确认"
-            : "公式暂未转换为 LaTeX"}
-        </span>
-        <pre>{source || "请查看原始 PDF 中的公式区域。"}</pre>
-        <div className="paper-formula-actions">{previewControl}</div>
-      </div>
-    );
-  }
-  let html: string;
-  try {
-    html = katex.renderToString(latex, {
-      displayMode: true,
-      throwOnError: false,
-      strict: "warn",
-      trust: false,
-    });
-  } catch {
-    return (
-      <div className="paper-formula-fallback" role="note">
-        <span className="paper-formula-status">
-          LaTeX 渲染失败，保留原始公式
-        </span>
-        <pre>{source || latex}</pre>
-        <div className="paper-formula-actions">{previewControl}</div>
-      </div>
-    );
-  }
   return (
-    <div className="paper-formula-rendered" role="note" aria-label="LaTeX 公式">
-      <div dangerouslySetInnerHTML={{ __html: html }} />
-      <div className="paper-formula-actions">
-        <button
-          className="text-button"
-          type="button"
-          onClick={() => {
-            if (!navigator.clipboard) return;
-            void navigator.clipboard.writeText(latex).then(() => {
-              setCopied(true);
-              window.setTimeout(() => setCopied(false), 1400);
-            });
-          }}
-        >
-          {copied ? "已复制 LaTeX" : "复制 LaTeX"}
-        </button>
-        {previewControl}
-      </div>
-      <details className="paper-formula-source">
-        <summary>查看 LaTeX 与原始公式</summary>
-        <pre>{latex}</pre>
-        {source && source !== latex && <pre>{source}</pre>}
-      </details>
-    </div>
+    <ReadingFormulaDisplay
+      latex={unit.formula_latex}
+      status={unit.formula_status}
+      source={unit.formula_source_text || unit.text}
+      loadPreview={
+        unit.formula_id
+          ? () => api.formulaPreview(revisionId, unit.formula_id!)
+          : undefined
+      }
+    />
   );
 }
-const functionLabels = {
-  INTRODUCE_PROBLEM: "提出问题",
-  DEFINE_CONCEPT: "定义概念",
-  STATE_CLAIM: "陈述论点",
-  EXPLAIN_METHOD: "解释方法",
-  PRESENT_EVIDENCE: "呈现论据",
-  HANDLE_OBJECTION: "回应异议",
-  DISCUSS_LIMITATION: "讨论局限",
-  SUMMARIZE_TRANSITION: "总结与过渡",
-  OTHER: "阅读批注",
-};
 
 type Props = {
   paperId: string;
@@ -496,6 +383,7 @@ export function PaperCloseReading(props: Props) {
         <>
           <ReadingDocument
             document={local.data}
+            connected={props.connected}
             revisionId={props.revisionId}
             analyses={byId}
             pending={pending}
@@ -554,6 +442,7 @@ export function PaperCloseReading(props: Props) {
 
 function ReadingDocument({
   document,
+  connected,
   revisionId,
   analyses,
   pending,
@@ -562,6 +451,7 @@ function ReadingDocument({
   onAskParagraph,
 }: {
   document: DocumentReadingView;
+  connected: boolean;
   revisionId: string;
   analyses: Map<string, ParagraphAnalysis>;
   pending: boolean;
@@ -632,8 +522,172 @@ function ReadingDocument({
           : (entryBySection.get(section.parent_id ?? "") ?? null);
     }
   }
+  const minLevel = Math.min(...outlineEntries.map((entry) => entry.level ?? 1));
+  const mainEntries = outlineEntries.filter(
+    (entry) =>
+      entry.parentId === null ||
+      (entry.parentId === undefined && (entry.level ?? 1) === minLevel),
+  );
+  const mainSectionIds = new Map(
+    mainEntries.flatMap((entry) => {
+      const sectionId = body.find((unit) => unit.id === entry.id)?.section_id;
+      return sectionId ? [[entry.id, sectionId] as const] : [];
+    }),
+  );
+  const mainEntryById = new Map(mainEntries.map((entry) => [entry.id, entry]));
+  const chapterGroups: {
+    entry?: OutlineEntry;
+    units: DocumentReadingUnit[];
+  }[] = [];
+  let chapterGroup: (typeof chapterGroups)[number] = { units: [] };
+  // Only body order defines chapter boundaries. The projection appends detected
+  // figures and formulas after all body units, then renumbers their ordinals.
+  // Their array position must never make an earlier chapter's material belong
+  // to the last chapter. Recovered headings can still share one old section ID.
+  for (const unit of body) {
+    if (mainSectionIds.has(unit.id)) {
+      if (chapterGroup.units.length) chapterGroups.push(chapterGroup);
+      chapterGroup = { entry: mainEntryById.get(unit.id), units: [] };
+    }
+    chapterGroup.units.push(unit);
+  }
+  if (chapterGroup.units.length) chapterGroups.push(chapterGroup);
+  const bodyGroups = chapterGroups.map((group) => ({
+    group,
+    body: [...group.units],
+    firstIndex: document.units.findIndex(
+      (unit) => unit.id === group.units[0]?.id,
+    ),
+  }));
+  const sectionsById = new Map(
+    document.sections.map((section) => [section.section_id, section]),
+  );
+  const unassignedMaterials: DocumentReadingUnit[] = [];
+  for (const material of materials) {
+    let candidates: (typeof bodyGroups)[number][] = [];
+    let sectionId = material.section_id;
+    const visitedSections = new Set<string>();
+    while (sectionId && !visitedSections.has(sectionId)) {
+      visitedSections.add(sectionId);
+      candidates = bodyGroups.filter(
+        ({ group, body: units }) =>
+          group.entry && units.some((unit) => unit.section_id === sectionId),
+      );
+      if (candidates.length) break;
+      sectionId = sectionsById.get(sectionId)?.parent_id ?? null;
+    }
+    // A shared source chunk/span can identify a concrete paragraph even if the
+    // historical section was reused for several recovered chapter headings.
+    const chunks = new Set(material.sources.map((source) => source.chunk_id));
+    const spans = new Set(
+      material.sources.flatMap((source) => source.span_ids),
+    );
+    const sourceCandidates = bodyGroups.filter(
+      ({ group, body: units }) =>
+        group.entry &&
+        units.some(
+          (unit) =>
+            unit.kind === "paragraph" &&
+            unit.sources.some(
+              (source) =>
+                chunks.has(source.chunk_id) ||
+                source.span_ids.some((span) => spans.has(span)),
+            ),
+        ),
+    );
+    let owner =
+      sourceCandidates.length === 1 &&
+      (!candidates.length || candidates.includes(sourceCandidates[0]))
+        ? sourceCandidates[0]
+        : candidates.length === 1 && !sourceCandidates.length
+          ? candidates[0]
+          : undefined;
+    if (!owner && candidates.length > 1 && !sourceCandidates.length) {
+      const pageCandidates = candidates.filter(({ body: units }) => {
+        const firstPage = Math.min(...units.map((unit) => unit.page_start));
+        const lastPage = Math.max(...units.map((unit) => unit.page_end));
+        return (
+          material.page_start >= firstPage && material.page_end <= lastPage
+        );
+      });
+      if (pageCandidates.length === 1) owner = pageCandidates[0];
+      else {
+        const materialIndex = document.units.findIndex(
+          (unit) => unit.id === material.id,
+        );
+        // A truly interleaved item before the next body chapter has an explicit
+        // position. A tail-appended item has no such bounded interval.
+        const orderedCandidates = candidates.filter((candidate) => {
+          const index = bodyGroups.indexOf(candidate);
+          const next = bodyGroups[index + 1];
+          return (
+            next &&
+            materialIndex > candidate.firstIndex &&
+            materialIndex < next.firstIndex
+          );
+        });
+        if (orderedCandidates.length === 1) owner = orderedCandidates[0];
+      }
+    }
+    if (owner) owner.group.units.push(material);
+    else unassignedMaterials.push(material);
+  }
+  const client = useQueryClient();
+  const uniqueSectionIds = [...new Set(mainSectionIds.values())];
+  const states = useQueries({
+    queries: uniqueSectionIds.map((sectionId) => ({
+      queryKey: ["reading-state", document.paper_id, revisionId, sectionId],
+      queryFn: () => api.readingState(document.paper_id, sectionId, revisionId),
+      enabled: connected,
+      retry: false,
+    })),
+  });
+  const stateBySection = new Map(
+    uniqueSectionIds.map((sectionId, index) => [sectionId, states[index]]),
+  );
+  const saveProgress = useMutation({
+    mutationFn: ({
+      sectionId,
+      progress,
+    }: {
+      sectionId: string;
+      progress: ChapterProgress;
+    }) =>
+      api.saveReadingProgress(document.paper_id, sectionId, {
+        document_version_id: revisionId,
+        progress,
+      }),
+    retry: false,
+    onSuccess: (value) => {
+      client.setQueryData(
+        ["reading-state", document.paper_id, revisionId, value.section_id],
+        value,
+      );
+    },
+  });
+  for (const entry of mainEntries) {
+    const sectionId = mainSectionIds.get(entry.id);
+    if (sectionId)
+      entry.progress =
+        stateBySection.get(sectionId)?.data?.progress ?? "NOT_STARTED";
+  }
   return (
     <ReadingOutline entries={outlineEntries} trackScroll>
+      {(saveProgress.error || states.some((state) => state.isError)) && (
+        <p role="alert" className="error-text">
+          {saveProgress.error?.message ??
+            "章节阅读状态暂未读取成功，请稍后重新读取。"}
+          <button
+            type="button"
+            className="text-button"
+            onClick={() =>
+              void Promise.all(states.map((state) => state.refetch()))
+            }
+          >
+            重新读取阅读状态
+          </button>
+        </p>
+      )}
       <div className="paper-reading-local-status">
         <span>
           本地阅读内容已就绪 · {paragraphs.length} 段正文 · {materials.length}{" "}
@@ -657,125 +711,197 @@ function ReadingDocument({
           </ul>
         </details>
       )}
-      <div className="reading-legend" aria-label="全文论证标注图例">
-        {Object.entries(readingHighlightTypes).map(([type, appearance]) => (
-          <span key={type}>
-            <i style={{ background: appearance.color }} />
-            {appearance.label}
-          </span>
-        ))}
-      </div>
+      <ReadingLegend />
       {!!paragraphs.length && (
         <div className="paper-reading-column-labels" aria-hidden="true">
           <span>正文与常驻中文译文</span>
-          <span>论证笔记</span>
+          <span>标记与整段批注</span>
         </div>
       )}
       <div className="paper-reading-body">
-        {body.map((unit) =>
-          unit.kind === "heading" ? (
-            <header
-              className="paper-reading-section-heading"
-              key={unit.id}
-              id={unitElementId(unit.id)}
-              data-reading-anchor
-              tabIndex={-1}
-              data-heading-level={
-                unit.heading_level ??
-                document.sections.find((s) => s.section_id === unit.section_id)
-                  ?.level ??
-                1
-              }
-            >
-              <h5>{unit.text}</h5>
-              <span className="muted">{pageLabel(unit)}</span>
-            </header>
-          ) : (
-            <PaperParagraph
-              key={unit.id}
-              unit={unit}
-              revisionId={revisionId}
-              paragraphNumber={paragraphNumbers.get(unit.id)!}
-              analysis={analyses.get(unit.id)}
-              pending={pending}
-              stale={stale}
-              onOpenGraph={onOpenGraph}
-              onAsk={
-                unit.section_id && onAskParagraph
-                  ? () =>
-                      onAskParagraph(unit.section_id!, {
-                        paragraph_id: unit.id,
-                        text_en: unit.text,
-                        text_hash: unit.source_hash,
-                        page_start: unit.page_start,
-                        page_end: unit.page_end,
-                        ordinal: unit.ordinal,
-                        span_ids: unit.sources.flatMap(
-                          (source) => source.span_ids,
-                        ),
-                      })
-                  : undefined
-              }
-            />
-          ),
-        )}
+        {chapterGroups.map((chapter, chapterIndex) => (
+          <section
+            key={chapter.entry?.id ?? `unheaded-${chapterIndex}`}
+            className="paper-reading-chapter"
+            data-chapter-id={chapter.entry?.id}
+          >
+            {chapter.units
+              .filter((unit) => unit.kind !== "material")
+              .map((unit) =>
+                unit.kind === "heading" ? (
+                  <header
+                    className="paper-reading-section-heading"
+                    key={unit.id}
+                    id={unitElementId(unit.id)}
+                    data-reading-anchor
+                    tabIndex={-1}
+                    data-heading-level={
+                      unit.heading_level ??
+                      document.sections.find(
+                        (s) => s.section_id === unit.section_id,
+                      )?.level ??
+                      1
+                    }
+                  >
+                    <h5>{unit.text}</h5>
+                    <span className="muted">{pageLabel(unit)}</span>
+                  </header>
+                ) : (
+                  <PaperParagraph
+                    key={unit.id}
+                    unit={unit}
+                    revisionId={revisionId}
+                    paragraphNumber={paragraphNumbers.get(unit.id)!}
+                    analysis={analyses.get(unit.id)}
+                    pending={pending}
+                    stale={stale}
+                    onOpenGraph={onOpenGraph}
+                    onAsk={
+                      unit.section_id && onAskParagraph
+                        ? () =>
+                            onAskParagraph(unit.section_id!, {
+                              paragraph_id: unit.id,
+                              text_en: unit.text,
+                              text_hash: unit.source_hash,
+                              page_start: unit.page_start,
+                              page_end: unit.page_end,
+                              ordinal: unit.ordinal,
+                              span_ids: unit.sources.flatMap(
+                                (source) => source.span_ids,
+                              ),
+                            })
+                        : undefined
+                    }
+                  />
+                ),
+              )}
+            {(chapter.units.some((unit) => unit.kind === "material") ||
+              (!materials.length &&
+                chapterIndex === chapterGroups.length - 1)) && (
+              <ReadingMaterials
+                materials={chapter.units.filter(
+                  (unit) => unit.kind === "material",
+                )}
+                revisionId={revisionId}
+              />
+            )}
+            {chapter.entry && mainSectionIds.has(chapter.entry.id) && (
+              <ChapterProgressControls
+                title={chapter.entry.label}
+                progress={
+                  stateBySection.get(mainSectionIds.get(chapter.entry.id)!)
+                    ?.data?.progress ?? "NOT_STARTED"
+                }
+                disabled={
+                  !connected ||
+                  saveProgress.isPending ||
+                  !stateBySection.get(mainSectionIds.get(chapter.entry.id)!)
+                    ?.isSuccess
+                }
+                onChange={(progress) =>
+                  saveProgress.mutate({
+                    sectionId: mainSectionIds.get(chapter.entry!.id)!,
+                    progress,
+                  })
+                }
+              />
+            )}
+          </section>
+        ))}
       </div>
+      {!!unassignedMaterials.length && (
+        <ReadingMaterials
+          materials={unassignedMaterials}
+          revisionId={revisionId}
+          unassigned
+        />
+      )}
       {!paragraphs.length && (
         <p className="quality-note">
           尚未识别出可靠正文。请查看材料区或原始 PDF；扫描页暂不执行 OCR。
         </p>
       )}
-      <details className="paper-reading-materials">
-        <summary>图表与其他材料（{materials.length}）</summary>
-        <section aria-label="图表与其他材料">
-          <p className="muted">
-            图表、图注及疑似图内标签单独保留，不生成译文或论证批注。以下页码可用于在
-            Zotero 原始 PDF 中核对；图像区域仅作定位识别。
-          </p>
-          {materials.map((unit) => (
-            <details className="paper-material" key={unit.id}>
-              <summary>
-                <strong>
-                  {unit.material_type
-                    ? materialLabels[unit.material_type]
-                    : "其他材料"}
-                </strong>
-                <span>
-                  {pageLabel(unit)}
-                  {unit.confidence === "suspected" ? " · 待核对" : ""}
-                </span>
-                {unit.text && (
-                  <small>{unit.text.replace(/\s+/g, " ").slice(0, 100)}</small>
-                )}
-              </summary>
-              <p className="paper-material-reason">
-                {unit.reason || "此内容作为版面材料保留。"}
-              </p>
-              <p className="quality-note">
-                处理建议：
-                {unit.solution ||
-                  "请在 Zotero 中打开原始 PDF，按页码查看；尚未对图表内容进行分析。"}
-              </p>
-              {unit.material_type === "formula" && (
-                <FormulaDisplay unit={unit} revisionId={revisionId} />
-              )}
-              <pre className="paper-material-raw">
-                {unit.sources.length
-                  ? unit.sources.map((source) => source.text).join("\n")
-                  : unit.text ||
-                    "此区域没有可提取的文字；请查看原始 PDF 图像。"}
-              </pre>
-              <SourceMap unit={unit} />
-            </details>
-          ))}
-          {!materials.length && (
-            <p className="muted">
-              当前未识别到单独材料。这不代表 PDF 不含图片或表格。
-            </p>
-          )}
-        </section>
-      </details>
+      {!materials.length && !chapterGroups.length && (
+        <ReadingMaterials materials={[]} revisionId={revisionId} />
+      )}
     </ReadingOutline>
+  );
+}
+
+function ReadingMaterials({
+  materials,
+  revisionId,
+  unassigned = false,
+}: {
+  materials: DocumentReadingUnit[];
+  revisionId: string;
+  unassigned?: boolean;
+}) {
+  return (
+    <details
+      className="paper-reading-materials"
+      data-unassigned-materials={unassigned || undefined}
+    >
+      <summary>
+        {unassigned ? "未确定章节的图表与其他材料" : "图表与其他材料"}（
+        {materials.length}）
+      </summary>
+      <section
+        aria-label={
+          unassigned ? "未确定章节的图表与其他材料" : "图表与其他材料"
+        }
+      >
+        {unassigned && (
+          <p className="quality-note">
+            现有来源无法唯一确定这些材料所属的章节，单独保留在这里；请按原始页码和定位核对。
+          </p>
+        )}
+        <p className="muted">
+          图表、图注及疑似图内标签单独保留，不生成译文或论证批注。以下页码可用于在
+          Zotero 原始 PDF 中核对；图像区域仅作定位识别。
+        </p>
+        {materials.map((unit) => (
+          <details className="paper-material" key={unit.id}>
+            <summary>
+              <strong>
+                {unit.material_type
+                  ? materialLabels[unit.material_type]
+                  : "其他材料"}
+              </strong>
+              <span>
+                {pageLabel(unit)}
+                {unit.confidence === "suspected" ? " · 待核对" : ""}
+              </span>
+              {unit.text && (
+                <small>{unit.text.replace(/\s+/g, " ").slice(0, 100)}</small>
+              )}
+            </summary>
+            <p className="paper-material-reason">
+              {unit.reason || "此内容作为版面材料保留。"}
+            </p>
+            <p className="quality-note">
+              处理建议：
+              {unit.solution ||
+                "请在 Zotero 中打开原始 PDF，按页码查看；尚未对图表内容进行分析。"}
+            </p>
+            {unit.material_type === "formula" && (
+              <FormulaDisplay unit={unit} revisionId={revisionId} />
+            )}
+            <pre className="paper-material-raw">
+              {unit.sources.length
+                ? unit.sources.map((source) => source.text).join("\n")
+                : unit.text || "此区域没有可提取的文字；请查看原始 PDF 图像。"}
+            </pre>
+            <SourceMap unit={unit} />
+          </details>
+        ))}
+        {!materials.length && (
+          <p className="muted">
+            当前未识别到单独材料。这不代表 PDF 不含图片或表格。
+          </p>
+        )}
+      </section>
+    </details>
   );
 }
 
@@ -799,97 +925,31 @@ function PaperParagraph({
   onAsk?: () => void;
 }) {
   return (
-    <article
-      className="paper-reading-paragraph"
-      id={unitElementId(unit.id)}
-      tabIndex={-1}
-      data-paragraph-id={unit.id}
-    >
-      <div className="paper-paragraph-source">
-        <div className="paper-paragraph-meta">
-          <span>
-            {pageLabel(unit)}
-            {unit.sources.length > 1
-              ? ` · ${unit.sources.length} 个原始块组合`
-              : ""}
-          </span>
-          {onAsk && (
-            <button className="text-button" onClick={onAsk}>
-              对这段提问
-            </button>
-          )}
-        </div>
-        <p className="paper-paragraph-english" data-reading-anchor>
-          {highlightSegments(unit.text, analysis?.highlights ?? []).map(
-            (segment) =>
-              segment.type ? (
-                <mark
-                  key={segment.start}
-                  className={`argument-mark mark-${segment.type.toLowerCase()}`}
-                  data-highlight-type={segment.type}
-                >
-                  {segment.text}
-                </mark>
-              ) : (
-                <span key={segment.start}>{segment.text}</span>
-              ),
-          )}
-        </p>
-        <div
-          className="paper-paragraph-translation"
-          aria-label={`正文第 ${paragraphNumber} 段中文译文`}
-        >
-          <small>中文译文</small>
-          <p className={analysis ? "" : "muted"}>
-            {analysis?.translation_zh ??
-              (stale
-                ? "旧笔记未与当前原文对齐；生成当前全文笔记后显示译文。"
-                : pending
-                  ? "正在生成全文笔记，本段译文将在校验后显示。"
-                  : "尚无本段译文；生成全文精读笔记后常驻显示。")}
-          </p>
-        </div>
-        <SourceMap unit={unit} />
-        {unit.formula_latex && (
+    <ReadingParagraphCard
+      id={unit.id}
+      elementId={unitElementId(unit.id)}
+      text={unit.text}
+      paragraphNumber={paragraphNumber}
+      metadata={
+        <>
+          {pageLabel(unit)}
+          {unit.sources.length > 1
+            ? ` · ${unit.sources.length} 个原始块组合`
+            : ""}
+        </>
+      }
+      sourceDetails={<SourceMap unit={unit} />}
+      formula={
+        unit.formula_latex ? (
           <FormulaDisplay unit={unit} revisionId={revisionId} />
-        )}
-      </div>
-      <aside
-        className="paper-paragraph-note"
-        aria-label={`正文第 ${paragraphNumber} 段论证批注`}
-      >
-        {analysis ? (
-          <>
-            <small>{functionLabels[analysis.paragraph_function]}</small>
-            <p>{analysis.logic_role_zh}</p>
-            {analysis.critical_note_zh && (
-              <p className="paper-critical-note">{analysis.critical_note_zh}</p>
-            )}
-            {analysis.reading_question_zh && (
-              <p className="paragraph-question">
-                {analysis.reading_question_zh}
-              </p>
-            )}
-            {onOpenGraph &&
-              analysis.related_graph_node_ids.map((nodeId, index) => (
-                <button
-                  className="text-button"
-                  key={nodeId}
-                  onClick={() => onOpenGraph(nodeId)}
-                >
-                  查看关联概念 {index + 1}
-                </button>
-              ))}
-          </>
-        ) : (
-          <p className="muted">
-            {stale
-              ? "当前正文暂无有效批注。"
-              : "全文笔记生成后，在这里对照阅读。"}
-          </p>
-        )}
-      </aside>
-    </article>
+        ) : undefined
+      }
+      analysis={analysis}
+      pending={pending}
+      stale={stale}
+      onOpenGraph={onOpenGraph}
+      onAsk={onAsk}
+    />
   );
 }
 

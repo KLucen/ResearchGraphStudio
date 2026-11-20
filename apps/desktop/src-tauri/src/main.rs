@@ -13,7 +13,7 @@ use std::{
 use tauri::{Manager, State};
 
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "lite0011";
+const ENGINE_SCHEMA_VERSION: &str = "lite0018";
 
 #[derive(Default)]
 struct Host {
@@ -219,19 +219,25 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
                         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
             }
             "limit" | "page" => value.parse::<u32>().is_ok_and(|number| number >= 1),
-            "start" => value.parse::<u32>().is_ok(),
+            "start" | "offset" => value.parse::<u32>().is_ok(),
             "paper_id"
+            | "project_id"
+            | "collection_id"
+            | "library_paper_id"
             | "revision_id"
             | "document_version_id"
             | "section_id"
             | "overview_result_id"
+            | "parse_id"
             | "result_id" => valid_id(&value),
             "paragraph_ids" => {
                 !value.is_empty()
                     && value.split(',').count() <= 100
                     && value.split(',').all(valid_id)
             }
-            "adaptive" => matches!(value.as_ref(), "true" | "false"),
+            "adaptive" | "include_text" | "include_archived" | "unread_only" => {
+                matches!(value.as_ref(), "true" | "false")
+            }
             "library" => {
                 value == "users/0"
                     || value
@@ -239,6 +245,8 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
                         .is_some_and(|v| !v.is_empty() && v.chars().all(|c| c.is_ascii_digit()))
             }
             "q" => !value.is_empty() && value.chars().count() <= 500,
+            "search" => value.chars().count() <= 300,
+            "view_key" => !value.is_empty() && value.chars().count() <= 120,
             "depth" => matches!(value.as_ref(), "quick" | "standard" | "deep"),
             "scope" => matches!(value.as_ref(), "selection" | "section" | "paper"),
             _ => false,
@@ -260,6 +268,42 @@ fn allowed(method: &str, path: &str) -> bool {
     let plain = query.is_empty();
     match (method, suffix) {
         ("GET", ["health"]) => plain,
+        ("GET" | "PATCH", ["knowledge", "library"]) => plain,
+        ("GET", ["knowledge", "papers"]) => query_allowed(
+            query,
+            &[
+                "project_id",
+                "collection_id",
+                "search",
+                "include_archived",
+                "limit",
+                "offset",
+            ],
+        ),
+        ("POST", ["knowledge", "papers", "collect"] | ["knowledge", "extract"]) => plain,
+        ("GET" | "PATCH" | "DELETE", ["knowledge", "papers", paper]) => plain && valid_id(paper),
+        ("GET", ["knowledge", "versions", version]) => plain && valid_id(version),
+        ("POST", ["knowledge", "versions", version, "connect"]) => plain && valid_id(version),
+        ("GET" | "POST", ["knowledge", "collections"]) => plain,
+        ("DELETE", ["knowledge", "collections", collection]) => plain && valid_id(collection),
+        ("PUT" | "DELETE", ["knowledge", "collections", collection, "papers", paper]) => {
+            plain && valid_id(collection) && valid_id(paper)
+        }
+        ("GET", ["knowledge", "layout"]) => query_allowed(query, &["view_key"]),
+        ("PUT", ["knowledge", "layout"]) => plain,
+        ("GET", ["knowledge", "export" | "usage"]) => plain,
+        ("GET", ["knowledge", "source-options"]) => {
+            query_allowed(query, &["paper_id", "project_id"])
+        }
+        ("GET", ["knowledge", "reports"]) => query_allowed(
+            query,
+            &["library_paper_id", "unread_only", "limit", "offset"],
+        ),
+        ("GET" | "PATCH", ["knowledge", "reports", report]) => plain && valid_id(report),
+        ("GET", ["knowledge", "runs"]) => {
+            query_allowed(query, &["library_paper_id", "limit", "offset"])
+        }
+        ("POST", ["knowledge", "runs", run, "retry"]) => plain && valid_id(run),
         ("GET", ["projects"]) => query_allowed(query, &["cursor", "limit"]),
         ("POST", ["projects"] | ["jobs"]) => plain,
         ("GET", ["jobs"]) => plain,
@@ -273,15 +317,36 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["import-sessions", session, "document-parse" | "document-outputs"]) => {
             plain && valid_id(session)
         }
+        ("GET" | "POST", ["import-sessions", session, "document-parse", "format-repair"]) => {
+            plain && valid_id(session)
+        }
+        (
+            "POST",
+            ["import-sessions", session, "document-outputs", "paper_overview" | "paper_reading" | "translation", "generate"],
+        ) => plain && valid_id(session),
+        ("POST", ["import-sessions", session, "document-outputs", output, "format-repair"]) => {
+            plain && valid_id(session) && valid_id(output)
+        }
+        ("GET" | "PUT", ["import-sessions", session, "chapter-reading-states"]) => {
+            plain && valid_id(session)
+        }
         (
             "POST",
             ["import-sessions", session, "items", "document_parse" | "paper_overview" | "paper_reading" | "translation", "retry"],
         ) => plain && valid_id(session),
-        ("GET", ["papers", paper]) => plain && valid_id(paper),
+        ("GET" | "PATCH" | "DELETE", ["papers", paper]) => plain && valid_id(paper),
+        ("POST", ["papers", paper, "model-document-outputs", output, "local-recovery"]) => {
+            plain && valid_id(paper) && valid_id(output)
+        }
+        ("DELETE", ["papers", paper, "legacy-content"]) => plain && valid_id(paper),
+        ("POST", ["papers", paper, "parse"]) => plain && valid_id(paper),
         ("GET", ["revisions", revision, "chunks"]) => {
             valid_id(revision) && query_allowed(query, &["cursor", "limit"])
         }
-        ("GET", ["revisions", revision, "sections" | "structure"]) => plain && valid_id(revision),
+        ("GET", ["revisions", revision, "sections"]) => {
+            valid_id(revision) && query_allowed(query, &["include_text", "section_id"])
+        }
+        ("GET", ["revisions", revision, "structure"]) => plain && valid_id(revision),
         ("GET", ["revisions", revision, "formulas"]) => {
             valid_id(revision) && query_allowed(query, &["page", "limit"])
         }
@@ -325,6 +390,19 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["papers", paper, "overview"]) => {
             valid_id(paper) && query_allowed(query, &["document_version_id"])
         }
+        ("GET", ["papers", paper, "model-overview"]) => {
+            valid_id(paper) && query_allowed(query, &["parse_id"])
+        }
+        ("POST", ["papers", paper, "model-overview", "generate"]) => plain && valid_id(paper),
+        ("GET", ["papers", paper, "model-overview", "graph", "layout"]) => {
+            valid_id(paper) && query_allowed(query, &["overview_result_id"])
+        }
+        ("POST", ["papers", paper, "model-overview", "graph", "layout"]) => {
+            plain && valid_id(paper)
+        }
+        ("POST", ["papers", paper, "model-overview", "graph", "layout", "reset"]) => {
+            plain && valid_id(paper)
+        }
         ("GET", ["papers", paper, "reading-document"]) => {
             valid_id(paper) && query_allowed(query, &["document_version_id"])
         }
@@ -363,7 +441,7 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["papers", paper, "sections", section, "paragraphs" | "reading-state"]) => {
             valid_id(paper) && valid_id(section) && query_allowed(query, &["document_version_id"])
         }
-        ("PUT", ["papers", paper, "sections", section, "reading-state"]) => {
+        ("PUT" | "PATCH", ["papers", paper, "sections", section, "reading-state"]) => {
             plain && valid_id(paper) && valid_id(section)
         }
         (
@@ -669,6 +747,16 @@ fn decode_engine_response(status: reqwest::StatusCode, body: &[u8]) -> Result<Va
     })
 }
 
+fn engine_transport_message(error: &reqwest::Error) -> &'static str {
+    if error.is_timeout() {
+        "本地引擎未在时限内响应，请稍后重试此操作"
+    } else if error.is_connect() {
+        "无法连接本地引擎，请在设置与诊断中重新连接"
+    } else {
+        "本地引擎请求中断，请稍后重试此操作"
+    }
+}
+
 #[tauri::command]
 async fn engine_request(
     state: State<'_, Shared>,
@@ -719,12 +807,12 @@ async fn engine_request(
     let response = request
         .send()
         .await
-        .map_err(|_| "本地引擎连接中断，请重新连接后重试")?;
+        .map_err(|error| engine_transport_message(&error))?;
     let status = response.status();
     let bytes = response
         .bytes()
         .await
-        .map_err(|_| "本地引擎响应读取中断，请稍后重试")?;
+        .map_err(|error| engine_transport_message(&error))?;
     decode_engine_response(status, &bytes)
 }
 
@@ -788,6 +876,9 @@ mod tests {
             ("GET", format!("/api/v1/projects/{paper}/search?q=sample&paper_id={paper}&revision_id={version}")),
             ("GET", format!("/api/v1/papers/{paper}/overview?document_version_id={version}")),
             ("GET", format!("/api/v1/revisions/{version}/formulas?page=1&limit=64")),
+            ("GET", format!("/api/v1/revisions/{version}/sections?include_text=false")),
+            ("GET", format!("/api/v1/revisions/{version}/sections?section_id={result}")),
+            ("GET", format!("/api/v1/revisions/{version}/sections?section_id={result}&include_text=true")),
             ("POST", format!("/api/v1/revisions/{version}/formulas/recognize")),
             (
                 "GET",
@@ -821,6 +912,10 @@ mod tests {
         for path in [
             format!("/api/v1/papers/{paper}/overview/graph/layout?overview_result_id=invalid"),
             format!("/api/v1/revisions/{version}/formulas?page=0"),
+            format!("/api/v1/revisions/{version}/sections?include_text=yes"),
+            format!("/api/v1/revisions/{version}/sections?include_text=false&include_text=true"),
+            format!("/api/v1/revisions/{version}/sections?section_id=invalid"),
+            format!("/api/v1/revisions/{version}/sections?section_id={result}&raw=true"),
             format!("/api/v1/revisions/{version}/formulas/recognize?force=true"),
             format!("/api/v1/revisions/{version}/formulas?offset=1"),
             format!("/api/v1/revisions/{version}/formulas/formula-not-a-digest/preview"),
@@ -920,6 +1015,138 @@ mod tests {
     }
 
     #[test]
+    fn paper_management_routes_allow_only_valid_mutations() {
+        let paper = "11111111-1111-4111-8111-111111111111";
+        for method in ["PATCH", "DELETE"] {
+            let path = format!("/api/v1/papers/{paper}");
+            assert!(
+                super::allowed(method, &path),
+                "route rejected: {method} {path}"
+            );
+            assert!(!super::allowed(method, &format!("{path}?force=true")));
+        }
+
+        let legacy_content = format!("/api/v1/papers/{paper}/legacy-content");
+        assert!(super::allowed("DELETE", &legacy_content));
+        assert!(!super::allowed("GET", &legacy_content));
+        assert!(!super::allowed("POST", &legacy_content));
+        let parse = format!("/api/v1/papers/{paper}/parse");
+        assert!(super::allowed("POST", &parse));
+        assert!(!super::allowed("GET", &parse));
+        assert!(!super::allowed("DELETE", &parse));
+        assert!(!super::allowed("POST", &format!("{parse}?force=true")));
+        assert!(!super::allowed("POST", "/api/v1/papers/not-a-uuid/parse"));
+        assert!(!super::allowed(
+            "DELETE",
+            &format!("{legacy_content}?force=true")
+        ));
+
+        for (method, path) in [
+            ("PATCH", "/api/v1/papers/not-a-uuid".to_owned()),
+            ("DELETE", "/api/v1/papers/not-a-uuid".to_owned()),
+            (
+                "DELETE",
+                "/api/v1/papers/not-a-uuid/legacy-content".to_owned(),
+            ),
+            ("PUT", format!("/api/v1/papers/{paper}")),
+        ] {
+            assert!(
+                !super::allowed(method, &path),
+                "unsafe route accepted: {method} {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn model_chapter_reading_state_routes_keep_mutation_explicit() {
+        let session = "11111111-1111-4111-8111-111111111111";
+        let path = format!("/api/v1/import-sessions/{session}/chapter-reading-states");
+        for method in ["GET", "PUT"] {
+            assert!(super::allowed(method, &path));
+            assert!(!super::allowed(
+                method,
+                &format!("{path}?parse_id={session}")
+            ));
+            assert!(!super::allowed(
+                method,
+                "/api/v1/import-sessions/not-a-uuid/chapter-reading-states"
+            ));
+        }
+        for method in ["POST", "PATCH", "DELETE"] {
+            assert!(!super::allowed(method, &path));
+        }
+    }
+
+    #[test]
+    fn model_document_feature_routes_are_scoped() {
+        let id = "11111111-1111-4111-8111-111111111111";
+        for (method, path) in [
+            (
+                "GET",
+                format!("/api/v1/papers/{id}/model-overview?parse_id={id}"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/papers/{id}/model-overview/generate"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/papers/{id}/model-document-outputs/{id}/local-recovery"),
+            ),
+            (
+                "GET",
+                format!("/api/v1/papers/{id}/model-overview/graph/layout?overview_result_id={id}"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/papers/{id}/model-overview/graph/layout"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/papers/{id}/model-overview/graph/layout/reset"),
+            ),
+            (
+                "GET",
+                format!("/api/v1/import-sessions/{id}/document-parse/format-repair"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/import-sessions/{id}/document-parse/format-repair"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/import-sessions/{id}/document-outputs/paper_reading/generate"),
+            ),
+            (
+                "POST",
+                format!("/api/v1/import-sessions/{id}/document-outputs/{id}/format-repair"),
+            ),
+        ] {
+            assert!(
+                super::allowed(method, &path),
+                "route rejected: {method} {path}"
+            );
+            assert!(!super::allowed(method, &format!("{path}&raw=true")));
+        }
+        assert!(!super::allowed(
+            "GET",
+            &format!("/api/v1/papers/{id}/model-overview?parse_id=bad")
+        ));
+        assert!(!super::allowed(
+            "POST",
+            &format!("/api/v1/import-sessions/{id}/document-outputs/anything/generate")
+        ));
+        assert!(!super::allowed(
+            "POST",
+            &format!("/api/v1/import-sessions/{id}/document-outputs/bad/format-repair")
+        ));
+        assert!(!super::allowed(
+            "GET",
+            &format!("/api/v1/papers/{id}/model-document-outputs/{id}/local-recovery")
+        ));
+    }
+
+    #[test]
     fn paper_reading_routes_keep_local_refresh_and_generation_explicit() {
         let paper = "11111111-1111-4111-8111-111111111111";
         let revision = "22222222-2222-4222-8222-222222222222";
@@ -971,6 +1198,7 @@ mod tests {
             ("POST", format!("{base}/close-reading/generate")),
             ("GET", format!("{base}/reading-state")),
             ("PUT", format!("{base}/reading-state")),
+            ("PATCH", format!("{base}/reading-state")),
             ("POST", format!("{base}/understanding-check/generate")),
             ("POST", format!("{base}/understanding-check")),
             (
@@ -1004,6 +1232,20 @@ mod tests {
             (
                 "GET",
                 format!("{base}/reading-state?paragraph_ids={paragraph}"),
+            ),
+            (
+                "PATCH",
+                format!("{base}/reading-state?document_version_id={section}"),
+            ),
+            ("POST", format!("{base}/reading-state")),
+            ("DELETE", format!("{base}/reading-state")),
+            (
+                "PATCH",
+                format!("/api/v1/papers/foreign/sections/{section}/reading-state"),
+            ),
+            (
+                "PATCH",
+                format!("/api/v1/papers/{paper}/sections/foreign/reading-state"),
             ),
             ("GET", format!("{base}/guide?adaptive=auto")),
             (
@@ -1087,6 +1329,46 @@ mod tests {
     }
 
     #[test]
+    fn engine_timeout_is_distinct_from_disconnected_service() {
+        use std::io::Read;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let slow = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buffer = [0_u8; 1024];
+            let _ = stream.read(&mut buffer);
+            // The server is connected and has accepted the request. Waiting
+            // for its response must not tell the user to reconnect it.
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        });
+        let client = reqwest::blocking::Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_millis(30))
+            .build()
+            .unwrap();
+        let error = client.get(format!("http://{address}")).send().unwrap_err();
+        assert!(error.is_timeout());
+        let message = super::engine_transport_message(&error);
+        assert!(message.contains("时限"));
+        assert!(!message.contains("重新连接"));
+        slow.join().unwrap();
+
+        let unavailable = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = unavailable.local_addr().unwrap();
+        drop(unavailable);
+        let client = reqwest::blocking::Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()
+            .unwrap();
+        let error = client.get(format!("http://{address}")).send().unwrap_err();
+        assert!(error.is_connect());
+        assert!(super::engine_transport_message(&error).contains("重新连接"));
+    }
+
+    #[test]
     fn engine_error_without_valid_message_uses_safe_http_fallback() {
         for body in [
             super::json!({"detail": "private traceback"}),
@@ -1104,29 +1386,91 @@ mod tests {
     }
 
     #[test]
+    fn knowledge_library_routes_validate_ids_queries_and_explicit_mutations() {
+        let id = "11111111-1111-4111-8111-111111111111";
+        for (method, path) in [
+            ("GET", "/api/v1/knowledge/library".to_string()),
+            ("PATCH", "/api/v1/knowledge/library".to_string()),
+            ("GET", format!("/api/v1/knowledge/papers?project_id={id}&collection_id={id}&include_archived=false&search=WorldGraph&limit=50&offset=0")),
+            ("POST", "/api/v1/knowledge/papers/collect".to_string()),
+            ("GET", format!("/api/v1/knowledge/papers/{id}")),
+            ("PATCH", format!("/api/v1/knowledge/papers/{id}")),
+            ("DELETE", format!("/api/v1/knowledge/papers/{id}")),
+            ("GET", format!("/api/v1/knowledge/versions/{id}")),
+            ("POST", format!("/api/v1/knowledge/versions/{id}/connect")),
+            ("GET", "/api/v1/knowledge/collections".to_string()),
+            ("POST", "/api/v1/knowledge/collections".to_string()),
+            ("DELETE", format!("/api/v1/knowledge/collections/{id}")),
+            ("PUT", format!("/api/v1/knowledge/collections/{id}/papers/{id}")),
+            ("DELETE", format!("/api/v1/knowledge/collections/{id}/papers/{id}")),
+            ("GET", "/api/v1/knowledge/layout?view_key=library%3Aall%3Aall".to_string()),
+            ("PUT", "/api/v1/knowledge/layout".to_string()),
+            ("GET", "/api/v1/knowledge/export".to_string()),
+            ("GET", "/api/v1/knowledge/usage".to_string()),
+            ("GET", format!("/api/v1/knowledge/source-options?project_id={id}")),
+            ("GET", format!("/api/v1/knowledge/source-options?paper_id={id}")),
+            ("POST", "/api/v1/knowledge/extract".to_string()),
+            ("GET", format!("/api/v1/knowledge/reports?library_paper_id={id}&unread_only=true&limit=10&offset=0")),
+            ("GET", format!("/api/v1/knowledge/reports/{id}")),
+            ("PATCH", format!("/api/v1/knowledge/reports/{id}")),
+            ("GET", format!("/api/v1/knowledge/runs?library_paper_id={id}&limit=10&offset=0")),
+            ("POST", format!("/api/v1/knowledge/runs/{id}/retry")),
+        ] {
+            assert!(super::allowed(method, &path), "knowledge route rejected: {method} {path}");
+        }
+        for (method, path) in [
+            ("GET", "/api/v1/knowledge/library?raw=true"),
+            ("GET", "/api/v1/knowledge/papers?project_id=wrong"),
+            ("GET", "/api/v1/knowledge/papers?include_archived=1"),
+            ("GET", "/api/v1/knowledge/papers?limit=0"),
+            ("GET", "/api/v1/knowledge/papers?offset=-1"),
+            ("GET", "/api/v1/knowledge/papers?search=x&search=y"),
+            ("GET", "/api/v1/knowledge/papers?raw=true"),
+            ("GET", "/api/v1/knowledge/papers/../library"),
+            ("GET", "/api/v1/knowledge/layout?view_key="),
+            ("GET", "/api/v1/knowledge/reports?unread_only=1"),
+            ("GET", "/api/v1/knowledge/runs?raw=true"),
+            ("POST", "/api/v1/knowledge/runs/not-an-id/retry"),
+            (
+                "DELETE",
+                "/api/v1/knowledge/versions/11111111-1111-4111-8111-111111111111",
+            ),
+            (
+                "POST",
+                "/api/v1/knowledge/reports/11111111-1111-4111-8111-111111111111",
+            ),
+        ] {
+            assert!(
+                !super::allowed(method, path),
+                "unsafe knowledge route accepted: {method} {path}"
+            );
+        }
+    }
+
+    #[test]
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0011",
+            "schema_version": "lite0018",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0010",
+            "schema_version": "lite0015",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "lite0011",
+            "schema_version": "lite0018",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"lite0011"}),
-            super::json!({"protocol_version":1,"schema_version":"lite0011","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"lite0011","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"lite0018"}),
+            super::json!({"protocol_version":1,"schema_version":"lite0018","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"lite0018","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

@@ -145,9 +145,7 @@ class FormulaPreview(StrictModel):
     source_text_hash: str
 
 
-_MATH_CHARS = frozenset(
-    "=±×÷∑∏∫√∞∂∇≤≥≠≈∈∉⊂⊆∪∩→←↔⇒⇔∀∃αβγδεζηθικλμνξοπρστυφχψω"
-)
+_MATH_CHARS = frozenset("=±×÷∑∏∫√∞∂∇≤≥≠≈∈∉⊂⊆∪∩→←↔⇒⇔∀∃αβγδεζηθικλμνξοπρστυφχψω")
 _MATH_LATIN = re.compile(r"^[A-Za-z](?:[A-Za-z0-9_]|\s)*$")
 _EQUATION_NUMBER = re.compile(r"^\(?\s*\d{1,3}[a-z]?\s*\)?$")
 _MATH_WORD = re.compile(
@@ -183,13 +181,10 @@ def _math_score(text: str, spans: list[dict[str, Any]]) -> tuple[float, int]:
         not character.isalnum() and not character.isspace() for character in compact
     )
     italic_chars = sum(
-        len(str(span.get("text", "")))
-        for span in spans
-        if int(span.get("flags", 0)) & 2
+        len(str(span.get("text", ""))) for span in spans if int(span.get("flags", 0)) & 2
     )
     return (
-        symbol_count / max(1, len(compact))
-        + min(0.35, italic_chars / max(1, len(compact))),
+        symbol_count / max(1, len(compact)) + min(0.35, italic_chars / max(1, len(compact))),
         symbol_count,
     )
 
@@ -538,9 +533,7 @@ def _render_formula_crop(content: bytes, selected: FormulaCandidate) -> bytes:
         )
         if clip.width <= 0 or clip.height <= 0 or clip.width * clip.height > 2_000_000:
             raise KnowledgeError("FORMULA_REGION_INVALID", "公式区域超出安全预览范围")
-        pixmap = page.get_pixmap(
-            matrix=pymupdf.Matrix(2.0, 2.0), clip=clip, alpha=False
-        )
+        pixmap = page.get_pixmap(matrix=pymupdf.Matrix(2.0, 2.0), clip=clip, alpha=False)
         return cast(bytes, pixmap.tobytes("png"))
 
 
@@ -652,9 +645,8 @@ def recognize_revision_formulas(
             if item.status != "recognized"
             or recognizer is None
             or item.recognizer != recognizer.name
-            or item.recognizer_version != getattr(
-                recognizer, "version", FORMULA_RECOGNITION_VERSION
-            )
+            or item.recognizer_version
+            != getattr(recognizer, "version", FORMULA_RECOGNITION_VERSION)
             or item.recognizer_config_hash != getattr(recognizer, "config_hash", None)
         ]
     if not selected:
@@ -666,7 +658,8 @@ def recognize_revision_formulas(
             items=[],
             warnings=[
                 "所选公式已有当前识别器的有效结果，无需重复识别。"
-                if candidates else "当前文献未发现可识别的独立公式候选。"
+                if candidates
+                else "当前文献未发现可识别的独立公式候选。"
             ],
             model_calls=0,
         )
@@ -759,9 +752,7 @@ def recognize_revision_formulas(
                 ),
                 confidence=candidate.confidence,
                 recognizer=result.recognizer or recognizer.name,
-                recognizer_version=getattr(
-                    recognizer, "version", FORMULA_RECOGNITION_VERSION
-                ),
+                recognizer_version=getattr(recognizer, "version", FORMULA_RECOGNITION_VERSION),
                 recognizer_config_hash=getattr(recognizer, "config_hash", None),
             )
             persisted = True
@@ -851,18 +842,14 @@ def register_formula_api(
     def recognize_formulas(
         revision_id: str, body: FormulaRecognitionRequest
     ) -> FormulaRecognitionResponse:
-        return recognize_revision_formulas(
-            get_engine(), revision_id, body, data_dir, recognizer
-        )
+        return recognize_revision_formulas(get_engine(), revision_id, body, data_dir, recognizer)
 
     @app.get(
         "/api/v1/revisions/{revision_id}/formulas/{formula_id}/preview",
         response_model=FormulaPreview,
     )
     def formula_preview(revision_id: str, formula_id: str) -> FormulaPreview:
-        _source_hash, content, candidates = _load_candidates(
-            get_engine(), revision_id, data_dir
-        )
+        _source_hash, content, candidates = _load_candidates(get_engine(), revision_id, data_dir)
         selected = next((item for item in candidates if item.id == formula_id), None)
         if selected is None:
             raise KnowledgeError("FORMULA_NOT_FOUND", "公式候选不存在或已失效")
@@ -878,9 +865,7 @@ def register_formula_api(
 
     @app.get("/api/v1/revisions/{revision_id}/formulas/{formula_id}/image")
     def formula_image(revision_id: str, formula_id: str) -> Response:
-        _source_hash, content, candidates = _load_candidates(
-            get_engine(), revision_id, data_dir
-        )
+        _source_hash, content, candidates = _load_candidates(get_engine(), revision_id, data_dir)
         selected = next((item for item in candidates if item.id == formula_id), None)
         if selected is None:
             raise KnowledgeError("FORMULA_NOT_FOUND", "公式候选不存在或已失效")

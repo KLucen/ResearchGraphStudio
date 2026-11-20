@@ -8,12 +8,13 @@ import {
   type PostImportPlan,
 } from "./api";
 import { ImportPostProcessingPlan } from "./ImportPostProcessingPlan";
+import { jobStageLabel } from "./jobProgress";
 
 type Collection = {
   key: string;
   data: { name: string; parentCollection: string | false };
 };
-type Choice = { item_key: string; attachment_key: string };
+type Choice = { item_key: string; attachment_key: string; title: string };
 type Paper = {
   key: string;
   title: string;
@@ -25,7 +26,7 @@ type Paper = {
   }[];
 };
 type Page = { items: Paper[]; next_start: number | null };
-type ImportState = Choice & {
+type ImportState = Omit<Choice, "title"> & {
   job: Job;
   collection_key: string;
   library: string;
@@ -38,14 +39,6 @@ const statuses: Record<string, string> = {
   cancelled: "已取消",
   interrupted: "已中断",
 };
-const stages: Record<string, string> = {
-  starting: "连接 Zotero",
-  reading: "读取 PDF",
-  parsing: "解析原文",
-  saving: "保存与索引",
-  indexing: "建立索引",
-};
-
 export function ZoteroImport({
   projectId,
   connected,
@@ -114,7 +107,7 @@ export function ZoteroImport({
           collection_key: collection,
           selections: Object.values(chosen),
           mode,
-          post_import_plan: postImportPlan,
+          ...(postImportPlan.parse ? { post_import_plan: postImportPlan } : {}),
         },
         crypto.randomUUID(),
       ),
@@ -252,6 +245,7 @@ export function ZoteroImport({
                         .map((a) => ({
                           item_key: paper.key,
                           attachment_key: a.key,
+                          title: paper.title,
                         })),
                       e.target.checked,
                     )
@@ -272,6 +266,7 @@ export function ZoteroImport({
                           {
                             item_key: paper.key,
                             attachment_key: attachment.key,
+                            title: paper.title,
                           },
                         ],
                         e.target.checked,
@@ -316,6 +311,7 @@ export function ZoteroImport({
               disabled={
                 !connected ||
                 submit.isPending ||
+                (postImportPlan.parse && !postImportPlan.allow_network) ||
                 Object.keys(chosen).length === 0 ||
                 Object.keys(chosen).length > 50
               }
@@ -351,7 +347,9 @@ export function ZoteroImport({
             <article className="import-job" key={job.id}>
               <span>
                 {attachment_key} · {statuses[job.status]}{" "}
-                {job.stage ? `· ${stages[job.stage] || job.stage}` : ""}{" "}
+                {job.stage && job.status === "running"
+                  ? `· ${jobStageLabel(job)}`
+                  : ""}{" "}
                 {job.result?.reused ? "· 内容已存在，复用版本" : ""}
               </span>
               {job.error && <p role="alert">{job.error}</p>}

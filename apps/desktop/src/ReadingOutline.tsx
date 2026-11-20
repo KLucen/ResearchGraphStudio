@@ -16,6 +16,8 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import "./readingOutline.css";
+import type { ChapterProgress } from "./api";
+import { chapterProgressLabels } from "./ChapterProgress";
 
 export type OutlineEntry = {
   id: string;
@@ -24,6 +26,7 @@ export type OutlineEntry = {
   parentId?: string | null;
   level?: number;
   detail?: string;
+  progress?: ChapterProgress;
 };
 
 type OutlineNode = {
@@ -269,6 +272,16 @@ export function ReadingOutline({
   const panelId = useId();
   const currentId = activeId ?? observedId;
   const current = entries.find((entry) => entry.id === currentId);
+  const trackedEntries = entries.filter(
+    (entry) => entry.progress !== undefined,
+  );
+  const completedCount = trackedEntries.filter(
+    (entry) => entry.progress === "COMPLETED",
+  ).length;
+  const resumeEntry =
+    trackedEntries.find((entry) => entry.progress === "READING") ??
+    trackedEntries.find((entry) => entry.progress !== "COMPLETED") ??
+    trackedEntries.at(-1);
   const entrySignature = entries.map((entry) => entry.targetId).join("\u0000");
   const currentAncestorIds = ancestorIds(tree.parents, currentId);
   const currentAncestorSignature = JSON.stringify(currentAncestorIds);
@@ -563,6 +576,15 @@ export function ReadingOutline({
           >
             <span>{entry.label}</span>
             {entry.detail && <small>{entry.detail}</small>}
+            {entry.progress && (
+              <small
+                className="reading-outline-progress"
+                data-progress={entry.progress}
+              >
+                {entry.progress === "COMPLETED" ? "✓ " : ""}
+                {chapterProgressLabels[entry.progress]}
+              </small>
+            )}
           </button>
         </div>
         {hasChildren && (
@@ -636,6 +658,22 @@ export function ReadingOutline({
             <span>当前阅读</span>
             <strong>{current?.label || "请选择章节"}</strong>
           </p>
+          {!!trackedEntries.length && (
+            <div className="reading-outline-resume">
+              <p>
+                已读完 {completedCount} / {trackedEntries.length} 个大章节
+              </p>
+              {resumeEntry && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => choose(resumeEntry)}
+                >
+                  继续阅读：{resumeEntry.label}
+                </button>
+              )}
+            </div>
+          )}
           {controls && (
             <div className="reading-outline-controls">{controls}</div>
           )}

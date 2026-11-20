@@ -25,7 +25,7 @@ export type PaperManagementResult = {
 };
 export type PaperList = { items: Paper[]; next_cursor: number | null };
 export type PostImportPlan = {
-  parse: true;
+  parse: boolean;
   overview: boolean;
   reading: boolean;
   translation_mode: "full" | "none";
@@ -34,6 +34,10 @@ export type PostImportPlan = {
   extract_tables: true;
   allow_network: boolean;
   provider_profile_id?: string | null;
+  document_batching?: boolean;
+  pages_per_batch?: number;
+  allow_format_repair?: boolean;
+  allow_boundary_review?: boolean;
 };
 
 export type PdfSelection = {
@@ -121,19 +125,45 @@ export type ModelDocumentParse = {
   error: string | null;
   segments: ModelDocumentSegment[];
 };
+export type ChapterProgress = "NOT_STARTED" | "READING" | "COMPLETED";
+export type ModelChapterReadingState = {
+  parse_id: string;
+  chapter_ref: string;
+  progress: ChapterProgress;
+  updated_at: string | null;
+};
+export type ModelChapterReadingStates = {
+  parse_id: string;
+  items: Omit<ModelChapterReadingState, "parse_id">[];
+};
 export type ModelDocumentOutput = {
   id: string;
   import_session_id: string;
   parse_id: string;
   item_kind: "paper_overview" | "paper_reading" | "translation" | string;
   status: string;
+  format_repair_available?: boolean;
+  local_recovery_available?: boolean;
+  recovery_summary?: {
+    normalized_types: number;
+    unresolved_highlights: number;
+  };
   output_json: {
+    schema_version?: string;
+    item_kind?: string;
+    paragraphs?: (Omit<ParagraphAnalysis, "translation_zh"> & {
+      translation_zh: string | null;
+    })[];
+    paper_argument?: SectionReadingAnalysis["section_argument"];
+    paper_card?: PaperOverview["paper_card"];
+    graph?: PaperOverview["graph"];
     summary?: string | null;
     sections?: { chapter_ref: string; text: string; role?: string | null }[];
     contributions?: string[];
     findings?: string[];
     limitations?: string[];
     translations?: {
+      paragraph_id?: string;
       chapter_ref: string;
       source_text: string;
       translation_zh: string;
@@ -141,6 +171,7 @@ export type ModelDocumentOutput = {
   } | null;
   error_code: string | null;
   error: string | null;
+  usage?: Record<string, unknown> | null;
 };
 export type ModelDocumentSegmentEdit = Partial<
   Pick<
@@ -150,8 +181,8 @@ export type ModelDocumentSegmentEdit = Partial<
 >;
 
 export const defaultPostImportPlan = (): PostImportPlan => ({
-  parse: true,
-  overview: true,
+  parse: false,
+  overview: false,
   reading: false,
   translation_mode: "none",
   modality: "auto",
@@ -159,6 +190,10 @@ export const defaultPostImportPlan = (): PostImportPlan => ({
   extract_tables: true,
   allow_network: false,
   provider_profile_id: null,
+  document_batching: true,
+  pages_per_batch: 5,
+  allow_format_repair: false,
+  allow_boundary_review: true,
 });
 export type Revision = {
   id: string;
@@ -733,6 +768,7 @@ export type PaperOverview = {
 };
 export type OverviewView = {
   id: string | null;
+  display_result_id?: string | null;
   paper_id: string;
   document_version_id: string;
   status: "PENDING" | "COMPLETED" | "FAILED" | null;
@@ -822,8 +858,19 @@ export const api = {
     ),
   structure: (id: string) =>
     request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
-  sections: (id: string) =>
-    request<Structure>("GET", `/api/v1/revisions/${id}/sections`),
+  sections: (
+    id: string,
+    options?: { includeText?: boolean; sectionId?: string },
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.includeText === false) params.set("include_text", "false");
+    if (options?.sectionId) params.set("section_id", options.sectionId);
+    const query = params.toString();
+    return request<Structure>(
+      "GET",
+      `/api/v1/revisions/${id}/sections${query ? `?${query}` : ""}`,
+    );
+  },
   formulaPreview: (revisionId: string, formulaId: string) =>
     request<FormulaPreview>(
       "GET",
@@ -995,6 +1042,17 @@ export const api = {
       body,
       crypto.randomUUID(),
     ),
+  saveReadingProgress: (
+    paperId: string,
+    sectionId: string,
+    body: { document_version_id: string; progress: ChapterProgress },
+  ) =>
+    request<ReadingState>(
+      "PATCH",
+      `/api/v1/papers/${paperId}/sections/${sectionId}/reading-state`,
+      body,
+      crypto.randomUUID(),
+    ),
   conceptUnderstanding: (
     paperId: string,
     revisionId: string,
@@ -1155,6 +1213,13 @@ export const api = {
       "GET",
       `/api/v1/import-sessions/${encodeURIComponent(sessionId)}`,
     ),
+  retryImportItem: (sessionId: string, itemKind: ImportPlanItem["item_kind"]) =>
+    request<ImportSession>(
+      "POST",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/items/${itemKind}/retry`,
+      {},
+      crypto.randomUUID(),
+    ),
   modelDocumentParse: (sessionId: string) =>
     request<ModelDocumentParse>(
       "GET",
@@ -1164,6 +1229,112 @@ export const api = {
     request<ModelDocumentOutput[]>(
       "GET",
       `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/document-outputs`,
+    ),
+  generateModelDocumentOutput: (
+    sessionId: string,
+    itemKind: string,
+    body: {
+      allow_network: boolean;
+      translation_mode: "none" | "full";
+      force_regenerate: boolean;
+    },
+  ) =>
+    request<Job>(
+      "POST",
+      `/api/v1/import-sessions/${sessionId}/document-outputs/${itemKind}/generate`,
+      body,
+      crypto.randomUUID(),
+    ),
+  repairModelDocumentOutput: (sessionId: string, outputId: string) =>
+    request<Job>(
+      "POST",
+      `/api/v1/import-sessions/${sessionId}/document-outputs/${outputId}/format-repair`,
+      { allow_network: true },
+      crypto.randomUUID(),
+    ),
+  recoverModelDocumentOutput: (paperId: string, outputId: string) =>
+    request<ModelDocumentOutput>(
+      "POST",
+      `/api/v1/papers/${encodeURIComponent(paperId)}/model-document-outputs/${encodeURIComponent(outputId)}/local-recovery`,
+      {},
+      crypto.randomUUID(),
+    ),
+  modelDocumentFormatRepair: (sessionId: string) =>
+    request<{
+      available: boolean;
+      batch_id: string | null;
+      page_start: number | null;
+      page_end: number | null;
+      reason_code: string;
+      repair_attempts: number;
+      request_count: number;
+    }>(
+      "GET",
+      `/api/v1/import-sessions/${sessionId}/document-parse/format-repair`,
+    ),
+  repairModelDocumentBatch: (sessionId: string) =>
+    request<Job>(
+      "POST",
+      `/api/v1/import-sessions/${sessionId}/document-parse/format-repair`,
+      { allow_network: true },
+      crypto.randomUUID(),
+    ),
+  modelOverview: (paperId: string, parseId: string) =>
+    request<OverviewView | null>(
+      "GET",
+      `/api/v1/papers/${paperId}/model-overview?parse_id=${parseId}`,
+    ),
+  generateModelOverview: (
+    paperId: string,
+    parseId: string,
+    allowNetwork: boolean,
+    retryFailed: boolean,
+    forceRegenerate: boolean,
+  ) =>
+    request<OverviewView>(
+      "POST",
+      `/api/v1/papers/${paperId}/model-overview/generate`,
+      {
+        document_version_id: parseId,
+        allow_network: allowNetwork,
+        retry_failed: retryFailed,
+        force_regenerate: forceRegenerate,
+      },
+    ),
+  modelOverviewLayout: (paperId: string, resultId: string) =>
+    request<OverviewLayout>(
+      "GET",
+      `/api/v1/papers/${paperId}/model-overview/graph/layout?overview_result_id=${resultId}`,
+    ),
+  saveModelOverviewLayout: (paperId: string, value: OverviewLayout) =>
+    request<OverviewLayout>(
+      "POST",
+      `/api/v1/papers/${paperId}/model-overview/graph/layout`,
+      value,
+    ),
+  resetModelOverviewLayout: (paperId: string, resultId: string) =>
+    request<OverviewLayout>(
+      "POST",
+      `/api/v1/papers/${paperId}/model-overview/graph/layout/reset`,
+      { overview_result_id: resultId },
+    ),
+  modelChapterReadingStates: (sessionId: string) =>
+    request<ModelChapterReadingStates>(
+      "GET",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/chapter-reading-states`,
+    ),
+  saveModelChapterReadingState: (
+    sessionId: string,
+    body: Pick<
+      ModelChapterReadingState,
+      "parse_id" | "chapter_ref" | "progress"
+    >,
+  ) =>
+    request<ModelChapterReadingState>(
+      "PUT",
+      `/api/v1/import-sessions/${encodeURIComponent(sessionId)}/chapter-reading-states`,
+      body,
+      crypto.randomUUID(),
     ),
   updateModelDocumentSegment: (
     sessionId: string,
@@ -1190,6 +1361,16 @@ export const api = {
       "PATCH",
       `/api/v1/papers/${encodeURIComponent(paperId)}`,
       body,
+    ),
+  parsePaper: (
+    paperId: string,
+    body: { mode: "local" | "model"; post_import_plan?: PostImportPlan },
+  ) =>
+    request<Job>(
+      "POST",
+      `/api/v1/papers/${encodeURIComponent(paperId)}/parse`,
+      body,
+      crypto.randomUUID(),
     ),
   clearPaperLegacyContent: (paperId: string) =>
     request<PaperManagementResult>(
