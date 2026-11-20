@@ -69,21 +69,20 @@ Write-Phase 'sidecar_starting'
 $token=[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N')
 $data=Join-Path $OutputRoot 'data'; New-Item -ItemType Directory -Path $data | Out-Null
 $info=New-Object Diagnostics.ProcessStartInfo; $info.FileName=$EnginePath; $info.Arguments='--data-dir "'+$data+'"'; $info.UseShellExecute=$false; $info.CreateNoWindow=$true; $info.RedirectStandardInput=$true; $info.RedirectStandardOutput=$true; $info.RedirectStandardError=$true; $info.EnvironmentVariables.Clear(); foreach($k in @('SystemRoot','WINDIR','TEMP','TMP','USERPROFILE','LOCALAPPDATA','APPDATA')){$info.EnvironmentVariables[$k]=[Environment]::GetEnvironmentVariable($k)}; $info.EnvironmentVariables['PATH']=Join-Path $env:SystemRoot 'System32'
-# cmd preserves the redirected standard handles for the GUI-subsystem sidecar
-# on the clean Windows runner. The token still travels only through stdin.
-$resolvedEngine=(Resolve-Path -LiteralPath $EnginePath).Path
-if($resolvedEngine.Contains('"') -or $data.Contains('"')){throw 'Invalid engine probe path.'}
-$info.FileName=Join-Path $env:SystemRoot 'System32\cmd.exe'
-$info.Arguments='/d /s /c ""'+$resolvedEngine+'" --data-dir "'+$data+'""'
-$p=[Diagnostics.Process]::Start($info)
+# Process uses Console.InputEncoding when it constructs StandardInput. The
+# runner's UTF-8 encoding carries a preamble; Python's JSON pipe must be BOM-free.
+$originalInputEncoding=[Console]::InputEncoding
+try {
+  [Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
+  $p=[Diagnostics.Process]::Start($info)
+} finally {[Console]::InputEncoding=$originalInputEncoding}
 $stderrTask=$p.StandardError.ReadToEndAsync()
 $readyTask=$p.StandardOutput.ReadLineAsync()
 $configuration=@{token=$token}|ConvertTo-Json -Compress
-# Keep one TextWriter for the private pipe. Mixing BaseStream writes with its
-# buffered wrapper behaved differently on the clean Windows PowerShell runner.
+# Keep the BOM-free TextWriter associated with this process for the private pipe.
 $p.StandardInput.WriteLine($configuration)
 $p.StandardInput.Flush()
-Write-Phase 'sidecar_ready_wait' 'running' @{timeout_seconds=45;sidecar_process_id=$p.Id;configuration_characters=$configuration.Length;configuration_flushed=$true;stdin_encoding=$p.StandardInput.Encoding.WebName}
+Write-Phase 'sidecar_ready_wait' 'running' @{timeout_seconds=45;sidecar_process_id=$p.Id;configuration_characters=$configuration.Length;configuration_flushed=$true;stdin_encoding=$p.StandardInput.Encoding.WebName;stdin_preamble_bytes=$p.StandardInput.Encoding.GetPreamble().Length}
 if(-not $readyTask.Wait(45000)){throw 'Engine readiness exceeded 45 seconds.'}
 $line=$readyTask.GetAwaiter().GetResult()
 if($null -eq $line -or -not $line.StartsWith('RGS_READY ')){throw 'Engine readiness failed.'}

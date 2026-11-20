@@ -2426,3 +2426,6 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 Runner句柄诊断 — 2026-11-20 17:34（Asia/Shanghai）**：单TextWriter复验run44711114607仍在ready45s失败，phase记录UTF8/76字符/flush，安装15.7秒成功；不能确认编码原因。验收脚本下一步只将GUI sidecar通过Windows cmd中转同一stdin/stdout/stderr管道，token仍不入参数/文件/日志；实际CI sidecar本机完整原断言通过。此为Runner探针句柄诊断，不改应用启动器/引擎，不把假设当根因，继续原artifact专测。
+
+
+**DEV-0124 BOM确定性复现 — 2026-11-20 17:40（Asia/Shanghai）**：用户报告测试弹窗后核对本次隔离进程；Console.InputEncoding=UTF8带preamble3字节可在本机准确复现CI启动JSON错误，旧中转/WriteLine都不能消掉.NET writer已发前缀。只在Process.Start期间设置UTF8(false)并finally恢复后，同一CI sidecar全部原断言通过，phase记录preamble0。移除中转，直接引擎启动；本轮复现引擎进程已退出，无正式库操作。此结论替代之前未经证实的句柄/混写猜测；将再次原CI artifact专测验证，runtime不改。
