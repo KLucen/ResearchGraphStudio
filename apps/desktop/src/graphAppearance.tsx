@@ -13,25 +13,27 @@ export const graphNodeKinds: Record<
   VisualKind,
   { label: string; color: string }
 > = {
-  RESEARCH_QUESTION: { label: "研究问题", color: "#ad7c91" },
-  CONCEPT: { label: "概念", color: "#927fba" },
-  METHOD: { label: "方法", color: "#508e80" },
-  CONTRIBUTION: { label: "贡献", color: "#b38e54" },
-  FINDING: { label: "结果", color: "#ba8265" },
-  UNKNOWN: { label: "其他", color: "#74847b" },
+  RESEARCH_QUESTION: {
+    label: "研究问题",
+    color: "var(--rgs-graph-research-question)",
+  },
+  CONCEPT: { label: "概念", color: "var(--rgs-graph-concept)" },
+  METHOD: { label: "方法", color: "var(--rgs-graph-method)" },
+  CONTRIBUTION: { label: "贡献", color: "var(--rgs-graph-contribution)" },
+  FINDING: { label: "结果", color: "var(--rgs-graph-finding)" },
+  UNKNOWN: { label: "其他", color: "var(--rgs-graph-unknown)" },
 };
 
 export const graphKindLabels = Object.fromEntries(
   Object.entries(graphNodeKinds).map(([kind, { label }]) => [kind, label]),
 ) as Record<VisualKind, string>;
 
-const unknownAppearance = { label: "其他", color: "#74847b" };
-
 export function getGraphAppearance(kind: string) {
-  if (kind === "PAPER") return { label: "论文", color: "#365e70" };
+  if (kind === "PAPER")
+    return { label: "论文", color: "var(--rgs-graph-paper)" };
   return Object.hasOwn(graphNodeKinds, kind)
     ? graphNodeKinds[kind as VisualKind]
-    : unknownAppearance;
+    : graphNodeKinds.UNKNOWN;
 }
 
 /** This is an explanation, deliberately independent from graph filtering. */

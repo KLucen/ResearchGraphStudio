@@ -91,7 +91,7 @@ Write-Phase 'sidecar_ready' 'completed'
 function Invoke-Api([string]$Path,[string]$Method='GET',$Body=$null,[string]$Key='lite-acceptance'){$r=[Net.HttpWebRequest]::Create($base+$Path);$r.Proxy=$null;$r.Method=$Method;$r.Timeout=20000;$r.Headers['Authorization']='Bearer '+$token;$r.Headers['Idempotency-Key']=$Key;$r.ContentType='application/json';if($Method -ne 'GET'){$bodyJson=if($null -eq $Body){'null'}else{$Body|ConvertTo-Json -Compress};$b=[Text.Encoding]::UTF8.GetBytes([string]$bodyJson);$r.ContentLength=$b.Length;$s=$r.GetRequestStream();$s.Write($b,0,$b.Length);$s.Dispose()};$resp=$r.GetResponse();try{$rd=New-Object IO.StreamReader($resp.GetResponseStream(),[Text.Encoding]::UTF8);try{return $rd.ReadToEnd()|ConvertFrom-Json}finally{$rd.Dispose()}}finally{$resp.Dispose()}}
 function Assert-ApiMissing([string]$Path){$missing=$false;try{$null=Invoke-Api $Path}catch [Net.WebException]{if($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404){$missing=$true}else{throw}};if(-not $missing){throw "Expected 404 for $Path"}}
 Write-Phase 'health_and_retired_routes'
-$health=Invoke-Api '/health'; if($health.schema_version -ne 'lite0018' -or $health.database -ne 'ready' -or -not $health.fts5){throw 'Lite health handshake failed.'}
+$health=Invoke-Api '/health'; if($health.schema_version -ne 'lite0020' -or $health.database -ne 'ready' -or -not $health.fts5){throw 'Lite health handshake failed.'}
 $retiredRequest=[Net.HttpWebRequest]::Create($base+'/settings/translation'); $retiredRequest.Proxy=$null; $retiredRequest.Timeout=20000; $retiredRequest.Headers['Authorization']='Bearer '+$token; try { $retiredResponse=$retiredRequest.GetResponse(); $retiredResponse.Dispose(); throw 'Retired translation API is still available.' } catch [Net.WebException] { if(-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404){throw} }
 if(Test-Path -LiteralPath (Join-Path (Split-Path -Parent $EnginePath) 'translation-runtime')){throw 'Retired translation runtime was unexpectedly packaged.'}
 Write-Phase 'local_pdf_import'
@@ -109,7 +109,14 @@ if($chapterState.parse_id -ne $parse.id -or $chapterState.chapter_ref -ne 'intro
 $restoredChapterStates=Invoke-Api $chapterStatesPath
 if(@($restoredChapterStates.items | Where-Object {$_.parse_id -eq $parse.id -and $_.chapter_ref -eq 'intro' -and $_.progress -eq 'COMPLETED'}).Count -ne 1){throw 'Chapter reading state readback failed.'}
 Write-Phase 'legacy_cleanup'
-$stored=Invoke-Api ('/import-sessions/'+$sessionId+'/document-parse'); $outputs=Invoke-Api ('/import-sessions/'+$sessionId+'/document-outputs'); $outputCount=@($outputs).Count; if($stored.status -ne 'succeeded' -or $stored.segments.Count -ne 3 -or $outputCount -ne 0){throw 'Model document readback failed.'}; $cleared=Invoke-Api ('/papers/'+$paperId+'/legacy-content') 'DELETE' $null 'paper-clean-1'; if($cleared.removed.chunks -lt 1){throw 'Legacy content cleanup did not remove the imported PDF chunks.'}; $storedAfterClear=Invoke-Api ('/import-sessions/'+$sessionId+'/document-parse'); if($storedAfterClear.segments.Count -ne 3){throw 'Legacy cleanup removed model document content.'}
+$stored=Invoke-Api ('/import-sessions/'+$sessionId+'/document-parse'); $outputs=Invoke-Api ('/import-sessions/'+$sessionId+'/document-outputs'); $outputCount=@($outputs).Count; if($stored.status -ne 'succeeded' -or $stored.segments.Count -ne 3 -or $outputCount -ne 0){throw 'Model document readback failed.'}
+$archivedCleanup=Invoke-Api ('/papers/'+$paperId+'/legacy-content') 'DELETE' $null 'paper-clean-1'
+if(-not $archivedCleanup.archive_item_id -or @($archivedCleanup.removed.PSObject.Properties).Count -ne 0){throw 'Legacy cleanup did not stage an archive entry.'}
+$beforePurgeChunks=Invoke-Api ('/revisions/'+$revisionId+'/chunks?limit=50')
+if($beforePurgeChunks.items.Count -lt 1){throw 'Archiving legacy content removed chunks before purge.'}
+$cleared=Invoke-Api ('/archive/'+$archivedCleanup.archive_item_id) 'DELETE'
+if($cleared.removed.chunks -lt 1){throw 'Legacy content cleanup did not remove the imported PDF chunks.'}
+$storedAfterClear=Invoke-Api ('/import-sessions/'+$sessionId+'/document-parse'); if($storedAfterClear.segments.Count -ne 3){throw 'Legacy cleanup removed model document content.'}
 $chapterStatesAfterClear=Invoke-Api $chapterStatesPath
 if(@($chapterStatesAfterClear.items | Where-Object {$_.parse_id -eq $parse.id -and $_.chapter_ref -eq 'intro' -and $_.progress -eq 'COMPLETED'}).Count -ne 1){throw 'Legacy cleanup removed model chapter reading state.'}
 Write-Phase 'local_reparse'
@@ -120,10 +127,23 @@ if($localTask.status -ne 'succeeded' -or $localTask.result.paper_id -ne $paperId
 $localDetail=Invoke-Api ('/papers/'+$paperId)
 $localChunks=Invoke-Api ('/revisions/'+$localDetail.revisions[0].id+'/chunks?limit=50')
 if($localChunks.items.Count -lt 1){throw 'Explicit local reparse did not restore local chunks.'}
-$clearedAgain=Invoke-Api ('/papers/'+$paperId+'/legacy-content') 'DELETE' $null 'paper-clean-2'
+$archivedCleanupAgain=Invoke-Api ('/papers/'+$paperId+'/legacy-content') 'DELETE' $null 'paper-clean-2'
+$clearedAgain=Invoke-Api ('/archive/'+$archivedCleanupAgain.archive_item_id) 'DELETE'
 if($clearedAgain.removed.chunks -lt 1){throw 'Repeated local cleanup did not remove rebuilt chunks.'}
 Write-Phase 'deletion_and_usage'
-$readingBlocked=$false; try{$null=Invoke-Api ('/papers/'+$paperId+'/reading-document?document_version_id='+$revisionId)}catch [Net.WebException]{$response=$_.Exception.Response;if(-not $response -or [int]$response.StatusCode -lt 400){throw};$readingBlocked=$true}; if(-not $readingBlocked){throw 'Legacy reading archive was silently rebuilt after cleanup.'}; if(-not (Test-Path -LiteralPath $resolvedPdf)){throw 'Referenced source PDF was unexpectedly removed.'}; $usage=Invoke-Api ('/projects/'+$project.id+'/lite/usage'); if($usage.calls -ne 0 -or $usage.input_tokens -ne 0 -or $usage.output_tokens -ne 0){throw 'Local acceptance unexpectedly called a model.'}; Invoke-Api ('/papers/'+$paperId) 'DELETE' $null 'paper-delete-1' | Out-Null; Assert-ApiMissing ('/papers/'+$paperId); Assert-ApiMissing $chapterStatesPath; if(-not (Test-Path -LiteralPath $resolvedPdf)){throw 'Deleting the paper removed its referenced source PDF.'}
+$readingBlocked=$false; try{$null=Invoke-Api ('/papers/'+$paperId+'/reading-document?document_version_id='+$revisionId)}catch [Net.WebException]{$response=$_.Exception.Response;if(-not $response -or [int]$response.StatusCode -lt 400){throw};$readingBlocked=$true}; if(-not $readingBlocked){throw 'Legacy reading archive was silently rebuilt after cleanup.'}; if(-not (Test-Path -LiteralPath $resolvedPdf)){throw 'Referenced source PDF was unexpectedly removed.'}; $usage=Invoke-Api ('/projects/'+$project.id+'/lite/usage'); if($usage.calls -ne 0 -or $usage.input_tokens -ne 0 -or $usage.output_tokens -ne 0){throw 'Local acceptance unexpectedly called a model.'}
+$archivedJob=Invoke-Api '/archive' 'POST' @{kind='job';target_id=$job.id} 'job-archive-1'
+Assert-ApiMissing ('/jobs/'+$job.id)
+Invoke-Api ('/archive/'+$archivedJob.id+'/restore') 'POST' $null 'job-restore-1' | Out-Null
+if((Invoke-Api ('/jobs/'+$job.id)).status -ne 'succeeded'){throw 'Restored job is missing its terminal status.'}
+$archivedPaper=Invoke-Api ('/papers/'+$paperId) 'DELETE' $null 'paper-delete-1'
+Assert-ApiMissing ('/papers/'+$paperId)
+Invoke-Api ('/archive/'+$archivedPaper.archive_item_id+'/restore') 'POST' $null 'paper-restore-1' | Out-Null
+if((Invoke-Api ('/papers/'+$paperId)).paper.id -ne $paperId){throw 'Restored paper is missing.'}
+$archivedPaper=Invoke-Api ('/papers/'+$paperId) 'DELETE' $null 'paper-delete-2'
+$purgedPaper=Invoke-Api ('/archive/'+$archivedPaper.archive_item_id) 'DELETE'
+if(-not $purgedPaper.backup_file){throw 'Paper purge did not create a backup.'}
+Assert-ApiMissing ('/papers/'+$paperId); Assert-ApiMissing $chapterStatesPath; if(-not (Test-Path -LiteralPath $resolvedPdf)){throw 'Deleting the paper removed its referenced source PDF.'}
 Write-Phase 'sidecar_stopping'
 $p.StandardInput.Close(); if(-not $p.WaitForExit(10000)){ $p.Kill(); throw 'Engine did not stop after EOF.' }; $report=@{result='passed';schema_version=$health.schema_version;model_calls=$usage.calls;pdf_job=$job.id;paper_title_updated=$true;legacy_rows_removed=$cleared.removed.chunks;legacy_cache_rows_removed=$cleared.removed.cache_entries;model_document_parse_id=$parse.id;model_document_segments_after_cleanup=$storedAfterClear.segments.Count;chapter_reading_progress=$chapterState.progress;chapter_reading_state_preserved_after_cleanup=$true;chapter_reading_state_removed_after_paper_delete=$true;reading_archive_rebuilt_after_cleanup=$false;paper_delete_verified=$true;referenced_source_preserved=$true;postprocess_outputs=$outputCount;translation_available=$false;translation_runtime_bundled=$false}; $report|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputRoot 'verification.json') -Encoding UTF8; $report|ConvertTo-Json
 Write-Phase 'complete' 'passed'

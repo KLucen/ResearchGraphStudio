@@ -2,11 +2,16 @@
 
 import asyncio
 import copy
+import hashlib
 import json
 from uuid import uuid4
 
 import pytest
-from researchgraph.core import KnowledgeError
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from researchgraph.archive_api import archive_target
+from researchgraph.archive_models import ArchivedItem
+from researchgraph.core import KnowledgeError, digest
 from researchgraph.knowledge_connection_models import (
     KnowledgeAnalysisEvent,
     KnowledgeConnectionReport,
@@ -15,6 +20,10 @@ from researchgraph.knowledge_connection_models import (
     KnowledgePairCheckpoint,
 )
 from researchgraph.knowledge_connections import (
+    DETAILED_PROMPT,
+    GROUND_NUMBER_CONNECTION_VERSION,
+    GROUND_NUMBER_PROMPT,
+    PROMPT,
     cleanup_library_paper,
     dispatch_pending_analysis,
     queue_auto_connections,
@@ -24,9 +33,15 @@ from researchgraph.knowledge_connections import (
     run_knowledge_connect,
     validate_connections,
 )
+from researchgraph.knowledge_connections_contracts import (
+    ConnectionsDraft,
+    GroundedNumberConnectionsDraft,
+)
 from researchgraph.knowledge_library import ensure_library, publish_version
+from researchgraph.knowledge_library_api import register_knowledge_library_api
 from researchgraph.knowledge_library_models import LibraryPaper, PaperKnowledgeVersion
 from researchgraph.knowledge_tasks import run_knowledge_extract
+from researchgraph.knowledge_workflow_api import register_knowledge_workflow_api
 from researchgraph.model_capabilities import ModelCapabilities
 from researchgraph.model_document_models import LlmDocumentSegment
 from researchgraph.models import Job, now
@@ -54,12 +69,25 @@ def built_papers(tmp_path, count=2):
     return engine, versions, originals
 
 
-def connection_response(frozen):
+LEGACY_CONNECTION_SCHEMA = "knowledge-connections-1"
+DETAILED_CONNECTION_SCHEMA = "knowledge-connections-2"
+DETAILED_COMPARISON = {
+    "source_zh": "新增论文在合成正文中介绍了共享记忆方法及其拟解决的问题。",
+    "target_zh": "已有论文也把共享记忆作为方法线索，但分别保存了它自己的原文来源。",
+    "comparison_zh": "当前摘录均说明了研究用途，因此可把这两种方法纳入同一阅读比较。",
+    "conditions_zh": "现有摘录没有统一任务、指标或实验设置，比较只覆盖方法用途。",
+    "follow_up_zh": "后续可分别查看两篇论文的方法正文，核查其任务输入和评估基线。",
+}
+
+
+def connection_response(frozen, *, version=None):
     source = next(n for n in frozen["source"]["content"]["graph"]["nodes"] if n["type"] != "PAPER")
     target = frozen["candidates"][0]
     node = next(n for n in target["content"]["graph"]["nodes"] if n["type"] != "PAPER")
+    if version is None:
+        version = frozen.get("connection_contract", {}).get("version", LEGACY_CONNECTION_SCHEMA)
     return {
-        "schema_version": "knowledge-connections-1",
+        "schema_version": version,
         "relations": [
             {
                 "ref": "r1",
@@ -71,6 +99,11 @@ def connection_response(frozen):
                 "limitations_zh": "测试样例未建立指标或实验设置等同，不能据此判断性能优劣。",
                 "source_ref_ids": [source["source_refs"][0]["source_id"]],
                 "target_ref_ids": [node["source_refs"][0]["source_id"]],
+                **(
+                    {"detail": DETAILED_COMPARISON.copy()}
+                    if version != LEGACY_CONNECTION_SCHEMA
+                    else {}
+                ),
             }
         ],
         "summary": [{"text_zh": "两篇论文的方法存在可进一步阅读的联系。", "relation_refs": ["r1"]}],
@@ -84,12 +117,23 @@ class ConnectionProvider(FixtureProvider):
 
     async def complete(self, prompt, data, schema):
         self.calls += 1
-        assert "untrusted source data" in prompt
+        version = schema["properties"]["schema_version"]["const"]
+        assert (
+            prompt
+            == {
+                LEGACY_CONNECTION_SCHEMA: PROMPT,
+                DETAILED_CONNECTION_SCHEMA: DETAILED_PROMPT,
+                GROUND_NUMBER_CONNECTION_VERSION: GROUND_NUMBER_PROMPT,
+            }[version]
+        )
         if self.action:
             self.action()
         if isinstance(self.response, Exception):
             raise self.response
-        return self.response if self.response is not None else json.dumps(connection_response(data))
+        if self.response is not None:
+            return self.response
+        assert "connection_contract" not in data
+        return json.dumps(connection_response(data, version=version))
 
 
 def queue_connection(engine, version, **kwargs):
@@ -97,6 +141,13 @@ def queue_connection(engine, version, **kwargs):
         return queue_knowledge_connect(
             db, version, allow_network=True, model_snapshot=SNAPSHOT, **kwargs
         ).id
+
+
+def connection_client(engine, tmp_path):
+    api = FastAPI()
+    register_knowledge_library_api(api, lambda: engine, tmp_path)
+    register_knowledge_workflow_api(api, lambda: engine, tmp_path)
+    return TestClient(api)
 
 
 def connection_record(engine, job_id):
@@ -131,12 +182,96 @@ def test_two_papers_extract_compare_and_persist_grounded_report(tmp_path):
     assert report.report_json["coverage"]["compared"] == 1
     relation = report.report_json["relations"][0]
     assert relation["basis"] == "AI_ANALYSIS" and relation["limitations_zh"]
+    wire = json.loads(requests[0].raw_response)
+    assert wire["schema_version"] == GROUND_NUMBER_CONNECTION_VERSION
+    assert relation["explanation_zh"] == wire["relations"][0]["explanation_zh"]
+    assert relation["detail"] == DETAILED_COMPARISON
     assert relation["source_refs"][0]["quote"] in relation["source_refs"][0]["source"]["text"]
     assert relation["target_refs"][0]["quote"] in relation["target_refs"][0]["source"]["text"]
     with Session(engine) as db:
         assert db.query(KnowledgePairCheckpoint).count() == 1
-        assert report_view(db, report)["stale"] is False
+        view = report_view(db, report)
+        assert view["stale"] is False and view["relations"][0]["detail"] == DETAILED_COMPARISON
     assert queue_connection(engine, versions[1]) == job_id
+
+
+def test_legacy_queued_prompt_and_report_stay_frozen_during_explicit_detailed_upgrade(tmp_path):
+    assert hashlib.sha256(PROMPT.encode()).hexdigest() == (
+        "4c38e18be89c07a760c0a097f3de0fe715954700dacce348f2819457c09eb6f9"
+    )
+    legacy_schema = ConnectionsDraft.model_json_schema()
+    assert (
+        digest(legacy_schema) == "d5df96ac89c52623eb60f82ce9e09e6c86857c287d3211ea8c22f2b6b2965341"
+    )
+    engine, versions, _ = built_papers(tmp_path)
+    legacy_id = queue_connection(engine, versions[1], connection_version=LEGACY_CONNECTION_SCHEMA)
+    _, legacy_run, legacy_requests, _ = connection_record(engine, legacy_id)
+    legacy_input = copy.deepcopy(legacy_run.input_json)
+    assert "connection_contract" not in legacy_input
+    assert "connection_contract" not in legacy_requests[0].input_json
+    assert legacy_run.input_hash == digest(
+        {
+            "frozen": {k: v for k, v in legacy_input.items() if k != "reused_report_ids"},
+            "settings": legacy_run.policy_json,
+            "prompt": PROMPT,
+            "schema": legacy_schema,
+            "model": {k: v for k, v in SNAPSHOT.items() if k != "credential_ref"},
+        }
+    )
+
+    class TrackingProvider(ConnectionProvider):
+        def __init__(self):
+            super().__init__()
+            self.contracts = []
+
+        async def complete(self, prompt, data, schema):
+            self.contracts.append((prompt, schema))
+            return await super().complete(prompt, data, schema)
+
+    provider = TrackingProvider()
+    asyncio.run(run_knowledge_connect(engine, legacy_id, tmp_path, provider=provider))
+    legacy_job, _, legacy_requests, legacy_report = connection_record(engine, legacy_id)
+    assert legacy_job.status == "succeeded"
+    assert provider.contracts == [(PROMPT, legacy_schema)]
+    raw = legacy_requests[0].raw_response
+    assert json.loads(raw)["schema_version"] == LEGACY_CONNECTION_SCHEMA
+    old_report = copy.deepcopy(legacy_report.report_json)
+    assert "detail" not in old_report["relations"][0]
+
+    reused_id = queue_connection(engine, versions[1])
+    asyncio.run(run_knowledge_connect(engine, reused_id, tmp_path, provider=provider))
+    reused_job, _, _, reused_report = connection_record(engine, reused_id)
+    assert reused_job.status == "succeeded" and provider.calls == 1
+    assert reused_report.report_json["coverage"]["compared"] == 1
+    assert "detail" not in reused_report.report_json["relations"][0]
+
+    detailed_id = queue_connection(engine, versions[1], force_regenerate=True)
+    assert detailed_id != legacy_id
+    asyncio.run(run_knowledge_connect(engine, detailed_id, tmp_path, provider=provider))
+    job, updated_run, update_requests, detailed_report = connection_record(engine, detailed_id)
+    assert job.status == "succeeded" and detailed_report.id != legacy_report.id
+    assert provider.contracts == [
+        (PROMPT, legacy_schema),
+        (GROUND_NUMBER_PROMPT, GroundedNumberConnectionsDraft.model_json_schema()),
+    ]
+    assert (
+        updated_run.input_json["connection_contract"]["version"] == GROUND_NUMBER_CONNECTION_VERSION
+    )
+    assert (
+        update_requests[0].input_json["connection_contract"]
+        == updated_run.input_json["connection_contract"]
+    )
+    assert detailed_report.report_json["relations"][0]["detail"] == DETAILED_COMPARISON
+
+    _, preserved_run, preserved_requests, preserved_report = connection_record(engine, legacy_id)
+    assert (
+        preserved_run.input_json == legacy_input
+        and preserved_run.input_hash == legacy_run.input_hash
+    )
+    assert preserved_requests[0].raw_response == raw and preserved_report.report_json == old_report
+    with Session(engine) as db:
+        assert "detail" not in report_view(db, preserved_report)["relations"][0]
+        assert report_view(db, detailed_report)["relations"][0]["detail"] == DETAILED_COMPARISON
 
 
 def test_no_candidates_is_explained_without_network_or_model_configuration(tmp_path):
@@ -191,6 +326,10 @@ def test_legacy_overview_is_excluded_from_grounded_comparison(tmp_path):
         "extra",
         "enum",
         "blank_limit",
+        "missing_detail",
+        "blank_detail",
+        "unknown_detail_field",
+        "legacy_wire_on_new_task",
     ],
 )
 def test_connection_validation_rejects_unbound_and_malformed_relations(tmp_path, mutation):
@@ -220,8 +359,16 @@ def test_connection_validation_rejects_unbound_and_malformed_relations(tmp_path,
         relation["apply_sql"] = "not allowed"
     elif mutation == "enum":
         relation["type"] = "CONTRADICTS"
-    else:
+    elif mutation == "blank_limit":
         relation["limitations_zh"] = ""
+    elif mutation == "missing_detail":
+        del relation["detail"]
+    elif mutation == "blank_detail":
+        relation["detail"]["comparison_zh"] = "  "
+    elif mutation == "unknown_detail_field":
+        relation["detail"]["unbound_evidence"] = "INVENTED QUOTE"
+    elif mutation == "legacy_wire_on_new_task":
+        response = connection_response(frozen, version=LEGACY_CONNECTION_SCHEMA)
     with pytest.raises(ValueError):
         validate_connections(json.dumps(response), frozen)
     for raw in ['{"schema_version":"x","schema_version":"y"}', '{"x":NaN}', '{"x":Infinity}']:
@@ -246,6 +393,22 @@ def test_source_change_after_queue_stops_before_any_model_request(tmp_path):
     job, run, requests, report = connection_record(engine, job_id)
     assert job.status == "failed" and run.error_code == "KNOWLEDGE_SOURCE_CHANGED"
     assert provider.calls == 0 and requests[0].sent_at is None and report is None
+
+
+def test_detailed_contract_drift_stops_before_any_model_request(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    job_id = queue_connection(engine, versions[1])
+    _, _, requests, _ = connection_record(engine, job_id)
+    with Session(engine) as db, db.begin():
+        request = db.get(KnowledgeConnectionRequest, requests[0].id)
+        damaged = copy.deepcopy(request.input_json)
+        damaged["connection_contract"]["schema_sha256"] = "0" * 64
+        request.input_json = damaged
+    provider = ConnectionProvider()
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    job, _, requests, report = connection_record(engine, job_id)
+    assert job.status == "failed" and report is None
+    assert provider.calls == 0 and requests[0].sent_at is None
 
 
 def test_metadata_capacity_failure_does_not_occupy_sent_slot(tmp_path):
@@ -354,6 +517,22 @@ def test_reused_checkpoint_cannot_publish_tampered_report_content(tmp_path):
     assert job.status == "failed" and report is None
 
 
+def test_report_read_rejects_tampered_detailed_comparison(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    job_id = queue_connection(engine, versions[1])
+    provider = ConnectionProvider()
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    _, _, _, report = connection_record(engine, job_id)
+    with Session(engine) as db, db.begin():
+        saved = db.get(KnowledgeConnectionReport, report.id)
+        damaged = copy.deepcopy(saved.report_json)
+        damaged["relations"][0]["detail"]["comparison_zh"] = "凭空给出同一实验任务的判断。"
+        saved.report_json = damaged
+    with Session(engine) as db, pytest.raises(KnowledgeError):
+        report_view(db, db.get(KnowledgeConnectionReport, report.id))
+    assert provider.calls == 1
+
+
 def test_report_read_rejects_tampered_frozen_input_even_when_derived_output_matches(tmp_path):
     engine, versions, _ = built_papers(tmp_path)
     first = queue_connection(engine, versions[1])
@@ -393,7 +572,7 @@ def test_reused_negative_checkpoint_retains_no_relation_reason(tmp_path):
     provider = ConnectionProvider(
         json.dumps(
             {
-                "schema_version": "knowledge-connections-1",
+                "schema_version": GROUND_NUMBER_CONNECTION_VERSION,
                 "relations": [],
                 "summary": [],
                 "no_relation_reason_zh": reason,
@@ -450,6 +629,213 @@ def test_auto_event_disabled_then_enabled_is_idempotent(tmp_path, monkeypatch):
     assert provider.calls == 1
 
 
+@pytest.mark.parametrize("historical", [False, True])
+def test_library_patch_revokes_queued_auto_connection_even_after_reenable(
+    tmp_path, monkeypatch, historical
+):
+    engine, versions, _ = built_papers(tmp_path)
+    monkeypatch.setattr("researchgraph.knowledge_connections.snapshot_for", lambda *_: SNAPSHOT)
+    with connection_client(engine, tmp_path) as client:
+        original = client.get("/api/v1/knowledge/library").json()["settings"]
+        enabled = {**original, "auto_connect": True, "allow_network": True}
+
+        def update(settings, key):
+            response = client.patch(
+                "/api/v1/knowledge/library", json=settings, headers={"Idempotency-Key": key}
+            )
+            assert response.status_code == 200, response.text
+
+        update(enabled, "initial-enable")
+        with Session(engine) as db, db.begin():
+            queue_auto_connections(db, versions[1])
+            event = db.get(KnowledgeAnalysisEvent, versions[1])
+            run = db.get(KnowledgeConnectionRun, event.run_id)
+            job_id = run.job_id
+            if historical:
+                job = db.get(Job, job_id)
+                job.payload = {
+                    key: value for key, value in job.payload.items() if key != "automatic"
+                }
+
+        update(original, "explicit-revoke")
+        update(enabled, "explicit-enable-again")
+        provider = ConnectionProvider()
+        asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+        job, run, requests, report = connection_record(engine, job_id)
+        assert job.payload["automatic_revoked"] is True
+        assert provider.calls == 0 and report is None
+        assert run.error_code == "KNOWLEDGE_POLICY_REVOKED"
+        assert all(request.sent_at is None for request in requests)
+
+
+def test_manual_connection_preserves_consent_when_auto_connections_are_disabled(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    job_id = queue_connection(engine, versions[1])
+    provider = ConnectionProvider()
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    job, _, _, _ = connection_record(engine, job_id)
+    assert provider.calls == 1 and job.status == "succeeded"
+
+
+def test_legacy_event_reusing_explicit_manual_consent_remains_manual(tmp_path, monkeypatch):
+    engine, versions, _ = built_papers(tmp_path)
+    monkeypatch.setattr("researchgraph.knowledge_connections.snapshot_for", lambda *_: SNAPSHOT)
+    with connection_client(engine, tmp_path) as client:
+        queued = client.post(
+            f"/api/v1/knowledge/versions/{versions[1]}/connect",
+            json={"allow_network": True},
+            headers={"Idempotency-Key": "explicit-consent-for-job"},
+        )
+        assert queued.status_code == 200, queued.text
+        job_id = queued.json()["id"]
+        with Session(engine) as db, db.begin():
+            job = db.get(Job, job_id)
+            payload = dict(job.payload)
+            del payload["automatic"]
+            job.payload = payload
+            event = db.get(KnowledgeAnalysisEvent, versions[1])
+            event.state, event.run_id = "queued", job.payload["run_id"]
+        provider = ConnectionProvider()
+        asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+        job, _, _, _ = connection_record(engine, job_id)
+        assert provider.calls == 1 and job.status == "succeeded"
+
+
+def test_auto_connection_rechecks_live_policy_after_endpoint_prepare(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    with Session(engine) as db, db.begin():
+        library = ensure_library(db)
+        library.settings_json = {
+            **library.settings_json,
+            "allow_network": True,
+            "auto_connect": True,
+        }
+    job_id = queue_connection(engine, versions[1], automatic=True)
+
+    class DisablingProvider(ConnectionProvider):
+        async def prepare(self):
+            with Session(engine) as db, db.begin():
+                library = ensure_library(db)
+                library.settings_json = {**library.settings_json, "auto_connect": False}
+
+    provider = DisablingProvider()
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    _, run, requests, report = connection_record(engine, job_id)
+    assert run.error_code == "KNOWLEDGE_POLICY_REVOKED"
+    assert provider.calls == 0 and requests[0].sent_at is None and report is None
+
+
+def test_auto_connection_stops_unsent_batch_and_preserves_validated_receipt(tmp_path):
+    from researchgraph.knowledge_budgets import estimate_knowledge_input_tokens
+    from researchgraph.knowledge_connections import _context
+
+    engine, versions, _ = built_papers(tmp_path, 3)
+    with Session(engine) as db, db.begin():
+        source = _context(db, db.get(PaperKnowledgeVersion, versions[2]))
+        candidate = {**_context(db, db.get(PaperKnowledgeVersion, versions[0])), "ref": "p1"}
+        one = estimate_knowledge_input_tokens(
+            GROUND_NUMBER_PROMPT,
+            {"source": source, "candidates": [candidate]},
+            GroundedNumberConnectionsDraft.model_json_schema(),
+        )
+        library = ensure_library(db)
+        library.settings_json = {
+            **library.settings_json,
+            "allow_network": True,
+            "auto_connect": True,
+            "max_input_tokens": one + 100,
+        }
+
+    job_id = queue_connection(engine, versions[2], automatic=True)
+
+    def disable():
+        with Session(engine) as db, db.begin():
+            library = ensure_library(db)
+            library.settings_json = {**library.settings_json, "auto_connect": False}
+
+    provider = ConnectionProvider(action=disable)
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    _, run, requests, report = connection_record(engine, job_id)
+    assert provider.calls == 1 and run.error_code == "KNOWLEDGE_POLICY_REVOKED"
+    requests.sort(key=lambda request: request.ordinal)
+    sent, unsent = requests
+    assert (
+        sent.status == "validated" and sent.raw_response and sent.usage_json["total_tokens"] == 300
+    )
+    assert unsent.status == "cancelled" and unsent.sent_at is None
+    assert (
+        report.report_json["status"] == "partial"
+        and report.report_json["coverage"]["compared"] == 1
+    )
+
+
+def test_connection_numeric_guard_only_applies_to_new_contract(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    detailed = queue_connection(engine, versions[1], connection_version=DETAILED_CONNECTION_SCHEMA)
+    _, _, detailed_requests, _ = connection_record(engine, detailed)
+    historical = detailed_requests[0].input_json
+    legacy_response = connection_response(historical)
+    legacy_response["relations"][0]["detail"]["comparison_zh"] = "双方均提升了９００％。"
+    historical_raw = json.dumps(legacy_response)
+    asyncio.run(
+        run_knowledge_connect(
+            engine, detailed, tmp_path, provider=ConnectionProvider(historical_raw)
+        )
+    )
+    _, _, persisted, previous = connection_record(engine, detailed)
+    assert persisted[0].raw_response == historical_raw and previous is not None
+    # Ordinary repeated analysis reuses the historical result without a new charge.
+    assert queue_connection(engine, versions[1]) == detailed
+
+    job_id = queue_connection(engine, versions[1], force_regenerate=True)
+    _, _, current_requests, _ = connection_record(engine, job_id)
+    frozen = current_requests[0].input_json
+    guarded_response = connection_response(frozen)
+    guarded_response["summary"][0]["text_zh"] = "双方均提升了９００％。"
+    raw = json.dumps(guarded_response)
+    provider = ConnectionProvider(raw)
+    asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=provider))
+    job, run, rejected, report = connection_record(engine, job_id)
+    assert job.status == "failed" and provider.calls == 1 and report is None
+    assert (
+        rejected[0].raw_response == raw
+        and run.error_code == "KNOWLEDGE_CONNECTION_NUMBER_UNSUPPORTED"
+    )
+    with Session(engine) as db:
+        assert (
+            report_view(db, previous)["relations"][0]["detail"]["comparison_zh"]
+            == "双方均提升了９００％。"
+        )
+
+
+def test_connection_numbers_require_whole_selected_literal_from_the_correct_paper(tmp_path):
+    engine, versions, _ = built_papers(tmp_path)
+    job_id = queue_connection(engine, versions[1])
+    _, _, requests, _ = connection_record(engine, job_id)
+    frozen = requests[0].input_json
+    response = connection_response(frozen)
+    relation = response["relations"][0]
+    for context, side, number in (
+        (frozen["source"], "source", "12.4 %"),
+        (frozen["candidates"][0], "target", "21.6 %"),
+    ):
+        content = context["content"]
+        selected = next(
+            n for n in content["graph"]["nodes"] if n["id"] == relation[f"{side}_node_id"]
+        )
+        selected["source_refs"][0]["quote"] += f" Reported rate {number}."
+        context["content"]["sources"][0]["text"] += f" Reported rate {number}."
+        relation["detail"][f"{side}_zh"] = f"本篇采用的报告比率为 {number}。"
+    relation["detail"]["comparison_zh"] = "报告的数值分别为１２．４％与２１．６％。"
+    response["summary"][0]["text_zh"] = "两份材料报告了 12.4% 与 21.6%。"
+    validate_connections(json.dumps(response), frozen)
+    for statement in ("本篇说明，21.6%。", "本篇显示4%。", "本篇显示12.4。"):
+        relation["detail"]["source_zh"] = statement
+        with pytest.raises(KnowledgeError) as caught:
+            validate_connections(json.dumps(response), frozen)
+        assert caught.value.code == "KNOWLEDGE_CONNECTION_NUMBER_UNSUPPORTED"
+
+
 def test_budget_accounts_for_extracts_and_active_connection_reservations(tmp_path):
     engine, versions, _ = built_papers(tmp_path)
     with Session(engine) as db, db.begin():
@@ -473,18 +859,17 @@ def test_budget_accounts_for_extracts_and_active_connection_reservations(tmp_pat
 
 
 def test_partial_batches_keep_validated_checkpoint_and_retry_only_unfinished_pair(tmp_path):
-    from researchgraph.knowledge_connections import PROMPT, _context
-    from researchgraph.knowledge_connections_contracts import ConnectionsDraft
+    from researchgraph.knowledge_budgets import estimate_knowledge_input_tokens
+    from researchgraph.knowledge_connections import _context
 
     engine, versions, _ = built_papers(tmp_path, 3)
     with Session(engine) as db, db.begin():
         source = _context(db, db.get(PaperKnowledgeVersion, versions[2]))
         candidate = {**_context(db, db.get(PaperKnowledgeVersion, versions[0])), "ref": "p1"}
-        overhead = len(
-            (PROMPT + json.dumps(ConnectionsDraft.model_json_schema(), ensure_ascii=False)).encode()
-        )
-        one = overhead + len(
-            json.dumps({"source": source, "candidates": [candidate]}, ensure_ascii=False).encode()
+        one = estimate_knowledge_input_tokens(
+            GROUND_NUMBER_PROMPT,
+            {"source": source, "candidates": [candidate]},
+            GroundedNumberConnectionsDraft.model_json_schema(),
         )
         library = ensure_library(db)
         library.settings_json = {**library.settings_json, "max_input_tokens": one + 100}
@@ -543,10 +928,12 @@ def test_purge_refuses_active_dependencies_and_cleans_saved_report(tmp_path):
             cleanup_library_paper(db, paper_id)
     asyncio.run(run_knowledge_connect(engine, job_id, tmp_path, provider=ConnectionProvider()))
     with Session(engine) as db, db.begin():
+        archived_job_id = archive_target(db, "job", job_id).id
         cleanup_library_paper(db, paper_id)
     with Session(engine) as db:
         assert db.query(KnowledgeConnectionReport).count() == 0
         assert db.query(KnowledgePairCheckpoint).count() == 0
+        assert db.get(ArchivedItem, archived_job_id).status == "purged"
 
 
 def test_purge_preserves_anonymous_usage_and_total_budget(tmp_path):

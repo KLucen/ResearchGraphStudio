@@ -1,5 +1,7 @@
 # ResearchGraph 当前项目基线
 
+本文是2026-11-09重构前的历史审计快照，以下“当前”均指该日期，不能作为现行功能清单。现行状态读[进度](progress.md)，新版卡片合同读[ADR0065](adr/0065-evidence-grounded-paper-card-sets.md)。
+
 更新日期：2026-11-09（Asia/Shanghai）
 基线提交：`9ef8cde`（`main`，当前远端 `origin/main` 同步）
 范围：重构前的 ResearchGraph Studio 现状审计。本文只描述当前仓库和已保存的验收证据，不把 Lite 设计包中的目标写成已实现功能。

@@ -70,14 +70,26 @@ def test_major_chapter_progress_persists_without_model_and_cleanup_keeps_it(tmp_
         saved = result.json()
         assert saved["updated_at"]
         assert api.put(path, json=body).json() == saved
-        assert api.delete(f"/api/v1/papers/{paper_id}/legacy-content").status_code == 200
+        archived_cleanup = api.delete(f"/api/v1/papers/{paper_id}/legacy-content")
+        assert archived_cleanup.status_code == 200, archived_cleanup.text
+        cleanup = api.delete(f"/api/v1/archive/{archived_cleanup.json()['archive_item_id']}")
+        assert cleanup.status_code == 200, cleanup.text
         assert api.get(path).json()["items"][0] == saved
         usage = api.get(f"/api/v1/projects/{project_id}/lite/usage").json()
         assert usage["calls"] == 0
     with client(tmp_path) as reopened:
         assert reopened.get(path).json()["items"][0] == saved
-        assert reopened.delete(f"/api/v1/papers/{paper_id}").status_code == 200
-        assert reopened.get(path).status_code == 404
+        archived = reopened.delete(f"/api/v1/papers/{paper_id}")
+        assert archived.status_code == 200, archived.text
+        for response in (
+            reopened.get(path),
+            reopened.put(path, json={**body, "progress": "READING"}),
+        ):
+            assert response.status_code == 409, response.text
+            assert response.json()["error"]["code"] == "PAPER_ARCHIVED"
+        restored = post(reopened, f"/archive/{archived.json()['archive_item_id']}/restore")
+        assert restored.status_code == 200, restored.text
+        assert reopened.get(path).json()["items"][0] == saved
 
 
 def test_progress_rejects_foreign_subchapter_and_stale_parse(tmp_path):
@@ -135,7 +147,10 @@ def test_foreign_parse_cannot_mark_or_delete_another_papers_progress(tmp_path):
         other_saved = api.put(other_path, json=foreign_body).json()
         assert other_saved["progress"] == "COMPLETED"
 
-        deleted = api.delete(f"/api/v1/papers/{paper_id}")
+        archived = api.delete(f"/api/v1/papers/{paper_id}")
+        assert archived.status_code == 200, archived.text
+        assert api.get(other_path).json()["items"][0] == other_saved
+        deleted = api.delete(f"/api/v1/archive/{archived.json()['archive_item_id']}")
         assert deleted.status_code == 200, deleted.text
         assert deleted.json()["removed"]["llm_chapter_reading_states"] == 1
         assert api.get(path).status_code == 404
@@ -159,7 +174,7 @@ def test_lite0011_upgrade_preserves_existing_rows_and_creates_progress_table(tmp
         db.execute("DROP TABLE llm_chapter_reading_states")
         db.execute("UPDATE alembic_version SET version_num='lite0011'")
     with client(tmp_path) as api:
-        assert api.get("/api/v1/health").json()["schema_version"] == "lite0018"
+        assert api.get("/api/v1/health").json()["schema_version"] == "lite0020"
         response = api.get(f"/api/v1/import-sessions/{session_id}/chapter-reading-states")
         assert response.status_code == 200 and response.json()["parse_id"] == parse_id
     with sqlite3.connect(database) as db:

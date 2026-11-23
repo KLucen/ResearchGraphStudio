@@ -31,6 +31,7 @@ from researchgraph.reading_document_models import ReadingDocumentProjection
 from researchgraph.reading_state_models import ConceptUnderstanding, ReadingState
 from researchgraph.section_guide_models import SectionGuideResult
 from researchgraph.structure_models import DocumentParse
+from researchgraph.workspaces import native_file_path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -460,14 +461,26 @@ def test_update_paper_title_is_validated(tmp_path):
         assert api.patch(f"/api/v1/papers/{uuid4()}", json={"title": "Missing"}).status_code == 404
 
 
+def purge_archived_paper_data(api, queued):
+    assert queued.status_code == 200, queued.text
+    item_id = queued.json()["archive_item_id"]
+    assert queued.json()["backup_file"] is None
+    assert queued.json()["removed"] == {}
+    purged = api.delete(f"/api/v1/archive/{item_id}")
+    assert purged.status_code == 200, purged.text
+    return purged
+
+
 def test_legacy_cleanup_preserves_notes_model_results_sources_and_backup(tmp_path):
     with client(tmp_path) as api:
         values = add_paper(api, tmp_path)
-        response = api.delete(f"/api/v1/papers/{values['paper_id']}/legacy-content")
-        assert response.status_code == 200, response.text
+        queued = api.delete(f"/api/v1/papers/{values['paper_id']}/legacy-content")
+        with Session(api.app.state.engine) as db:
+            assert db.get(Chunk, values["chunk_id"]) is not None
+        response = purge_archived_paper_data(api, queued)
         result = response.json()
         assert result["backup_file"].startswith("backups/before-paper-legacy-content-")
-        backup_path = tmp_path / result["backup_file"]
+        backup_path = native_file_path(tmp_path / result["backup_file"])
         assert backup_path.is_file()
         with sqlite3.connect(backup_path) as backup:
             assert backup.execute("SELECT count(*) FROM chunks").fetchone()[0] == 1
@@ -568,11 +581,18 @@ def test_managed_file_candidate_rejects_attachments_root_alias(tmp_path, monkeyp
 def test_delete_paper_removes_all_associated_rows_and_only_managed_root_file(tmp_path):
     with client(tmp_path) as api:
         values = add_paper(api, tmp_path)
-        response = api.delete(f"/api/v1/papers/{values['paper_id']}")
-        assert response.status_code == 200, response.text
+        original_usage = api.get("/api/v1/lite/usage").json()
+        queued = api.delete(f"/api/v1/papers/{values['paper_id']}")
+        result_id = queued.json()["archive_item_id"]
+        assert api.get(f"/api/v1/papers/{values['paper_id']}").status_code == 404
+        restored = post(api, f"/archive/{result_id}/restore", key="restore-paper")
+        assert restored.status_code == 200, restored.text
+        assert api.get(f"/api/v1/papers/{values['paper_id']}").status_code == 200
+        queued = api.delete(f"/api/v1/papers/{values['paper_id']}")
+        response = purge_archived_paper_data(api, queued)
         result = response.json()
         assert result["backup_file"].startswith("backups/before-paper-delete-")
-        with sqlite3.connect(tmp_path / result["backup_file"]) as backup:
+        with sqlite3.connect(native_file_path(tmp_path / result["backup_file"])) as backup:
             assert backup.execute("SELECT count(*) FROM papers").fetchone()[0] == 1
             assert backup.execute("SELECT count(*) FROM llm_document_segments").fetchone()[0] == 1
 
@@ -592,9 +612,44 @@ def test_delete_paper_removes_all_associated_rows_and_only_managed_root_file(tmp
         assert not values["managed_path"].exists()
         assert values["outside_root"].is_file()
         assert values["imported_path"].is_file()
+        assert api.get("/api/v1/lite/usage").json() == original_usage
         assert api.delete(f"/api/v1/papers/{values['paper_id']}").status_code == 404
         paths = api.get("/openapi.json").json()["paths"]
         assert "/api/v1/papers/{paper_id}" in paths
         assert "patch" in paths["/api/v1/papers/{paper_id}"]
         assert "delete" in paths["/api/v1/papers/{paper_id}"]
         assert "delete" in paths["/api/v1/papers/{paper_id}/legacy-content"]
+
+
+def test_managed_file_purge_can_continue_after_failed_unlink(tmp_path, monkeypatch):
+    with client(tmp_path) as api:
+        values = add_paper(api, tmp_path)
+        queued = api.delete(f"/api/v1/papers/{values['paper_id']}")
+        item_id = queued.json()["archive_item_id"]
+        archive_path = f"/api/v1/archive/{item_id}"
+        original_unlink = Path.unlink
+
+        def transient_unlink_error(path, *args, **kwargs):
+            if path == values["managed_path"]:
+                raise PermissionError("synthetic lock")
+            return original_unlink(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "unlink", transient_unlink_error)
+            first = api.delete(archive_path).json()
+        assert first["status"] == "purging" and not first["ok"]
+        assert first["pending_managed_files"] == 1 and first["retained_managed_files"] == 1
+        assert first["removed"]["papers"] == 1 and values["managed_path"].is_file()
+        assert api.get("/api/v1/archive?kind=paper").json()["items"][0]["status"] == "purging"
+        restore = post(api, f"/archive/{item_id}/restore")
+        assert restore.status_code == 409
+        assert restore.json()["error"]["code"] == "ARCHIVE_PURGE_IN_PROGRESS"
+
+    with client(tmp_path) as reopened:
+        completed = reopened.delete(archive_path).json()
+        assert completed["ok"] and completed["status"] == "purged"
+        assert completed["pending_managed_files"] == 0 and completed["retained_managed_files"] == 1
+        assert completed["backup_file"] == first["backup_file"]
+        assert reopened.get("/api/v1/archive?kind=paper").json()["total"] == 0
+        assert not values["managed_path"].exists()
+        assert values["outside_root"].is_file() and values["imported_path"].is_file()

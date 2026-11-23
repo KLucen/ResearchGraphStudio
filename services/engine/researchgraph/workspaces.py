@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import stat
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -22,6 +23,16 @@ FILES = {
     "stage.json",
     "stage.tmp",
 }
+
+
+def native_file_path(path: Path) -> Path:
+    """Use extended Windows paths without depending on the OS long-path policy."""
+    if os.name != "nt" or str(path).startswith("\\\\?\\"):
+        return path
+    value = os.path.abspath(path)
+    if value.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + value[2:])
+    return Path("\\\\?\\" + value)
 
 
 def plain(path: Path, *, directory: bool = False) -> bool:

@@ -1,9 +1,9 @@
 .chapter-reading-footer {
   margin: 24px 0 30px;
   padding: 16px 18px;
-  border: 1px solid #dce3d8;
+  border: 1px solid var(--rgs-border);
   border-radius: 7px;
-  background: #f6f8f2;
+  background: var(--rgs-raised);
 }
 .chapter-reading-footer .chapter-reading-progress {
   margin-top: 0;
@@ -11,7 +11,7 @@
 }
 .chapter-reading-footer-title {
   flex: 1 1 200px;
-  color: #50694f;
+  color: var(--rgs-muted);
   font-size: 12px;
   line-height: 1.7;
   overflow-wrap: anywhere;

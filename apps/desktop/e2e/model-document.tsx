@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   api,
+  type ImportPlanItem,
   type ImportSession,
   type ModelChapterReadingState,
   type ModelChapterReadingStates,
@@ -137,6 +138,40 @@ const session: ImportSession = {
   updated_at: timestamp,
   items: [],
 };
+function fixtureItem(
+  kind: ImportPlanItem["item_kind"],
+  status: ImportPlanItem["status"],
+): ImportPlanItem {
+  return {
+    id: `${kind}-item`,
+    item_kind: kind,
+    status,
+    config: {},
+    job_id: `${kind}-job`,
+    attempt: 1,
+    error: null,
+    result: null,
+    created_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+if (fixtureMode === "active") {
+  session.status = "running";
+  session.items = [fixtureItem("paper_overview", "running")];
+  api.job = async (id) => ({
+    id,
+    kind: "llm_document_postprocess",
+    project_id: session.project_id,
+    status: "running",
+    stage: "generating",
+    attempt: 1,
+    error: null,
+    result: null,
+    reading_task: "paper_card_set",
+    created_at: timestamp,
+    updated_at: timestamp,
+  });
+}
 api.importSession = async () => structuredClone(session);
 api.modelDocumentParse = async () => structuredClone(document);
 const paragraphs = document.segments.filter(
@@ -221,11 +256,18 @@ api.generateModelDocumentOutput = async (_sessionId, itemKind, body) => {
     item_kind: itemKind,
     translation_mode: body.translation_mode,
   });
+  const kind = itemKind === "translation" ? "translation" : "paper_reading";
+  session.status = "queued";
+  session.items = [fixtureItem(kind, "queued")];
+  if (kind === "paper_reading" && body.translation_mode === "full") {
+    session.items.push(fixtureItem("translation", "queued"));
+  }
   return {
-    id: "browser-reading-job",
+    id: `${kind}-job`,
     project_id: "browser-project",
     kind: "llm_document_postprocess",
     status: "queued",
+    reading_task: kind,
     stage: "queued",
     attempt: 1,
     error: null,

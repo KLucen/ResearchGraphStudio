@@ -31,7 +31,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from test_engine import client
-from test_paper_management_api import add_paper
+from test_paper_management_api import add_paper, purge_archived_paper_data
 
 
 def _old_rows(path: Path) -> dict[str, list[tuple]]:
@@ -180,7 +180,7 @@ def test_lite0012_upgrade_preserves_old_content_and_creates_exact_backup(tmp_pat
     with sqlite3.connect(backups[0]) as db:
         assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("lite0012",)
     with sqlite3.connect(database) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("lite0018",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("lite0020",)
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     assert storage.diagnostics(engine)["integrity"] == "ok"
     engine.dispose()
@@ -277,7 +277,7 @@ def test_legacy_cleanup_keeps_batches_but_paper_delete_removes_them(tmp_path):
                 )
             )
         cleared = api.delete(f"/api/v1/papers/{values['paper_id']}/legacy-content")
-        assert cleared.status_code == 200, cleared.text
+        purge_archived_paper_data(api, cleared)
         with Session(engine) as db:
             assert db.get(LlmDocumentBatchRun, run_id) is not None
             stored = db.get(LlmDocumentBatch, batch_id)
@@ -285,7 +285,7 @@ def test_legacy_cleanup_keeps_batches_but_paper_delete_removes_them(tmp_path):
             assert stored.result_json == {"segments": [{"text": "Anonymous preserved result"}]}
             assert db.get(LlmDocumentBatchFailure, batch_id) is not None
         deleted = api.delete(f"/api/v1/papers/{values['paper_id']}")
-        assert deleted.status_code == 200, deleted.text
+        deleted = purge_archived_paper_data(api, deleted)
         assert deleted.json()["removed"]["llm_document_batches"] == 1
         assert deleted.json()["removed"]["llm_document_batch_runs"] == 1
         with Session(engine) as db:

@@ -1,6 +1,7 @@
 """Strict public DTOs for the durable personal research library."""
 
 from typing import Any, Literal, Self
+from uuid import UUID
 
 from pydantic import Field, model_validator
 
@@ -14,9 +15,9 @@ class LibrarySettings(StrictModel):
     scope: Literal["project", "all", "collection"] = "project"
     collection_id: str | None = Field(default=None, min_length=1, max_length=36)
     max_candidates: int = Field(default=8, ge=1, le=50)
-    max_requests_per_run: int = Field(default=2, ge=1, le=8)
-    max_input_tokens: int = Field(default=48_000, ge=1024, le=2_000_000)
-    max_output_tokens: int = Field(default=6000, ge=256, le=200_000)
+    max_requests_per_run: int | None = Field(default=2, ge=1, le=8)
+    max_input_tokens: int | None = Field(default=48_000, ge=1024, le=2_000_000)
+    max_output_tokens: int | None = Field(default=6000, ge=256, le=200_000)
     total_request_limit: int = Field(default=20, ge=1, le=100_000)
 
     @model_validator(mode="after")
@@ -99,6 +100,10 @@ class CollectionCreate(StrictModel):
     description: str = Field(default="", max_length=2000)
 
 
+class CollectionUpdate(CollectionCreate):
+    description: str = Field(max_length=2000)
+
+
 class CollectionView(CollectionCreate):
     id: str
     created_at: str
@@ -106,6 +111,28 @@ class CollectionView(CollectionCreate):
 
 class CollectionList(StrictModel):
     items: list[CollectionView]
+
+
+class CollectionMembershipUpdate(StrictModel):
+    paper_ids: list[UUID] = Field(min_length=1, max_length=100)
+    action: Literal["add", "remove", "move"]
+    source_collection_ids: list[UUID] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def valid_selection(self) -> Self:
+        if len(set(self.paper_ids)) != len(self.paper_ids) or len(
+            set(self.source_collection_ids)
+        ) != len(self.source_collection_ids):
+            raise ValueError("专题或论文选择重复")
+        if (self.action == "move") != bool(self.source_collection_ids):
+            raise ValueError("移动论文时需要明确选择原专题，其他操作无需原专题")
+        return self
+
+
+class CollectionMembershipResult(StrictModel):
+    ok: Literal[True] = True
+    added: int = Field(ge=0)
+    removed: int = Field(ge=0)
 
 
 class LibraryPosition(StrictModel):

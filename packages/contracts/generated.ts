@@ -4,6 +4,58 @@
  */
 
 export interface paths {
+    "/api/v1/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Archive */
+        get: operations["list_archive_api_v1_archive_get"];
+        put?: never;
+        /** Archive */
+        post: operations["archive_api_v1_archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/archive/{item_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore */
+        post: operations["restore_api_v1_archive__item_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/archive/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Purge */
+        delete: operations["purge_api_v1_archive__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/models": {
         parameters: {
             query?: never;
@@ -1471,6 +1523,24 @@ export interface paths {
         delete: operations["delete_collection_api_v1_knowledge_collections__collection_id__delete"];
         options?: never;
         head?: never;
+        /** Update Collection */
+        patch: operations["update_collection_api_v1_knowledge_collections__collection_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/knowledge/collections/{collection_id}/membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update Membership */
+        post: operations["update_membership_api_v1_knowledge_collections__collection_id__membership_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -1519,6 +1589,26 @@ export interface paths {
         };
         /** Export Library */
         get: operations["export_library_api_v1_knowledge_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/knowledge/collections/{collection_id}/external-papers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * External Topic Papers
+         * @description Read only the titles/current versions of explicitly requested context nodes.
+         */
+        get: operations["external_topic_papers_api_v1_knowledge_collections__collection_id__external_papers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1664,6 +1754,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/knowledge/runs/{run_id}/local-recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Local Recovery */
+        get: operations["preview_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_get"];
+        put?: never;
+        /** Publish Local Recovery */
+        post: operations["publish_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspace/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Workspace */
+        get: operations["search_workspace_api_v1_workspace_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1675,6 +1800,26 @@ export interface paths {
         get: operations["health_api_v1_health_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/maintenance/quiesce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quiesce For Workspace Backup
+         * @description Native-only route. The WebView IPC allow-list never forwards it.
+         */
+        post: operations["quiesce_for_workspace_backup_api_v1_maintenance_quiesce_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1699,6 +1844,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Project */
+        get: operations["get_project_api_v1_projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -1711,6 +1873,23 @@ export interface paths {
         put?: never;
         /** Create Job */
         post: operations["create_job_api_v1_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Global Jobs Page */
+        get: operations["global_jobs_page_api_v1_jobs_page_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1857,6 +2036,92 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArchiveAction */
+        ArchiveAction: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+        };
+        /** ArchiveCreate */
+        ArchiveCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "knowledge_paper" | "knowledge_collection" | "model_connection" | "job" | "paper_legacy_content" | "model_profile";
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /** ArchiveItem */
+        ArchiveItem: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "paper" | "knowledge_paper" | "knowledge_collection" | "model_connection" | "job" | "paper_legacy_content" | "model_profile";
+            /** Target Id */
+            target_id: string;
+            /** Title */
+            title: string;
+            /** Project Id */
+            project_id: string | null;
+            /** Archived At */
+            archived_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "archived" | "purging";
+        };
+        /** ArchiveList */
+        ArchiveList: {
+            /** Items */
+            items: components["schemas"]["ArchiveItem"][];
+            /** Total */
+            total: number;
+        };
+        /** ArchivePurgeResult */
+        ArchivePurgeResult: {
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /**
+             * Status
+             * @default purged
+             * @enum {string}
+             */
+            status: "purged" | "purging";
+            /** Backup File */
+            backup_file?: string | null;
+            /** Removed */
+            removed?: {
+                [key: string]: number;
+            };
+            /**
+             * Retained Personal Metadata
+             * @default 0
+             */
+            retained_personal_metadata: number;
+            /**
+             * Retained Managed Files
+             * @default 0
+             */
+            retained_managed_files: number;
+            /**
+             * Pending Managed Files
+             * @default 0
+             */
+            pending_managed_files: number;
+        };
         /** ArgumentHighlight */
         ArgumentHighlight: {
             /**
@@ -2080,12 +2345,44 @@ export interface components {
             /** Items */
             items: components["schemas"]["CollectionView"][];
         };
+        /** CollectionMembershipResult */
+        CollectionMembershipResult: {
+            /**
+             * Ok
+             * @default true
+             * @constant
+             */
+            ok: true;
+            /** Added */
+            added: number;
+            /** Removed */
+            removed: number;
+        };
+        /** CollectionMembershipUpdate */
+        CollectionMembershipUpdate: {
+            /** Paper Ids */
+            paper_ids: string[];
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "remove" | "move";
+            /** Source Collection Ids */
+            source_collection_ids?: string[];
+        };
         /** CollectionPage */
         CollectionPage: {
             /** Items */
             items: components["schemas"]["ZoteroPaper"][];
             /** Next Start */
             next_start: number | null;
+        };
+        /** CollectionUpdate */
+        CollectionUpdate: {
+            /** Name */
+            name: string;
+            /** Description */
+            description: string;
         };
         /** CollectionView */
         CollectionView: {
@@ -2344,6 +2641,22 @@ export interface components {
             normalization: string;
             /** Bbox List */
             bbox_list: number[][];
+        };
+        /** ExternalTopicPaper */
+        ExternalTopicPaper: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Version Id */
+            version_id: string;
+        };
+        /** ExternalTopicPapers */
+        ExternalTopicPapers: {
+            /** Items */
+            items: components["schemas"]["ExternalTopicPaper"][];
+            /** Has More */
+            has_more: boolean;
         };
         /** FileCheck */
         FileCheck: {
@@ -2681,6 +2994,16 @@ export interface components {
             /** Fts5 */
             fts5: boolean;
             temporary_files?: components["schemas"]["WorkspaceCleanup"] | null;
+            /**
+             * Worker Status
+             * @default disabled
+             * @enum {string}
+             */
+            worker_status: "idle" | "running" | "recovering" | "stopped" | "disabled";
+            /** Worker Error */
+            worker_error?: string | null;
+            /** Active Jobs */
+            active_jobs?: number | null;
         };
         /** ImportPlan */
         ImportPlan: {
@@ -2690,6 +3013,8 @@ export interface components {
              * @enum {integer}
              */
             postprocess_contract_version: 2 | 3 | 4;
+            /** Overview Contract Version */
+            overview_contract_version?: (5 | 6) | null;
             /**
              * Overview
              * @default false
@@ -2871,6 +3196,8 @@ export interface components {
             result: {
                 [key: string]: unknown;
             } | null;
+            /** Reading Task */
+            reading_task?: ("paper_card_set" | "paper_overview" | "paper_reading" | "translation") | null;
             /**
              * Resume Adapter Available
              * @default false
@@ -3012,6 +3339,11 @@ export interface components {
              * @default false
              */
             allow_network: boolean;
+        };
+        /** KnowledgeLocalRecoveryInput */
+        KnowledgeLocalRecoveryInput: {
+            /** Preview Fingerprint */
+            preview_fingerprint: string;
         };
         /** KnowledgeReportEdit */
         KnowledgeReportEdit: {
@@ -3222,17 +3554,17 @@ export interface components {
              * Max Requests Per Run
              * @default 2
              */
-            max_requests_per_run: number;
+            max_requests_per_run: number | null;
             /**
              * Max Input Tokens
              * @default 48000
              */
-            max_input_tokens: number;
+            max_input_tokens: number | null;
             /**
              * Max Output Tokens
              * @default 6000
              */
-            max_output_tokens: number;
+            max_output_tokens: number | null;
             /**
              * Total Request Limit
              * @default 20
@@ -3659,6 +3991,8 @@ export interface components {
              * @default 90
              */
             timeout_seconds: number;
+            /** Text Timeout Policy */
+            text_timeout_policy?: ("activity" | "legacy") | null;
             /**
              * Document Timeout Seconds
              * @default 600
@@ -3776,7 +4110,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "PENDING" | "COMPLETED" | "FAILED";
+            status: "PENDING" | "COMPLETED" | "FAILED" | "PARTIAL";
             /**
              * Graph Status
              * @enum {string}
@@ -3784,6 +4118,10 @@ export interface components {
             graph_status: "READY" | "NOT_ENOUGH_INFO";
             paper_card?: components["schemas"]["PaperCard"] | null;
             graph?: components["schemas"]["LightGraph"] | null;
+            /** Card Set */
+            card_set?: {
+                [key: string]: unknown;
+            } | null;
             usage: components["schemas"]["OverviewUsage"];
             /** Generated At */
             generated_at: string;
@@ -3800,6 +4138,19 @@ export interface components {
             error?: string | null;
             /** Display Result Id */
             display_result_id?: string | null;
+            /**
+             * Local Recovery Available
+             * @default false
+             */
+            local_recovery_available: boolean;
+            /** Recovery Summary */
+            recovery_summary?: {
+                [key: string]: number;
+            } | null;
+            /** Display Recovery Summary */
+            display_recovery_summary?: {
+                [key: string]: number;
+            } | null;
         };
         /** PaperCard */
         PaperCard: {
@@ -3837,6 +4188,8 @@ export interface components {
             items: components["schemas"]["PaperView"][];
             /** Next Cursor */
             next_cursor: number | null;
+            /** Total */
+            total: number;
         };
         /** PaperManagementResult */
         PaperManagementResult: {
@@ -3847,6 +4200,8 @@ export interface components {
             ok: boolean;
             /** Paper Id */
             paper_id: string;
+            /** Archive Item Id */
+            archive_item_id?: string | null;
             /** Backup File */
             backup_file?: string | null;
             /** Removed */
@@ -5005,6 +5360,28 @@ export interface components {
              */
             errors: number;
         };
+        /** WorkspaceSearchHit */
+        WorkspaceSearchHit: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "project" | "paper";
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            project: components["schemas"]["ProjectView"];
+        };
+        /** WorkspaceSearchPage */
+        WorkspaceSearchPage: {
+            /** Items */
+            items: components["schemas"]["WorkspaceSearchHit"][];
+            /** Total */
+            total: number;
+            /** Next Offset */
+            next_offset: number | null;
+        };
         /** ZoteroPaper */
         ZoteroPaper: {
             /** Key */
@@ -5032,6 +5409,138 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_archive_api_v1_archive_get: {
+        parameters: {
+            query?: {
+                kind?: ("paper" | "knowledge_paper" | "knowledge_collection" | "model_connection" | "job" | "paper_legacy_content" | "model_profile") | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_api_v1_archive_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_api_v1_archive__item_id__restore_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchiveAction"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    purge_api_v1_archive__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivePurgeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     settings_api_v1_projects__project_id__models_get: {
         parameters: {
             query?: never;
@@ -8555,6 +9064,80 @@ export interface operations {
             };
         };
     };
+    update_collection_api_v1_knowledge_collections__collection_id__patch: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_membership_api_v1_knowledge_collections__collection_id__membership_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionMembershipUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionMembershipResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_member_api_v1_knowledge_collections__collection_id__papers__library_paper_id__put: {
         parameters: {
             query?: never;
@@ -8705,6 +9288,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LibraryExport"];
+                };
+            };
+        };
+    };
+    external_topic_papers_api_v1_knowledge_collections__collection_id__external_papers_get: {
+        parameters: {
+            query: {
+                paper_ids: string;
+            };
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalTopicPapers"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -8929,6 +9545,7 @@ export interface operations {
                 library_paper_id?: string | null;
                 limit?: number;
                 offset?: number;
+                job_ids?: string | null;
             };
             header?: never;
             path?: never;
@@ -9017,6 +9634,111 @@ export interface operations {
             };
         };
     };
+    preview_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KnowledgeLocalRecoveryInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_workspace_api_v1_workspace_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSearchPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -9033,6 +9755,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    quiesce_for_workspace_backup_api_v1_maintenance_quiesce_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
                 };
             };
         };
@@ -9104,6 +9848,37 @@ export interface operations {
             };
         };
     };
+    get_project_api_v1_projects__project_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     jobs_api_v1_jobs_get: {
         parameters: {
             query?: never;
@@ -9146,6 +9921,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    global_jobs_page_api_v1_jobs_page_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobList"];
                 };
             };
             /** @description Validation Error */

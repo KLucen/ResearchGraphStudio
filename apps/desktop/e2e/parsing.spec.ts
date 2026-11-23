@@ -19,15 +19,13 @@ test("parsing defaults local and later model dialog follows the viewport", async
   await expect(page.getByText(/输入方式：将 PDF 页面渲染成图片/)).toContainText(
     "单请求响应等待上限 600 秒，单请求总时限 1800 秒",
   );
-  await page.getByRole("button", { name: "论文解析操作" }).click();
+  await page.getByRole("button", { name: "更多解析操作" }).click();
   await page.getByRole("button", { name: "本地解析 / 重试" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Synthetic local read failure",
   );
-  await expect(page.getByLabel("文档请求状态")).toHaveText(
-    "请求用时 90 秒 · 单请求响应等待上限 90 秒",
-  );
-  await page.getByRole("button", { name: "论文解析操作" }).click();
+  await expect(page.getByLabel("文档请求状态")).toHaveCount(0);
+  await page.getByRole("button", { name: "更多解析操作" }).click();
   await page.getByRole("button", { name: "使用模型重新解析" }).click();
   const dialog = page.getByRole("dialog", { name: "重新解析论文" });
   await expect(dialog).toBeVisible();
@@ -76,7 +74,7 @@ test("batch parsing defaults five pages and requires fresh consent for optional 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 620, height: 900 });
   await page.goto("/e2e/parsing.html");
-  await page.getByRole("button", { name: "论文解析操作" }).click();
+  await page.getByRole("button", { name: "更多解析操作" }).click();
   await page.getByRole("button", { name: "使用模型重新解析" }).click();
   const dialog = page.getByRole("dialog", { name: "重新解析论文" });
   await expect(
@@ -137,7 +135,7 @@ test("batch parsing defaults five pages and requires fresh consent for optional 
   expect(errors).toEqual([]);
 });
 
-test("batch task shows safe progress and field errors without response contents", async ({
+test("workspace shows active model parse name while job history keeps safe batch diagnostics", async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -148,12 +146,28 @@ test("batch task shows safe progress and field errors without response contents"
       externalRequests.push(request.url());
   });
   await page.goto("/e2e/parsing.html?batch=1");
-  await page.getByRole("button", { name: "论文解析操作" }).click();
-  await page.getByRole("button", { name: "本地解析 / 重试" }).click();
-  await expect(page.getByLabel("文档批次状态")).toHaveText(
+  await page.getByRole("button", { name: "更多解析操作" }).click();
+  await page.getByRole("button", { name: "使用模型重新解析" }).click();
+  const dialog = page.getByRole("dialog", { name: "重新解析论文" });
+  await dialog
+    .getByRole("checkbox", {
+      name: "允许将所选 PDF 发送给已配置的论文解析模型",
+    })
+    .check();
+  await dialog.getByRole("button", { name: "确认模型解析" }).click();
+  const workspace = page.getByRole("region", { name: "论文解析管理" });
+  const history = page.getByRole("region", { name: "任务记录" });
+  await expect(workspace.getByRole("status")).toHaveText(
+    "任务进行中：模型章节解析",
+  );
+  await expect(workspace.getByLabel("文档批次状态")).toHaveCount(0);
+  await expect(workspace.getByLabel("文档校验位置")).toHaveCount(0);
+  await expect(history.getByLabel("文档批次状态")).toBeHidden();
+  await history.getByText("诊断详情", { exact: true }).click();
+  await expect(history.getByLabel("文档批次状态")).toHaveText(
     "第 2 / 4 批 · 原始第 5–9 页 · 已校验 1 / 4 批 · 已发送 3 / 11 次请求 · 格式修复已用 1 次 · 边界复核 0 / 3 · 等待当前批次响应",
   );
-  await expect(page.getByLabel("文档校验位置")).toHaveText(
+  await expect(history.getByLabel("文档校验位置")).toHaveText(
     "校验位置：segments[3].kind（literal_error）",
   );
   await expect(page.getByLabel("文档请求状态")).toHaveCount(0);
@@ -169,33 +183,26 @@ test("batch task shows safe progress and field errors without response contents"
   expect(externalRequests).toEqual([]);
 });
 
-test("circular parsing menu stays inside narrow viewport and dismisses with Escape", async ({
+test("parsing actions stay inside narrow viewport and dismisses with Escape", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/e2e/parsing.html?local-only=1");
-  const trigger = page.getByRole("button", { name: "论文解析操作" });
+  const trigger = page.getByRole("button", { name: "更多解析操作" });
   await expect(
-    page.getByRole("button", { name: "查看模型解析内容" }),
-  ).toBeHidden();
+    page
+      .getByRole("group", { name: "论文阅读来源" })
+      .getByText("本地解析", { exact: true }),
+  ).toBeVisible();
   await trigger.click();
   const menu = page.locator(".paper-parsing-options");
   await expect(menu).toBeVisible();
-  const circle = await trigger.boundingBox();
-  expect(circle?.height).toBe(40);
-  expect(circle?.width).toBe(40);
   const bounds = await menu.boundingBox();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
-  await expect(
-    page.getByRole("button", { name: "查看本地解析内容" }),
-  ).toBeEnabled();
-  await expect(
-    page.getByRole("button", { name: "查看模型解析内容" }),
-  ).toBeDisabled();
-  await expect(page.getByText("尚无模型解析记录")).toBeVisible();
+  await expect(menu.getByRole("button")).toHaveCount(2);
   await page.screenshot({ path: testInfo.outputPath("parsing-menu-390.png") });
   await page.keyboard.press("Tab");
   await page.keyboard.press("Escape");

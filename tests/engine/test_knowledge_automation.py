@@ -4,7 +4,6 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from researchgraph.app import after_knowledge_job, dispatch_pending_knowledge
 from researchgraph.core import KnowledgeError
 from researchgraph.knowledge_automation import note_parsed
 from researchgraph.knowledge_connection_models import (
@@ -19,6 +18,7 @@ from researchgraph.knowledge_tasks import queue_knowledge_extract, run_knowledge
 from researchgraph.model_document_models import LlmDocumentParse, LlmDocumentSegment
 from researchgraph.models import Job, now
 from researchgraph.storage import make_engine
+from researchgraph.task_worker import after_knowledge_job, dispatch_pending_knowledge
 from sqlalchemy.orm import Session
 from test_knowledge_extraction import SNAPSHOT, FixtureProvider, model_fixture
 

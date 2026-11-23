@@ -1,9 +1,12 @@
 export const readingHighlightTypes = {
-  THESIS: { label: "核心论点", color: "#eab308" },
-  CONCEPT: { label: "概念定义", color: "#dc2626" },
-  EVIDENCE: { label: "论据与结果", color: "#2563eb" },
-  COUNTERARGUMENT: { label: "反驳与局限", color: "#16a34a" },
-  METHOD: { label: "方法与过程", color: "#9333ea" },
+  THESIS: { label: "核心论点", color: "var(--rgs-reading-thesis)" },
+  CONCEPT: { label: "概念定义", color: "var(--rgs-reading-concept)" },
+  EVIDENCE: { label: "论据与结果", color: "var(--rgs-reading-evidence)" },
+  COUNTERARGUMENT: {
+    label: "反驳与局限",
+    color: "var(--rgs-reading-counterargument)",
+  },
+  METHOD: { label: "方法与过程", color: "var(--rgs-reading-method)" },
 } as const;
 
 export type HighlightType = keyof typeof readingHighlightTypes;

@@ -1,9 +1,22 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { request } from "./api";
-import { knowledgeApi } from "./knowledgeApi";
-import { knowledgePapers, knowledgeReport } from "./knowledgeFixtures";
+import { knowledgeApi, knowledgeErrorMessage } from "./knowledgeApi";
+import {
+  knowledgePapers,
+  knowledgeReport,
+  knowledgeSettings,
+} from "./knowledgeFixtures";
 vi.mock("./api", () => ({ request: vi.fn() }));
 beforeEach(() => vi.clearAllMocks());
+
+test("invalid knowledge response directs error details to the task record without guessing the cause", () => {
+  expect(knowledgeErrorMessage("KNOWLEDGE_RESPONSE_INVALID")).toBe(
+    "知识任务未完成。错误详情见任务记录；可在此显式继续，系统不会自动重发。",
+  );
+  expect(knowledgeErrorMessage("KNOWLEDGE_RESPONSE_INVALID")).not.toMatch(
+    /格式|来源|原始响应|知识库查看原因/,
+  );
+});
 
 test("reports retrieves every page and preserves the global unread count", async () => {
   const report = knowledgeReport();
@@ -63,5 +76,21 @@ test("paper pagination keeps scope and archive filters independent from model su
   expect(request).toHaveBeenCalledExactlyOnceWith(
     "GET",
     expect.stringContaining("include_archived=true&offset=50&limit=200"),
+  );
+});
+
+test("unlimited budgets are sent as explicit nulls with the cumulative limit intact", async () => {
+  const settings = {
+    ...knowledgeSettings,
+    max_input_tokens: null,
+    max_output_tokens: null,
+    max_requests_per_run: null,
+  };
+  await knowledgeApi.saveSettings(settings);
+  expect(request).toHaveBeenCalledExactlyOnceWith(
+    "PATCH",
+    "/api/v1/knowledge/library",
+    settings,
+    expect.any(String),
   );
 });

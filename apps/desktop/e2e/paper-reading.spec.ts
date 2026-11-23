@@ -186,6 +186,7 @@ test("one explicit consent generates full-paper notes and local refresh never st
     { sectionId: "s", paragraphId: "p1" },
     { nodeId: "n1" },
   ]);
+  await page.getByText("本地阅读维护", { exact: true }).click();
   await page.getByRole("button", { name: "重新整理本地阅读版面" }).click();
   await expect(page.getByLabel("正文第 1 段中文译文")).toContainText(
     "旧笔记未与当前原文对齐",

@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_models import active_target, archived_target
 from researchgraph.core import digest, stable_id
 from researchgraph.knowledge_library_contracts import (
     CollectionView,
@@ -144,6 +145,7 @@ def publish_version(
     job_id: str | None = None,
     prompt_version: str = "",
     schema_version: str = "paper-knowledge-1",
+    select_as_current: bool = True,
 ) -> PaperKnowledgeVersion:
     """Publish a caller-validated immutable snapshot in the caller's transaction.
 
@@ -195,7 +197,8 @@ def publish_version(
         )
         db.add(version)
         db.flush()
-    library_paper.current_version_id = version.id
+    if select_as_current:
+        library_paper.current_version_id = version.id
     library_paper.updated_at = now()
     return version
 
@@ -247,14 +250,21 @@ def paper_view(db: Session, paper: LibraryPaper) -> LibraryPaperView:
                 paper_id=link.paper_id,
                 original_paper_id=link.original_paper_id,
                 project_id=link.project_id,
-                source_available=bool(link.paper_id and db.get(Paper, link.paper_id)),
+                source_available=bool(
+                    link.paper_id
+                    and db.get(Paper, link.paper_id)
+                    and not archived_target(db, "paper", link.paper_id)
+                ),
             )
             for link in links
         ],
         collection_ids=list(
             db.scalars(
                 select(KnowledgeCollectionMember.collection_id)
-                .where(KnowledgeCollectionMember.library_paper_id == paper.id)
+                .where(
+                    KnowledgeCollectionMember.library_paper_id == paper.id,
+                    active_target("knowledge_collection", KnowledgeCollectionMember.collection_id),
+                )
                 .order_by(KnowledgeCollectionMember.collection_id)
             )
         ),
@@ -315,7 +325,7 @@ def collect_overview(db: Session, request: CollectOverview) -> LibraryPaper:
     from researchgraph.paper_overview_models import PaperOverviewResult
 
     paper = db.get(Paper, request.paper_id)
-    if paper is None:
+    if paper is None or archived_target(db, "paper", paper.id):
         raise library_error(404, "PAPER_NOT_FOUND", "论文不存在")
     provider_id: str | None
     model_id: str | None
@@ -327,6 +337,7 @@ def collect_overview(db: Session, request: CollectOverview) -> LibraryPaper:
             PaperOverviewResult.paper_id == paper.id,
             PaperOverviewResult.document_version_id == revision.id,
             PaperOverviewResult.status == "COMPLETED",
+            PaperOverviewResult.schema_version == "paper_overview_graph.v1",
         )
         if request.overview_result_id:
             query = query.where(PaperOverviewResult.id == request.overview_result_id)
@@ -366,6 +377,8 @@ def collect_overview(db: Session, request: CollectOverview) -> LibraryPaper:
             LlmDocumentOutput.parse_id == parse.id,
             LlmDocumentOutput.item_kind == "paper_overview",
             LlmDocumentOutput.status == "succeeded",
+            LlmDocumentOutput.output_json["schema_version"].as_string()
+            == "paper_overview_graph.v1",
         )
         if request.overview_result_id:
             model_query = model_query.where(LlmDocumentOutput.id == request.overview_result_id)

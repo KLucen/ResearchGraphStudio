@@ -329,6 +329,11 @@ export function ReadingParagraphCard({
     index: number;
   } | null>(null);
   const activeIndex = selection?.source === layoutKey ? selection.index : null;
+  const [pointerPreview, setPointerPreview] = useState<typeof selection>(null);
+  const [focusPreview, setFocusPreview] = useState<typeof selection>(null);
+  const preview =
+    pointerPreview?.source === layoutKey ? pointerPreview : focusPreview;
+  const previewIndex = preview?.source === layoutKey ? preview.index : null;
   const rowRef = useReadingAnnotationLayout(layoutKey);
   const numberFor = (index: number) =>
     `${paragraphNumber}.${ranges.findIndex((range) => range.index === index) + 1}`;
@@ -387,6 +392,10 @@ export function ReadingParagraphCard({
                   activeIndex !== null &&
                   segment.highlightIndices.includes(activeIndex)
                 }
+                data-preview={
+                  previewIndex !== null &&
+                  segment.highlightIndices.includes(previewIndex)
+                }
                 role="button"
                 tabIndex={0}
                 aria-label={segment.highlightIndices
@@ -400,6 +409,21 @@ export function ReadingParagraphCard({
                   activeIndex !== null &&
                   segment.highlightIndices.includes(activeIndex)
                 }
+                onPointerEnter={(event) => {
+                  if (event.pointerType === "mouse")
+                    setPointerPreview({
+                      source: layoutKey,
+                      index: segment.highlightIndices[0],
+                    });
+                }}
+                onPointerLeave={() => setPointerPreview(null)}
+                onFocus={() =>
+                  setFocusPreview({
+                    source: layoutKey,
+                    index: segment.highlightIndices[0],
+                  })
+                }
+                onBlur={() => setFocusPreview(null)}
                 onClick={() =>
                   activateNote(
                     segment.highlightIndices.includes(activeIndex ?? -1)
@@ -480,8 +504,21 @@ export function ReadingParagraphCard({
                     }
                     data-annotation-key={range.index}
                     data-active={activeIndex === range.index}
+                    data-preview={previewIndex === range.index}
                     aria-label={`定位原文标记 ${numberFor(range.index)} · ${readingHighlightTypes[range.type].label}`}
                     aria-pressed={activeIndex === range.index}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === "mouse")
+                        setPointerPreview({
+                          source: layoutKey,
+                          index: range.index,
+                        });
+                    }}
+                    onPointerLeave={() => setPointerPreview(null)}
+                    onFocus={() =>
+                      setFocusPreview({ source: layoutKey, index: range.index })
+                    }
+                    onBlur={() => setFocusPreview(null)}
                     onClick={() => locateMark(range.index)}
                   >
                     <span className="paper-highlight-number">

@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import socket
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -16,7 +17,34 @@ def main() -> None:
     parser.add_argument("--parse-pdf", type=Path)
     parser.add_argument("--check-source", type=Path)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--workspace-operation", choices=["export", "restore"])
     args = parser.parse_args()
+    if args.workspace_operation:
+        if not args.data_dir or args.parse_pdf or args.check_source or args.output_dir:
+            parser.error("Workspace operation requires --data-dir")
+        from researchgraph.workspace_backup import (
+            WorkspaceBackupError,
+            export_workspace,
+            restore_workspace,
+        )
+
+        try:
+            selection = Path(json.loads(sys.stdin.buffer.readline(32_768))["directory"])
+            if not selection.is_absolute() or not args.data_dir.is_absolute():
+                raise WorkspaceBackupError("备份选项必须使用绝对路径")
+            result = (
+                export_workspace(args.data_dir, selection)
+                if args.workspace_operation == "export"
+                else restore_workspace(selection, args.data_dir)
+            )
+            print(json.dumps({"result": result}), flush=True)
+        except WorkspaceBackupError as exc:
+            print(json.dumps({"error": str(exc)}), flush=True)
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            print(
+                json.dumps({"error": "备份或恢复失败，请检查文件、磁盘空间及备份权限"}), flush=True
+            )
+        return
     if args.parse_pdf or args.check_source:
         if not args.output_dir or args.data_dir or (args.parse_pdf and args.check_source):
             parser.error("File worker requires one operation and --output-dir")

@@ -1,10 +1,14 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, FileSearch, HardDrive, ScanLine, Sparkles } from "lucide-react";
+import { HardDrive, MoreHorizontal, Sparkles } from "lucide-react";
 import { api, defaultPostImportPlan } from "./api";
 import { ImportPostProcessingPlan } from "./ImportPostProcessingPlan";
-import { jobStageLabel } from "./jobProgress";
-import { DocumentRequestStatus } from "./DocumentRequestStatus";
+import {
+  isActiveReadingTask,
+  ReadingTaskStatus,
+  useModelImportSession,
+} from "./ReadingTaskStatus";
+import "./paperWorkspace.css";
 
 export function PaperParsing({
   paperId,
@@ -12,6 +16,7 @@ export function PaperParsing({
   connected,
   hasLocal,
   hasModel,
+  modelSessionId,
   source,
   onViewSource,
   onQueued,
@@ -22,6 +27,7 @@ export function PaperParsing({
   connected: boolean;
   hasLocal: boolean;
   hasModel: boolean;
+  modelSessionId?: string;
   source: "local" | "model";
   onViewSource: (mode: "local" | "model") => void;
   onQueued: (mode: "local" | "model") => void;
@@ -47,7 +53,7 @@ export function PaperParsing({
     const bounds = trigger.current?.getBoundingClientRect();
     if (bounds)
       setActionsAbove(
-        window.innerHeight - bounds.bottom < 260 && bounds.top > 260,
+        window.innerHeight - bounds.bottom < 116 && bounds.top > 116,
       );
     setActionsOpen(!actionsOpen);
   };
@@ -57,6 +63,7 @@ export function PaperParsing({
     overview: false,
   }));
   const [jobId, setJobId] = useState<string | null>(null);
+  const modelSession = useModelImportSession(modelSessionId, connected);
   const task = useQuery({
     queryKey: ["paper-parse-job", jobId],
     queryFn: () => api.job(jobId!),
@@ -116,6 +123,35 @@ export function PaperParsing({
       <div className="paper-parsing-action-row">
         {children}
         <div
+          className="paper-reading-source"
+          role="group"
+          aria-label="论文阅读来源"
+        >
+          {hasLocal && hasModel ? (
+            <label>
+              <span>查看来源</span>
+              <select
+                value={source}
+                onChange={(event) =>
+                  onViewSource(
+                    event.target.value === "local" ? "local" : "model",
+                  )
+                }
+              >
+                <option value="local">本地解析</option>
+                <option value="model">模型解析</option>
+              </select>
+            </label>
+          ) : (
+            <>
+              <span>查看来源</span>
+              <strong>
+                {hasLocal ? "本地解析" : hasModel ? "模型解析" : "暂无可读解析"}
+              </strong>
+            </>
+          )}
+        </div>
+        <div
           ref={menu}
           className={`paper-parsing-menu${actionsAbove ? " opens-above" : ""}`}
           onBlur={(event) => {
@@ -136,13 +172,13 @@ export function PaperParsing({
             ref={trigger}
             type="button"
             className="paper-parsing-toggle"
-            aria-label="论文解析操作"
-            title="论文解析操作"
+            aria-label="更多解析操作"
             aria-expanded={actionsOpen}
             aria-controls={actionsId}
             onClick={toggleActions}
           >
-            <ScanLine size={18} aria-hidden="true" />
+            <MoreHorizontal size={16} aria-hidden="true" />
+            更多操作
           </button>
           <div
             id={actionsId}
@@ -162,25 +198,6 @@ export function PaperParsing({
             </button>
             <button
               type="button"
-              aria-label="查看本地解析内容"
-              aria-pressed={hasLocal && source === "local"}
-              disabled={!hasLocal}
-              onClick={() => {
-                closeActions();
-                onViewSource("local");
-              }}
-            >
-              <FileSearch size={16} aria-hidden="true" />
-              <span>
-                查看本地解析内容
-                {!hasLocal && <small>尚未完成本地解析</small>}
-              </span>
-              {hasLocal && source === "local" && (
-                <Check size={15} aria-hidden="true" />
-              )}
-            </button>
-            <button
-              type="button"
               disabled={!connected || busy}
               onClick={() => {
                 closeActions();
@@ -196,47 +213,24 @@ export function PaperParsing({
               <Sparkles size={16} aria-hidden="true" />
               <span>使用模型重新解析</span>
             </button>
-            <button
-              type="button"
-              aria-label="查看模型解析内容"
-              aria-pressed={hasModel && source === "model"}
-              disabled={!hasModel}
-              onClick={() => {
-                closeActions();
-                onViewSource("model");
-              }}
-            >
-              <FileSearch size={16} aria-hidden="true" />
-              <span>
-                查看模型解析内容
-                {!hasModel && <small>尚无模型解析记录</small>}
-              </span>
-              {hasModel && source === "model" && (
-                <Check size={15} aria-hidden="true" />
-              )}
-            </button>
           </div>
         </div>
       </div>
-      {task.data && (
-        <p role={task.data.status === "failed" ? "alert" : "status"}>
-          解析任务：
-          {task.data.status === "succeeded"
-            ? "已完成"
-            : task.data.status === "failed"
-              ? "失败，可重试"
-              : task.data.status === "cancelled"
-                ? "已取消"
-                : task.data.status === "interrupted"
-                  ? "已中断，可重试"
-                  : jobStageLabel(task.data)}
-          {task.data.error ? ` · ${task.data.error}` : ""}
-        </p>
-      )}
+      <ReadingTaskStatus
+        connected={connected}
+        session={modelSession.data}
+        parseJob={task.data ?? parsing.data}
+        submittedParse={busy ? parsing.variables : undefined}
+      />
+      {task.data &&
+        !isActiveReadingTask(task.data.status) &&
+        task.data.error &&
+        parsing.variables === "local" && (
+          <p role="alert">本地解析未完成：{task.data.error}</p>
+        )}
       {(parsing.error || task.error) && (
         <p role="alert">{String(parsing.error || task.error)}</p>
       )}
-      {task.data && <DocumentRequestStatus job={task.data} />}
       {open && (
         <dialog
           ref={dialog}

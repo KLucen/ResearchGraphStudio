@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from researchgraph.core import StrictModel
 
@@ -36,6 +36,39 @@ class ConnectionSummaryDraft(StrictModel):
 class ConnectionsDraft(StrictModel):
     schema_version: Literal["knowledge-connections-1"]
     relations: list[ConnectionDraft] = Field(max_length=40)
+    summary: list[ConnectionSummaryDraft] = Field(max_length=10)
+    no_relation_reason_zh: str | None = Field(default=None, max_length=800)
+
+
+class ConnectionDetailDraft(StrictModel):
+    source_zh: str = Field(min_length=1, max_length=1200)
+    target_zh: str = Field(min_length=1, max_length=1200)
+    comparison_zh: str = Field(min_length=1, max_length=1800)
+    conditions_zh: str = Field(min_length=1, max_length=1200)
+    follow_up_zh: str | None = Field(min_length=1, max_length=800)
+
+    @field_validator("source_zh", "target_zh", "comparison_zh", "conditions_zh", "follow_up_zh")
+    @classmethod
+    def require_visible_text(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Report detail must contain text")
+        return value
+
+
+class DetailedConnectionDraft(ConnectionDraft):
+    detail: ConnectionDetailDraft
+
+
+class DetailedConnectionsDraft(StrictModel):
+    schema_version: Literal["knowledge-connections-2"]
+    relations: list[DetailedConnectionDraft] = Field(max_length=40)
+    summary: list[ConnectionSummaryDraft] = Field(max_length=10)
+    no_relation_reason_zh: str | None = Field(default=None, max_length=800)
+
+
+class GroundedNumberConnectionsDraft(StrictModel):
+    schema_version: Literal["knowledge-connections-3"]
+    relations: list[DetailedConnectionDraft] = Field(max_length=40)
     summary: list[ConnectionSummaryDraft] = Field(max_length=10)
     no_relation_reason_zh: str | None = Field(default=None, max_length=800)
 

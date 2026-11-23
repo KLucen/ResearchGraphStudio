@@ -25,6 +25,7 @@ from researchgraph.providers import ProviderError
 from researchgraph.storage import read_session
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from test_model_card_set import response as card_response
 from test_model_document_overview import EXAMPLE, _fixture
 
 
@@ -34,6 +35,7 @@ class Provider:
     usage = {"prompt_tokens": 8, "completion_tokens": 2, "total_tokens": 10}
 
     def __init__(self, response=None, action=None):
+        self.default_response = response is None
         self.response = EXAMPLE.read_text(encoding="utf-8") if response is None else response
         self.action = action
         self.calls = []
@@ -42,6 +44,9 @@ class Provider:
         self.calls.append({"prompt": prompt, "data": data, "schema": schema})
         if self.action:
             self.action()
+        source = data.get("source_context", data)
+        if self.default_response and "sources" in source:
+            self.response = json.dumps(card_response(source))
         return self.response
 
 
@@ -99,6 +104,23 @@ def test_worker_rejects_cross_source_payload_before_network_and_preserves_peer(
                 warnings=[],
                 created_at=now(),
                 updated_at=now(),
+            )
+        )
+        db.flush()
+        db.add(
+            LlmDocumentSegment(
+                id=str(uuid4()),
+                parse_id=parse2,
+                chapter_ref="peer",
+                chapter_title="Methods",
+                chapter_level=1,
+                chapter_order=0,
+                kind="paragraph",
+                ordinal=0,
+                text="Synthetic peer material.",
+                status="ok",
+                warnings=[],
+                created_at=now(),
             )
         )
         db.flush()

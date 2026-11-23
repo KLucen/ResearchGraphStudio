@@ -76,7 +76,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
     def exercise(base: str, token: str, provider: PaperProvider, pdf: Path) -> dict[str, Any]:
         request, wait_job = shared.request, shared.wait_job
         health = request(base, token, "GET", "/health")
-        assert health["schema_version"] == "lite0018" and health["database"] == "ready"
+        assert health["schema_version"] == "lite0020" and health["database"] == "ready"
         project = request(base, token, "POST", "/projects", {"name": "Synthetic whole-paper smoke"})
         imported = request(
             base,

@@ -55,7 +55,7 @@ function mount(
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const mounted = render(
     <QueryClientProvider client={client}>
       <ModelDocumentPanel
         sessionId="session-1"
@@ -67,6 +67,7 @@ function mount(
       />
     </QueryClientProvider>,
   );
+  return { ...mounted, client };
 }
 
 beforeEach(() => {
@@ -207,7 +208,7 @@ test("model paragraphs share translation slots, annotation legend and KaTeX rend
   );
   mount("reading");
   expect(await screen.findByLabelText("正文第 1 段中文译文")).toHaveTextContent(
-    "本次未选择中文翻译",
+    "尚无本段译文",
   );
   expect(screen.getByLabelText("正文第 1 段论证批注")).toHaveTextContent(
     "全文笔记生成后",
@@ -218,7 +219,10 @@ test("model paragraphs share translation slots, annotation legend and KaTeX rend
   expect(screen.getByLabelText("全文论证标注图例")).toHaveTextContent(
     "反驳与局限",
   );
-  expect(screen.getByText(/当次导入没有选择生成全文精读/)).toBeVisible();
+  expect(
+    screen.getByText("尚无全文精读笔记，可在下方选择生成。"),
+  ).toBeVisible();
+  expect(screen.queryByLabelText("当次导入选择")).not.toBeInTheDocument();
   expect(
     screen.getByLabelText("LaTeX 公式").querySelector(".katex"),
   ).not.toBeNull();
@@ -673,19 +677,39 @@ test("adding a translation queues only translation and keeps validated reading n
   const user = userEvent.setup();
   vi.mocked(api.modelDocumentParse).mockResolvedValue(readingParse());
   vi.mocked(api.modelDocumentOutputs).mockResolvedValue([completeReading()]);
-  vi.mocked(api.generateModelDocumentOutput).mockResolvedValue({
+  const session = failedSession();
+  vi.mocked(api.importSession).mockResolvedValue({ ...session, items: [] });
+  const job = {
     id: "translation-job",
     kind: "llm_document_postprocess",
     project_id: "project",
-    status: "queued",
+    status: "queued" as const,
     stage: "queued",
     attempt: 1,
     error: null,
     result: null,
     created_at: "now",
     updated_at: "now",
+  };
+  vi.mocked(api.generateModelDocumentOutput).mockImplementation(async () => {
+    vi.mocked(api.importSession).mockResolvedValue({
+      ...session,
+      status: "queued",
+      items: [
+        {
+          ...session.items[0],
+          item_kind: "translation",
+          status: "queued",
+          job_id: job.id,
+        },
+      ],
+    });
+    return job;
   });
   mount("reading");
+  await user.click(
+    await screen.findByText("更多精读操作", { selector: "summary" }),
+  );
   const translate = await screen.findByRole("button", {
     name: "仅补生成中文译文",
   });
@@ -706,9 +730,7 @@ test("adding a translation queues only translation and keeps validated reading n
     ),
   );
   expect(screen.getByText("提出核心主张并说明支撑和局限。")).toBeVisible();
-  expect(
-    await screen.findByText("中文翻译任务已加入任务记录；已有精读笔记保留。"),
-  ).toBeVisible();
+  expect(await screen.findByText("任务进行中：逐段中文翻译")).toBeVisible();
 });
 
 function failedSession(allowNetwork = true): ImportSession {
@@ -746,6 +768,119 @@ function failedSession(allowNetwork = true): ImportSession {
     ],
   };
 }
+
+test("workspace shows only active task names and clears the status after completion", async () => {
+  const session = failedSession();
+  const parseItem = { ...session.items[0], status: "succeeded" as const };
+  const readingItem = {
+    ...parseItem,
+    id: "reading",
+    item_kind: "paper_reading" as const,
+    status: "running" as const,
+    job_id: "reading-job",
+  };
+  const translationItem = {
+    ...parseItem,
+    id: "translation",
+    item_kind: "translation" as const,
+    status: "queued" as const,
+    job_id: "translation-job",
+  };
+  const current = {
+    ...session,
+    status: "failed" as const,
+    items: [
+      parseItem,
+      {
+        ...parseItem,
+        id: "overview",
+        item_kind: "paper_overview" as const,
+        status: "failed" as const,
+      },
+      readingItem,
+      translationItem,
+    ],
+  };
+  vi.mocked(api.importSession).mockResolvedValue(current);
+  vi.mocked(api.job).mockResolvedValue({
+    id: parseItem.job_id!,
+    kind: "llm_document_parse",
+    project_id: session.project_id,
+    status: "succeeded",
+    stage: "completed",
+    attempt: 1,
+    error: null,
+    result: {
+      document_request: {
+        elapsed_seconds: 34,
+        read_timeout_seconds: 600,
+        total_timeout_seconds: 1800,
+      },
+      document_batches: {
+        total: 3,
+        completed: 3,
+        requests_sent: 8,
+        request_budget: 8,
+        phase: "completed",
+      },
+    },
+    created_at: "now",
+    updated_at: "now",
+  });
+  const { client } = mount("reading");
+  const status = "任务进行中：全文精读笔记生成、逐段中文翻译";
+  expect(await screen.findByText(status)).toBeVisible();
+  expect(screen.queryByLabelText("当次导入选择")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("文档请求状态")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("文档批次状态")).not.toBeInTheDocument();
+  vi.mocked(api.importSession).mockResolvedValue({
+    ...current,
+    items: current.items.map((item) => ({
+      ...item,
+      status: item.status === "failed" ? "failed" : "succeeded",
+    })),
+  });
+  void client.invalidateQueries({
+    queryKey: ["model-document-import-session", session.id],
+  });
+  await waitFor(() =>
+    expect(screen.queryByText(status)).not.toBeInTheDocument(),
+  );
+});
+
+test.each([
+  ["paper_overview", "论文概览生成"],
+  ["paper_card_set", "论文卡片集生成"],
+] as const)(
+  "workspace checks the exact active overview job subtype %s",
+  async (readingTask, name) => {
+    const session = failedSession();
+    const jobId = "overview-job";
+    vi.mocked(api.importSession).mockResolvedValue({
+      ...session,
+      status: "running",
+      items: [
+        { ...session.items[0], item_kind: "paper_overview", job_id: jobId },
+      ],
+    });
+    vi.mocked(api.job).mockResolvedValue({
+      id: jobId,
+      kind: "llm_document_postprocess",
+      project_id: session.project_id,
+      status: "running",
+      stage: "generating",
+      attempt: 1,
+      error: null,
+      result: null,
+      reading_task: readingTask,
+      created_at: "now",
+      updated_at: "now",
+    });
+    mount("reading");
+    await waitFor(() => expect(api.job).toHaveBeenCalledExactlyOnceWith(jobId));
+    expect(await screen.findByText(`任务进行中：${name}`)).toBeVisible();
+  },
+);
 
 test("a failed job replaces stale parsing status and only an explicit retry requeues it", async () => {
   const user = userEvent.setup();
@@ -1129,3 +1264,30 @@ test("table editor reports invalid JSON and saves the corrected structure", asyn
     ),
   );
 });
+
+test.each([4, 5, 6])(
+  "overview avoids the generic reading format repair controls, version %s",
+  async (version) => {
+    vi.mocked(api.modelDocumentOutputs).mockResolvedValue([
+      {
+        id: "failed-overview",
+        parse_id: "parse-1",
+        import_session_id: "session-1",
+        item_kind: "paper_overview",
+        status: "failed",
+        output_json: null,
+        error: "合成校验失败",
+        error_code: "MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED",
+        format_repair_available: true,
+        usage: { contract_version: version },
+      },
+    ]);
+    mount("overview");
+    await screen.findByRole("region", { name: "模型文档解析结果" });
+    expect(
+      screen.queryByRole("button", { name: "调用模型分析并修复此结果" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("合成校验失败")).not.toBeInTheDocument();
+    expect(api.repairModelDocumentOutput).not.toHaveBeenCalled();
+  },
+);

@@ -51,7 +51,7 @@ function mount({ hasLocal = true, hasModel = true } = {}) {
   return { onQueued, onViewSource };
 }
 async function openActions(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "论文解析操作" }));
+  await user.click(screen.getByRole("button", { name: "更多解析操作" }));
 }
 test("local parse failure can be retried without a model plan", async () => {
   const user = userEvent.setup();
@@ -92,50 +92,39 @@ test("later model parsing requires explicit consent and clears it on reopening",
   expect(screen.getByRole("button", { name: "确认模型解析" })).toBeDisabled();
 });
 
-test("all papers expose the same circular disclosure with unavailable source explained", async () => {
+test("switching an available source is independent of the two parsing actions", async () => {
   const user = userEvent.setup();
-  const { onViewSource } = mount({ hasLocal: true, hasModel: false });
-  const trigger = screen.getByRole("button", { name: "论文解析操作" });
-  expect(trigger).toHaveClass("paper-parsing-toggle");
+  const { onViewSource } = mount();
+  const trigger = screen.getByRole("button", { name: "更多解析操作" });
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   expect(screen.queryByRole("button", { name: "本地解析 / 重试" })).toBeNull();
+  const source = screen.getByRole("combobox", { name: "查看来源" });
+  expect(source).toHaveValue("local");
+  await user.selectOptions(source, "model");
+  expect(onViewSource).toHaveBeenCalledExactlyOnceWith("model");
   await openActions(user);
   expect(trigger).toHaveAttribute("aria-expanded", "true");
   expect(screen.getByRole("button", { name: "本地解析 / 重试" })).toBeEnabled();
   expect(
     screen.getByRole("button", { name: "使用模型重新解析" }),
   ).toBeEnabled();
-  expect(
-    screen.getByRole("button", { name: "查看模型解析内容" }),
-  ).toBeDisabled();
-  expect(screen.getByText("尚无模型解析记录")).toBeVisible();
-  const local = screen.getByRole("button", { name: "查看本地解析内容" });
-  expect(local).toHaveAttribute("aria-pressed", "true");
-  await user.click(local);
-  expect(onViewSource).toHaveBeenCalledWith("local");
   expect(api.parsePaper).not.toHaveBeenCalled();
-  expect(trigger).toHaveFocus();
-  expect(trigger).toHaveAttribute("aria-expanded", "false");
 });
 
-test("source menu supports keyboard dismissal and outside dismissal without generating", async () => {
+test("a single source stays visible and the parsing menu dismisses without generating", async () => {
   const user = userEvent.setup();
   const { onViewSource } = mount({ hasLocal: false, hasModel: true });
+  expect(screen.getByText("模型解析", { exact: true })).toBeVisible();
+  expect(screen.queryByRole("combobox", { name: "查看来源" })).toBeNull();
   await openActions(user);
-  expect(
-    screen.getByRole("button", { name: "查看本地解析内容" }),
-  ).toBeDisabled();
-  expect(screen.getByText("尚未完成本地解析")).toBeVisible();
   await user.tab();
   await user.keyboard("{Escape}");
-  const trigger = screen.getByRole("button", { name: "论文解析操作" });
+  const trigger = screen.getByRole("button", { name: "更多解析操作" });
   expect(trigger).toHaveFocus();
   expect(trigger).toHaveAttribute("aria-expanded", "false");
   await openActions(user);
   await user.click(document.body);
   expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await openActions(user);
-  await user.click(screen.getByRole("button", { name: "查看模型解析内容" }));
-  expect(onViewSource).toHaveBeenCalledWith("model");
+  expect(onViewSource).not.toHaveBeenCalled();
   expect(api.parsePaper).not.toHaveBeenCalled();
 });

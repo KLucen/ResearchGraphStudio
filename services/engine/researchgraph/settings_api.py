@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
@@ -16,7 +16,6 @@ from researchgraph.model_settings import (
     ConnectionInput,
     ConnectionView,
     GlobalModelRole,
-    ModelConnection,
     ModelProfile,
     ProfileInput,
     ProfileView,
@@ -69,29 +68,12 @@ def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: 
     @app.post("/api/v1/settings/connections/{connection_id}/delete")
     @app.post("/api/v1/projects/{project_id}/connections/{connection_id}/delete")
     def remove_connection(connection_id: str, project_id: str | None = None) -> dict[str, bool]:
+        from researchgraph.archive_api import archive_target
+
         with Session(engine()) as session, session.begin():
             require_project(session, project_id)
-            connection = session.get(ModelConnection, connection_id)
-            if connection is None or not connection.active:
-                raise KnowledgeError("CONNECTION_NOT_FOUND", "模型连接不存在或已删除")
-            for reference in connection.secret_refs:
-                try:
-                    secrets.delete(reference)
-                except CredentialError as error:
-                    raise KnowledgeError("CREDENTIAL_FAILURE", str(error)) from None
-            connection.active, connection.credential_ref, connection.secret_refs = False, None, []
-            for profile in session.scalars(
-                select(ModelProfile).where(ModelProfile.connection_id == connection_id)
-            ):
-                profile.active = False
-            session.execute(
-                delete(GlobalModelRole).where(
-                    GlobalModelRole.profile_id.in_(
-                        select(ModelProfile.id).where(ModelProfile.connection_id == connection_id)
-                    )
-                )
-            )
-        return {"deleted": True}
+            archive_target(session, "model_connection", connection_id)
+        return {"archived": True}
 
     @app.post("/api/v1/settings/connections/{connection_id}/test")
     @app.post("/api/v1/projects/{project_id}/connections/{connection_id}/test")
@@ -188,58 +170,12 @@ def register_settings_api(app: FastAPI, engine: Callable[[], Engine], data_dir: 
     @app.post("/api/v1/settings/models/{profile_id}/delete")
     @app.post("/api/v1/projects/{project_id}/models/{profile_id}/delete")
     def remove(profile_id: str, project_id: str | None = None) -> dict[str, bool]:
+        from researchgraph.archive_api import archive_target
+
         with Session(engine()) as session, session.begin():
-            profile = require_profile(session, profile_id, project_id)
-            connection = (
-                session.get(ModelConnection, profile.connection_id)
-                if profile.connection_id
-                else None
-            )
-            # Profile references are an opaque audit trail that can include
-            # credentials from a previous connection after an edit.  Delete
-            # only references no other active profile still uses; do not sweep
-            # every inactive connection, because queued snapshots may still
-            # rely on one of those references.
-            protected: set[str] = set()
-            for other in session.scalars(
-                select(ModelProfile).where(
-                    ModelProfile.active.is_(True), ModelProfile.id != profile_id
-                )
-            ):
-                protected.update(other.secret_refs or [])
-                if other.connection_id:
-                    other_connection = session.get(ModelConnection, other.connection_id)
-                    if other_connection is not None:
-                        protected.update(other_connection.secret_refs or [])
-            candidate_refs = set(profile.secret_refs or [])
-            if connection is not None:
-                candidate_refs.update(connection.secret_refs or [])
-            for reference in candidate_refs:
-                if reference in protected:
-                    continue
-                try:
-                    secrets.delete(reference)
-                except CredentialError as error:
-                    raise KnowledgeError("CREDENTIAL_FAILURE", str(error)) from None
-            profile.active, profile.credential_ref, profile.secret_refs = False, None, []
-            session.execute(delete(GlobalModelRole).where(GlobalModelRole.profile_id == profile_id))
-            if connection is not None:
-                remaining = session.scalar(
-                    select(ModelProfile.id)
-                    .where(
-                        ModelProfile.connection_id == connection.id,
-                        ModelProfile.active.is_(True),
-                        ModelProfile.id != profile_id,
-                    )
-                    .limit(1)
-                )
-                if remaining is None:
-                    connection.active, connection.credential_ref, connection.secret_refs = (
-                        False,
-                        None,
-                        [],
-                    )
-        return {"deleted": True}
+            require_project(session, project_id)
+            archive_target(session, "model_profile", profile_id)
+        return {"archived": True}
 
     @app.post("/api/v1/settings/model-roles", response_model=SettingsView)
     @app.post("/api/v1/projects/{project_id}/model-roles", response_model=SettingsView)

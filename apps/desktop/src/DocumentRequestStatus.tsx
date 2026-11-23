@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Job } from "./api";
 
 function count(value: unknown): number | null {
@@ -63,7 +63,15 @@ function validationLocations(value: unknown): string[] {
   });
 }
 
-export function DocumentRequestStatus({ job }: { job: Job }) {
+export function DocumentRequestStatus({
+  job,
+  foldDetails = false,
+  children,
+}: {
+  job: Job;
+  foldDetails?: boolean;
+  children?: ReactNode;
+}) {
   const [clock, setClock] = useState(() => Date.now());
   const data = record(job.result?.document_request);
   const batches = record(job.result?.document_batches);
@@ -88,6 +96,7 @@ export function DocumentRequestStatus({ job }: { job: Job }) {
     responseStatus !== null && responseStatus >= 100 && responseStatus <= 599
       ? responseStatus
       : null;
+  const retryAfter = integer(data?.retry_after_seconds);
   const parts: string[] = [];
   if (elapsed !== null)
     parts.push(`${running ? "已运行" : "请求用时"} ${Math.floor(elapsed)} 秒`);
@@ -167,9 +176,11 @@ export function DocumentRequestStatus({ job }: { job: Job }) {
   if (phase && !(publishing && phase === batchPhases.publication_failed))
     batchParts.push(phase);
   const errors = validationLocations(batches?.validation_errors);
-  if (!parts.length && !batchParts.length && !errors.length) return null;
-  return (
+  if (!parts.length && !batchParts.length && !errors.length && !children)
+    return null;
+  const details = (
     <>
+      {children}
       {!!parts.length && (
         <p className="muted" aria-label="文档请求状态">
           {parts.join(" · ")}
@@ -185,10 +196,30 @@ export function DocumentRequestStatus({ job }: { job: Job }) {
           校验位置：{errors.join("；")}
         </p>
       )}
+    </>
+  );
+  return (
+    <>
       {httpStatus === 400 && (
         <p className="muted" aria-label="文档请求拒绝提示">
           服务拒绝请求，重复继续通常不能解决，请检查请求参数或安装修复版
         </p>
+      )}
+      {httpStatus === 429 && (
+        <p className="muted" aria-label="文档请求限流提示">
+          {retryAfter !== null && retryAfter <= 86400
+            ? `服务当时建议等待 ${retryAfter} 秒后手动重试。`
+            : "服务限制了请求频率或额度，请检查设置后手动重试。"}
+          未自动重发。
+        </p>
+      )}
+      {foldDetails ? (
+        <details className="task-diagnostic-details">
+          <summary>诊断详情</summary>
+          {details}
+        </details>
+      ) : (
+        details
       )}
     </>
   );

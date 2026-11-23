@@ -28,6 +28,9 @@ class ModelParameters(StrictModel):
     )
     adapter_policy: Literal["tencent-deepseek-v41-structured-v1"] | None = None
     timeout_seconds: int = Field(default=90, ge=5, le=180)
+    # None preserves old stored profiles; new task snapshots choose activity.
+    # Already frozen snapshots without this field keep the historical deadline.
+    text_timeout_policy: Literal["activity", "legacy"] | None = None
     document_timeout_seconds: int = Field(default=600, ge=30, le=1800)
     document_total_timeout_seconds: int = Field(default=1800, ge=60, le=3600)
     json_mode: bool = True
@@ -339,7 +342,9 @@ def save_profile(
             .limit(1)
         )
         if remaining is None:
-            previous_connection.active = False
+            from researchgraph.archive_api import archive_target
+
+            archive_target(session, "model_connection", previous_connection.id)
     return profile_view(profile, connection)
 
 
@@ -436,6 +441,8 @@ def snapshot_for(session: Session, project_id: str | None, role: str) -> dict[st
     from researchgraph.model_adapters import new_task_parameters
 
     snapshot["parameters"] = {**new_task_parameters(base_url, p.model, p.parameters, role)}
+    if snapshot["parameters"].get("text_timeout_policy") is None:
+        snapshot["parameters"]["text_timeout_policy"] = "activity"
     if role == "document_parse":
         # New document tasks receive the same defaults shown in settings even
         # when the persisted profile predates these fields. Existing profiles

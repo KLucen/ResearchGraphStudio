@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_models import archived_target
 from researchgraph.import_plan_api import create_import_session_record, normalize_post_import_plan
 from researchgraph.model_settings import snapshot_for
 from researchgraph.models import Job, Paper, PaperSource, now
@@ -77,7 +78,7 @@ def register_paper_parse_api(app: FastAPI, engine: Callable[[], Engine], data_di
         key = "paper-parse:" + idempotency_key
         with Session(engine()) as db, db.begin():
             paper = db.get(Paper, paper_id)
-            if paper is None:
+            if paper is None or archived_target(db, "paper", paper.id):
                 raise failure(404, "PAPER_NOT_FOUND", "论文不存在")
             previous = remembered(db, key, request)
             if previous:

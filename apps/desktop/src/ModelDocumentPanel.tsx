@@ -13,8 +13,7 @@ import {
 } from "./api";
 import { ReadingOutline } from "./ReadingOutline";
 import { ChapterProgressControls } from "./ChapterProgress";
-import { jobStageLabel } from "./jobProgress";
-import { DocumentRequestStatus } from "./DocumentRequestStatus";
+import { ReadingTaskStatus, useModelImportSession } from "./ReadingTaskStatus";
 import {
   ReadingFormulaDisplay,
   ReadingLegend,
@@ -854,12 +853,7 @@ function ModelFullReading({
         metadata={modelSegmentPageLabel(segment)}
         analysis={data.analyses.get(segment.id)}
         translation={data.translations.get(segment.id)}
-        translationUnavailableMessage={
-          session?.plan.translation_mode === "none"
-            ? "本次未选择中文翻译；可在上方选择生成逐段中文翻译。"
-            : undefined
-        }
-        pending={pending}
+        translationUnavailableMessage="尚无本段译文。可在上方选择逐段中文翻译。"
         sourceDetails={
           <details className="paper-reading-source-map">
             <summary>模型提取来源与定位</summary>
@@ -882,6 +876,63 @@ function ModelFullReading({
     );
   const targetId = (chapterRef: string) =>
     `model-reading-${parse.id}-${chapterRef}`;
+  const generationControls = (
+    <div className="paper-reading-actions">
+      <label className="consent-inline">
+        <input
+          type="checkbox"
+          checked={allowNetwork}
+          disabled={pending}
+          onChange={(event) => setAllowNetwork(event.target.checked)}
+        />
+        允许本次发送模型提取内容，生成精读或中文译文（可能产生费用）
+      </label>
+      <label className="consent-inline">
+        <input
+          type="checkbox"
+          checked={includeTranslation}
+          disabled={pending}
+          onChange={(event) => setIncludeTranslation(event.target.checked)}
+        />
+        同时生成逐段中文翻译
+      </label>
+      <button
+        type="button"
+        className="button primary"
+        disabled={
+          !connected ||
+          parse.status !== "succeeded" ||
+          !allowNetwork ||
+          pending ||
+          !data.numbers.size
+        }
+        onClick={() => generate.mutate()}
+      >
+        {data.reading || data.legacy.length
+          ? "重新生成全文精读笔记"
+          : "生成全文精读笔记"}
+      </button>
+      {data.reading && !data.translations.size && (
+        <button
+          type="button"
+          className="button secondary"
+          disabled={
+            !connected ||
+            parse.status !== "succeeded" ||
+            !allowNetwork ||
+            pending
+          }
+          onClick={() => translate.mutate()}
+        >
+          仅补生成中文译文
+        </button>
+      )}
+      <p className="muted">
+        只发送已保存的模型提取稿。精读与翻译按各自契约校验后显示；生成不会重新上传整篇
+        PDF。精读使用1次模型请求，选择中文翻译另排1次翻译请求；仅补译文只排翻译任务。
+      </p>
+    </div>
+  );
   return (
     <section className="paper-close-reading" aria-label="全文精读">
       <h3>全文精读</h3>
@@ -889,11 +940,7 @@ function ModelFullReading({
         按章节阅读模型提取的原文、公式与表格，在大章节下记录阅读状态。阅读标记保存在本机，不调用模型。
       </p>
       {!data.reading && !pending && (
-        <p className="quality-note">
-          {session?.plan.reading === false
-            ? "当次导入没有选择生成全文精读笔记。正文已可阅读，可在下方明确选择生成。"
-            : "当前尚无按段落校验的全文精读笔记，可在下方选择生成。"}
-        </p>
+        <p className="quality-note">尚无全文精读笔记，可在下方选择生成。</p>
       )}
       {data.readingOutput?.status === "partial" && (
         <p role="status" className="quality-note">
@@ -923,63 +970,19 @@ function ModelFullReading({
           旧版章节摘要已保留，不能直接转换为逐段译文或论证高亮；重新生成后使用统一精读格式。
         </p>
       )}
-      <div className="paper-reading-actions">
-        <label className="consent-inline">
-          <input
-            type="checkbox"
-            checked={allowNetwork}
-            disabled={pending}
-            onChange={(event) => setAllowNetwork(event.target.checked)}
-          />
-          允许本次发送模型提取内容，生成精读或中文译文（可能产生费用）
-        </label>
-        <label className="consent-inline">
-          <input
-            type="checkbox"
-            checked={includeTranslation}
-            disabled={pending}
-            onChange={(event) => setIncludeTranslation(event.target.checked)}
-          />
-          同时生成逐段中文翻译
-        </label>
-        <button
-          type="button"
-          className="button primary"
-          disabled={
-            !connected ||
-            parse.status !== "succeeded" ||
-            !allowNetwork ||
-            pending ||
-            !data.numbers.size
-          }
-          onClick={() => generate.mutate()}
+      {data.readingOutput?.status === "succeeded" ? (
+        <details
+          className="reading-secondary-actions"
+          onToggle={(event) => {
+            if (!event.currentTarget.open) setAllowNetwork(false);
+          }}
         >
-          {pending
-            ? "正在生成全文笔记…"
-            : data.reading || data.legacy.length
-              ? "重新生成全文精读笔记"
-              : "生成全文精读笔记"}
-        </button>
-        {data.reading && !data.translations.size && (
-          <button
-            type="button"
-            className="button secondary"
-            disabled={
-              !connected ||
-              parse.status !== "succeeded" ||
-              !allowNetwork ||
-              pending
-            }
-            onClick={() => translate.mutate()}
-          >
-            仅补生成中文译文
-          </button>
-        )}
-        <p className="muted">
-          只发送已保存的模型提取稿。精读与翻译按各自契约校验后显示；生成不会重新上传整篇
-          PDF。精读使用1次模型请求，选择中文翻译另排1次翻译请求；仅补译文只排翻译任务。
-        </p>
-      </div>
+          <summary>更多精读操作</summary>
+          {generationControls}
+        </details>
+      ) : (
+        generationControls
+      )}
       {generate.error && (
         <p role="alert" className="error-text">
           {generate.error.message}
@@ -990,10 +993,6 @@ function ModelFullReading({
           {translate.error.message}
         </p>
       )}
-      {translate.isSuccess && (
-        <p role="status">中文翻译任务已加入任务记录；已有精读笔记保留。</p>
-      )}
-      {generate.isSuccess && <p role="status">全文精读任务已加入任务记录。</p>}
       <ReadingLegend />
       {(states.error || save.error) && (
         <p role="alert" className="error-text">
@@ -1119,6 +1118,7 @@ export function ModelDocumentPanel({
   sessionStatus,
   sessionError,
   paperId,
+  showTaskStatus = true,
 }: {
   sessionId: string;
   connected: boolean;
@@ -1126,22 +1126,11 @@ export function ModelDocumentPanel({
   sessionStatus: string;
   sessionError: string | null;
   paperId?: string;
+  showTaskStatus?: boolean;
 }) {
   const client = useQueryClient();
   const [readingMaterialsOpen, setReadingMaterialsOpen] = useState(false);
-  const session = useQuery({
-    queryKey: ["model-document-import-session", sessionId],
-    queryFn: () => api.importSession(sessionId),
-    enabled: connected && !!sessionId,
-    retry: false,
-    refetchInterval: (query) =>
-      query.state.data &&
-      ["succeeded", "failed", "paused", "interrupted"].includes(
-        query.state.data.status,
-      )
-        ? false
-        : 1500,
-  });
+  const session = useModelImportSession(sessionId, connected);
   const parseJobId = session.data?.items.find(
     (item) => item.item_kind === "document_parse",
   )?.job_id;
@@ -1212,10 +1201,13 @@ export function ModelDocumentPanel({
     parseItem?.error ||
     session.data?.error ||
     sessionError;
-  const progressLine =
-    parseJob.data && ["running", "queued"].includes(parseJob.data.status)
-      ? jobStageLabel(parseJob.data)
-      : null;
+  const taskStatus = showTaskStatus && (
+    <ReadingTaskStatus
+      connected={connected}
+      session={session.data}
+      parseJob={parseJob.data}
+    />
+  );
   const requestMetadata = parseJob.data?.result?.document_request;
   const batchMetadata = parseJob.data?.result?.document_batches;
   const boundaryRejected =
@@ -1317,28 +1309,24 @@ export function ModelDocumentPanel({
   ) : null;
   if (parse.isPending) {
     return (
-      <div className="model-document-panel" role="status">
-        正在加载模型解析结果 ·{" "}
-        {statusLabel(
-          parseJob.data?.status ?? session.data?.status ?? sessionStatus,
-        )}
-        {progressLine && <p>{progressLine}</p>}
-        {parseJob.data && <DocumentRequestStatus job={parseJob.data} />}
-        {sessionError && <p className="error-text">{sessionError}</p>}
+      <div className="model-document-panel">
+        {taskStatus}
+        {!active && <p role="status">正在读取模型解析内容…</p>}
       </div>
     );
   }
   if (parse.isError) {
     return (
-      <div className="model-document-panel" role="status">
-        <strong>
-          模型章节解析：
-          {statusLabel(displayStatus)}
-        </strong>
-        {progressLine && <p>{progressLine}</p>}
-        {parseJob.data && <DocumentRequestStatus job={parseJob.data} />}
-        <p className="error-text">{failureError || "模型章节解析尚未发布。"}</p>
-        {retryControl}
+      <div className="model-document-panel">
+        {taskStatus}
+        {!active && (
+          <>
+            <p className="error-text">
+              {failureError || "模型章节解析尚未发布。"}
+            </p>
+            {retryControl}
+          </>
+        )}
       </div>
     );
   }
@@ -1362,41 +1350,29 @@ export function ModelDocumentPanel({
   const modelPaperId = session.data?.source_snapshot.paper_id ?? paperId;
   return (
     <section className="model-document-panel" aria-label="模型文档解析结果">
-      {session.data && (
-        <p className="muted" aria-label="当次导入选择">
-          当次导入选择：论文概览{session.data.plan.overview ? "已选" : "未选"} ·
-          全文精读{session.data.plan.reading ? "已选" : "未选"} · 中文翻译
-          {session.data.plan.translation_mode === "full" ? "已选" : "未选"}。
-          后续生成按每次明确操作执行。
-        </p>
-      )}
-      {progressLine && <p role="status">{progressLine}</p>}
-      {parseJob.data && <DocumentRequestStatus job={parseJob.data} />}
+      {taskStatus}
       {failed && failureError && activeView !== "materials" && (
         <p role="alert" className="error-text">
           {failureError}
         </p>
       )}
       {retryControl}
-      {currentOutputs
-        .filter(
-          (output) =>
-            output.status === "failed" &&
-            (activeView === "overview"
-              ? output.item_kind === "paper_overview"
-              : activeView === "reading"
-                ? ["paper_reading", "translation"].includes(output.item_kind)
-                : false),
-        )
-        .map((output) => (
-          <ModelOutputFormatRepair
-            key={output.id}
-            sessionId={sessionId}
-            paperId={modelPaperId}
-            output={output}
-            connected={connected}
-          />
-        ))}
+      {activeView === "reading" &&
+        currentOutputs
+          .filter(
+            (output) =>
+              output.status === "failed" &&
+              ["paper_reading", "translation"].includes(output.item_kind),
+          )
+          .map((output) => (
+            <ModelOutputFormatRepair
+              key={output.id}
+              sessionId={sessionId}
+              paperId={modelPaperId}
+              output={output}
+              connected={connected}
+            />
+          ))}
       {activeView === "materials" ? (
         <ParseMaterials sessionId={sessionId} parse={displayedParse} />
       ) : activeView === "reading" ? (
@@ -1430,33 +1406,11 @@ export function ModelDocumentPanel({
               projectId={session.data.project_id}
               source="model"
               connected={connected}
+              showActiveTask={false}
             />
           )}
           {!modelPaperId && visibleOutputs.length === 0 && (
-            <p className="quality-note">
-              {activeView === "overview"
-                ? "此导入计划没有生成论文概览。"
-                : "此导入计划没有生成论文精读或中文翻译。"}
-            </p>
-          )}
-          {visibleOutputs.some(
-            (output) => !output.output_json?.schema_version,
-          ) && (
-            <details className="model-document-source">
-              <summary>查看旧版概览摘要</summary>
-              <p className="quality-note">
-                此为旧版章节摘要，不含知识卡片和轻量图谱，可在统一概览中明确重新生成。
-              </p>
-              {visibleOutputs
-                .filter((output) => !output.output_json?.schema_version)
-                .map((output) => (
-                  <OutputCard
-                    key={output.id}
-                    sessionId={sessionId}
-                    output={output}
-                  />
-                ))}
-            </details>
+            <p className="quality-note">当前解析记录尚无可用的论文卡片集。</p>
           )}
           <details className="model-document-source">
             <summary>查看本次模型解析章节材料</summary>

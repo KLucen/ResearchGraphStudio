@@ -1,14 +1,16 @@
 import shutil
+import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event as ThreadEvent
 
 import pytest
 from fastapi.testclient import TestClient
 from filelock import Timeout
 from researchgraph.app import create_app
 from researchgraph.models import Event, Job
-from researchgraph.storage import SCHEMA_HEAD, make_engine, migrate
+from researchgraph.storage import DATABASE_NAME, SCHEMA_HEAD, make_engine, migrate
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -108,6 +110,54 @@ def test_real_diagnostic_worker(tmp_path):
             time.sleep(0.05)
         assert result["status"] == "succeeded"
         assert result["result"] == {"integrity": "ok", "foreign_keys": True, "fts5": True}
+
+
+def test_worker_retries_the_terminal_write_after_sqlite_contention(tmp_path, monkeypatch):
+    from researchgraph import task_worker
+
+    before_finish, permit_finish = ThreadEvent(), ThreadEvent()
+    original_finish = task_worker.finish_diagnostic
+    terminal_writes = []
+
+    def wait_for_lock(engine, job_id, result, error):
+        terminal_writes.append(job_id)
+        if len(terminal_writes) == 1:
+            before_finish.set()
+            assert permit_finish.wait(5)
+        original_finish(engine.execution_options(sqlite_busy_timeout_ms=30), job_id, result, error)
+
+    monkeypatch.setattr(task_worker, "finish_diagnostic", wait_for_lock)
+    with client(tmp_path, worker=True) as api:
+        original = post(api, "/jobs", {"kind": "diagnostics"}, "original-claim").json()["id"]
+        assert before_finish.wait(5)
+        following = post(api, "/jobs", {"kind": "diagnostics"}, "following-claim").json()["id"]
+        lock = sqlite3.connect(tmp_path / DATABASE_NAME)
+        try:
+            lock.execute("BEGIN IMMEDIATE")
+            permit_finish.set()
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                health = api.get("/api/v1/health").json()
+                if health["worker_status"] == "recovering":
+                    break
+                time.sleep(0.02)
+            assert health["worker_status"] == "recovering"
+            assert health["worker_error"] == "DATABASE_BUSY"
+            assert health["active_jobs"] == 2
+        finally:
+            lock.close()
+
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            tail = api.get(f"/api/v1/jobs/{following}").json()
+            if tail["status"] == "succeeded":
+                break
+            time.sleep(0.02)
+        assert tail["status"] == "succeeded"
+        first = api.get(f"/api/v1/jobs/{original}").json()
+        assert first["status"] == "succeeded" and first["attempt"] == 1
+        assert terminal_writes.count(original) >= 2
+        assert api.get("/api/v1/health").json()["active_jobs"] == 0
 
 
 def test_single_writer_lock(tmp_path):

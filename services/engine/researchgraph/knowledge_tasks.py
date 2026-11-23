@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -11,29 +12,41 @@ from uuid import uuid4
 from sqlalchemy import Engine, func, or_, select
 from sqlalchemy.orm import Session
 
-from researchgraph.core import KnowledgeError, digest
+from researchgraph.archive_models import archived_target
+from researchgraph.core import KnowledgeError, digest, text_hash
+from researchgraph.knowledge_budgets import (
+    MINIMUM_KNOWLEDGE_OUTPUT_TOKENS,
+    estimate_knowledge_input_tokens,
+    stricter_limit,
+)
 from researchgraph.knowledge_connection_models import (
     KnowledgeAnalysisEvent,
     KnowledgeConnectionRequest,
     KnowledgeConnectionRun,
     KnowledgeUsageTombstone,
 )
+from researchgraph.knowledge_diagnostics import diagnostic_for_raw, stored_extraction_prompt_version
 from researchgraph.knowledge_extraction_models import KnowledgeExtractionRun
 from researchgraph.knowledge_library import ensure_library, ensure_library_paper, publish_version
 from researchgraph.knowledge_library_contracts import LibrarySettings
 from researchgraph.knowledge_library_models import LibraryPaper, PaperKnowledgeVersion
+from researchgraph.knowledge_quote_recovery import isolate_unmatched_quotes
 from researchgraph.knowledge_sources import build_knowledge_sources, revalidate_knowledge_sources
 from researchgraph.model_settings import from_snapshot
 from researchgraph.models import Job, Paper, now
 from researchgraph.paper_knowledge import (
+    LEGACY_PROMPT_VERSION,
+    PREVIOUS_PROMPT_VERSION,
     PROMPT_VERSION,
+    RELATION_RULE_VERSION,
     SCHEMA_VERSION,
-    SYSTEM_PROMPT,
+    isolate_invalid_knowledge_relations,
+    knowledge_contract,
     knowledge_model_input,
-    knowledge_schema,
     validate_knowledge_response,
 )
-from researchgraph.providers import Provider
+from researchgraph.providers import Provider, ProviderError
+from researchgraph.task_runtime import wait_for_model
 
 
 def check_knowledge_request_budget(db: Session, limit: int, *, additional: int = 0) -> None:
@@ -92,8 +105,46 @@ def _effective_policy(current: LibrarySettings, frozen: LibrarySettings) -> Libr
         "max_output_tokens",
         "total_request_limit",
     ):
-        values[field] = min(getattr(current, field), getattr(frozen, field))
+        values[field] = stricter_limit(getattr(current, field), getattr(frozen, field))
     return LibrarySettings.model_validate(values)
+
+
+def _request_contract(run: KnowledgeExtractionRun) -> dict[str, Any]:
+    frozen = (run.request_metadata or {}).get("request_contract")
+    if frozen is None:
+        # Previously queued/running records used precisely this legacy request.
+        return knowledge_contract(LEGACY_PROMPT_VERSION)
+    if not isinstance(frozen, dict) or frozen.get("contract_hash") != digest(
+        {key: value for key, value in frozen.items() if key != "contract_hash"}
+    ):
+        raise KnowledgeError("KNOWLEDGE_CONTEXT_CHANGED", "冻结知识抽取协议完整性校验失败")
+    if frozen.get("prompt_version") not in {
+        LEGACY_PROMPT_VERSION,
+        PREVIOUS_PROMPT_VERSION,
+        PROMPT_VERSION,
+    }:
+        raise KnowledgeError("KNOWLEDGE_CONTEXT_CHANGED", "冻结知识抽取协议版本不可用")
+    return deepcopy(frozen)
+
+
+def validate_extraction_response(run: KnowledgeExtractionRun) -> dict[str, Any]:
+    assert run.raw_response is not None
+    return validate_knowledge_response(
+        run.raw_response,
+        run.source_manifest,
+        prompt_version=_request_contract(run)["prompt_version"],
+    )
+
+
+def _extract_cache_key(input_hash: str, config: dict[str, Any], contract: dict[str, Any]) -> str:
+    return digest(
+        {
+            "input": input_hash,
+            "config": config,
+            "prompt": contract["prompt"],
+            "schema": contract["schema"],
+        }
+    )
 
 
 def queue_knowledge_extract(
@@ -113,6 +164,8 @@ def queue_knowledge_extract(
         raise KnowledgeError("KNOWLEDGE_BUDGET_INVALID", "每份相同输入最多允许两次显式模型请求")
     if model_snapshot.get("provider") == "mock":
         raise KnowledgeError("KNOWLEDGE_REAL_MODEL_REQUIRED", "请选择已配置的真实全局模型")
+    if archived_target(db, "paper", paper_id):
+        raise KnowledgeError("KNOWLEDGE_PAPER_UNAVAILABLE", "请先恢复文献库中已归档的论文")
     manifest = build_knowledge_sources(db, paper_id, source_kind, source_version_id)
     paper = db.get(Paper, paper_id)
     assert paper is not None
@@ -125,19 +178,15 @@ def queue_knowledge_extract(
         if policy_snapshot is not None
         else current_policy
     )
-    if policy_snapshot is not None and not current_policy.allow_network:
+    if policy_snapshot is not None and not (
+        current_policy.allow_network and current_policy.auto_collect
+    ):
         raise KnowledgeError("KNOWLEDGE_POLICY_REVOKED", "自动构建的网络授权已撤销，未发送模型请求")
     input_hash = digest(manifest)
     # Credential references identify access, not scientific behavior.
     config = {key: value for key, value in model_snapshot.items() if key != "credential_ref"}
-    key = digest(
-        {
-            "input": input_hash,
-            "config": config,
-            "prompt": SYSTEM_PROMPT,
-            "schema": knowledge_schema(),
-        }
-    )
+    contract = knowledge_contract()
+    key = _extract_cache_key(input_hash, config, contract)
     runs = list(
         db.scalars(
             select(KnowledgeExtractionRun)
@@ -149,12 +198,28 @@ def queue_knowledge_extract(
         )
     )
     matching = next((run for run in runs if run.cache_key == key), None)
+    if matching is None and runs:
+        old_keys = {
+            _extract_cache_key(input_hash, config, knowledge_contract(version))
+            for version in (LEGACY_PROMPT_VERSION, PREVIOUS_PROMPT_VERSION)
+        }
+        matching = next(
+            (
+                run
+                for run in runs
+                if run.cache_key in old_keys
+                and run.status in {"queued", "preparing", "request_sent", "received", "succeeded"}
+            ),
+            None,
+        )
     if matching:
+        if matching.source_manifest != manifest:
+            raise KnowledgeError("KNOWLEDGE_CACHE_INVALID", "知识图谱缓存与冻结来源不一致")
         old_job = db.get(Job, matching.job_id)
         if old_job and old_job.status == "cancelled" and not retry_failed:
             return old_job
         if old_job and matching.status == "succeeded" and matching.raw_response is not None:
-            content = validate_knowledge_response(matching.raw_response, manifest)
+            content = validate_extraction_response(matching)
             if content != matching.output_json:
                 raise KnowledgeError("KNOWLEDGE_CACHE_INVALID", "知识图谱缓存与冻结原始响应不一致")
             version = (
@@ -174,7 +239,7 @@ def queue_knowledge_extract(
             return old_job
         if old_job and old_job.status != "cancelled" and matching.raw_response is not None:
             try:
-                validate_knowledge_response(matching.raw_response, manifest)
+                validate_extraction_response(matching)
             except ValueError:
                 pass
             else:
@@ -216,6 +281,7 @@ def queue_knowledge_extract(
         input_hash=input_hash,
         model_snapshot=model_snapshot,
         policy_json=policy.model_dump(),
+        request_metadata={"request_contract": contract},
         cache_key=key,
         status="queued",
         request_sent=False,
@@ -257,47 +323,334 @@ def _provider_usage(provider: Provider) -> dict[str, Any]:
     return result
 
 
-def _capacity_preflight(
-    provider: Provider, manifest: dict[str, Any], policy: LibrarySettings
+LOCAL_RECOVERY_VERSION = "knowledge-local-recovery-1"
+QUOTE_RECOVERY_VERSION = "knowledge-local-recovery-2"
+
+
+def _local_recovery_candidate(
+    db: Session,
+    run: KnowledgeExtractionRun,
+    *,
+    fresh: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    job = db.get(Job, run.job_id)
+    if run.status != "failed" or job is None or job.status != "failed":
+        raise KnowledgeError(
+            "KNOWLEDGE_LOCAL_RECOVERY_UNAVAILABLE", "仅失败的完整知识响应可本机恢复"
+        )
+    if run.raw_response is None or (run.request_metadata or {}).get("response_complete") is False:
+        raise KnowledgeError(
+            "KNOWLEDGE_LOCAL_RECOVERY_UNAVAILABLE", "本任务没有完整响应可供本机恢复"
+        )
+    if fresh:
+        _active_library_paper(db, run)
+        revalidate_knowledge_sources(db, run.source_manifest)
+    prompt_version = _request_contract(run)["prompt_version"]
+    recover_quotes = run.error_code == "KNOWLEDGE_QUOTE_MISMATCH" and prompt_version in {
+        LEGACY_PROMPT_VERSION,
+        PREVIOUS_PROMPT_VERSION,
+    }
+    excluded_nodes: list[dict[str, Any]] = []
+    if recover_quotes:
+        raw, excluded_nodes, excluded_edges = isolate_unmatched_quotes(
+            run.raw_response, run.source_manifest
+        )
+    else:
+        raw, excluded_edges = isolate_invalid_knowledge_relations(
+            run.raw_response, prompt_version=prompt_version
+        )
+    # All retained fields, node/edge relations, quotes and source IDs must pass again.
+    content = validate_knowledge_response(raw, run.source_manifest, prompt_version=prompt_version)
+    kept_nodes = (
+        len(content["graph"]["nodes"]) - 1
+    )  # Application-owned paper root is not model output.
+    kept_edges = sum(e["type"] != "HAS_KNOWLEDGE" for e in content["graph"]["edges"])
+    version = QUOTE_RECOVERY_VERSION if recover_quotes else LOCAL_RECOVERY_VERSION
+    audit = {
+        "version": version,
+        "origin_run_id": run.id,
+        "original_raw_sha256": text_hash(run.raw_response),
+        "source_manifest_hash": digest(run.source_manifest),
+        "rule_version": RELATION_RULE_VERSION,
+        "excluded_edge_indices": [item["index"] for item in excluded_edges],
+        "original_nodes": kept_nodes + len(excluded_nodes),
+        "original_edges": kept_edges + len(excluded_edges),
+        "kept_nodes": kept_nodes,
+        "kept_edges": kept_edges,
+        "retained_content_hash": digest(content),
+    }
+    if recover_quotes:
+        audit["excluded_node_indices"] = [item["index"] for item in excluded_nodes]
+    fingerprint = digest(audit)
+    audit["preview_fingerprint"] = fingerprint
+    warning = (
+        f"本机部分恢复：已隔离 {len(excluded_nodes)} 个节点和 {len(excluded_edges)} 条关系。"
+        "论文摘要未纳入本次恢复。"
+        if recover_quotes
+        else f"用户显式本机恢复：已隔离 {len(excluded_edges)} 条类型或方向不合法的关系；"
+        "保留知识仍须按原文判断。"
+    )
+    content["coverage"] = {
+        **content["coverage"],
+        "status": "partial",
+        "relation_coverage": "partial",
+        "local_recovery": audit,
+        "warnings": [*content["coverage"]["warnings"], warning],
+    }
+    preview = {
+        "version": version,
+        "available": True,
+        "preview_fingerprint": fingerprint,
+        "original_nodes": audit["original_nodes"],
+        "original_edges": audit["original_edges"],
+        "kept_nodes": kept_nodes,
+        "kept_edges": kept_edges,
+        "excluded_edges": [
+            {
+                **{
+                    key: item[key]
+                    for key in (
+                        "index",
+                        "path",
+                        "code",
+                        "relation_type",
+                        "source_type",
+                        "target_type",
+                    )
+                },
+                "reason": item["message"],
+            }
+            for item in excluded_edges
+        ],
+        "published_version_id": None,
+    }
+    if recover_quotes:
+        preview["excluded_nodes"] = excluded_nodes
+    return preview, content
+
+
+def local_recovery_preview(db: Session, run: KnowledgeExtractionRun) -> dict[str, Any]:
+    """Read-only review: no raw/source text, no writes, publication, or provider access."""
+    try:
+        preview, _ = _local_recovery_candidate(db, run)
+    except (ValueError, KeyError, TypeError, IndexError) as error:
+        return {
+            "version": LOCAL_RECOVERY_VERSION,
+            "available": False,
+            "preview_fingerprint": None,
+            "original_nodes": 0,
+            "original_edges": 0,
+            "kept_nodes": 0,
+            "kept_edges": 0,
+            "excluded_edges": [],
+            "published_version_id": None,
+            "blocking_diagnostic": diagnostic_for_raw(
+                error,
+                run.raw_response,
+                request_sent=run.request_sent,
+                prompt_version=stored_extraction_prompt_version(run.request_metadata or {}),
+            ),
+        }
+    recovery = (run.request_metadata or {}).get("local_recovery")
+    if (
+        isinstance(recovery, dict)
+        and recovery.get("preview_fingerprint") == preview["preview_fingerprint"]
+    ):
+        version_id = recovery.get("version_id")
+        version = db.get(PaperKnowledgeVersion, version_id) if isinstance(version_id, str) else None
+        if version is not None:
+            try:
+                validate_local_recovery_version(db, version)
+            except (ValueError, KeyError, TypeError, IndexError) as error:
+                preview.update(
+                    available=False,
+                    blocking_diagnostic=diagnostic_for_raw(
+                        error,
+                        run.raw_response,
+                        request_sent=run.request_sent,
+                        prompt_version=stored_extraction_prompt_version(run.request_metadata or {}),
+                    ),
+                )
+                return preview
+            preview["available"] = False
+            preview["published_version_id"] = version.id
+    return preview
+
+
+def recover_knowledge_locally(
+    db: Session,
+    run: KnowledgeExtractionRun,
+    preview_fingerprint: str,
 ) -> dict[str, Any]:
-    schema = knowledge_schema()
+    """Publish one reviewed partial version; the original failed task is never rewritten."""
+    preview, content = _local_recovery_candidate(db, run)
+    if preview["preview_fingerprint"] != preview_fingerprint:
+        raise KnowledgeError(
+            "KNOWLEDGE_LOCAL_RECOVERY_STALE", "本机恢复预览已变化，请重新检查后确认"
+        )
+    recovery = (run.request_metadata or {}).get("local_recovery")
+    existing = None
+    if isinstance(recovery, dict) and recovery.get("preview_fingerprint") == preview_fingerprint:
+        identity = recovery.get("version_id")
+        existing = db.get(PaperKnowledgeVersion, identity) if isinstance(identity, str) else None
+    if existing is not None:
+        validate_local_recovery_version(db, existing)
+        version = existing  # Replay must not move current_version_id back over a later version.
+    else:
+        select_as_current = True
+        if preview["version"] == QUOTE_RECOVERY_VERSION:
+            library_paper = _active_library_paper(db, run)
+            current = (
+                db.get(PaperKnowledgeVersion, library_paper.current_version_id)
+                if (library_paper.current_version_id)
+                else None
+            )
+            if current is not None and current.evidence_status == "grounded":
+                select_as_current = (
+                    current.created_at < run.created_at
+                    and current.content_json.get("coverage", {}).get("status") == "partial"
+                )
+        version = publish_version(
+            db,
+            paper_id=run.paper_id,
+            source_kind=run.source_kind,
+            source_id=run.source_id,
+            source_fingerprint=run.source_manifest["source_fingerprint"],
+            content_json=content,
+            source_snapshot_json=run.source_manifest,
+            evidence_status="grounded",
+            provider_id=run.model_snapshot.get("provider"),
+            model_id=run.model_snapshot.get("model"),
+            job_id=run.job_id,
+            prompt_version=_request_contract(run)["prompt_version"],
+            schema_version=SCHEMA_VERSION,
+            select_as_current=select_as_current,
+        )
+        run.request_metadata = {
+            **run.request_metadata,
+            "local_recovery": {
+                "version": preview["version"],
+                "preview_fingerprint": preview_fingerprint,
+                "version_id": version.id,
+                "content_hash": digest(content),
+                "original_raw_sha256": text_hash(run.raw_response or ""),
+            },
+        }
+    preview.update(available=False, published_version_id=version.id)
+    return {
+        "version_id": version.id,
+        "library_paper_id": version.library_paper_id,
+        "status": "partial",
+        "local_recovery": preview,
+    }
+
+
+def validate_local_recovery_version(
+    db: Session,
+    version: PaperKnowledgeVersion,
+    *,
+    fresh: bool = True,
+) -> None:
+    """Reconstruct from immutable raw and the isolation plan, then run every validator."""
+    audit = version.content_json.get("coverage", {}).get("local_recovery")
+    if audit is None:
+        return
+    if not isinstance(audit, dict) or audit.get("version") not in {
+        LOCAL_RECOVERY_VERSION,
+        QUOTE_RECOVERY_VERSION,
+    }:
+        raise KnowledgeError("KNOWLEDGE_CHECKPOINT_INVALID", "本机恢复审计版本无效")
+    identity = audit.get("origin_run_id")
+    run = db.get(KnowledgeExtractionRun, identity) if isinstance(identity, str) else None
+    if run is None or run.raw_response is None:
+        raise KnowledgeError("KNOWLEDGE_CHECKPOINT_INVALID", "本机恢复缺少原始完整响应")
+    if (
+        text_hash(run.raw_response) != audit.get("original_raw_sha256")
+        or digest(run.source_manifest) != audit.get("source_manifest_hash")
+        or run.source_manifest != version.source_snapshot_json
+        or run.library_paper_id != version.library_paper_id
+        or version.source_paper_id != run.paper_id
+    ):
+        raise KnowledgeError("KNOWLEDGE_CHECKPOINT_INVALID", "本机恢复原始响应或来源审计不一致")
+    _, content = _local_recovery_candidate(db, run, fresh=fresh)
+    if content != version.content_json:
+        raise KnowledgeError(
+            "KNOWLEDGE_CHECKPOINT_INVALID", "本机恢复知识与原始响应及隔离审核不一致"
+        )
+
+
+def _capacity_preflight(
+    provider: Provider,
+    manifest: dict[str, Any],
+    policy: LibrarySettings,
+    contract: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    contract = contract or knowledge_contract()
+    prompt, schema = contract["prompt"], contract["schema"]
     capabilities = getattr(provider, "capabilities", None)
-    # Conservative byte estimate is intentionally identified as capacity planning, not usage.
-    model_input = knowledge_model_input(manifest)
+    model_input = knowledge_model_input(
+        manifest, contract["prompt_version"], contract["relation_rules"]
+    )
     serialized = json.dumps(
-        {"prompt": SYSTEM_PROMPT, "data": model_input, "schema": schema}, ensure_ascii=False
+        {"prompt": prompt, "data": model_input, "schema": schema}, ensure_ascii=False
     )
     estimate = len(serialized.encode())
-    # Deliberately conservative for mixed scientific English/Chinese; not provider usage.
-    token_estimate = sum(1 if ord(char) < 128 else 6 for char in serialized) // 3 + 1
+    token_estimate = estimate_knowledge_input_tokens(prompt, model_input, schema)
     context = getattr(capabilities, "context_window", None)
     output = getattr(capabilities, "max_output_tokens", None)
-    if token_estimate > policy.max_input_tokens:
+    if policy.max_input_tokens is not None and token_estimate > policy.max_input_tokens:
         raise KnowledgeError(
-            "KNOWLEDGE_INPUT_BUDGET_EXCEEDED", "完整正文超出本次知识库输入预算；未截断或发送"
+            "KNOWLEDGE_INPUT_BUDGET_EXCEEDED",
+            f"完整正文估算 {token_estimate} Token，超过知识库单次输入预算 "
+            f"{policy.max_input_tokens}；请调高预算或选择无上限后显式重试，未截断或发送",
         )
-    if policy.max_output_tokens < 2048:
+    minimum_output = MINIMUM_KNOWLEDGE_OUTPUT_TOKENS
+    if policy.max_output_tokens is not None and policy.max_output_tokens < minimum_output:
         raise KnowledgeError("KNOWLEDGE_CAPACITY_INSUFFICIENT", "知识库输出预算不足以构建知识图谱")
-    if context and estimate + 2048 + 512 > context:
+    if context and token_estimate + minimum_output + 512 > context:
         raise KnowledgeError(
             "KNOWLEDGE_CAPACITY_INSUFFICIENT", "完整正文超出当前模型容量；未截断或发送"
         )
-    if output and output < 2048:
+    if output and output < minimum_output:
         raise KnowledgeError(
             "KNOWLEDGE_CAPACITY_INSUFFICIENT", "当前模型输出容量不足以构建知识图谱"
         )
     build = getattr(provider, "_build_body", None)
     if build:
-        build(SYSTEM_PROMPT, model_input, schema)
-        actual_limit = getattr(provider, "request_metadata", {}).get("output_limit")
-        if actual_limit and actual_limit < 2048:
+        try:
+            build(prompt, model_input, schema)
+        except ProviderError as error:
+            if error.category == "context_limit":
+                raise KnowledgeError(
+                    "KNOWLEDGE_CAPACITY_INSUFFICIENT",
+                    "完整正文超出当前模型容量；未截断或发送",
+                ) from None
+            raise
+        metadata = getattr(provider, "request_metadata", {})
+        actual_estimate = metadata.get("input_token_estimate")
+        if type(actual_estimate) is int:
+            token_estimate = actual_estimate
+            if policy.max_input_tokens is not None and token_estimate > policy.max_input_tokens:
+                raise KnowledgeError(
+                    "KNOWLEDGE_INPUT_BUDGET_EXCEEDED",
+                    f"完整请求估算 {token_estimate} Token，超过知识库单次输入预算 "
+                    f"{policy.max_input_tokens}；请调高预算或选择无上限后显式重试，未截断或发送",
+                )
+            if context and token_estimate + minimum_output + 512 > context:
+                raise KnowledgeError(
+                    "KNOWLEDGE_CAPACITY_INSUFFICIENT",
+                    "完整请求超出当前模型容量；未截断或发送",
+                )
+        actual_limit = metadata.get("output_limit")
+        if actual_limit and actual_limit < minimum_output:
             raise KnowledgeError(
                 "KNOWLEDGE_CAPACITY_INSUFFICIENT", "完整正文占用后模型输出容量不足"
             )
     return {
         "input_byte_estimate": estimate,
         "input_token_estimate": token_estimate,
-        "minimum_output_tokens": 2048,
+        "input_estimate_method": "text-character-estimate-1",
+        "minimum_output_tokens": minimum_output,
         "context_window": context,
         "max_output_tokens": output,
     }
@@ -306,8 +659,7 @@ def _capacity_preflight(
 def _publish(db: Session, job: Job, run: KnowledgeExtractionRun) -> None:
     _active_library_paper(db, run)
     revalidate_knowledge_sources(db, run.source_manifest)
-    assert run.raw_response is not None
-    content = validate_knowledge_response(run.raw_response, run.source_manifest)
+    content = validate_extraction_response(run)
     version = publish_version(
         db,
         paper_id=run.paper_id,
@@ -320,7 +672,7 @@ def _publish(db: Session, job: Job, run: KnowledgeExtractionRun) -> None:
         provider_id=run.model_snapshot.get("provider"),
         model_id=run.model_snapshot.get("model"),
         job_id=job.id,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=_request_contract(run)["prompt_version"],
         schema_version=SCHEMA_VERSION,
     )
     run.output_json, run.version_id = content, version.id
@@ -363,6 +715,14 @@ def recover_knowledge_extractions(engine: Engine) -> int:
     return count
 
 
+def _require_extraction_authorization(job: Job, policy: LibrarySettings) -> None:
+    payload = job.payload or {}
+    if payload.get("automatic_revoked") or (
+        payload.get("automatic") and not (policy.allow_network and policy.auto_collect)
+    ):
+        raise KnowledgeError("KNOWLEDGE_POLICY_REVOKED", "自动构建的网络授权已撤销")
+
+
 async def run_knowledge_extract(
     engine: Engine, job_id: str, data_dir: Path, *, provider: Provider | None = None
 ) -> None:
@@ -394,19 +754,19 @@ async def run_knowledge_extract(
                 )
             snapshot = run.model_snapshot
             manifest = run.source_manifest
+            contract = _request_contract(run)
             policy = LibrarySettings.model_validate(run.policy_json)
             current_policy = LibrarySettings.model_validate(ensure_library(db).settings_json)
             policy = _effective_policy(current_policy, policy)
-            if (job.payload or {}).get("automatic") and not current_policy.allow_network:
-                raise KnowledgeError("KNOWLEDGE_POLICY_REVOKED", "自动构建的网络授权已撤销")
+            _require_extraction_authorization(job, current_policy)
         if active is None:
             active = from_snapshot(snapshot, data_dir, True)
         if hasattr(active, "task_output_budget"):
             active.task_output_budget = policy.max_output_tokens
         prepare = getattr(active, "prepare", None)
         if prepare:
-            await prepare()
-        preflight = _capacity_preflight(active, manifest, policy)
+            await wait_for_model(prepare())
+        preflight = _capacity_preflight(active, manifest, policy, contract)
         with Session(engine) as db, db.begin():
             job = db.get(Job, job_id)
             run = db.scalar(
@@ -419,12 +779,11 @@ async def run_knowledge_extract(
             _active_library_paper(db, run)
             revalidate_knowledge_sources(db, run.source_manifest)
             current_policy = LibrarySettings.model_validate(ensure_library(db).settings_json)
-            if (job.payload or {}).get("automatic") and not current_policy.allow_network:
-                raise KnowledgeError("KNOWLEDGE_POLICY_REVOKED", "自动构建的网络授权已撤销")
+            _require_extraction_authorization(job, current_policy)
             policy = _effective_policy(current_policy, policy)
             if hasattr(active, "task_output_budget"):
                 active.task_output_budget = policy.max_output_tokens
-            preflight = _capacity_preflight(active, manifest, policy)
+            preflight = _capacity_preflight(active, manifest, policy, contract)
             check_knowledge_request_budget(
                 db, min(policy.total_request_limit, current_policy.total_request_limit)
             )
@@ -445,15 +804,22 @@ async def run_knowledge_extract(
                 "cost": None,
             }
             run.request_metadata = {
+                **run.request_metadata,
                 "capacity": preflight,
-                "prompt_version": PROMPT_VERSION,
+                "prompt_version": contract["prompt_version"],
                 "schema_version": SCHEMA_VERSION,
                 "provider": getattr(active, "request_metadata", {}),
             }
             job.status, job.stage, job.updated_at = "running", "generating", now()
         sent_here = True
-        raw = await active.complete(
-            SYSTEM_PROMPT, knowledge_model_input(manifest), knowledge_schema()
+        raw = await wait_for_model(
+            active.complete(
+                contract["prompt"],
+                knowledge_model_input(
+                    manifest, contract["prompt_version"], contract["relation_rules"]
+                ),
+                contract["schema"],
+            )
         )
         # Persist the complete raw and receipt before DTO validation or source rereads.
         with Session(engine) as db, db.begin():
@@ -466,6 +832,7 @@ async def run_knowledge_extract(
             run.request_metadata = {
                 **run.request_metadata,
                 "provider": getattr(active, "request_metadata", {}),
+                "response_complete": True,
             }
         with Session(engine) as db, db.begin():
             job = db.get(Job, job_id)
@@ -477,24 +844,39 @@ async def run_knowledge_extract(
             elif job and run:
                 run.status, run.updated_at = "cancelled", now()
     except (Exception, asyncio.CancelledError) as error:
-        code = getattr(error, "code", None) or (
-            "KNOWLEDGE_RESPONSE_INVALID"
-            if isinstance(error, ValueError)
-            else "KNOWLEDGE_REQUEST_FAILED"
-        )
         with Session(engine) as db, db.begin():
             job = db.get(Job, job_id)
             run = db.scalar(
                 select(KnowledgeExtractionRun).where(KnowledgeExtractionRun.job_id == job_id)
             )
             if run and run.status != "succeeded":
-                run.status, run.error_code, run.updated_at = "failed", code, now()
+                metadata = deepcopy(getattr(active, "request_metadata", {})) if active else {}
+                diagnostic = diagnostic_for_raw(
+                    error,
+                    run.raw_response,
+                    request_sent=run.request_sent,
+                    provider_metadata=metadata,
+                    prompt_version=stored_extraction_prompt_version(run.request_metadata or {}),
+                )
+                code = diagnostic["code"]
+                run.request_metadata = {
+                    **run.request_metadata,
+                    **({"provider": metadata} if active else {}),
+                    "response_complete": run.raw_response is not None,
+                    "knowledge_diagnostic": diagnostic,
+                }
+                run.status, run.error_code, run.updated_at = (
+                    "cancelled" if job and job.status == "cancelled" else "failed",
+                    code,
+                    now(),
+                )
                 if sent_here and active:
                     run.usage_json = {**run.usage_json, **_provider_usage(active)}
                     partial = getattr(active, "partial_output", None)
                     if partial and run.raw_response is None:
                         run.request_metadata = {**run.request_metadata, "partial_output": partial}
                 if job and job.status != "cancelled":
+                    job.result = {**(job.result or {}), "knowledge_diagnostic": diagnostic}
                     job.status, job.stage, job.error, job.updated_at = (
                         "failed",
                         "failed",

@@ -119,8 +119,15 @@ def model_fixture(tmp_path):
 
 def draft(manifest):
     source = manifest["sources"][0]
+    return graph_draft(
+        [{"source_id": source["ref"], "quote": source["text"], "occurrence_index": 0}],
+        "paper-knowledge-1",
+    )
+
+
+def graph_draft(refs, schema_version):
     return {
-        "schema_version": "paper-knowledge-1",
+        "schema_version": schema_version,
         "paper_card": {
             "research_question": "合成研究问题",
             "motivation": "",
@@ -138,14 +145,17 @@ def draft(manifest):
                     "label_en": "Synthetic method",
                     "description_zh": "作者描述的合成方法。",
                     "basis": "EXPLICIT",
-                    "source_refs": [
-                        {"source_id": source["ref"], "quote": source["text"], "occurrence_index": 0}
-                    ],
+                    "source_refs": refs,
                 }
             ],
             "edges": [],
         },
     }
+
+
+def wire_draft(model_input):
+    excerpt = model_input["sources"][0]["excerpts"][0]
+    return graph_draft([{"excerpt_id": excerpt["excerpt_id"]}], "paper-knowledge-1")
 
 
 class FixtureProvider:
@@ -175,7 +185,7 @@ class FixtureProvider:
         return (
             self.response
             if self.response is not None
-            else json.dumps(draft(data), ensure_ascii=False)
+            else json.dumps(wire_draft(data), ensure_ascii=False)
         )
 
 
@@ -317,7 +327,7 @@ def test_received_response_recovers_without_network_or_resend(tmp_path):
             select(KnowledgeExtractionRun).where(KnowledgeExtractionRun.job_id == job_id)
         )
         run.request_sent, run.status = True, "received"
-        run.raw_response = json.dumps(draft(run.source_manifest))
+        run.raw_response = json.dumps(wire_draft(knowledge_model_input(run.source_manifest)))
         job = db.get(Job, job_id)
         job.status = "failed"
         job.payload = {**job.payload, "allow_network": False}
@@ -502,7 +512,11 @@ def test_local_closed_loop_and_model_input_avoid_duplicate_raw_anchors(tmp_path,
         manifest = build_knowledge_sources(db, paper, "local_revision", revision)
         request = knowledge_model_input(manifest)
         assert "origin" not in request["sources"][0]
-        assert request["sources"][0]["text"] == manifest["sources"][0]["text"]
+        assert "text" not in request["sources"][0]
+        assert (
+            "".join(excerpt["text"] for excerpt in request["sources"][0]["excerpts"])
+            == manifest["sources"][0]["text"]
+        )
         job_id = queue_knowledge_extract(
             db,
             paper_id=paper,
@@ -556,7 +570,7 @@ def test_startup_marks_interrupted_without_auto_queue_or_raw_loss(tmp_path):
             select(KnowledgeExtractionRun).where(KnowledgeExtractionRun.job_id == job_id)
         )
         run.request_sent, run.status = True, "received"
-        run.raw_response = json.dumps(draft(run.source_manifest))
+        run.raw_response = json.dumps(wire_draft(knowledge_model_input(run.source_manifest)))
         db.get(Job, job_id).status = "interrupted"  # App generic restart recovery may run first.
     assert recover_knowledge_extractions(values[0]) == 1
     assert recover_knowledge_extractions(values[0]) == 0
@@ -586,6 +600,7 @@ def test_automatic_queue_freezes_scope_and_smaller_budgets_then_honors_revocatio
         library.settings_json = {
             **library.settings_json,
             "allow_network": True,
+            "auto_collect": True,
             "max_output_tokens": 5000,
             "total_request_limit": 8,
         }
@@ -597,7 +612,11 @@ def test_automatic_queue_freezes_scope_and_smaller_budgets_then_honors_revocatio
     assert run.policy_json["total_request_limit"] == 8
     with Session(values[0]) as db, db.begin():
         library = ensure_library(db)
-        library.settings_json = {**library.settings_json, "allow_network": False}
+        library.settings_json = {
+            **library.settings_json,
+            "auto_collect": False,
+            "allow_network": False,
+        }
     provider = FixtureProvider()
     asyncio.run(run_knowledge_extract(values[0], job_id, tmp_path, provider=provider))
     _, run = run_record(values[0], job_id)

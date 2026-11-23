@@ -27,6 +27,7 @@ let profile = {
   has_api_key: true,
   parameters: {
     timeout_seconds: 90,
+    text_timeout_policy: null as "activity" | "legacy" | null,
     reasoning_effort: "max",
     capabilities: {
       document_input: "image",

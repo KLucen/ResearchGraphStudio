@@ -1,10 +1,28 @@
 # 文档导航
 
-更新：2026-11-20（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前保留本地阅读整理、全文精读、PaperCard + LightGraph 与旧 D01/D02；目录树支持三级折叠，旧 PDF 章节结构可自动升级。Alembic head 为 `lite0018`，新模型解析默认5页含1共享页顺序分批（可设2–8页），已校验检查点保存，格式修复需独立授权；600/1800秒为单请求时限。模型优先导入按章节保存正文、公式和表格，并按用户选择生成概览或全文精读及可选逐段中文翻译。桌面支持编辑题名、模型章节和生成内容、逐篇清理旧本地解析/缓存或删除论文；清理保留笔记、模型文档与源文件，操作前创建数据库备份。全文精读已整合大章节阅读状态、目录已读标记和续读定位，小节导读与独立理解状态入口已移除。真实 Provider、论文科学质量和桌面 GUI 原生操作仍待验收。测试与交付读 [进度](progress.md)，管理边界见 [ADR0048](adr/0048-paper-content-management-and-legacy-cleanup.md)，完整 v3/P4/P5 保留在 `backup/pre-lite-refactor`。
+- [专题管理、专题外联系与工作区搜索](adr/0073-topic-workspace-and-search.md)记录专题组织、图谱关系显示和 `Ctrl+F`。
+
+- [任务、工作区与发行可靠性](adr/0072-task-workspace-and-release-reliability.md)记录审计七项修复与 `lite0020`。见 [验证与安装包](progress.md)。
+
+2026-11-21：阅读工作区以文章总览、卡片集介绍和十类逐条有据的知识卡片为主，不显示旧概览或单篇 LightGraph；独立知识库图谱保持。当前概览规范以[ADR0065](adr/0065-evidence-grounded-paper-card-sets.md)和[实施与验证](paper-card-set-verification-20261121.md)为准，下列旧 LightGraph 设计链接仅供历史合同参考。
+
+2026-11-21：新文字任务按可观察正文/公开推理活动等待，持续生成不会被旧固定总时限截断。见[活动超时决策](adr/0063-activity-aware-text-timeouts.md)和[本轮验证](text-activity-timeout-verification-20261121.md)。
+
+2026-11-21：知识提取合同显式携带关系端点与方向规则；只对完整响应中的非法关系提供用户确认的本机partial恢复，完整重验原raw与当前来源，旧任务合同不变。见[关系合同与本机恢复决策](adr/0064-knowledge-relation-contract-and-local-recovery.md)和[本轮验证](sidebar-knowledge-recovery-verification-20261121.md)。
+
+模型调用失败的历史根因和排查、Schema同步、来源终验、partial恢复及账本保护经验集中见[大模型调用故障与修复经验](llm-integration-lessons.md)。
+
+知识任务的错误原因直接在任务记录条目显示；服务请求、JSON、字段和来源失败分开，历史缺失细因不推测。见[诊断修复与验证](knowledge-diagnostics-verification-20261120.md)和[ADR0062](adr/0062-knowledge-job-failure-diagnostics.md)。
+
+知识库预算支持单次输入/输出及每次分析请求数分别选择“无上限”。见[预算修复与验证](knowledge-budget-verification-20261120.md)、[ADR0061](adr/0061-optional-knowledge-budgets-and-token-estimates.md)及[DeepSeek V4.1 Flash 推荐配置](deepseek-v41-flash-recommendations-20261120.md)。
+
+更新：2026-11-20（Asia/Shanghai）。活跃文档维护 ResearchGraph Lite 的产品规范、运行边界、迁移评估、清理盘点、进度和安全说明。当前保留本地阅读整理、全文精读、详细分类卡片集、独立知识库与旧 D01/D02；目录树支持三级折叠，旧 PDF 章节结构可自动升级。Alembic head 为 `lite0019`，新模型解析默认5页含1共享页顺序分批（可设2–8页），已校验检查点保存，格式修复需独立授权；600/1800秒为单请求时限。模型优先导入按章节保存正文、公式和表格，并按用户选择生成概览或全文精读及可选逐段中文翻译。桌面支持编辑题名、模型章节和生成内容、将论文或旧本地解析移入归档管理。归档管理提供恢复及逐项确认清除，论文清除前建立本机备份。见 [ADR0069](adr/0069-archive-workspace-and-context-actions.md)。全文精读已整合大章节阅读状态、目录已读标记和续读定位，小节导读与独立理解状态入口已移除。真实 Provider、论文科学质量和桌面 GUI 原生操作仍待验收。测试与交付读 [进度](progress.md)，管理边界见 [ADR0048](adr/0048-paper-content-management-and-legacy-cleanup.md)，完整 v3/P4/P5 保留在 `backup/pre-lite-refactor`。
 
 ## 先读
 
-- [研究内容知识库实施方案](research-knowledge-base-plan-20261120.md)、[ADR0060](adr/0060-durable-research-knowledge-library.md)及[本轮验证](knowledge-library-verification-20261120.md)：K1独立快照、K2带来源建模、K3增量联系和持久汇报已实施，整体交付状态以验证报告为准；K4规模与概念聚合留待后续。当前加性head为`lite0018`。
+- [界面优化开发方案](ui-optimization-development-plan-20261122.md)及[ADR0071](adr/0071-workspace-appearance-and-quick-actions.md)记录已实施的阅读首屏、知识库与任务排版、悬停和明暗模式。回归和安装包见 [进度](progress.md)。
+
+- [研究内容知识库实施方案](research-knowledge-base-plan-20261120.md)、[ADR0060](adr/0060-durable-research-knowledge-library.md)及[当时验证](knowledge-library-verification-20261120.md)：K1独立快照、K2带来源建模、K3增量联系和持久汇报已实施，初版加性 head 为 `lite0018`。详细联系汇报见 [ADR0068](adr/0068-detailed-connection-reports.md)，统一归档见 [ADR0069](adr/0069-archive-workspace-and-context-actions.md)。
 
 - [右侧直接分析与章末阅读状态](adr/0059-reading-analysis-and-chapter-end-progress.md)及[本轮验证](reading-sidebar-footer-verification-20261120.md)：去除重复原文卡，分析留在右侧，读完本章后选择阅读状态。
 

@@ -26,7 +26,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from researchgraph.app import Key, remember, remembered
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import KnowledgeError
+from researchgraph.import_plan_api import require_unarchived_import_session
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
 from researchgraph.model_document_contracts import (
     ModelDocumentParseInput,
@@ -39,15 +41,25 @@ from researchgraph.model_document_models import (
     LlmDocumentSegment,
 )
 from researchgraph.models import Job, Paper, now
+from researchgraph.paper_card_set_contracts import (
+    MODEL_CARD_CONTRACT_VERSION,
+    MODEL_CARD_CONTRACT_VERSIONS,
+    CardEvidenceError,
+    model_card_prompt,
+    model_card_prompt_version,
+    model_card_schema,
+)
 from researchgraph.providers import (
     ConfiguredProvider,
     DocumentRequestCancelled,
     Provider,
     ProviderError,
     require_document_capability,
+    safe_retry_after,
 )
 from researchgraph.schemas import JobView
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import ModelWaitCancelled, wait_for_model
 
 
 class ModelDocumentSegmentView(BaseModel):
@@ -346,6 +358,35 @@ def _queue_selected_postprocessing(
             "item_kind": item_kind,
             "postprocess_contract_version": plan.get("postprocess_contract_version", 1),
         }
+        source_error: str | None = None
+        card_version = plan.get("overview_contract_version")
+        if item_kind == "paper_overview" and card_version in MODEL_CARD_CONTRACT_VERSIONS:
+            payload["postprocess_contract_version"] = card_version
+            try:
+                payload["card_set_contract"] = _card_set_contract_snapshot(
+                    db, paper_id, parse.id, card_version
+                )
+            except (KnowledgeError, ValueError):
+                # Publishing a valid parse must not roll back because an optional
+                # downstream card set has no usable source text.  The failed
+                # output/job remains visible and never enters network dispatch.
+                source_error = "当前模型解析没有可用于卡片集的正文来源，请检查解析材料后重新生成"
+            timestamp = now()
+            output = LlmDocumentOutput(
+                id=str(uuid4()),
+                import_session_id=session.id,
+                parse_id=parse.id,
+                item_kind=item_kind,
+                status="failed" if source_error else "pending",
+                usage={"contract_version": card_version, "source_updated_at": parse.updated_at},
+                error_code="DOCUMENT_OUTPUT_SOURCE_UNAVAILABLE" if source_error else None,
+                error=source_error,
+                created_at=timestamp,
+                updated_at=timestamp,
+            )
+            db.add(output)
+            db.flush()
+            payload["output_id"] = output.id
         if payload["postprocess_contract_version"] in {3, 4}:
             payload["provider_snapshot"] = _long_output_snapshot(snapshot, item_kind)
         job = Job(
@@ -353,8 +394,9 @@ def _queue_selected_postprocessing(
             project_id=session.project_id,
             kind="llm_document_postprocess",
             payload=payload,
-            status="queued",
-            stage="queued",
+            status="failed" if source_error else "queued",
+            stage="failed" if source_error else "queued",
+            error=source_error,
             attempt=0,
             created_at=now(),
             updated_at=now(),
@@ -364,7 +406,10 @@ def _queue_selected_postprocessing(
         # before the plan item's foreign-key update during the next autoflush.
         db.flush()
         item.job_id = job.id
-        item.status = "queued"
+        item.status = "failed" if source_error else "queued"
+        item.error = source_error
+        if source_error:
+            item.result = {"output_id": payload["output_id"]}
         item.config = {**item.config, "llm_document_parse_id": parse.id}
         item.updated_at = now()
     _refresh_session_status(db, session)
@@ -381,6 +426,33 @@ def _long_output_snapshot(snapshot: Any, item_kind: str) -> Any:
     return {**snapshot, "parameters": parameters}
 
 
+def _card_set_contract_snapshot(
+    db: Session, paper_id: str, parse_id: str, version: int
+) -> dict[str, str]:
+    from researchgraph.core import digest
+    from researchgraph.paper_card_set_service import build_card_manifest, card_context
+
+    manifest = build_card_manifest(db, paper_id, "model_parse", parse_id)
+    snapshot = {
+        "source_fingerprint": manifest["source_fingerprint"],
+        "prompt_schema_hash": digest(
+            {"prompt": model_card_prompt(version), "schema": model_card_schema(version)}
+        ),
+    }
+    if version == MODEL_CARD_CONTRACT_VERSION:
+        snapshot["anchor_context_hash"] = digest(card_context(manifest, anchored=True))
+    return snapshot
+
+
+def _assert_card_set_contract(
+    db: Session, payload: dict[str, Any], paper_id: str, parse_id: str, version: int
+) -> dict[str, str]:
+    current = _card_set_contract_snapshot(db, paper_id, parse_id, version)
+    if payload.get("card_set_contract") != current:
+        raise ValueError("DOCUMENT_OUTPUT_SOURCE_CHANGED")
+    return current
+
+
 def queue_model_document_output(
     db: Session,
     session_id: str,
@@ -390,6 +462,7 @@ def queue_model_document_output(
     translation_mode: str = "none",
     force_regenerate: bool = False,
     parse_id: str | None = None,
+    card_contract_version: int = MODEL_CARD_CONTRACT_VERSION,
 ) -> Job:
     """Queue a new explicit generation, preserving previous outputs and plans."""
     from researchgraph.model_settings import snapshot_for
@@ -398,9 +471,7 @@ def queue_model_document_output(
         raise _failure(422, "NETWORK_CONSENT_REQUIRED", "请明确允许发送当前解析材料并调用模型")
     if item_kind not in {"paper_overview", "paper_reading", "translation"}:
         raise _failure(422, "DOCUMENT_OUTPUT_KIND_INVALID", "不支持的生成类型")
-    session = db.get(ImportSession, session_id)
-    if session is None:
-        raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+    session = require_unarchived_import_session(db, session_id)
     parse = db.scalar(
         select(LlmDocumentParse)
         .where(
@@ -422,6 +493,16 @@ def queue_model_document_output(
         )
     )
     if active is not None:
+        if (
+            item_kind == "paper_overview"
+            and (active.payload or {}).get("postprocess_contract_version")
+            not in MODEL_CARD_CONTRACT_VERSIONS
+        ):
+            raise _failure(
+                409,
+                "DOCUMENT_OUTPUT_OLD_CONTRACT_ACTIVE",
+                "旧版概览任务仍在执行，请先等待或取消后再生成卡片集",
+            )
         return active
     snapshot = snapshot_for(db, session.project_id, "extraction")
     timestamp = now()
@@ -431,6 +512,9 @@ def queue_model_document_output(
         parse_id=parse.id,
         item_kind=item_kind,
         status="pending",
+        usage={"contract_version": card_contract_version, "source_updated_at": parse.updated_at}
+        if item_kind == "paper_overview"
+        else None,
         created_at=timestamp,
         updated_at=timestamp,
     )
@@ -465,10 +549,23 @@ def queue_model_document_output(
             "provider_snapshot": _long_output_snapshot(snapshot, item_kind),
             "translation_mode": translation_mode,
             "postprocess_contract_version": (
-                2 if item_kind == "paper_overview" else 4 if item_kind == "paper_reading" else 3
+                card_contract_version
+                if item_kind == "paper_overview"
+                else 4
+                if item_kind == "paper_reading"
+                else 3
             ),
             "explicit_generation": True,
             "force_regenerate": force_regenerate,
+            **(
+                {
+                    "card_set_contract": _card_set_contract_snapshot(
+                        db, paper_id, parse.id, card_contract_version
+                    )
+                }
+                if item_kind == "paper_overview"
+                else {}
+            ),
         },
     )
     db.add(job)
@@ -682,6 +779,10 @@ def _postprocess_diagnostics(provider: Provider) -> dict[str, Any]:
         value = metadata.get(name)
         if isinstance(value, str) and value in values:
             safe[name] = value
+    retry_after = safe_retry_after(metadata.get("retry_after_seconds"))
+    if metadata.get("http_status") == 429 and retry_after is not None:
+        safe["http_status"] = 429
+        safe["retry_after_seconds"] = retry_after
     return safe
 
 
@@ -714,9 +815,12 @@ def _postprocess_failure(exc: Exception, received: bool) -> tuple[str, str, list
             "structured_output_refused": "模型拒绝返回本次结构化结果；未自动重发",
         }
         code = category.upper() if category in labels else "PROVIDER"
+        message = labels.get(category, "模型请求未成功返回可校验结果，请检查任务及模型配置")
+        if category == "rate_limit" and exc.retry_after is not None:
+            message += f"。服务当时建议等待 {exc.retry_after} 秒后手动重试；未自动重发"
         return (
             f"MODEL_DOCUMENT_POSTPROCESS_{code}_FAILED",
-            labels.get(category, "模型请求未成功返回可校验结果，请检查任务及模型配置"),
+            message,
             [],
         )
     if isinstance(exc, SQLAlchemyError):
@@ -781,6 +885,20 @@ def _postprocess_failure(exc: Exception, received: bool) -> tuple[str, str, list
             "sections",
             "summary",
             "warnings",
+            "article_overview_zh",
+            "overview_card_ids",
+            "card_set_intro_zh",
+            "coverage_notes",
+            "cards",
+            "kind",
+            "attribution",
+            "title_zh",
+            "title_en",
+            "body_zh",
+            "reading_guide_zh",
+            "evidence",
+            "source_id",
+            "excerpt_id",
         }
         for error in exc.errors(include_input=False, include_context=False, include_url=False)[:32]:
             parts: list[str] = []
@@ -792,6 +910,12 @@ def _postprocess_failure(exc: Exception, received: bool) -> tuple[str, str, list
                 else:
                     break
             errors.append({"path": "".join(parts) or "$", "code": str(error["type"])})
+    elif isinstance(exc, CardEvidenceError):
+        return (
+            "MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED",
+            "论文卡片集包含无法定位的引文，原始响应已保留在本机",
+            [{"path": exc.path, "code": exc.code}],
+        )
     else:
         errors = [{"path": "$", "code": "json_or_source_contract_invalid"}]
     return (
@@ -804,6 +928,15 @@ def _postprocess_failure(exc: Exception, received: bool) -> tuple[str, str, list
 def _postprocess_spec(
     db: Session, parse: LlmDocumentParse, item_kind: str, paper_id: str, version: int
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    if version in MODEL_CARD_CONTRACT_VERSIONS and item_kind == "paper_overview":
+        from researchgraph.paper_card_set_service import build_card_manifest, card_context
+
+        manifest = build_card_manifest(db, paper_id, "model_parse", parse.id)
+        return (
+            model_card_prompt(version),
+            card_context(manifest, anchored=version == MODEL_CARD_CONTRACT_VERSION),
+            model_card_schema(version),
+        )
     if version in (2, 3, 4):
         if item_kind == "paper_overview":
             from researchgraph.model_document_overview import (
@@ -848,11 +981,38 @@ def _validate_output(
     item_kind: str,
     paper_id: str,
     modern: bool,
+    version: int | None = None,
 ) -> dict[str, Any]:
     from researchgraph.section_guide_contracts import strict_json
 
     if modern:
         if item_kind == "paper_overview":
+            from researchgraph.paper_card_set_contracts import (
+                SCHEMA_VERSION as CARD_SCHEMA_VERSION,
+            )
+            from researchgraph.paper_card_set_contracts import (
+                validate_anchored_card_set,
+                validate_paper_card_set,
+                validate_saved_paper_card_set,
+            )
+            from researchgraph.paper_card_set_service import build_card_manifest
+
+            decoded = strict_json(raw) if isinstance(raw, str) else raw
+            if version in MODEL_CARD_CONTRACT_VERSIONS or (
+                version is None
+                and isinstance(decoded, dict)
+                and decoded.get("schema_version") == CARD_SCHEMA_VERSION
+            ):
+                manifest = build_card_manifest(db, paper_id, "model_parse", parse.id)
+                if isinstance(raw, dict) and "wire_draft" in raw:
+                    return validate_saved_paper_card_set(
+                        decoded, manifest, prompt_version=model_card_prompt_version(version)
+                    )
+                if version == MODEL_CARD_CONTRACT_VERSION and isinstance(raw, str):
+                    return validate_anchored_card_set(raw, manifest)
+                return validate_paper_card_set(
+                    raw, manifest, prompt_version=model_card_prompt_version(version)
+                )
             from researchgraph.model_document_overview import validate_model_overview
 
             return validate_model_overview(raw, paper_id)
@@ -912,6 +1072,17 @@ def _output_repair_available(db: Session, output: LlmDocumentOutput) -> bool:
 
     if model_document_paper(db, parse) is None:
         return False
+    card_version = usage.get("contract_version")
+    if card_version in MODEL_CARD_CONTRACT_VERSIONS:
+        paper = model_document_paper(db, parse)
+        assert paper is not None
+        try:
+            if usage.get("card_set_contract") != _card_set_contract_snapshot(
+                db, paper.id, parse.id, card_version
+            ):
+                return False
+        except ValueError:
+            return False
     active = db.scalar(
         select(Job.id).where(
             Job.kind == "llm_document_postprocess",
@@ -923,23 +1094,8 @@ def _output_repair_available(db: Session, output: LlmDocumentOutput) -> bool:
     return active is None
 
 
-def _build_local_reading_recovery(
-    db: Session, output: LlmDocumentOutput
-) -> tuple[dict[str, Any], list[dict[str, str]], LlmDocumentParse]:
-    """Recover only the audited reading aliases and highlights that miss source text."""
+def _local_recovery_parse(db: Session, output: LlmDocumentOutput) -> LlmDocumentParse:
     usage = output.usage if isinstance(output.usage, dict) else {}
-    contract_version = usage.get("contract_version")
-    if (
-        output.item_kind != "paper_reading"
-        or output.status != "failed"
-        or output.error_code != "MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED"
-        or type(contract_version) is not int
-        or contract_version not in {2, 3, 4}
-        or not isinstance(output.raw_response, str)
-        or not output.raw_response.strip()
-        or len(output.raw_response) > 2_000_000
-    ):
-        raise ValueError("LOCAL_READING_RECOVERY_UNAVAILABLE")
     parse = db.get(LlmDocumentParse, output.parse_id)
     if (
         parse is None
@@ -963,6 +1119,27 @@ def _build_local_reading_recovery(
 
     if model_document_paper(db, parse) is None:
         raise ValueError("LOCAL_READING_RECOVERY_SOURCE_CHANGED")
+    return parse
+
+
+def _build_local_reading_recovery(
+    db: Session, output: LlmDocumentOutput
+) -> tuple[dict[str, Any], list[dict[str, str]], LlmDocumentParse]:
+    """Recover only the audited reading aliases and highlights that miss source text."""
+    usage = output.usage if isinstance(output.usage, dict) else {}
+    contract_version = usage.get("contract_version")
+    if (
+        output.item_kind != "paper_reading"
+        or output.status != "failed"
+        or output.error_code != "MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED"
+        or type(contract_version) is not int
+        or contract_version not in {2, 3, 4}
+        or not isinstance(output.raw_response, str)
+        or not output.raw_response.strip()
+        or len(output.raw_response) > 2_000_000
+    ):
+        raise ValueError("LOCAL_READING_RECOVERY_UNAVAILABLE")
+    parse = _local_recovery_parse(db, output)
     from researchgraph.model_document_reading import recover_reading_highlights
 
     recovered, audit = recover_reading_highlights(
@@ -982,7 +1159,63 @@ def _build_local_reading_recovery(
     return recovered.model_dump(mode="json"), audit, parse
 
 
-def _local_recovery_summary(audit: list[dict[str, str]]) -> dict[str, int]:
+def _build_local_card_recovery(
+    db: Session, output: LlmDocumentOutput
+) -> tuple[dict[str, Any], list[dict[str, str]], LlmDocumentParse]:
+    usage = output.usage or {}
+    receipts = usage.get("requests")
+    version = usage.get("contract_version")
+    if (
+        output.item_kind != "paper_overview"
+        or output.status != "failed"
+        or output.error_code != "MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED"
+        or version not in MODEL_CARD_CONTRACT_VERSIONS
+        or not isinstance(output.raw_response, str)
+        or not output.raw_response.strip()
+        or len(output.raw_response) > 2_000_000
+        or not isinstance(receipts, list)
+        or not receipts
+        or not isinstance(receipts[-1], dict)
+        or receipts[-1].get("status") != "received"
+    ):
+        raise ValueError("CARD_SET_LOCAL_RECOVERY_UNAVAILABLE")
+    parse = _local_recovery_parse(db, output)
+    from researchgraph.model_document_overview import model_document_paper
+    from researchgraph.paper_card_set_contracts import recover_anchored_card_set, recover_card_set
+    from researchgraph.paper_card_set_service import build_card_manifest
+
+    paper = model_document_paper(db, parse)
+    if paper is None:
+        raise ValueError("CARD_SET_LOCAL_RECOVERY_SOURCE_CHANGED")
+    _assert_card_set_contract(db, usage, paper.id, parse.id, version)
+    manifest = build_card_manifest(db, paper.id, "model_parse", parse.id)
+    recover = (
+        recover_anchored_card_set if version == MODEL_CARD_CONTRACT_VERSION else recover_card_set
+    )
+    recovered, audit = recover(output.raw_response, manifest)
+    return recovered, audit, parse
+
+
+def _build_local_output_recovery(
+    db: Session, output: LlmDocumentOutput
+) -> tuple[dict[str, Any], list[dict[str, str]], LlmDocumentParse]:
+    if output.item_kind == "paper_overview":
+        return _build_local_card_recovery(db, output)
+    return _build_local_reading_recovery(db, output)
+
+
+def _local_recovery_summary(
+    item_kind: str, recovered: dict[str, Any], audit: list[dict[str, str]]
+) -> dict[str, int]:
+    if item_kind == "paper_overview":
+        excluded = len({item["card_id"] for item in audit})
+        retained = len(recovered["cards"])
+        return {
+            "original_cards": retained + excluded,
+            "retained_cards": retained,
+            "excluded_cards": excluded,
+            "invalid_evidence": len(audit),
+        }
     return {
         "normalized_types": sum(
             item.get("rule") == "reading-highlight-claim-to-thesis-1" for item in audit
@@ -998,7 +1231,7 @@ def _recovery_is_current(db: Session, output: LlmDocumentOutput) -> bool:
     if recovery is None:
         return False
     try:
-        recovered_json, audit, parse = _build_local_reading_recovery(db, output)
+        recovered_json, audit, parse = _build_local_output_recovery(db, output)
     except (ValueError, TypeError, RecursionError):
         return False
     return (
@@ -1012,25 +1245,39 @@ def _local_recovery_view(
     db: Session, output: LlmDocumentOutput, *, available: bool | None = None
 ) -> ModelDocumentOutputView:
     view = ModelDocumentOutputView.model_validate(output)
+    if output.status != "failed":
+        return view
     recovery = db.get(LlmDocumentOutputLocalRecovery, output.id)
     if recovery is not None and _recovery_is_current(db, output):
+        cards = output.item_kind == "paper_overview"
         return view.model_copy(
             update={
                 "status": "partial",
                 "output_json": recovery.output_json,
-                "error_code": "LOCAL_READING_RECOVERY_PARTIAL",
-                "error": "本机恢复结果仅部分可用；不匹配原文的高亮已隐藏，请对照论文核对。",
+                "error_code": "LOCAL_CARD_SET_RECOVERY_PARTIAL"
+                if cards
+                else "LOCAL_READING_RECOVERY_PARTIAL",
+                "error": "卡片集已在本机部分恢复，包含无法定位引文的卡片已排除。"
+                if cards
+                else "本机恢复结果仅部分可用；不匹配原文的高亮已隐藏，请对照论文核对。",
                 "local_recovery_available": False,
-                "recovery_summary": _local_recovery_summary(recovery.audit_json),
+                "recovery_summary": _local_recovery_summary(
+                    output.item_kind, recovery.output_json, recovery.audit_json
+                ),
             }
         )
+    summary = None
     if available is None:
         try:
-            _build_local_reading_recovery(db, output)
+            recovered, audit, _ = _build_local_output_recovery(db, output)
             available = True
+            if output.item_kind == "paper_overview":
+                summary = _local_recovery_summary(output.item_kind, recovered, audit)
         except (ValueError, TypeError, RecursionError):
             available = False
-    return view.model_copy(update={"local_recovery_available": available})
+    return view.model_copy(
+        update={"local_recovery_available": available, "recovery_summary": summary}
+    )
 
 
 def _assert_document_output_scope(
@@ -1062,7 +1309,7 @@ def _assert_document_output_scope(
         or output.item_kind != item.item_kind
     ):
         raise KnowledgeError("DOCUMENT_OUTPUT_SOURCE_MISMATCH", "生成结果与解析材料归属不匹配")
-    if payload.get("postprocess_contract_version") in (2, 3, 4):
+    if payload.get("postprocess_contract_version") in (2, 3, 4, *MODEL_CARD_CONTRACT_VERSIONS):
         from researchgraph.model_document_overview import model_document_paper
 
         paper = model_document_paper(db, parse)
@@ -1077,14 +1324,20 @@ async def execute_document_postprocess(
 ) -> None:
     try:
         await _execute_document_postprocess(engine, job_id, data_dir, provider=provider)
-    except Exception:
+    except Exception as exc:
+        source_changed = isinstance(exc, ValueError) and str(exc) in {
+            "DOCUMENT_OUTPUT_SOURCE_CHANGED",
+            "DOCUMENT_OUTPUT_REPAIR_SOURCE_CHANGED",
+        }
         with Session(engine) as db, db.begin():
             job = db.get(Job, job_id)
             if job is not None and job.status in {"queued", "running"}:
                 job.status, job.stage, job.error, job.updated_at = (
                     "failed",
                     "failed",
-                    "模型生成未完成，请检查当前解析版本及任务记录",
+                    "原始材料已变化，请刷新后使用当前材料重新生成"
+                    if source_changed
+                    else "模型生成未完成，请检查当前解析版本及任务记录",
                     now(),
                 )
                 # Follow the real plan-item FK for failure cleanup.  A corrupt
@@ -1107,7 +1360,9 @@ async def execute_document_postprocess(
                     ):
                         output.status, output.error_code, output.error, output.updated_at = (
                             "failed",
-                            "MODEL_DOCUMENT_JOB_INTERRUPTED",
+                            "DOCUMENT_OUTPUT_SOURCE_CHANGED"
+                            if source_changed
+                            else "MODEL_DOCUMENT_JOB_INTERRUPTED",
                             job.error,
                             now(),
                         )
@@ -1143,7 +1398,7 @@ async def _execute_document_postprocess(
         item.status = "running"
         job.status, job.stage, job.updated_at = "running", "generating", now()
         version = payload.get("postprocess_contract_version", 1)
-        modern = version in (2, 3, 4)
+        modern = version in (2, 3, 4, *MODEL_CARD_CONTRACT_VERSIONS)
         paper_id = str(payload.get("paper_id", ""))
         output = (
             db.get(LlmDocumentOutput, str(payload.get("output_id", "")))
@@ -1189,6 +1444,12 @@ async def _execute_document_postprocess(
                 provider_config_error = str(exc)
         output.usage = {**(output.usage or {}), "contract_version": version}
         prompt, context, schema = _postprocess_spec(db, parse, item_kind, paper_id, version)
+        if version in MODEL_CARD_CONTRACT_VERSIONS and item_kind == "paper_overview":
+            current_contract = _assert_card_set_contract(db, payload, paper_id, parse.id, version)
+            output.usage = {
+                **output.usage,
+                "card_set_contract": current_contract,
+            }
         if payload.get("postprocess_repair_source_id"):
             source = db.get(LlmDocumentOutput, str(payload["postprocess_repair_source_id"]))
             if (
@@ -1261,7 +1522,7 @@ async def _execute_document_postprocess(
             status="sent",
         )
         try:
-            raw = await provider.complete(prompt, context, schema)
+            raw = await wait_for_model(provider.complete(prompt, context, schema))
         finally:
             _postprocess_receipt(
                 engine,
@@ -1290,6 +1551,8 @@ async def _execute_document_postprocess(
             )
             if current_context != expected_context:
                 raise ValueError("DOCUMENT_OUTPUT_SOURCE_CHANGED")
+            if version in MODEL_CARD_CONTRACT_VERSIONS and item_kind == "paper_overview":
+                _assert_card_set_contract(validation_db, payload, paper_id, parse.id, version)
             candidate: str | dict[str, Any] = raw
             if version in (3, 4) and item_kind != "paper_overview":
                 from researchgraph.model_document_reading import expand_compact_document_output
@@ -1297,7 +1560,9 @@ async def _execute_document_postprocess(
                 candidate = expand_compact_document_output(
                     raw, _segments_for(validation_db, parse.id), item_kind
                 )
-            result = _validate_output(validation_db, parse, candidate, item_kind, paper_id, modern)
+            result = _validate_output(
+                validation_db, parse, candidate, item_kind, paper_id, modern, version
+            )
     except Exception as exc:
         error_code, message, errors = _postprocess_failure(exc, bool(raw and raw.strip()))
         with Session(engine) as db, db.begin():
@@ -1366,7 +1631,9 @@ async def _execute_document_postprocess(
         )
         if current_context != expected_context:
             raise ValueError("DOCUMENT_OUTPUT_SOURCE_CHANGED")
-        result = _validate_output(db, parse, result, item_kind, paper_id, modern)
+        if version in MODEL_CARD_CONTRACT_VERSIONS and item_kind == "paper_overview":
+            _assert_card_set_contract(db, payload, paper_id, parse.id, version)
+        result = _validate_output(db, parse, result, item_kind, paper_id, modern, version)
         output.status, output.output_json, output.raw_response = (
             "succeeded",
             result,
@@ -1524,7 +1791,7 @@ async def execute_document_parse(
 
     try:
         await _execute_document_parse(engine, job_id, data_dir, provider=provider)
-    except DocumentRequestCancelled:
+    except (DocumentRequestCancelled, ModelWaitCancelled):
         # Cancellation before actual dispatch is not a failed provider request.
         # The action which ended the Job owns its existing terminal state.
         return
@@ -1643,6 +1910,9 @@ def _safe_document_request_metadata(metadata: Any) -> dict[str, Any]:
         value = metadata.get(key)
         if isinstance(value, str) and value in values:
             safe[key] = value
+    retry_after = safe_retry_after(metadata.get("retry_after_seconds"))
+    if safe.get("http_status") == 429 and retry_after is not None:
+        safe["retry_after_seconds"] = retry_after
     return safe
 
 
@@ -1733,13 +2003,13 @@ class _DocumentRequestProgress:
             )
             return dict(self.metadata)
 
-    def flush(self, provider: Provider | None) -> None:
+    def flush(self, provider: Provider | None, *, cancelled: bool = False) -> None:
         """Keep the final counters even when the last body callback was throttled."""
 
         metadata = self.summary(provider)
         with Session(self.engine) as db, db.begin():
             job = db.get(Job, self.job_id)
-            if job is None or job.status != "running":
+            if job is None or job.status != ("cancelled" if cancelled else "running"):
                 raise DocumentRequestCancelled
             job.result = {**(job.result or {}), "document_request": metadata}
             job.updated_at = now()
@@ -1965,7 +2235,7 @@ async def _execute_document_parse(
                         on_progress=progress,
                     )
                 else:
-                    raw_result = await provider.complete_document(payload)
+                    raw_result = await wait_for_model(provider.complete_document(payload))
             elif modality == "text" and raw_fixture is not None:
                 raw_result = raw_fixture
             else:
@@ -1995,6 +2265,10 @@ async def _execute_document_parse(
         )
         raise
     except DocumentRequestCancelled:
+        raise
+    except ModelWaitCancelled:
+        if progress is not None:
+            progress.flush(provider, cancelled=True)
         raise
     except Exception as exc:
         provider_id, model_id = _document_provider_identity(provider)
@@ -2140,7 +2414,8 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         response_model=ModelDocumentParseView,
     )
     def get_document_parse(session_id: str) -> ModelDocumentParseView:
-        with Session(engine()) as db:
+        with read_session(engine()) as db:
+            require_unarchived_import_session(db, session_id)
             parse = db.scalar(
                 select(LlmDocumentParse)
                 .where(LlmDocumentParse.import_session_id == session_id)
@@ -2156,8 +2431,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
     )
     def get_document_outputs(session_id: str) -> list[ModelDocumentOutputView]:
         with read_session(engine()) as db:
-            if db.get(ImportSession, session_id) is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+            require_unarchived_import_session(db, session_id)
             rows = db.scalars(
                 select(LlmDocumentOutput)
                 .where(LlmDocumentOutput.import_session_id == session_id)
@@ -2182,7 +2456,15 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
                         if paper is None:
                             raise ValueError("DOCUMENT_OUTPUT_SOURCE_CHANGED")
                         _validate_output(
-                            db, parse, row.output_json or {}, row.item_kind, paper.id, True
+                            db,
+                            parse,
+                            row.output_json or {},
+                            row.item_kind,
+                            paper.id,
+                            True,
+                            (row.usage or {}).get("contract_version")
+                            if row.item_kind == "paper_overview"
+                            else None,
                         )
                     except ValueError:
                         view = view.model_copy(
@@ -2205,15 +2487,16 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         request = {"paper_id": paper_id, "output_id": output_id}
         key = "document-output-local-recovery:" + idempotency_key
         with Session(engine()) as db, db.begin():
+            require_unarchived_paper(db, paper_id)
             output = db.get(LlmDocumentOutput, output_id)
-            if output is None or output.item_kind != "paper_reading":
-                raise _failure(404, "DOCUMENT_OUTPUT_NOT_FOUND", "精读输出不存在")
+            if output is None or output.item_kind not in {"paper_reading", "paper_overview"}:
+                raise _failure(404, "DOCUMENT_OUTPUT_NOT_FOUND", "论文阅读输出不存在")
             parse = db.get(LlmDocumentParse, output.parse_id)
-            from researchgraph.model_document_overview import model_document_paper
+            from researchgraph.model_document_overview import _latest_output, model_document_paper
 
             paper = model_document_paper(db, parse) if parse is not None else None
             if paper is None or paper.id != paper_id:
-                raise _failure(404, "DOCUMENT_OUTPUT_NOT_FOUND", "精读输出不存在")
+                raise _failure(404, "DOCUMENT_OUTPUT_NOT_FOUND", "论文阅读输出不存在")
             previous = remembered(db, key, request)
             recovery = db.get(LlmDocumentOutputLocalRecovery, output.id)
             if previous:
@@ -2226,8 +2509,15 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
                     "解析材料版本已变化，不能显示此前的本地恢复结果",
                 )
             if recovery is None or not _recovery_is_current(db, output):
+                if (
+                    output.item_kind == "paper_overview"
+                    and _latest_output(db, output.parse_id) != output
+                ):
+                    raise _failure(
+                        409, "DOCUMENT_OUTPUT_SOURCE_CHANGED", "卡片集任务已更新，请刷新后再恢复"
+                    )
                 try:
-                    recovered_json, audit, parse = _build_local_reading_recovery(db, output)
+                    recovered_json, audit, parse = _build_local_output_recovery(db, output)
                 except (ValueError, TypeError, RecursionError) as exc:
                     raise _failure(
                         409,
@@ -2276,6 +2566,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         request = {"session_id": session_id, "item_kind": item_kind, **body.model_dump()}
         key = "document-output-generate:" + idempotency_key
         with Session(engine()) as db, db.begin():
+            require_unarchived_import_session(db, session_id)
             previous = remembered(db, key, request)
             if previous:
                 return JobView.model_validate(previous)
@@ -2309,6 +2600,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         request = {"session_id": session_id, "output_id": output_id, **body.model_dump()}
         key = "document-output-repair:" + idempotency_key
         with Session(engine()) as db, db.begin():
+            require_unarchived_import_session(db, session_id)
             previous = remembered(db, key, request)
             if previous:
                 return JobView.model_validate(previous)
@@ -2341,6 +2633,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
             )
             if active:
                 raise _failure(409, "DOCUMENT_OUTPUT_ACTIVE", "已有生成任务在执行，请先等待完成")
+            source_contract_version = (source.usage or {}).get("contract_version", 2)
             job = queue_model_document_output(
                 db,
                 session_id,
@@ -2349,6 +2642,9 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
                 translation_mode=body.translation_mode,
                 force_regenerate=True,
                 parse_id=source.parse_id,
+                card_contract_version=source_contract_version
+                if source_contract_version in MODEL_CARD_CONTRACT_VERSIONS
+                else MODEL_CARD_CONTRACT_VERSION,
             )
             queued_payload = dict(job.payload or {})
             if queued_payload.get("postprocess_repair_source_id"):
@@ -2357,9 +2653,15 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
                 raise _failure(409, "DOCUMENT_OUTPUT_ACTIVE", "已有生成任务在执行")
             job.payload = {
                 **queued_payload,
-                "postprocess_contract_version": (source.usage or {}).get("contract_version", 2),
+                "postprocess_contract_version": source_contract_version,
                 "postprocess_repair_source_id": output_id,
             }
+            child = db.get(LlmDocumentOutput, str(queued_payload.get("output_id", "")))
+            if child is not None:
+                child.usage = {
+                    **(child.usage or {}),
+                    "contract_version": source_contract_version,
+                }
             source.usage = {**(source.usage or {}), "repair_job_id": job.id}
             result = JobView.model_validate(job)
             remember(db, key, request, result.model_dump())
@@ -2376,8 +2678,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         if not changes:
             raise _failure(422, "EMPTY_DOCUMENT_EDIT", "没有可保存的内容")
         with Session(engine()) as db, db.begin():
-            if db.get(ImportSession, session_id) is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+            require_unarchived_import_session(db, session_id)
             segment = db.get(LlmDocumentSegment, segment_id)
             parse = db.get(LlmDocumentParse, segment.parse_id) if segment else None
             if segment is None or parse is None or parse.import_session_id != session_id:
@@ -2433,8 +2734,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         session_id: str, output_id: str, body: ModelDocumentOutputEdit
     ) -> ModelDocumentOutputView:
         with Session(engine()) as db, db.begin():
-            if db.get(ImportSession, session_id) is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+            session = require_unarchived_import_session(db, session_id)
             output = db.get(LlmDocumentOutput, output_id)
             parse = db.get(LlmDocumentParse, output.parse_id) if output else None
             if output is None or parse is None or output.import_session_id != session_id:
@@ -2442,8 +2742,7 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
             if output.status != "succeeded" or parse.status != "succeeded":
                 raise _failure(409, "DOCUMENT_OUTPUT_NOT_READY", "生成完成后才能编辑内容")
             try:
-                session = db.get(ImportSession, session_id)
-                paper_id = str((session.source_snapshot if session else {}).get("paper_id", ""))
+                paper_id = str(session.source_snapshot.get("paper_id", ""))
                 result = _validate_output(
                     db,
                     parse,
@@ -2451,6 +2750,9 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
                     output.item_kind,
                     paper_id,
                     bool((output.output_json or {}).get("schema_version")),
+                    (output.usage or {}).get("contract_version")
+                    if output.item_kind == "paper_overview"
+                    else None,
                 )
             except ValueError as exc:
                 raise _failure(
@@ -2473,11 +2775,10 @@ def register_model_document_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         request = {"session_id": session_id, **body.model_dump()}
         key = "document-parse-result:" + idempotency_key
         with Session(engine()) as db, db.begin():
+            require_unarchived_import_session(db, session_id)
             previous = remembered(db, key, request)
             if previous:
                 return ModelDocumentParseView.model_validate(previous)
-            if db.get(ImportSession, session_id) is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
             parsed = materialize_document_parse(
                 db,
                 session_id,

@@ -65,3 +65,13 @@ class LiteCacheEntry(Base):
     hit_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[str] = mapped_column(String(40))
     updated_at: Mapped[str] = mapped_column(String(40))
+
+
+class ArchivedPaperUsage(Base):
+    """Project accounting retained without paper, model or response identity."""
+
+    __tablename__ = "archived_paper_usage"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(36), index=True)
+    by_kind: Mapped[list[dict[str, Any]]] = mapped_column(JSON)

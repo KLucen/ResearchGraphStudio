@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import KnowledgeError
 from researchgraph.document_structure import (
     active_section_rows,
@@ -46,6 +47,7 @@ from researchgraph.paper_overview_models import (
 )
 from researchgraph.providers import Provider
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import wait_for_model
 
 SYSTEM_PROMPT = """You are a concise academic paper overview and concept-graph assistant.
 Use only the supplied paper excerpts. Produce one compact Chinese paper card and
@@ -517,6 +519,16 @@ def _cache_view(row: PaperOverviewResult) -> OverviewView:
 async def execute_overview(
     engine: Engine, job_id: str, data_dir: Path, *, provider: Provider | None = None
 ) -> None:
+    with read_session(engine) as dispatch_db:
+        dispatch_job = dispatch_db.get(Job, job_id)
+        new_cards = bool(
+            dispatch_job and (dispatch_job.payload or {}).get("overview_contract_version") == 2
+        )
+    if new_cards:
+        from researchgraph.paper_card_set_service import execute_card_overview
+
+        await execute_card_overview(engine, job_id, data_dir, provider=provider)
+        return
     from researchgraph.lite_models import LiteCacheEntry, LiteTokenUsage
     from researchgraph.model_settings import from_snapshot, snapshot_for
 
@@ -650,7 +662,9 @@ async def execute_overview(
             job.status, job.stage, job.updated_at = "running", "generating", now()
             force_regenerate = bool(job.payload.get("force_regenerate"))
         # Paper excerpts appear once, in the Provider's separate user JSON.
-        raw = await active_provider.complete(SYSTEM_PROMPT, context, overview_schema())
+        raw = await wait_for_model(
+            active_provider.complete(SYSTEM_PROMPT, context, overview_schema())
+        )
         card, graph = validate_response(raw, paper_id)
         input_tokens, output_tokens, total_tokens, usage_source = _provider_usage(active_provider)
         with Session(engine) as session, session.begin():
@@ -757,23 +771,24 @@ async def execute_overview(
                     message,
                     now(),
                 )
-            if failed_row is not None and failed_row.status == "PENDING":
-                (
-                    failed_row.status,
-                    failed_row.error_code,
-                    failed_row.error,
-                    failed_row.updated_at,
-                ) = (
-                    "FAILED",
-                    code,
-                    message,
-                    now(),
-                )
-                failed_row.raw_output = raw or getattr(active_provider, "partial_output", None)
+            if failed_row is not None:
+                partial = raw or getattr(active_provider, "partial_output", None)
+                if partial:
+                    failed_row.raw_output = partial
+                if failed_row.status == "PENDING":
+                    failed_row.status, failed_row.error_code, failed_row.error = (
+                        "FAILED",
+                        code,
+                        message,
+                    )
+                    failed_row.updated_at = now()
             if usage_id is not None:
                 failed_usage = session.get(LiteTokenUsage, usage_id)
                 if failed_usage is not None:
-                    failed_usage.status, failed_usage.reason_code = "failed", code
+                    if failed_job is not None and failed_job.status == "cancelled":
+                        failed_usage.status, failed_usage.reason_code = "cancelled", "CANCELLED"
+                    else:
+                        failed_usage.status, failed_usage.reason_code = "failed", code
                     if active_provider is not None:
                         inp, out, total, source = _provider_usage(active_provider)
                         failed_usage.input_tokens, failed_usage.output_tokens = inp, out
@@ -822,9 +837,12 @@ def recover_overviews(engine: Engine) -> int:
 
 def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data_dir: Path) -> None:
     def layout(session: Session, paper_id: str, result_id: str) -> LayoutView:
+        require_unarchived_paper(session, paper_id)
         result = session.get(PaperOverviewResult, result_id)
         if result is None or result.paper_id != paper_id:
             raise HTTPException(404, "概览不存在")
+        if result.schema_version == "paper-card-set-2":
+            raise HTTPException(409, "文章卡片集不提供单篇图谱布局")
         rows = session.scalars(
             select(PaperGraphLayout).where(PaperGraphLayout.overview_result_id == result_id)
         )
@@ -843,9 +861,12 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
     def get_overview(
         paper_id: str, document_version_id: str | None = Query(default=None)
     ) -> OverviewView | None:
+        from researchgraph.paper_card_set_service import card_overview_view, latest_card_overview
+
         with read_session(engine()) as session:
-            row = latest_overview(session, paper_id, document_version_id)
-            return _view(row) if row else None
+            require_unarchived_paper(session, paper_id)
+            row = latest_card_overview(session, paper_id, document_version_id)
+            return card_overview_view(session, row) if row else None
 
     @app.get("/api/v1/papers/{paper_id}/overview/graph", response_model=OverviewView | None)
     def get_graph(
@@ -860,6 +881,7 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
         if not body.allow_network:
             raise HTTPException(409, "生成论文概览前请明确允许一次模型调用")
         with Session(engine()) as session, session.begin():
+            require_unarchived_paper(session, paper_id)
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")
@@ -872,106 +894,16 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
             revision = session.get(AttachmentRevision, revision_id) if revision_id else None
             if revision is None or revision.paper_id != paper_id:
                 raise HTTPException(409, "论文尚未完成该版本的 PDF 解析")
-            context = build_overview_input(session, paper, revision)
-            input_hash = _hash(context)
-            snapshot = snapshot_for(session, paper.project_id, "extraction")
-            provider_id, model_id = str(snapshot["provider"]), str(snapshot["model"])
-            key, _ = _identity(
-                paper.project_id,
-                paper_id,
-                revision,
-                input_hash,
-                provider_id,
-                model_id,
-                _configuration(snapshot),
-            )
-            current = session.scalar(
-                select(PaperOverviewResult)
-                .where(
-                    PaperOverviewResult.paper_id == paper_id,
-                    PaperOverviewResult.document_version_id == revision.id,
-                    PaperOverviewResult.cache_key == key,
-                )
-                .order_by(PaperOverviewResult.created_at.desc(), PaperOverviewResult.id.desc())
-                .limit(1)
-            )
-            # Double clicks, retries of the HTTP request and force while already
-            # queued all reuse this single pending task.
-            if current is not None and current.status == "PENDING":
-                return _view(current)
-            if (
-                current is not None
-                and current.status == "FAILED"
-                and not body.retry_failed
-                and not body.force_regenerate
-            ):
-                return _view(current)
-            cached = read_cache(
+            from researchgraph.paper_card_set_service import queue_card_overview
+
+            return queue_card_overview(
                 session,
-                key,
-                project_id=paper.project_id,
-                paper_id=paper_id,
-                document_version_id=revision.id,
-                task_kind=TASK_KIND,
+                paper,
+                revision,
+                snapshot_for(session, paper.project_id, "extraction"),
+                force=body.force_regenerate,
+                retry=body.retry_failed,
             )
-            if not body.force_regenerate and cached is not None:
-                completed = session.scalar(
-                    select(PaperOverviewResult)
-                    .where(
-                        PaperOverviewResult.paper_id == paper_id,
-                        PaperOverviewResult.document_version_id == revision.id,
-                        PaperOverviewResult.cache_key == key,
-                        PaperOverviewResult.status == "COMPLETED",
-                    )
-                    .order_by(PaperOverviewResult.created_at.desc(), PaperOverviewResult.id.desc())
-                    .limit(1)
-                )
-                if completed is not None:
-                    # Validate persisted semantic JSON before returning it.  GET
-                    # stays read only; only explicit generate records a cache hit.
-                    _view(completed)
-                    cached.hit_count += 1
-                    record_usage(
-                        session,
-                        project_id=paper.project_id,
-                        paper_id=paper_id,
-                        document_version_id=revision.id,
-                        task_kind=TASK_KIND,
-                        provider=provider_id,
-                        model=model_id,
-                        prompt_version=PROMPT_VERSION,
-                        cache_hit=True,
-                        extra={"cache_key": key},
-                    )
-                    return _cache_view(completed)
-            job = Job(
-                id=str(uuid4()),
-                project_id=paper.project_id,
-                kind=TASK_KIND,
-                payload={
-                    "paper_id": paper_id,
-                    "document_version_id": revision.id,
-                    "allow_network": True,
-                    "provider": "configured",
-                    "model_snapshot": snapshot,
-                    "input_hash": input_hash,
-                    "cache_key": key,
-                    "force_regenerate": body.force_regenerate,
-                    "retry_of": (
-                        current.id if current is not None and current.status == "FAILED" else None
-                    ),
-                },
-                status="queued",
-                stage="queued",
-                attempt=0,
-                created_at=now(),
-                updated_at=now(),
-            )
-            session.add(job)
-            row = _pending_result(
-                session, job, paper, revision, input_hash, key, provider_id, model_id
-            )
-            return _view(row)
 
     @app.get("/api/v1/papers/{paper_id}/overview/graph/layout", response_model=LayoutView)
     def get_layout(paper_id: str, overview_result_id: str) -> LayoutView:
@@ -981,9 +913,12 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
     @app.put("/api/v1/papers/{paper_id}/overview/graph/layout", response_model=LayoutView)
     def put_layout(paper_id: str, body: LayoutInput) -> LayoutView:
         with Session(engine()) as session, session.begin():
+            require_unarchived_paper(session, paper_id)
             result = session.get(PaperOverviewResult, body.overview_result_id)
             if result is None or result.paper_id != paper_id:
                 raise HTTPException(404, "概览不存在")
+            if result.schema_version == "paper-card-set-2":
+                raise HTTPException(409, "文章卡片集不提供单篇图谱布局")
             node_ids = {node["id"] for node in (result.graph_json or {}).get("nodes", [])}
             if any(item.node_id not in node_ids for item in body.positions):
                 raise HTTPException(422, "布局包含不存在的节点")
@@ -1033,9 +968,12 @@ def register_paper_overview_api(app: FastAPI, engine: Callable[[], Engine], data
     @app.post("/api/v1/papers/{paper_id}/overview/graph/layout/reset", response_model=LayoutView)
     def reset_layout(paper_id: str, body: LayoutReset) -> LayoutView:
         with Session(engine()) as session, session.begin():
+            require_unarchived_paper(session, paper_id)
             result = session.get(PaperOverviewResult, body.overview_result_id)
             if result is None or result.paper_id != paper_id:
                 raise HTTPException(404, "概览不存在")
+            if result.schema_version == "paper-card-set-2":
+                raise HTTPException(409, "文章卡片集不提供单篇图谱布局")
             session.query(PaperGraphLayout).filter(
                 PaperGraphLayout.overview_result_id == body.overview_result_id
             ).delete(synchronize_session=False)

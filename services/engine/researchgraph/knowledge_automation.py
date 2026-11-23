@@ -4,17 +4,71 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from researchgraph.core import KnowledgeError
-from researchgraph.knowledge_connection_models import KnowledgeCollectionEvent
+from researchgraph.knowledge_connection_models import (
+    KnowledgeAnalysisEvent,
+    KnowledgeCollectionEvent,
+    KnowledgeConnectionRun,
+)
 from researchgraph.knowledge_extraction_models import KnowledgeExtractionRun
 from researchgraph.knowledge_library import PERSONAL_LIBRARY_ID, library_view
+from researchgraph.knowledge_library_contracts import LibrarySettings
 from researchgraph.knowledge_library_models import KnowledgeLibrary
 from researchgraph.knowledge_sources import build_knowledge_sources
 from researchgraph.model_settings import snapshot_for
 from researchgraph.models import Job
+
+
+def revoke_automatic_jobs(db: Session, previous: LibrarySettings, current: LibrarySettings) -> None:
+    """Reopening the policy does not authorize work invalidated by this transaction."""
+    revoke_extract = (previous.auto_collect and previous.allow_network) and not (
+        current.auto_collect and current.allow_network
+    )
+    revoke_connect = (previous.auto_connect and previous.allow_network) and not (
+        current.auto_connect and current.allow_network
+    )
+    if not (revoke_extract or revoke_connect):
+        return
+    from researchgraph.knowledge_connections import is_automatic_connection
+
+    reason = "KNOWLEDGE_POLICY_REVOKED"
+    if revoke_extract:
+        db.execute(
+            update(KnowledgeCollectionEvent)
+            .where(KnowledgeCollectionEvent.state == "pending")
+            .values(state="revoked", reason=reason)
+        )
+    if revoke_connect:
+        db.execute(
+            update(KnowledgeAnalysisEvent)
+            .where(KnowledgeAnalysisEvent.state == "pending")
+            .values(state="revoked", reason=reason)
+        )
+    for job in db.scalars(
+        select(Job).where(
+            Job.kind.in_(("knowledge_connect", "knowledge_extract")),
+            Job.status.in_(("queued", "running")),
+        )
+    ):
+        payload = dict(job.payload or {})
+        if job.kind == "knowledge_extract":
+            if revoke_extract and payload.get("automatic"):
+                payload["automatic_revoked"] = True
+            if revoke_connect and payload.get("auto_connect"):
+                payload["auto_connect"] = False
+        elif revoke_connect:
+            run = (
+                db.get(KnowledgeConnectionRun, payload.get("run_id"))
+                if payload.get("run_id")
+                else None
+            )
+            if run and is_automatic_connection(db, job, run):
+                payload["automatic_revoked"] = True
+        if payload != job.payload:
+            job.payload = payload
 
 
 def _source(db: Session, job: Job) -> tuple[str, str, str] | None:

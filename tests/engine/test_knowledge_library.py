@@ -15,10 +15,13 @@ from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from researchgraph import storage
+from researchgraph.archive_api import register_archive_api
 from researchgraph.import_plan_models import ImportSession
+from researchgraph.knowledge_connection_models import KnowledgeConnectionReport
 from researchgraph.knowledge_library import ensure_library_paper, publish_version
 from researchgraph.knowledge_library_api import register_knowledge_library_api
 from researchgraph.knowledge_library_models import (
+    KnowledgeCollectionMember,
     KnowledgeLibrary,
     LibraryPaper,
     LibraryPaperSourceLink,
@@ -78,6 +81,7 @@ def _fixture(tmp_path):
         )
     app = FastAPI()
     register_knowledge_library_api(app, lambda: engine, tmp_path)
+    register_archive_api(app, lambda: engine, tmp_path)
     return engine, TestClient(app), paper_id, revision_id, result_id
 
 
@@ -113,6 +117,12 @@ def test_read_defaults_do_not_create_rows_or_jobs_and_collect_is_zero_request_re
     assert version["content"]["graph"]["nodes"][0]["type"] == "PAPER"
     assert version["content"]["graph"]["nodes"][0]["label_zh"] == "Synthetic paper"
     assert any(edge["type"] == "HAS_KNOWLEDGE" for edge in version["content"]["graph"]["edges"])
+    concept = next(
+        node for node in version["content"]["graph"]["nodes"] if node["type"] == "CONCEPT"
+    )
+    search = client.get("/api/v1/knowledge/papers", params={"search": concept["label_zh"]})
+    assert search.json()["items"][0]["id"] == result["id"]
+    assert client.get("/api/v1/knowledge/papers", params={"search": "%_"}).json()["items"] == []
     assert _collect(client, paper_id, revision_id).json() == result
     with Session(engine) as db:
         assert db.query(PaperKnowledgeVersion).count() == 1
@@ -340,6 +350,166 @@ def test_collections_settings_layout_and_export_survive_fresh_engine(tmp_path):
     assert settings["auto_connect"] is False and settings["scope"] == "project"
 
 
+def test_topic_move_updates_only_selected_memberships_and_keeps_existing_connections(tmp_path):
+    engine, client, paper_id, revision_id, _ = _fixture(tmp_path)
+    first = _collect(client, paper_id, revision_id).json()
+    second, report_id = str(uuid4()), str(uuid4())
+    version = first["current_version"]
+    report = {
+        "relations": [{"source_library_paper_id": first["id"], "target_library_paper_id": second}]
+    }
+    with Session(engine) as db, db.begin():
+        db.add(
+            LibraryPaper(
+                id=second,
+                library_id=db.get(LibraryPaper, first["id"]).library_id,
+                title="Second synthetic paper",
+            )
+        )
+        db.add(
+            KnowledgeConnectionReport(
+                id=report_id,
+                run_id=str(uuid4()),
+                library_paper_id=first["id"],
+                version_id=version["id"],
+                title="Existing connection",
+                report_json=report,
+            )
+        )
+
+    base = "/api/v1/knowledge/collections"
+    topic_ids = {
+        title: client.post(base, headers=_headers("create-" + title), json={"name": title}).json()[
+            "id"
+        ]
+        for title in ("Source A", "Source B", "Unrelated", "Destination")
+    }
+    a, b, unrelated, target = topic_ids.values()
+
+    def change(topic, key, papers, action="add", sources=None):
+        return client.post(
+            f"{base}/{topic}/membership",
+            headers=_headers(key),
+            json={"paper_ids": papers, "action": action, "source_collection_ids": sources or []},
+        )
+
+    ids = [first["id"], second]
+    assert change(a, "add-source-a", ids).json() == {"ok": True, "added": 2, "removed": 0}
+    assert change(b, "add-source-b", [second]).json()["added"] == 1
+    assert change(unrelated, "add-unrelated", ids).json()["added"] == 2
+    assert change(target, "add-destination", [second]).json()["added"] == 1
+    assert change(target, "already-present", [second]).json()["added"] == 0
+
+    stale = change(target, "stale-move", ids, "move", [b])
+    assert stale.status_code == 409
+    assert client.get(f"/api/v1/knowledge/papers/{first['id']}").json()["collection_ids"] == sorted(
+        [a, unrelated]
+    )
+    moved = change(target, "perform-move", ids, "move", [a, b])
+    assert moved.json() == {"ok": True, "added": 1, "removed": 3}
+    assert change(target, "perform-move", ids[::-1], "move", [b, a]).json() == moved.json()
+    assert change(target, "perform-move", ids, "remove").status_code == 409
+
+    assert change(target, "remove-first", [first["id"]], "remove").json() == {
+        "ok": True,
+        "added": 0,
+        "removed": 1,
+    }
+    with Session(engine) as db:
+        members = {
+            (row.collection_id, row.library_paper_id)
+            for row in db.scalars(select(KnowledgeCollectionMember))
+        }
+        assert members == {(unrelated, first["id"]), (unrelated, second), (target, second)}
+        assert db.get(KnowledgeConnectionReport, report_id).report_json == report
+        assert db.get(LibraryPaper, first["id"]).current_version_id == version["id"]
+        assert db.get(PaperKnowledgeVersion, version["id"]).content_json == version["content"]
+        assert db.query(Job).count() == 0
+
+
+def test_topic_edit_conflicts_and_batch_validation_are_transactional(tmp_path):
+    engine, client, paper_id, revision_id, _ = _fixture(tmp_path)
+    paper = _collect(client, paper_id, revision_id).json()["id"]
+    base = "/api/v1/knowledge/collections"
+    source = client.post(base, headers=_headers("create-first"), json={"name": "First"}).json()
+    target = client.post(base, headers=_headers("create-second"), json={"name": "Second"}).json()
+    path = f"{base}/{source['id']}"
+    details = {"name": "  Updated  ", "description": "A useful description"}
+    changed = client.patch(path, headers=_headers("rename-source"), json=details)
+    assert changed.json() == {**source, "name": "Updated", "description": details["description"]}
+    assert (
+        client.patch(path, headers=_headers("rename-source"), json=details).json() == changed.json()
+    )
+    assert (
+        client.patch(
+            path, headers=_headers("rename-source"), json={**details, "name": "New"}
+        ).status_code
+        == 409
+    )
+    assert (
+        client.patch(
+            path, headers=_headers("used-name"), json={**details, "name": "Second"}
+        ).status_code
+        == 409
+    )
+    assert (
+        client.patch(
+            path, headers=_headers("blank-name"), json={**details, "name": "  "}
+        ).status_code
+        == 422
+    )
+
+    malformed = [
+        {"paper_ids": [paper, paper], "action": "add"},
+        {"paper_ids": [str(uuid4()) for _ in range(101)], "action": "add"},
+        {"paper_ids": [paper], "action": "move"},
+        {"paper_ids": [paper], "action": "move", "source_collection_ids": [source["id"]]},
+    ]
+    for index, body in enumerate(malformed):
+        assert (
+            client.post(
+                path + "/membership", headers=_headers(f"bad-selection-{index}"), json=body
+            ).status_code
+            == 422
+        )
+    assert (
+        client.post(
+            path + "/membership",
+            headers=_headers("missing-paper"),
+            json={"paper_ids": [paper, str(uuid4())], "action": "add"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"{base}/{target['id']}", headers=_headers("archive-target")).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"{base}/{target['id']}/membership",
+            headers=_headers("archived-target"),
+            json={"paper_ids": [paper], "action": "add"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(
+            f"/api/v1/knowledge/papers/{paper}", headers=_headers("archive-paper")
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            path + "/membership",
+            headers=_headers("archived-paper"),
+            json={"paper_ids": [paper], "action": "add"},
+        ).status_code
+        == 404
+    )
+    with Session(engine) as db:
+        assert db.query(KnowledgeCollectionMember).count() == 0
+
+
 def test_explicit_purge_backs_up_and_removes_mutation_copies(tmp_path, monkeypatch):
     engine, client, paper_id, revision_id, _ = _fixture(tmp_path)
     paper = _collect(client, paper_id, revision_id).json()
@@ -354,6 +524,12 @@ def test_explicit_purge_backs_up_and_removes_mutation_copies(tmp_path, monkeypat
     endpoint = "/api/v1/knowledge/papers/" + paper["id"]
     assert client.delete(endpoint, headers=_headers()).status_code == 200
     assert client.delete(endpoint, headers=_headers()).status_code == 200
+    assert cleaned == []
+    assert client.get("/api/v1/knowledge/papers").json()["total"] == 0
+    item = client.get("/api/v1/archive?kind=knowledge_paper").json()["items"][0]
+    path = "/api/v1/archive/" + item["id"]
+    assert client.delete(path).status_code == 200
+    assert client.delete(path).status_code == 200
     assert cleaned == [paper["id"]]
     assert client.get(endpoint).status_code == 404
     assert len(list((tmp_path / "backups").glob("before-knowledge-purge-*.sqlite3"))) == 1

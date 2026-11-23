@@ -21,6 +21,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+REPORT_DETAIL = {
+    "source_zh": "新增匿名论文明确描述了用于合成任务的共享记忆方法。",
+    "target_zh": "较早的匿名论文也介绍共享记忆方法，使用该论文自身摘录作为依据。",
+    "comparison_zh": "两个摘录都说明共享记忆方法的目标用途，可在这一维度并列阅读。",
+    "conditions_zh": "合成正文不包含可核对的实验数据、指标或基线，证据限于方法用途。",
+    "follow_up_zh": "若后续获得完整实验材料，可逐项核查任务输入与测量条件。",
+}
+
 
 def harness() -> Any:
     spec = importlib.util.spec_from_file_location(
@@ -83,9 +91,16 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
             assert not body.get("tools")
             wrapper = json.loads(body["messages"][1]["content"])
             data, schema = wrapper["untrusted_source_data"], wrapper["output_schema"]
-            if schema["title"] == "KnowledgeDraft":
+            if schema["properties"]["schema_version"]["const"] == "paper-knowledge-1":
                 assert "All supplied paper titles" in body["messages"][0]["content"]
-                source = next(s for s in data["sources"] if "shared memory method" in s["text"])
+                assert set(schema["$defs"]["KnowledgeExcerptRef"]["properties"]) == {"excerpt_id"}
+                assert all("text" not in source for source in data["sources"])
+                excerpt = next(
+                    quote
+                    for source in data["sources"]
+                    for quote in source["excerpts"]
+                    if "shared memory method" in quote["text"]
+                )
                 return {
                     "schema_version": "paper-knowledge-1",
                     "paper_card": {
@@ -105,25 +120,20 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
                                 "label_en": "Shared memory method",
                                 "description_zh": "合成文档描述的方法。",
                                 "basis": "EXPLICIT",
-                                "source_refs": [
-                                    {
-                                        "source_id": source["ref"],
-                                        "quote": source["text"],
-                                        "occurrence_index": 0,
-                                    }
-                                ],
+                                "source_refs": [{"excerpt_id": excerpt["excerpt_id"]}],
                             }
                         ],
                         "edges": [],
                     },
                 }, "knowledge_extract"
-            assert schema["title"] == "ConnectionsDraft", schema["title"]
+            assert schema["properties"]["schema_version"]["const"] == "knowledge-connections-3"
             assert len(data["candidates"]) == 1
+            assert "connection_contract" not in data
             source, target = data["source"], data["candidates"][0]
             left = next(n for n in source["content"]["graph"]["nodes"] if n["type"] == "METHOD")
             right = next(n for n in target["content"]["graph"]["nodes"] if n["type"] == "METHOD")
             return {
-                "schema_version": "knowledge-connections-1",
+                "schema_version": "knowledge-connections-3",
                 "relations": [
                     {
                         "ref": "r1",
@@ -135,6 +145,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
                         "limitations_zh": "这是软件夹具，不据此推断实验优劣或作者继承关系。",
                         "source_ref_ids": [left["source_refs"][0]["source_id"]],
                         "target_ref_ids": [right["source_refs"][0]["source_id"]],
+                        "detail": REPORT_DETAIL,
                     }
                 ],
                 "summary": [
@@ -182,7 +193,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
             )
 
         with sidecar(command, isolated, token, env) as base:
-            assert request(base, token, "GET", "/health")["schema_version"] == "lite0018"
+            assert request(base, token, "GET", "/health")["schema_version"] == "lite0020"
             project = request(base, token, "POST", "/projects", {"name": "Anonymous K1-K3 smoke"})
             connection = request(
                 base,
@@ -223,6 +234,9 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
                     "auto_collect": True,
                     "auto_connect": True,
                     "allow_network": True,
+                    "max_input_tokens": None,
+                    "max_output_tokens": None,
+                    "max_requests_per_run": None,
                     "total_request_limit": 3,
                 },
             )
@@ -238,6 +252,8 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
                 report = wait_for_report(base, "no_candidates" if index == 0 else "completed")
             assert len(report["relations"]) == 1 and len(report["summary"]) == 1
             relation = report["relations"][0]
+            assert relation["explanation_zh"] == "双方合成材料都描述共享记忆方法。"
+            assert relation["detail"] == REPORT_DETAIL
             for side in ("source", "target"):
                 assert relation[side + "_refs"]
                 for ref in relation[side + "_refs"]:
@@ -263,6 +279,10 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
                 "/knowledge/runs",
             ):
                 request(base, token, "GET", path)
+            settings = request(base, token, "GET", "/knowledge/library")["settings"]
+            for name in ("max_input_tokens", "max_output_tokens", "max_requests_per_run"):
+                assert settings[name] is None
+            assert settings["total_request_limit"] == 3
             usage = request(base, token, "GET", "/knowledge/usage")
             assert (
                 provider.calls
@@ -285,6 +305,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
             )
 
         with sidecar(command, isolated, token, env) as base:
+            assert request(base, token, "GET", "/knowledge/library")["settings"] == settings
             restored = request(base, token, "GET", "/knowledge/reports/" + report["id"])
             assert restored["relations"] == report["relations"] and restored["read"] is True
             assert restored["note"] == "synthetic private note" and not restored["stale"]
@@ -295,7 +316,7 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
         return {
             "status": "passed",
             "sidecar": "packaged" if executable else "source",
-            "schema_version": "lite0018",
+            "schema_version": "lite0020",
             "real_model_calls": 0,
             "non_loopback_requests": 0,
             "synthetic_extract_requests": 2,
@@ -303,8 +324,11 @@ def run(executable: Path | None, source_python: Path | None) -> dict[str, Any]:
             "automatic_no_candidate_reports": 1,
             "saved_grounded_papers": 2,
             "bidirectional_grounded_relations": len(report["relations"]),
+            "detailed_report_saved_and_reloaded": True,
             "get_extra_requests": 0,
             "restart_extra_requests": 0,
+            "unlimited_budgets_persisted": True,
+            "finite_cumulative_request_limit": 3,
             "synthetic_input_tokens": 69,
             "synthetic_output_tokens": 123,
             "synthetic_total_tokens": 192,

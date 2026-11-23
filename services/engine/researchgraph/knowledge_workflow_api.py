@@ -5,18 +5,25 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from fastapi import FastAPI, Query
+from pydantic import Field
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
-from researchgraph.core import KnowledgeError
+from researchgraph.archive_models import active_target, archived_target
+from researchgraph.core import KnowledgeError, StrictModel
 from researchgraph.knowledge_connection_models import (
     KnowledgeConnectionReport,
     KnowledgeConnectionRequest,
     KnowledgeConnectionRun,
 )
-from researchgraph.knowledge_connections import queue_knowledge_connect, report_view
+from researchgraph.knowledge_connections import (
+    connection_contract_version,
+    queue_knowledge_connect,
+    report_view,
+)
 from researchgraph.knowledge_connections_contracts import (
     KnowledgeConnectInput,
     KnowledgeExtractInput,
@@ -24,9 +31,23 @@ from researchgraph.knowledge_connections_contracts import (
     KnowledgeRetryInput,
 )
 from researchgraph.knowledge_extraction_models import KnowledgeExtractionRun
-from researchgraph.knowledge_library import ensure_library, library_error, library_view
-from researchgraph.knowledge_library_api import Key, _remember, _replay
-from researchgraph.knowledge_tasks import queue_knowledge_extract
+from researchgraph.knowledge_library import (
+    PERSONAL_LIBRARY_ID,
+    ensure_library,
+    library_error,
+    library_view,
+)
+from researchgraph.knowledge_library_api import Key, _collection, _remember, _replay
+from researchgraph.knowledge_library_models import (
+    KnowledgeCollectionMember,
+    LibraryPaper,
+    PaperKnowledgeVersion,
+)
+from researchgraph.knowledge_tasks import (
+    local_recovery_preview,
+    queue_knowledge_extract,
+    recover_knowledge_locally,
+)
 from researchgraph.model_document_models import LlmDocumentOutput, LlmDocumentParse
 from researchgraph.model_document_overview import model_document_paper
 from researchgraph.model_settings import snapshot_for
@@ -40,11 +61,32 @@ def _job(db: Session, job_id: str) -> JobView:
     job = db.get(Job, job_id)
     if job is None:
         raise library_error(404, "KNOWLEDGE_RUN_MISSING", "任务记录已移除")
+    _require_active_job(db, job_id)
     return JobView.model_validate(job)
 
 
 def _error(error: KnowledgeError) -> Any:
     return library_error(409, error.code, str(error))
+
+
+def _require_active_job(db: Session, job_id: str) -> None:
+    if archived_target(db, "job", job_id):
+        raise library_error(409, "JOB_ARCHIVED", "请先在归档管理中恢复该任务")
+
+
+class KnowledgeLocalRecoveryInput(StrictModel):
+    preview_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class ExternalTopicPaper(StrictModel):
+    id: str
+    title: str
+    version_id: str
+
+
+class ExternalTopicPapers(StrictModel):
+    items: list[ExternalTopicPaper]
+    has_more: bool
 
 
 def register_knowledge_workflow_api(
@@ -55,10 +97,56 @@ def register_knowledge_workflow_api(
 ) -> None:
     prefix = "/api/v1/knowledge"
 
+    @app.get(
+        prefix + "/collections/{collection_id}/external-papers",
+        response_model=ExternalTopicPapers,
+    )
+    def external_topic_papers(
+        collection_id: UUID, paper_ids: str = Query(min_length=36, max_length=1775)
+    ) -> ExternalTopicPapers:
+        """Read only the titles/current versions of explicitly requested context nodes."""
+        candidates = paper_ids.split(",")
+        if len(candidates) > 48:
+            raise library_error(422, "KNOWLEDGE_CANDIDATES_INVALID", "最多接收 48 篇关联论文")
+        try:
+            ordered_ids = list(dict.fromkeys(str(UUID(candidate)) for candidate in candidates))
+        except ValueError:
+            raise library_error(422, "KNOWLEDGE_CANDIDATES_INVALID", "关联论文编号无效") from None
+        with read_session(engine()) as db:
+            _collection(db, str(collection_id))
+            members = select(KnowledgeCollectionMember.library_paper_id).where(
+                KnowledgeCollectionMember.collection_id == str(collection_id)
+            )
+            rows = db.execute(
+                select(LibraryPaper.id, LibraryPaper.title, PaperKnowledgeVersion.id)
+                .join(
+                    PaperKnowledgeVersion,
+                    PaperKnowledgeVersion.id == LibraryPaper.current_version_id,
+                )
+                .where(
+                    LibraryPaper.id.in_(ordered_ids),
+                    LibraryPaper.library_id == PERSONAL_LIBRARY_ID,
+                    LibraryPaper.archived.is_(False),
+                    active_target("knowledge_paper", LibraryPaper.id),
+                    PaperKnowledgeVersion.library_paper_id == LibraryPaper.id,
+                    LibraryPaper.id.not_in(members),
+                )
+            )
+            by_id = {
+                paper_id: ExternalTopicPaper(id=paper_id, title=title, version_id=version_id)
+                for paper_id, title, version_id in rows
+            }
+            items = [by_id[paper_id] for paper_id in ordered_ids if paper_id in by_id]
+            return ExternalTopicPapers(items=items[:12], has_more=len(items) > 12)
+
     @app.get(prefix + "/source-options")
     def sources(project_id: str | None = None, paper_id: str | None = None) -> dict[str, Any]:
         with read_session(engine()) as db:
-            statement = select(Paper).order_by(Paper.created_at.desc(), Paper.id)
+            statement = (
+                select(Paper)
+                .where(active_target("paper", Paper.id))
+                .order_by(Paper.created_at.desc(), Paper.id)
+            )
             if project_id:
                 statement = statement.where(Paper.project_id == project_id)
             if paper_id:
@@ -84,6 +172,7 @@ def register_knowledge_workflow_api(
                         PaperOverviewResult.paper_id == revision.paper_id,
                         PaperOverviewResult.document_version_id == revision.id,
                         PaperOverviewResult.status == "COMPLETED",
+                        PaperOverviewResult.schema_version == "paper_overview_graph.v1",
                     )
                     .order_by(PaperOverviewResult.created_at.desc())
                 )
@@ -110,6 +199,8 @@ def register_knowledge_workflow_api(
                         LlmDocumentOutput.parse_id == parse.id,
                         LlmDocumentOutput.item_kind == "paper_overview",
                         LlmDocumentOutput.status == "succeeded",
+                        LlmDocumentOutput.output_json["schema_version"].as_string()
+                        == "paper_overview_graph.v1",
                     )
                     .order_by(LlmDocumentOutput.created_at.desc())
                 )
@@ -231,12 +322,38 @@ def register_knowledge_workflow_api(
         library_paper_id: str | None = None,
         limit: int = Query(50, ge=1, le=200),
         offset: int = Query(0, ge=0),
+        job_ids: str | None = Query(default=None, max_length=924),
     ) -> dict[str, Any]:
+        requested_jobs: list[str] | None = None
+        if job_ids is not None:
+            try:
+                values = job_ids.split(",")
+                if len(values) > 25:
+                    raise ValueError
+                requested_jobs = [str(UUID(value)) for value in values]
+            except ValueError:
+                raise library_error(422, "INVALID_INPUT", "任务编号无效或数量超出 25 项") from None
         with read_session(engine()) as db:
             items: list[dict[str, Any]] = []
-            for extraction in db.scalars(select(KnowledgeExtractionRun)):
-                if library_paper_id and extraction.library_paper_id != library_paper_id:
-                    continue
+            extractions_by_id: dict[str, KnowledgeExtractionRun] = {}
+            extractions = select(KnowledgeExtractionRun).where(
+                active_target("job", KnowledgeExtractionRun.job_id)
+            )
+            connections = select(KnowledgeConnectionRun).where(
+                active_target("job", KnowledgeConnectionRun.job_id)
+            )
+            if library_paper_id:
+                extractions = extractions.where(
+                    KnowledgeExtractionRun.library_paper_id == library_paper_id
+                )
+                connections = connections.where(
+                    KnowledgeConnectionRun.library_paper_id == library_paper_id
+                )
+            if requested_jobs is not None:
+                extractions = extractions.where(KnowledgeExtractionRun.job_id.in_(requested_jobs))
+                connections = connections.where(KnowledgeConnectionRun.job_id.in_(requested_jobs))
+            for extraction in db.scalars(extractions):
+                extractions_by_id[extraction.id] = extraction
                 job = db.get(Job, extraction.job_id)
                 items.append(
                     {
@@ -254,9 +371,7 @@ def register_knowledge_workflow_api(
                         "created_at": extraction.created_at,
                     }
                 )
-            for connection in db.scalars(select(KnowledgeConnectionRun)):
-                if library_paper_id and connection.library_paper_id != library_paper_id:
-                    continue
+            for connection in db.scalars(connections):
                 job = db.get(Job, connection.job_id)
                 slots = list(
                     db.scalars(
@@ -282,7 +397,16 @@ def register_knowledge_workflow_api(
                     }
                 )
             items.sort(key=lambda r: (r["created_at"], r["id"]), reverse=True)
-            return {"items": items[offset : offset + limit], "total": len(items)}
+            page = items[offset : offset + limit]
+            for item in page:
+                page_extraction = extractions_by_id.get(item["id"])
+                if page_extraction is not None:
+                    item["local_recovery"] = (
+                        local_recovery_preview(db, page_extraction)
+                        if page_extraction.status == "failed"
+                        else None
+                    )
+            return {"items": page, "total": len(items)}
 
     @app.get(prefix + "/usage")
     def usage() -> dict[str, Any]:
@@ -295,18 +419,23 @@ def register_knowledge_workflow_api(
     def retry(run_id: str, body: KnowledgeRetryInput, idempotency_key: Key) -> JobView:
         payload, key = {"run_id": run_id, **body.model_dump()}, "knowledge-retry:" + idempotency_key
         with Session(engine()) as db, db.begin():
+            connection = db.get(KnowledgeConnectionRun, run_id)
+            extraction = db.get(KnowledgeExtractionRun, run_id)
+            original = connection or extraction
+            if original is None:
+                raise library_error(404, "KNOWLEDGE_RUN_MISSING", "知识任务不存在")
+            _require_active_job(db, original.job_id)
             previous = _replay(db, key, payload)
             if previous:
                 return _job(db, previous["id"])
             try:
-                connection = db.get(KnowledgeConnectionRun, run_id)
-                extraction = db.get(KnowledgeExtractionRun, run_id)
                 if connection:
                     job = queue_knowledge_connect(
                         db,
                         connection.version_id,
                         allow_network=body.allow_network,
                         retry_failed=True,
+                        connection_version=connection_contract_version(connection.input_json),
                     )
                 elif extraction:
                     job = queue_knowledge_extract(
@@ -325,3 +454,43 @@ def register_knowledge_workflow_api(
                 raise _error(error) from None
             _remember(db, key, payload, {"id": job.id})
             return JobView.model_validate(job)
+
+    @app.get(prefix + "/runs/{run_id}/local-recovery")
+    def preview_local_recovery(run_id: str) -> dict[str, Any]:
+        with read_session(engine()) as db:
+            run = db.get(KnowledgeExtractionRun, run_id)
+            if run is None:
+                raise library_error(404, "KNOWLEDGE_RUN_MISSING", "知识抽取任务不存在")
+            _require_active_job(db, run.job_id)
+            return local_recovery_preview(db, run)
+
+    @app.post(prefix + "/runs/{run_id}/local-recovery")
+    def publish_local_recovery(
+        run_id: str,
+        body: KnowledgeLocalRecoveryInput,
+        idempotency_key: Key,
+    ) -> dict[str, Any]:
+        payload = {"run_id": run_id, **body.model_dump()}
+        key = "knowledge-local-recovery:" + idempotency_key
+        with Session(engine()) as db, db.begin():
+            previous = _replay(db, key, payload)
+            run = db.get(KnowledgeExtractionRun, run_id)
+            if run is None:
+                raise library_error(404, "KNOWLEDGE_RUN_MISSING", "知识抽取任务不存在")
+            _require_active_job(db, run.job_id)
+            try:
+                # Even an idempotency replay revalidates the original raw and current sources.
+                result = recover_knowledge_locally(db, run, body.preview_fingerprint)
+            except KnowledgeError as error:
+                raise _error(error) from None
+            except (ValueError, KeyError, TypeError, IndexError):
+                raise library_error(
+                    409,
+                    "KNOWLEDGE_LOCAL_RECOVERY_UNAVAILABLE",
+                    "保留内容尚有结构或引用问题，请重新查看本机恢复预览",
+                ) from None
+            if previous and previous.get("version_id") != result["version_id"]:
+                raise library_error(409, "KNOWLEDGE_LOCAL_RECOVERY_STALE", "本机恢复结果已变化")
+            if not previous:
+                _remember(db, key, payload, result)
+            return result

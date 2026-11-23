@@ -1,26 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   ArrowUpRight,
   BookOpen,
   Bookmark,
   Check,
   Download,
+  FolderCog,
   FolderPlus,
   GitBranch,
   Library,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
   Plus,
   Search,
   Settings2,
-  X,
 } from "lucide-react";
 import type { Project } from "./api";
-import { ForceGraph } from "./ForceGraph";
+import { archiveApi } from "./archiveApi";
+import { ForceGraph, type GraphContextTarget } from "./ForceGraph";
+import { useContextMenu, type ContextMenuEvent } from "./ContextMenu";
 import { getGraphAppearance } from "./graphAppearance";
-import type { GraphData, GraphNode } from "./graphTypes";
+import {
+  graphNodeKind,
+  type GraphData,
+  type GraphEdge,
+  type GraphNode,
+  type GraphPosition,
+} from "./graphTypes";
 import {
   knowledgeApi,
+  knowledgeErrorMessage,
   type KnowledgeCollection,
   type KnowledgeLayout,
   type KnowledgePaper,
@@ -30,10 +46,24 @@ import {
   type KnowledgeSourceRef,
   type KnowledgeVersion,
 } from "./knowledgeApi";
+import { knowledgeNodeText } from "./knowledgeGraphLabels";
+import {
+  topicContextCandidates,
+  topicGraphApi,
+  type ExternalTopicPaper,
+} from "./knowledgeTopicGraph";
+import { useGraphFullscreen } from "./useGraphFullscreen";
+import { handleWorkspaceFind } from "./workspaceSearchShortcut";
+import { KnowledgeDialog } from "./KnowledgeDialog";
+import { PaperTopicAssignment, TopicManagement } from "./TopicManagement";
 import "./researchKnowledgeBase.css";
 
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+const inputBudgetExceeded = (text: string) =>
+  text.includes("KNOWLEDGE_INPUT_BUDGET_EXCEEDED");
+const errorText = (error: unknown) => {
+  const text = error instanceof Error ? error.message : String(error);
+  return knowledgeErrorMessage(text);
+};
 const date = (value: string) =>
   new Date(value).toLocaleString("zh-CN", {
     month: "short",
@@ -41,6 +71,29 @@ const date = (value: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+const localRecoveryAudit = (version?: KnowledgeVersion | null) => {
+  const coverage = version?.content.coverage;
+  if (!coverage || typeof coverage !== "object") return null;
+  const value = coverage as Record<string, unknown>;
+  if (value.status !== "partial") return null;
+  const audit = value.local_recovery;
+  return audit && typeof audit === "object"
+    ? (audit as Record<string, unknown>)
+    : {};
+};
+const partialKnowledgeLabel = (version?: KnowledgeVersion | null) => {
+  const audit = localRecoveryAudit(version);
+  if (!audit) return "";
+  const nodes = audit.excluded_node_indices;
+  const edges = audit.excluded_edge_indices;
+  const excluded = [
+    Array.isArray(nodes) && nodes.length ? `${nodes.length} 个知识节点` : "",
+    Array.isArray(edges) && edges.length ? `${edges.length} 条关系` : "",
+  ].filter(Boolean);
+  return excluded.length
+    ? `部分知识 · 已隔离 ${excluded.join("和 ")}`
+    : "部分知识 · 内容不完整";
+};
 const active = (status: string) =>
   ["queued", "running", "pending"].includes(status);
 const statusLabels: Record<string, string> = {
@@ -54,6 +107,11 @@ const statusLabels: Record<string, string> = {
   partial: "部分完成",
   no_candidates: "暂无可比较论文",
 };
+const scopeLabels: Record<string, string> = {
+  project: "同研究项目",
+  all: "全知识库",
+  collection: "指定专题",
+};
 const relationLabels: Record<string, string> = {
   SAME_PROBLEM: "共同研究问题",
   SHARED_QUESTION: "共同研究问题",
@@ -66,6 +124,17 @@ const relationLabels: Record<string, string> = {
   COMPARABLE_RESULTS: "结果可比较",
   RESEARCH_OPPORTUNITY: "研究线索",
 };
+const graphLabelLanguageKey = "rgs.knowledge.graph-label-language.v1";
+type GraphLabelLanguage = "zh" | "en" | "both";
+
+function savedGraphLabelLanguage(): GraphLabelLanguage {
+  try {
+    const saved = localStorage.getItem(graphLabelLanguageKey);
+    return saved === "en" || saved === "both" ? saved : "zh";
+  } catch {
+    return "zh";
+  }
+}
 
 function nodeReferences(
   node: GraphNode,
@@ -98,40 +167,6 @@ function downloadJson(value: unknown) {
   anchor.download = `research-knowledge-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
-}
-
-function KnowledgeDialog({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (dialog.current && !dialog.current.open) dialog.current.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialog}
-      className="dialog knowledge-dialog"
-      aria-label={title}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      <div className="dialog-header">
-        <h2>{title}</h2>
-        <button className="icon-button" aria-label="关闭" onClick={onClose}>
-          <X size={20} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
 }
 
 function SourceReferences({
@@ -194,6 +229,47 @@ function SourceReferences({
   );
 }
 
+type RelationFocus = { id: string; reportId: string };
+type MapLookup = {
+  paperId: string;
+  otherPaperId?: string;
+  relation?: RelationFocus;
+  reportId: string;
+};
+
+const mapPageSize = 12;
+const paperPageSize = 50;
+const expandMapPage = "all";
+const noExternalTopicPapers: ExternalTopicPaper[] = [];
+const mapKnowledgeKinds = [
+  "RESEARCH_QUESTION",
+  "CONCEPT",
+  "METHOD",
+  "CONTRIBUTION",
+  "FINDING",
+];
+
+function mergeMapPositions(saved: GraphPosition[], visible: GraphPosition[]) {
+  const positions = new Map(
+    saved.map((position) => [position.node_id, position]),
+  );
+  const visibleIds = new Set<string>();
+  for (const position of visible) {
+    visibleIds.add(position.node_id);
+    positions.set(position.node_id, position);
+  }
+  const entries = [...positions.values()];
+  // Keep the saved projection within the layout endpoint's position limit.
+  if (entries.length <= 2000) return entries;
+  return entries
+    .sort(
+      (a, b) =>
+        Number(b.pinned) - Number(a.pinned) ||
+        Number(visibleIds.has(b.node_id)) - Number(visibleIds.has(a.node_id)),
+    )
+    .slice(0, 2000);
+}
+
 function KnowledgeMap({
   focusedPaper,
   focusedRelation,
@@ -201,40 +277,99 @@ function KnowledgeMap({
   papers,
   reports,
   connected,
+  collectionId,
+  search,
+  onSearch,
   viewKey,
+  hiddenKinds,
+  onToggleKind,
   onSelectPaper,
 }: {
   focusedPaper: string;
-  focusedRelation: string;
+  focusedRelation: RelationFocus | null;
   onOpenReport: (id: string) => void;
   papers: KnowledgePaper[];
   reports: KnowledgeReport[];
   connected: boolean;
+  collectionId: string;
+  search?: string;
+  onSearch: (value: string) => void;
   viewKey: string;
+  hiddenKinds: ReadonlySet<string>;
+  onToggleKind: (kind: string) => void;
   onSelectPaper: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(focusedPaper);
+  const [expanded, setExpanded] = useState(expandMapPage);
+  const expansion =
+    expanded === "" || papers.some((paper) => paper.id === expanded)
+      ? expanded
+      : expandMapPage;
   const [selected, setSelected] = useState(
     focusedPaper && !focusedRelation ? `paper:${focusedPaper}` : "",
   );
   const [selectedEdge, setSelectedEdge] = useState(
-    focusedRelation ? `cross:${focusedRelation}` : "",
+    focusedRelation ? `cross:${focusedRelation.id}` : "",
   );
   const [fit, setFit] = useState(0);
+  const [pinRequest, setPinRequest] = useState<{
+    id: string;
+    seq: number;
+  } | null>(null);
+  const [language, setLanguage] = useState(savedGraphLabelLanguage);
+  const [showExternal, setShowExternal] = useState(false);
+  const showTopicContext = !!collectionId && showExternal;
+  const candidates = useMemo(
+    () => (showTopicContext ? topicContextCandidates(papers, reports) : null),
+    [papers, reports, showTopicContext],
+  );
+  const external = useQuery({
+    queryKey: ["knowledge", "topic-context", collectionId, candidates?.ids],
+    queryFn: () =>
+      topicGraphApi.externalPapers(collectionId, candidates?.ids ?? []),
+    enabled: connected && !!candidates?.ids.length,
+  });
+  const externalPapers =
+    (showTopicContext ? external.data?.items : null) ?? noExternalTopicPapers;
+  const { openContextMenu, contextMenu } = useContextMenu();
+  const {
+    containerRef,
+    toggleRef,
+    mode: fullscreenMode,
+    toggle: toggleFullscreen,
+  } = useGraphFullscreen();
+  function changeLanguage(value: string) {
+    if (value !== "zh" && value !== "en" && value !== "both") return;
+    setLanguage(value);
+    try {
+      localStorage.setItem(graphLabelLanguageKey, value);
+    } catch {
+      /* Keep the current selection available for this view. */
+    }
+  }
   const key = `library:${viewKey}`;
+  const client = useQueryClient();
+  const layoutKey = ["knowledge", "layout", key];
   const layout = useQuery({
-    queryKey: ["knowledge", "layout", key],
+    queryKey: layoutKey,
     queryFn: () => knowledgeApi.layout(key),
     enabled: connected,
   });
+  const [editedLayout, setEditedLayout] = useState<KnowledgeLayout | null>(
+    null,
+  );
+  const latestLayout = useRef<KnowledgeLayout | null>(null);
   const pending = useRef<KnowledgeLayout | null>(null);
   const timer = useRef<number | null>(null);
-  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingSaves = useIsMutating({ mutationKey: layoutKey, exact: true });
+  const [openedDuringSave] = useState(() => pendingSaves > 0);
   const save = useMutation({
-    mutationFn: (value: KnowledgeLayout) => {
-      const write = writes.current.then(() => knowledgeApi.saveLayout(value));
-      writes.current = write.catch(() => undefined);
-      return write;
+    mutationKey: layoutKey,
+    scope: { id: key },
+    mutationFn: async (value: KnowledgeLayout) => {
+      const saved = await knowledgeApi.saveLayout(value);
+      const savedKey = ["knowledge", "layout", value.view_key];
+      await client.cancelQueries({ queryKey: savedKey, exact: true });
+      client.setQueryData(savedKey, saved);
     },
   });
   const persist = useRef(save.mutate);
@@ -250,16 +385,19 @@ function KnowledgeMap({
     [key],
   );
   const updateLayout = (part: Partial<KnowledgeLayout["layout"]>) => {
-    pending.current = {
+    const current = (latestLayout.current ?? layout.data)?.layout;
+    const value = {
       view_key: key,
       layout: {
-        positions: [],
-        viewport: null,
-        ...layout.data?.layout,
-        ...pending.current?.layout,
-        ...part,
+        positions: part.positions
+          ? mergeMapPositions(current?.positions ?? [], part.positions)
+          : (current?.positions ?? []),
+        viewport: part.viewport ?? current?.viewport ?? null,
       },
     };
+    latestLayout.current = value;
+    pending.current = value;
+    setEditedLayout(value);
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       const value = pending.current;
@@ -272,16 +410,26 @@ function KnowledgeMap({
     const details = new Map<
       string,
       {
-        paper: KnowledgePaper;
+        paperId: string;
         version: KnowledgeVersion | null;
         node: GraphNode;
-        refs: KnowledgeSourceRef[];
       }
     >();
-    const versions = new Map<string, KnowledgePaper>();
+    const versions = new Map<
+      string,
+      { id: string; external?: ExternalTopicPaper }
+    >();
     const relationMap = new Map<
       string,
-      { relation: KnowledgeRelation; report: KnowledgeReport }
+      {
+        relation: KnowledgeRelation;
+        report: KnowledgeReport;
+        outsideTopic: boolean;
+      }
+    >();
+    const crossEdges = new Map<
+      string,
+      { edge: GraphEdge; relation: KnowledgeRelation; report: KnowledgeReport }
     >();
     for (const paper of papers) {
       const version = paper.current_version;
@@ -292,16 +440,16 @@ function KnowledgeMap({
         label_zh: paper.title,
       };
       graph.nodes.push(rootNode);
-      details.set(root, { paper, version, node: rootNode, refs: [] });
+      details.set(root, { paperId: paper.id, version, node: rootNode });
       if (!version) continue;
       versions.set(version.id, paper);
-      if (expanded !== paper.id) continue;
+      if (expansion !== expandMapPage && expansion !== paper.id) continue;
       for (const node of version.content.graph?.nodes ?? []) {
-        if (node.type === "PAPER") continue;
+        const kind = graphNodeKind(node);
+        if (kind === "PAPER" || hiddenKinds.has(kind)) continue;
         const id = `version:${version.id}:${node.id}`;
-        const refs = nodeReferences(node, version);
         graph.nodes.push({ ...node, id });
-        details.set(id, { paper, version, node, refs });
+        details.set(id, { paperId: paper.id, version, node });
         graph.edges.push({
           id: `owns:${id}`,
           source: root,
@@ -322,48 +470,199 @@ function KnowledgeMap({
           });
       }
     }
+    for (const paper of externalPapers) {
+      if (!details.has(`paper:${paper.id}`) && !versions.has(paper.version_id))
+        versions.set(paper.version_id, { id: paper.id, external: paper });
+    }
+    const addExternalRoot = (paper?: ExternalTopicPaper) => {
+      if (!paper) return;
+      const id = `paper:${paper.id}`;
+      if (details.has(id)) return;
+      const node: GraphNode = {
+        id,
+        type: "PAPER",
+        label_zh: paper.title,
+        outside_topic: true,
+      };
+      graph.nodes.push(node);
+      details.set(id, { paperId: paper.id, version: null, node });
+    };
     for (const report of reports) {
       if (report.stale) continue;
       for (const relation of report.relations ?? []) {
         const a = versions.get(relation.source_version_id ?? ""),
           b = versions.get(relation.target_version_id ?? "");
-        if (!a || !b) continue;
+        if (!a || !b || (a.external && b.external)) continue;
         const sourceDetail = `version:${relation.source_version_id}:${relation.source_node_id}`;
         const targetDetail = `version:${relation.target_version_id}:${relation.target_node_id}`;
-        const id = `cross:${relation.id}`;
-        if (relationMap.has(id)) continue;
-        graph.edges.push({
-          id,
-          source: details.has(sourceDetail) ? sourceDetail : `paper:${a.id}`,
-          target: details.has(targetDetail) ? targetDetail : `paper:${b.id}`,
-          type: relation.type,
-          label_zh: relationLabels[relation.type] ?? relation.type,
-          is_dashed: true,
+        const endpoints = JSON.stringify([
+          sourceDetail,
+          targetDetail,
+          relation.type,
+        ]);
+        const currentEdge = crossEdges.get(endpoints);
+        if (currentEdge) {
+          const currentFocused =
+            currentEdge.relation.id === focusedRelation?.id &&
+            currentEdge.report.id === focusedRelation?.reportId;
+          const nextFocused =
+            relation.id === focusedRelation?.id &&
+            report.id === focusedRelation?.reportId;
+          if (
+            currentFocused ||
+            (!nextFocused && currentEdge.report.created_at >= report.created_at)
+          )
+            continue;
+        }
+        addExternalRoot(a.external);
+        addExternalRoot(b.external);
+        crossEdges.set(endpoints, {
+          edge: {
+            id: `cross:${relation.id}`,
+            source: details.has(sourceDetail) ? sourceDetail : `paper:${a.id}`,
+            target: details.has(targetDetail) ? targetDetail : `paper:${b.id}`,
+            type: relation.type,
+            label_zh: relationLabels[relation.type] ?? relation.type,
+            is_dashed: true,
+            outside_topic: !!(a.external || b.external),
+          },
+          relation,
+          report,
         });
-        relationMap.set(id, { relation, report });
       }
     }
+    for (const { edge, relation, report } of crossEdges.values()) {
+      graph.edges.push(edge);
+      relationMap.set(edge.id, {
+        relation,
+        report,
+        outsideTopic: !!edge.outside_topic,
+      });
+    }
     return { graph, details, relationMap };
-  }, [papers, reports, expanded]);
+  }, [
+    papers,
+    reports,
+    expansion,
+    hiddenKinds,
+    focusedRelation,
+    externalPapers,
+  ]);
   const current = data.details.get(selected);
+  const detailText = current && knowledgeNodeText(current.node, language);
   const cross = data.relationMap.get(selectedEdge);
-  const stored = layout.data?.layout;
+  const stored = (editedLayout ?? layout.data)?.layout;
+
+  function selectNode(id: string) {
+    setSelected(id);
+    setSelectedEdge("");
+    const detail = data.details.get(id);
+    if (
+      detail &&
+      !detail.node.outside_topic &&
+      graphNodeKind(detail.node) === "PAPER" &&
+      expansion !== expandMapPage
+    )
+      setExpanded(detail.paperId);
+  }
+
+  function selectEdge(id: string) {
+    setSelectedEdge(id);
+    setSelected("");
+  }
+
+  function showGraphMenu(event: ContextMenuEvent, target: GraphContextTarget) {
+    if (target.kind === "node") {
+      const detail = data.details.get(target.id);
+      if (!detail) return;
+      openContextMenu(event, "知识地图节点操作", [
+        { label: "查看节点详情", action: () => selectNode(target.id) },
+        { label: "打开论文知识", action: () => onSelectPaper(detail.paperId) },
+        ...(!detail.node.outside_topic
+          ? [
+              {
+                label: target.pinned ? "取消固定节点" : "固定节点",
+                action: () =>
+                  setPinRequest((previous) => ({
+                    id: target.id,
+                    seq: (previous?.seq ?? 0) + 1,
+                  })),
+              },
+            ]
+          : []),
+      ]);
+      return;
+    }
+
+    if (target.kind === "edge") {
+      const connection = data.relationMap.get(target.id);
+      if (connection) {
+        openContextMenu(event, "知识地图关系操作", [
+          { label: "查看关系详情", action: () => selectEdge(target.id) },
+          {
+            label: "打开联系汇报",
+            action: () => onOpenReport(connection.report.id),
+          },
+        ]);
+      } else {
+        const edge = data.graph.edges.find((item) => item.id === target.id);
+        if (edge)
+          openContextMenu(event, "知识地图关系操作", [
+            { label: "查看起点", action: () => selectNode(edge.source) },
+            { label: "查看终点", action: () => selectNode(edge.target) },
+          ]);
+      }
+      return;
+    }
+
+    openContextMenu(event, "知识地图画布操作", [
+      { label: "聚焦图谱", action: () => setFit((value) => value + 1) },
+      {
+        label: fullscreenMode ? "退出全屏" : "全屏",
+        action: () => void toggleFullscreen(),
+      },
+    ]);
+  }
   return (
-    <div className="knowledge-map">
+    <div
+      className="knowledge-map"
+      ref={containerRef}
+      data-fullscreen={fullscreenMode ?? undefined}
+      role={fullscreenMode ? "dialog" : undefined}
+      aria-modal={fullscreenMode ? true : undefined}
+      aria-label={fullscreenMode ? "知识地图全屏" : undefined}
+    >
       <div className="knowledge-map-canvas">
         <div className="knowledge-map-toolbar">
-          <label>
+          {fullscreenMode && search !== undefined && (
+            <label className="knowledge-search knowledge-map-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                data-knowledge-search
+                aria-label="搜索知识库"
+                placeholder="搜索论文、研究问题与概念"
+                maxLength={300}
+                value={search}
+                onChange={(event) => onSearch(event.currentTarget.value)}
+              />
+            </label>
+          )}
+          <label className="knowledge-map-paper-choice">
             展开论文{" "}
             <select
               aria-label="展开论文"
-              value={papers.some((p) => p.id === expanded) ? expanded : ""}
+              value={expansion}
               onChange={(event) => {
-                setExpanded(event.target.value);
+                const choice = event.target.value;
+                setExpanded(choice);
+                setSelectedEdge("");
                 setSelected(
-                  event.target.value ? `paper:${event.target.value}` : "",
+                  choice && choice !== expandMapPage ? `paper:${choice}` : "",
                 );
               }}
             >
+              <option value={expandMapPage}>展开本页所有论文</option>
               <option value="">仅显示论文与汇总联系</option>
               {papers.map((paper) => (
                 <option key={paper.id} value={paper.id}>
@@ -372,15 +671,117 @@ function KnowledgeMap({
               ))}
             </select>
           </label>
-          <button
-            className="text-button"
-            onClick={() => setFit((value) => value + 1)}
+          <div
+            className="knowledge-map-tools"
+            role="group"
+            aria-label="图谱视图"
           >
-            聚焦图谱
-          </button>
+            <label>
+              节点语言
+              <select
+                value={language}
+                onChange={(event) => changeLanguage(event.target.value)}
+              >
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+                <option value="both">中英双语</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setFit((value) => value + 1)}
+            >
+              聚焦图谱
+            </button>
+            <button
+              ref={toggleRef}
+              type="button"
+              className="text-button"
+              onClick={toggleFullscreen}
+            >
+              {fullscreenMode ? (
+                <>
+                  <Minimize2 size={14} aria-hidden="true" /> 退出全屏
+                </>
+              ) : (
+                <>
+                  <Maximize2 size={14} aria-hidden="true" /> 全屏
+                </>
+              )}
+            </button>
+          </div>
+          <fieldset className="knowledge-map-kinds">
+            <legend className="sr-only">显示类型</legend>
+            <div>
+              <span aria-hidden="true">显示类型</span>
+              {mapKnowledgeKinds.map((kind) => {
+                const appearance = getGraphAppearance(kind);
+                return (
+                  <label key={kind}>
+                    <input
+                      type="checkbox"
+                      aria-label={`显示${appearance.label}`}
+                      checked={!hiddenKinds.has(kind)}
+                      style={{ accentColor: appearance.color }}
+                      onChange={() => {
+                        if (current && graphNodeKind(current.node) === kind)
+                          setSelected("");
+                        onToggleKind(kind);
+                      }}
+                    />
+                    {appearance.label}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          {collectionId && (
+            <div className="knowledge-topic-map-tools">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showTopicContext}
+                  disabled={!connected}
+                  onChange={(event) => {
+                    if (!event.currentTarget.checked) {
+                      if (current?.node.outside_topic) setSelected("");
+                      if (cross?.outsideTopic) setSelectedEdge("");
+                    }
+                    setShowExternal(event.currentTarget.checked);
+                  }}
+                />
+                显示专题外联系
+              </label>
+              {showTopicContext && !external.isError && (
+                <span role="status">
+                  {candidates?.ids.length && external.isPending
+                    ? "正在读取专题外联系…"
+                    : candidates?.limited || external.data?.has_more
+                      ? "当前页关联论文较多，地图仅预览部分专题外联系。"
+                      : data.graph.nodes.some((node) => node.outside_topic)
+                        ? "专题外论文只显示标题。"
+                        : "当前页暂无可显示的专题外联系。"}
+                </span>
+              )}
+              {showTopicContext && external.isError && (
+                <span role="alert">
+                  专题外联系读取失败：{errorText(external.error)}{" "}
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => void external.refetch()}
+                  >
+                    重试
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="knowledge-graph-view">
-          {layout.isPending ? (
+          {layout.isPending ||
+          (openedDuringSave && pendingSaves > 0 && !editedLayout) ? (
             <p role="status">正在读取地图…</p>
           ) : layout.isError ? (
             <p role="alert">地图布局读取失败：{errorText(layout.error)}</p>
@@ -395,58 +796,100 @@ function KnowledgeMap({
                   pan_x: stored?.viewport?.x ?? 0,
                   pan_y: stored?.viewport?.y ?? 0,
                 }}
-                selected={selected}
-                language="both"
+                selected={current ? selected : ""}
+                selectedEdge={cross ? selectedEdge : ""}
+                language={language}
+                appearance="knowledge"
                 reset={0}
-                pinRequest={null}
+                pinRequest={pinRequest}
                 viewKey={key}
                 fitRequest={fit}
-                onSelect={(id) => {
-                  setSelected(id);
-                  setSelectedEdge("");
-                  const item = data.details.get(id);
-                  if (item?.node.type === "PAPER") setExpanded(item.paper.id);
-                }}
-                onEdge={(id) => {
-                  setSelectedEdge(id);
-                  setSelected("");
-                }}
-                onPositions={(positions) => updateLayout({ positions })}
+                persistSettledPositions={!showTopicContext}
+                onSelect={selectNode}
+                onEdge={selectEdge}
+                onGraphContextMenu={showGraphMenu}
+                onPositions={(positions) =>
+                  updateLayout({
+                    positions: positions.filter(
+                      (position) =>
+                        data.details.has(position.node_id) &&
+                        !data.details.get(position.node_id)?.node.outside_topic,
+                    ),
+                  })
+                }
                 onViewport={(viewport) => updateLayout({ viewport })}
               />
             )
           )}
         </div>
         <div className="knowledge-map-legend" aria-label="知识地图图例">
-          {[
-            "PAPER",
-            "RESEARCH_QUESTION",
-            "CONCEPT",
-            "METHOD",
-            "CONTRIBUTION",
-            "FINDING",
-          ].map((kind) => (
-            <span key={kind}>
-              <i style={{ background: getGraphAppearance(kind).color }} />
-              {getGraphAppearance(kind).label}
-            </span>
-          ))}
-          <span>实线：论文内组织</span>
-          <span>虚线：AI 跨论文联系</span>
+          {["PAPER", ...mapKnowledgeKinds].map((kind) => {
+            const appearance = getGraphAppearance(kind);
+            return (
+              <span key={kind}>
+                <i
+                  style={{ background: appearance.color }}
+                  aria-hidden="true"
+                />
+                {appearance.label}
+              </span>
+            );
+          })}
+          <span>
+            <b className="knowledge-legend-line" aria-hidden="true" /> 实线 ·
+            论文内组织
+          </span>
+          <span>
+            <b className="knowledge-legend-line dashed" aria-hidden="true" />{" "}
+            虚线 · AI 跨论文联系
+          </span>
+          {showTopicContext && (
+            <>
+              <span>
+                <b
+                  className="knowledge-legend-line outside-topic"
+                  aria-hidden="true"
+                />{" "}
+                长短虚线 · 专题外联系
+              </span>
+              <span>
+                <i
+                  className="knowledge-legend-topic-paper"
+                  aria-hidden="true"
+                />{" "}
+                专题外论文
+              </span>
+            </>
+          )}
         </div>
         {save.isError && (
-          <p role="alert">布局保存失败：{errorText(save.error)}</p>
+          <p role="alert">
+            布局保存失败：{errorText(save.error)}{" "}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                if (latestLayout.current) save.mutate(latestLayout.current);
+              }}
+            >
+              重试保存布局
+            </button>
+          </p>
         )}
       </div>
       <aside className="knowledge-map-detail" aria-label="知识地图详情">
         {current ? (
           <>
             <span className="eyebrow">
-              {getGraphAppearance(current.node.type ?? "").label}
+              {current.node.outside_topic
+                ? "专题外论文"
+                : getGraphAppearance(current.node.type ?? "").label}
             </span>
-            <h3>{current.node.label_zh || current.node.label_en}</h3>
-            {current.node.label_en && (
-              <p className="muted">{current.node.label_en}</p>
+            <h3>{detailText?.primary}</h3>
+            {detailText?.secondary && (
+              <p className="muted" lang="en">
+                {detailText.secondary}
+              </p>
             )}
             <p>{current.node.description_zh}</p>
             {current.node.type === "CONTRIBUTION" && (
@@ -456,17 +899,21 @@ function KnowledgeMap({
             )}
             <button
               className="text-button"
-              onClick={() => onSelectPaper(current.paper.id)}
+              onClick={() => onSelectPaper(current.paperId)}
             >
               打开论文知识与阅读入口 <ArrowUpRight size={13} />
             </button>
-            {current.node.type !== "PAPER" && (
-              <SourceReferences refs={current.refs} />
+            {graphNodeKind(current.node) !== "PAPER" && current.version && (
+              <SourceReferences
+                refs={nodeReferences(current.node, current.version)}
+              />
             )}
           </>
         ) : cross ? (
           <>
-            <span className="eyebrow">AI 联系分析</span>
+            <span className="eyebrow">
+              {cross.outsideTopic ? "AI 联系分析 · 专题外联系" : "AI 联系分析"}
+            </span>
             <h3>
               {relationLabels[cross.relation.type] ?? cross.relation.type}
             </h3>
@@ -485,26 +932,33 @@ function KnowledgeMap({
               打开对应联系汇报 <ArrowUpRight size={13} />
             </button>
             <SourceReferences
-              label="新增论文依据"
+              label={
+                cross.relation.source_title
+                  ? `${cross.relation.source_title}的原文依据`
+                  : "新增论文依据"
+              }
               refs={cross.relation.source_refs ?? []}
             />
             <SourceReferences
-              label="已有论文依据"
+              label={
+                cross.relation.detail && cross.relation.target_title
+                  ? `${cross.relation.target_title}的原文依据`
+                  : "已有论文依据"
+              }
               refs={cross.relation.target_refs ?? []}
             />
           </>
         ) : (
           <>
-            <h3>从论文题名开始</h3>
+            <h3>选择知识节点</h3>
             <p className="muted">
-              点击论文展开五类知识；点击虚线核对双方依据。拖动、双击固定和缩放后会保存布局。
+              点击节点查看详情，点击虚线核对双方依据。右键可固定节点。
             </p>
-            <p className="muted">
-              当前显示 {papers.length} 篇论文；画布范围不决定后台分析范围。
-            </p>
+            <p className="muted">当前显示 {papers.length} 篇论文。</p>
           </>
         )}
       </aside>
+      {contextMenu}
     </div>
   );
 }
@@ -514,19 +968,33 @@ function KnowledgePaperPanel({
   loading,
   error,
   collections,
+  settings,
   connected,
   onClose,
   onOpenPaper,
+  onOpenReport,
+  onOpenTasks,
+  onAssignTopic,
   onSaved,
+  onArchive,
+  archiving,
+  archiveError,
 }: {
   paper?: KnowledgePaper;
   loading: boolean;
   error: unknown;
   collections: KnowledgeCollection[];
+  settings?: KnowledgeSettings;
   connected: boolean;
   onClose: () => void;
   onOpenPaper: Props["onOpenPaper"];
+  onOpenReport: (id: string) => void;
+  onOpenTasks: () => void;
+  onAssignTopic: (paper: KnowledgePaper) => void;
   onSaved: () => void;
+  onArchive: (id: string) => void;
+  archiving: boolean;
+  archiveError: Error | null;
 }) {
   return (
     <KnowledgeDialog title="论文知识" onClose={onClose}>
@@ -539,12 +1007,22 @@ function KnowledgePaperPanel({
           key={paper.id}
           paper={paper}
           collections={collections}
+          settings={settings}
           connected={connected}
           onOpenPaper={onOpenPaper}
+          onOpenReport={onOpenReport}
+          onOpenTasks={onOpenTasks}
+          onAssignTopic={onAssignTopic}
           onSaved={onSaved}
-          onRemoved={onClose}
+          onArchive={onArchive}
+          archiving={archiving}
         />
       ) : null}
+      {archiveError && (
+        <p role="alert" className="error-text">
+          {errorText(archiveError)}
+        </p>
+      )}
     </KnowledgeDialog>
   );
 }
@@ -552,31 +1030,52 @@ function KnowledgePaperPanel({
 function KnowledgePaperContents({
   paper,
   collections,
+  settings,
   connected,
   onOpenPaper,
+  onOpenReport,
+  onOpenTasks,
+  onAssignTopic,
   onSaved,
-  onRemoved,
+  onArchive,
+  archiving,
 }: {
   paper: KnowledgePaper;
   collections: KnowledgeCollection[];
+  settings?: KnowledgeSettings;
   connected: boolean;
   onOpenPaper: Props["onOpenPaper"];
+  onOpenReport: (id: string) => void;
+  onOpenTasks: () => void;
+  onAssignTopic: (paper: KnowledgePaper) => void;
   onSaved: () => void;
-  onRemoved: () => void;
+  onArchive: (id: string) => void;
+  archiving: boolean;
 }) {
   const [versionId, setVersionId] = useState(paper.current_version?.id ?? "");
   const [note, setNote] = useState(paper.note);
   const [allowNetwork, setAllowNetwork] = useState(false);
+  const openSource = useMutation({
+    mutationFn: async ({
+      projectId,
+      paperId,
+    }: {
+      projectId: string;
+      paperId: string;
+    }) => onOpenPaper(projectId, paperId),
+  });
   const version =
     paper.versions.find((item) => item.id === versionId) ??
     paper.current_version;
+  const canAnalyzeCurrent =
+    !paper.archived && version?.id === paper.current_version?.id;
+  const scope = settings && scopeLabels[settings.scope];
+  const collection =
+    settings?.scope === "collection"
+      ? collections.find((item) => item.id === settings.collection_id)
+      : undefined;
   const save = useMutation({
     mutationFn: () => knowledgeApi.updatePaper(paper.id, { note }),
-    onSuccess: onSaved,
-  });
-  const archive = useMutation({
-    mutationFn: () =>
-      knowledgeApi.updatePaper(paper.id, { archived: !paper.archived }),
     onSuccess: onSaved,
   });
   const adopt = useMutation({
@@ -584,26 +1083,27 @@ function KnowledgePaperContents({
       knowledgeApi.updatePaper(paper.id, { current_version_id: version!.id }),
     onSuccess: onSaved,
   });
-  const membership = useMutation({
-    mutationFn: ({ id, included }: { id: string; included: boolean }) =>
-      knowledgeApi.setCollection(id, paper.id, included),
-    onSuccess: onSaved,
-  });
   const connect = useMutation({
-    mutationFn: () =>
-      knowledgeApi.connect(version!.id, { allow_network: true }),
+    mutationFn: (forceRegenerate: boolean) =>
+      knowledgeApi.connect(version!.id, {
+        allow_network: true,
+        ...(forceRegenerate ? { force_regenerate: true } : {}),
+      }),
     onSuccess: () => {
       setAllowNetwork(false);
       onSaved();
     },
   });
-  const remove = useMutation({
-    mutationFn: () => knowledgeApi.deletePaper(paper.id),
-    onSuccess: () => {
-      onSaved();
-      onRemoved();
-    },
-  });
+  const result =
+    connect.data && "result" in connect.data ? connect.data.result : null;
+  const completedReportId =
+    connect.data?.status === "succeeded" &&
+    result &&
+    typeof result === "object" &&
+    "report_id" in result &&
+    typeof result.report_id === "string"
+      ? result.report_id
+      : null;
   return (
     <div className="knowledge-paper-detail">
       <h3>{paper.title}</h3>
@@ -612,8 +1112,19 @@ function KnowledgePaperContents({
           <button
             key={`${link.project_id}:${link.original_paper_id}`}
             className="button secondary"
-            disabled={!link.source_available || !link.paper_id}
-            onClick={() => onOpenPaper(link.project_id, link.paper_id!)}
+            disabled={
+              !connected ||
+              !link.source_available ||
+              !link.paper_id ||
+              openSource.isPending
+            }
+            onClick={() => {
+              if (link.paper_id)
+                openSource.mutate({
+                  projectId: link.project_id,
+                  paperId: link.paper_id,
+                });
+            }}
           >
             {link.source_available ? "返回论文阅读" : "原项目论文已移除"}
             <ArrowUpRight size={14} />
@@ -621,12 +1132,18 @@ function KnowledgePaperContents({
         ))}
         <button
           className="text-button"
-          disabled={archive.isPending}
-          onClick={() => archive.mutate()}
+          disabled={!connected || archiving || paper.archived}
+          onClick={() => onArchive(paper.id)}
         >
-          {paper.archived ? "取消归档" : "归档论文知识"}
+          {paper.archived ? "已归档" : "归档论文知识"}
         </button>
       </div>
+      {openSource.isPending && <p role="status">正在打开论文阅读…</p>}
+      {openSource.isError && (
+        <p role="alert" className="error-text">
+          无法打开论文阅读。{errorText(openSource.error)}
+        </p>
+      )}
       <label>
         知识版本{" "}
         <select
@@ -641,6 +1158,7 @@ function KnowledgePaperContents({
             <option key={item.id} value={item.id}>
               {date(item.created_at)} ·{" "}
               {item.source_kind === "model_parse" ? "模型解析" : "本地解析"}
+              {partialKnowledgeLabel(item) ? " · 部分知识" : ""}
               {item.id === paper.current_version?.id ? " · 当前版本" : ""}
             </option>
           ))}
@@ -656,10 +1174,17 @@ function KnowledgePaperContents({
         </button>
       )}
       <p className="quality-note">
-        {version?.evidence_status === "grounded"
-          ? "带来源知识：节点依据可回查。引用合法不等于科学结论已经验证。"
-          : "历史概览：尚无逐项原文定位，保留用于浏览，不参与强关系发布。"}
+        {partialKnowledgeLabel(version)
+          ? `${partialKnowledgeLabel(version)}：剩余内容通过原文来源校验，但不代表完整关系图。`
+          : version?.evidence_status === "grounded"
+            ? "带来源知识：节点依据可回查。引用合法不等于科学结论已经验证。"
+            : "历史概览：尚无逐项原文定位，保留用于浏览，不参与强关系发布。"}
       </p>
+      {localRecoveryAudit(version) && (
+        <p className="quality-note knowledge-partial-note" role="status">
+          此版本由本机恢复生成。联系分析会使用部分知识，请结合论文原文核对。
+        </p>
+      )}
       {version?.content.warnings?.map((warning) => (
         <p className="quality-note" key={warning}>
           {warning}
@@ -704,78 +1229,107 @@ function KnowledgePaperContents({
       {save.isSuccess && <p role="status">个人备注已保存。</p>}
       <fieldset>
         <legend>所属专题</legend>
-        {collections.length ? (
-          collections.map((collection) => (
-            <label className="knowledge-check" key={collection.id}>
-              <input
-                type="checkbox"
-                checked={paper.collection_ids.includes(collection.id)}
-                disabled={membership.isPending}
-                onChange={(event) =>
-                  membership.mutate({
-                    id: collection.id,
-                    included: event.target.checked,
-                  })
-                }
-              />
-              {collection.name}
-            </label>
-          ))
-        ) : (
-          <p className="muted">可在知识库工具栏新建专题。</p>
-        )}
+        <p className="muted">
+          {collections
+            .filter((topic) => paper.collection_ids.includes(topic.id))
+            .map((topic) => topic.name)
+            .join("、") || "未归入专题"}
+        </p>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={!connected || paper.archived}
+          onClick={() => onAssignTopic(paper)}
+        >
+          <FolderCog size={15} />
+          管理论文专题
+        </button>
       </fieldset>
       {version?.evidence_status === "grounded" && (
         <fieldset>
           <legend>与已有论文建立联系</legend>
+          <p className="knowledge-analysis-scope">
+            {settings
+              ? `本次分析范围 · ${scope}${collection ? ` · ${collection.name}` : ""} · 最多 ${settings.max_candidates} 篇候选`
+              : "正在读取联系分析设置"}
+          </p>
           <label className="knowledge-check">
             <input
               type="checkbox"
               checked={allowNetwork}
+              disabled={!canAnalyzeCurrent || !settings || connect.isPending}
               onChange={(event) => setAllowNetwork(event.target.checked)}
             />
             允许发送本版本及候选论文知识与依据进行联系分析
           </label>
-          <button
-            className="button primary"
-            disabled={!connected || !allowNetwork || connect.isPending}
-            onClick={() => connect.mutate()}
-          >
-            {connect.isPending ? "正在提交…" : "分析论文联系"}
-          </button>
+          <div className="knowledge-detail-actions">
+            <button
+              type="button"
+              className="button primary"
+              disabled={
+                !connected ||
+                !canAnalyzeCurrent ||
+                !settings ||
+                !allowNetwork ||
+                connect.isPending
+              }
+              onClick={() => connect.mutate(false)}
+            >
+              {connect.isPending && !connect.variables
+                ? "正在提交…"
+                : "分析论文联系"}
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={
+                !connected ||
+                !canAnalyzeCurrent ||
+                !settings ||
+                !allowNetwork ||
+                connect.isPending
+              }
+              onClick={() => connect.mutate(true)}
+            >
+              {connect.isPending && connect.variables
+                ? "正在提交…"
+                : "重新分析并生成详细汇报"}
+            </button>
+          </div>
+          {canAnalyzeCurrent ? (
+            <p className="muted">
+              普通分析可复用已有结果。重新分析按当前范围和预算另存汇报，可能产生模型费用。
+            </p>
+          ) : (
+            <p className="muted">联系分析使用未归档论文的当前知识版本。</p>
+          )}
           {connect.isSuccess && (
-            <p role="status">联系任务已提交，汇报会自动保存在知识库。</p>
+            <div className="knowledge-analysis-outcome" role="status">
+              {completedReportId ? (
+                <>
+                  已复用已有联系汇报。
+                  <button
+                    className="text-button"
+                    onClick={() => onOpenReport(completedReportId)}
+                  >
+                    打开已保存汇报
+                  </button>
+                </>
+              ) : active(connect.data.status) ? (
+                "联系任务已进入任务流程。完成后可查看汇报。"
+              ) : (
+                <>
+                  {statusLabels[connect.data.status] ?? "已有分析任务"}
+                  <button className="text-button" onClick={onOpenTasks}>
+                    查看任务记录
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </fieldset>
       )}
-      <details className="knowledge-remove">
-        <summary>永久移除知识库条目</summary>
-        <p className="muted">
-          将移除此条目的知识版本、相关联系与汇报，保留原研究项目中的论文。操作前引擎会创建本机数据库备份，已消费用量继续计入预算。
-        </p>
-        <button
-          className="button secondary"
-          disabled={remove.isPending}
-          onClick={() => {
-            if (
-              window.confirm(
-                `永久移除“${paper.title}”的知识版本和相关汇报？原研究项目中的论文仍保留，操作前创建本机备份。`,
-              )
-            )
-              remove.mutate();
-          }}
-        >
-          永久移除此论文知识
-        </button>
-      </details>
-      {[
-        save.error,
-        archive.error,
-        adopt.error,
-        membership.error,
-        connect.error,
-        remove.error,
-      ]
+      {[save.error, adopt.error, connect.error]
         .filter(Boolean)
         .map((item, index) => (
           <p key={index} role="alert" className="error-text">
@@ -839,16 +1393,67 @@ function KnowledgeReportContents({
   onUpdate: (body: { read?: boolean; pinned?: boolean; note?: string }) => void;
 }) {
   const [note, setNote] = useState(report.note);
-  const coverageLabels: Record<string, string> = {
-    eligible: "库内范围",
-    selected: "入选候选",
-    compared: "实际比较",
-    excluded_legacy: "排除历史概览",
-  };
+  const [pointedRelation, setPointedRelation] = useState<string | null>(null);
+  const [focusedRelation, setFocusedRelation] = useState<string | null>(null);
+  const relations = report.relations ?? [];
+  const relationNumbers = new Map(
+    relations.map((relation, index) => [relation.id, index + 1]),
+  );
+  const coverage = report.coverage;
+  const scopeName =
+    scopeLabels[coverage?.scope as keyof typeof scopeLabels] ?? "范围未记录";
   return (
     <article className="knowledge-report-detail">
       <div className="eyebrow">AI 联系分析 · {date(report.created_at)}</div>
       <h3>{report.title}</h3>
+      <p className="knowledge-report-coverage">
+        {statusLabels[report.status] ?? report.status} · {scopeName} · 实际比较{" "}
+        {String(coverage?.compared ?? "未知")} 篇 · 入选{" "}
+        {String(coverage?.selected ?? "未知")} 篇 · 库内范围{" "}
+        {String(coverage?.eligible ?? "未知")}
+        {typeof coverage?.excluded_legacy === "number" &&
+        coverage.excluded_legacy > 0
+          ? ` · 排除历史概览 ${coverage.excluded_legacy}`
+          : ""}
+      </p>
+      <p className="muted">
+        引文用于追溯来源。比较条件、指标和结论仍须对照原文。
+      </p>
+      {report.summary?.map((item, index) => (
+        <p className="knowledge-report-summary" key={index}>
+          {item.text_zh}
+          {!!item.relation_ids.length && (
+            <span className="knowledge-summary-links">
+              {item.relation_ids.map((id) => {
+                const number = relationNumbers.get(id);
+                if (!number) return null;
+                return (
+                  <a
+                    key={id}
+                    href={`#knowledge-relation-${id}`}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType === "mouse") setPointedRelation(id);
+                    }}
+                    onPointerLeave={() => setPointedRelation(null)}
+                    onFocus={() => setFocusedRelation(id)}
+                    onBlur={() => setFocusedRelation(null)}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      const relation = document.getElementById(
+                        `knowledge-relation-${id}`,
+                      );
+                      relation?.focus({ preventScroll: true });
+                      relation?.scrollIntoView?.({ block: "nearest" });
+                    }}
+                  >
+                    查看依据 {number}
+                  </a>
+                );
+              })}
+            </span>
+          )}
+        </p>
+      ))}
       <div className="knowledge-detail-actions">
         <button
           className="button secondary"
@@ -873,62 +1478,30 @@ function KnowledgeReportContents({
           此汇报依赖历史知识版本，更新后的论文需要单独分析，原报告予以保留。
         </p>
       )}
-      <div className="knowledge-coverage">
-        {Object.entries(coverageLabels).map(([key, label]) => (
-          <span key={key}>
-            {label}
-            <strong>{String(report.coverage?.[key] ?? "未知")}</strong>
-          </span>
-        ))}
-      </div>
-      <p className="muted">
-        {statusLabels[report.status] ?? report.status} · 比较范围：
-        {(
-          {
-            project: "同研究项目",
-            all: "全知识库",
-            collection: "指定专题",
-          } as Record<string, string>
-        )[String(report.coverage?.scope)] ??
-          String(report.coverage?.scope ?? "未记录")}
-      </p>
-      {report.summary?.map((item, index) => (
-        <p className="knowledge-report-summary" key={index}>
-          {item.text_zh}
-          {!!item.relation_ids.length && (
-            <span className="knowledge-summary-links">
-              {item.relation_ids.map((id) => (
-                <a
-                  key={id}
-                  href={`#knowledge-relation-${id}`}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    document
-                      .getElementById(`knowledge-relation-${id}`)
-                      ?.scrollIntoView({ block: "center" });
-                  }}
-                >
-                  查看依据
-                </a>
-              ))}
-            </span>
-          )}
-        </p>
-      ))}
-      {report.relations?.map((relation) => {
+      {relations.map((relation, index) => {
         const target = papers.find((paper) =>
           paper.versions.some(
             (version) => version.id === relation.target_version_id,
           ),
         );
+        const sourceId =
+          relation.source_library_paper_id ?? report.library_paper_id;
         const targetId = relation.target_library_paper_id ?? target?.id;
+        const sourceTitle = relation.source_title ?? "新增论文";
+        const targetTitle =
+          relation.target_title ?? target?.title ?? "已有论文";
         return (
           <section
             className="knowledge-relation"
             id={`knowledge-relation-${relation.id}`}
             key={relation.id}
+            tabIndex={-1}
+            data-preview={(pointedRelation ?? focusedRelation) === relation.id}
           >
-            <h4>{relationLabels[relation.type] ?? relation.type}</h4>
+            <h4>
+              关系 {index + 1} ·{" "}
+              {relationLabels[relation.type] ?? relation.type}
+            </h4>
             <button
               className="text-button"
               disabled={report.stale}
@@ -937,39 +1510,73 @@ function KnowledgeReportContents({
               在知识地图中定位这条联系 <ArrowUpRight size={13} />
             </button>
             <p>{relation.explanation_zh ?? relation.explanation}</p>
-            <p className="quality-note">
-              限制与差异：
-              {String(
-                relation.limitations_zh ??
-                  relation.limitations ??
-                  "未提供额外说明，请核对双方条件。",
-              )}
-            </p>
-            <div className="knowledge-relation-sources">
+            {relation.detail ? (
+              <dl className="knowledge-relation-detail">
+                <div>
+                  <dt>两篇论文的对应点</dt>
+                  <dd>{relation.detail.comparison_zh}</dd>
+                </div>
+                <div>
+                  <dt>适用条件与差异</dt>
+                  <dd>{relation.detail.conditions_zh}</dd>
+                </div>
+                {relation.detail.follow_up_zh && (
+                  <div>
+                    <dt>AI 提出的待核查问题</dt>
+                    <dd>{relation.detail.follow_up_zh}</dd>
+                  </div>
+                )}
+              </dl>
+            ) : (
+              <p className="quality-note">
+                限制与差异：
+                {String(
+                  relation.limitations_zh ??
+                    relation.limitations ??
+                    "未提供额外说明，请核对双方条件。",
+                )}
+              </p>
+            )}
+            <div
+              className="knowledge-relation-sources"
+              aria-label={relation.detail ? "详细关系总结" : "双方论文依据"}
+            >
               <div>
+                <h5>{sourceTitle}</h5>
+                {relation.detail && <p>{relation.detail.source_zh}</p>}
                 <button
                   className="text-button"
-                  disabled={!report.library_paper_id}
-                  onClick={() => onOpenPaper(report.library_paper_id!)}
+                  disabled={!sourceId}
+                  onClick={() => sourceId && onOpenPaper(sourceId)}
                 >
-                  在知识地图中打开新增论文
+                  在知识地图中打开{sourceTitle}
                 </button>
                 <SourceReferences
-                  label="新增论文依据"
+                  label={
+                    relation.source_title
+                      ? `${sourceTitle}的原文依据`
+                      : "新增论文依据"
+                  }
                   refs={relation.source_refs ?? []}
                 />
               </div>
               <div>
+                <h5>{targetTitle}</h5>
+                {relation.detail && <p>{relation.detail.target_zh}</p>}
                 <button
                   className="text-button"
                   disabled={!targetId}
                   onClick={() => targetId && onOpenPaper(targetId)}
                 >
                   在知识地图中打开
-                  {String(relation.target_title ?? target?.title ?? "已有论文")}
+                  {targetTitle}
                 </button>
                 <SourceReferences
-                  label="已有论文依据"
+                  label={
+                    relation.detail && relation.target_title
+                      ? `${targetTitle}的原文依据`
+                      : "已有论文依据"
+                  }
                   refs={relation.target_refs ?? []}
                 />
               </div>
@@ -1156,6 +1763,13 @@ function KnowledgeSettingsDialog({
   onSaved: () => void;
 }) {
   const [value, setValue] = useState(settings);
+  const lastFinite = useRef({
+    max_candidates: settings.max_candidates,
+    max_requests_per_run: settings.max_requests_per_run ?? 2,
+    max_input_tokens: settings.max_input_tokens ?? 48000,
+    max_output_tokens: settings.max_output_tokens ?? 6000,
+    total_request_limit: settings.total_request_limit,
+  });
   const save = useMutation({
     mutationFn: () => knowledgeApi.saveSettings(value),
     onSuccess: onSaved,
@@ -1172,6 +1786,7 @@ function KnowledgeSettingsDialog({
     label: string;
     min: number;
     max?: number;
+    allowUnlimited?: boolean;
   }[] = [
     { key: "max_candidates", label: "每篇最多候选论文", min: 1, max: 50 },
     {
@@ -1179,18 +1794,21 @@ function KnowledgeSettingsDialog({
       label: "每次分析最多请求数",
       min: 1,
       max: 8,
+      allowUnlimited: true,
     },
     {
       key: "max_input_tokens",
       label: "单次输入 Token 预算",
       min: 1024,
       max: 2000000,
+      allowUnlimited: true,
     },
     {
       key: "max_output_tokens",
       label: "单次输出 Token 预算",
       min: 256,
       max: 200000,
+      allowUnlimited: true,
     },
     {
       key: "total_request_limit",
@@ -1208,7 +1826,7 @@ function KnowledgeSettingsDialog({
         }}
       >
         <p className="muted">
-          策略保存后仅对后续事件生效。浏览、搜索、布局和打开报告均不调用模型。
+          关闭后会撤回对应自动任务中尚未发送的请求，重新开启不会恢复已撤销的任务。已发送的请求可能产生费用。
         </p>
         <label className="knowledge-check">
           <input
@@ -1281,21 +1899,45 @@ function KnowledgeSettingsDialog({
           </label>
         )}
         <div className="knowledge-settings-grid">
-          {numeric.map(({ key, label, min, max }) => (
-            <label key={key}>
-              {label}
+          {numeric.map(({ key, label, min, max, allowUnlimited }) => (
+            <div className="knowledge-budget-control" key={key}>
+              <label htmlFor={`knowledge-setting-${key}`}>{label}</label>
               <input
+                id={`knowledge-setting-${key}`}
+                aria-label={label}
                 required
                 type="number"
                 min={min}
                 max={max}
                 step={1}
-                value={value[key]}
+                disabled={value[key] === null}
+                value={value[key] ?? ""}
                 onChange={(event) =>
                   setValue({ ...value, [key]: Number(event.target.value) })
                 }
               />
-            </label>
+              {allowUnlimited && (
+                <label className="knowledge-check">
+                  <input
+                    type="checkbox"
+                    aria-label={`${label}无上限`}
+                    checked={value[key] === null}
+                    onChange={(event) => {
+                      const current = value[key];
+                      if (event.target.checked && current !== null)
+                        lastFinite.current[key] = current;
+                      setValue({
+                        ...value,
+                        [key]: event.target.checked
+                          ? null
+                          : lastFinite.current[key],
+                      });
+                    }}
+                  />
+                  无上限
+                </label>
+              )}
+            </div>
           ))}
         </div>
         {(value.auto_collect || value.auto_connect) && !value.allow_network && (
@@ -1304,7 +1946,8 @@ function KnowledgeSettingsDialog({
           </p>
         )}
         <p className="muted">
-          候选数是本次优先比较范围，不代表穷尽全库。超出预算会暂停，不自动扩大费用。
+          无上限仍受模型上下文容量、输出能力和知识库累计请求上限约束。
+          候选数是本次优先比较范围，不代表穷尽全库。超出预算会暂停。
         </p>
         <button
           className="button primary"
@@ -1328,7 +1971,7 @@ function KnowledgeSettingsDialog({
 type Props = {
   connected: boolean;
   projects: Project[];
-  onOpenPaper: (projectId: string, paperId: string) => void;
+  onOpenPaper: (projectId: string, paperId: string) => void | Promise<void>;
   onOpenTasks: () => void;
 };
 
@@ -1339,36 +1982,89 @@ export function ResearchKnowledgeBase({
   onOpenTasks,
 }: Props) {
   const client = useQueryClient();
+  const { contextMenuProps, contextMenu } = useContextMenu();
   const [tab, setTab] = useState<"map" | "papers" | "reports">(() => {
-    const saved = localStorage.getItem("rgs.knowledge.tab");
-    return saved === "map" || saved === "papers" ? saved : "reports";
+    try {
+      const saved = localStorage.getItem("rgs.knowledge.tab");
+      if (saved === "map" || saved === "papers") return saved;
+    } catch {
+      // Keep the workbench available without saved preferences.
+    }
+    return "reports";
   });
   const [projectId, setProjectId] = useState("");
   const [collectionId, setCollectionId] = useState("");
   const [search, setSearch] = useState("");
-  const [archived, setArchived] = useState(false);
   const [offset, setOffset] = useState(0);
   const [reportOffset, setReportOffset] = useState(0);
   const [selectedPaper, setSelectedPaper] = useState("");
   const [selectedReport, setSelectedReport] = useState("");
-  const [mapFocus, setMapFocus] = useState("");
-  const [mapOtherFocus, setMapOtherFocus] = useState("");
-  const [mapRelation, setMapRelation] = useState("");
+  const [mapLookup, setMapLookup] = useState<MapLookup | null>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const focusAfterLookup = useRef(false);
+  useEffect(() => {
+    const focusSearch = () => {
+      const fullscreenSearch = document.querySelector<HTMLInputElement>(
+        "[data-fullscreen] [data-knowledge-search]",
+      );
+      const input = fullscreenSearch ?? searchInput.current;
+      input?.focus();
+      input?.select();
+    };
+    if (focusAfterLookup.current && !mapLookup) {
+      focusAfterLookup.current = false;
+      focusSearch();
+    }
+    const onKey = (event: KeyboardEvent) => {
+      handleWorkspaceFind(event, () => {
+        if (mapLookup) {
+          focusAfterLookup.current = true;
+          setMapLookup(null);
+        } else {
+          focusSearch();
+        }
+      });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mapLookup]);
+  const mapFocus = mapLookup?.paperId ?? "";
+  const mapOtherFocus = mapLookup?.otherPaperId ?? "";
+  const mapRelation = mapLookup?.relation ?? null;
+  const activeTab = mapLookup ? "map" : tab;
+  const [hiddenMapKinds, setHiddenMapKinds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [collectionOpen, setCollectionOpen] = useState(false);
-  const [collectionName, setCollectionName] = useState("");
+  const [topicDialog, setTopicDialog] = useState<"manage" | "create" | null>(
+    null,
+  );
+  const [topicPaper, setTopicPaper] = useState<KnowledgePaper | null>(null);
   const [notice, setNotice] = useState("");
   const refresh = () => {
     void client.invalidateQueries({ queryKey: ["knowledge"] });
     void client.invalidateQueries({ queryKey: ["jobs"] });
     void client.invalidateQueries({ queryKey: ["lite-usage"] });
   };
+  const archiveKnowledge = useMutation({
+    mutationFn: (id: string) => archiveApi.stage("knowledge_paper", id),
+    onSuccess: (item) => {
+      setSelectedPaper("");
+      setNotice(`「${item.title}」已移至归档管理。`);
+      refresh();
+      void client.invalidateQueries({ queryKey: ["archive"] });
+    },
+  });
+  function stageKnowledgePaper(id: string) {
+    archiveKnowledge.mutate(id);
+  }
   const library = useQuery({
     queryKey: ["knowledge", "library"],
     queryFn: knowledgeApi.library,
     enabled: connected,
   });
+  const pageSize = tab === "map" ? mapPageSize : paperPageSize;
   const papers = useQuery({
     queryKey: [
       "knowledge",
@@ -1376,16 +2072,16 @@ export function ResearchKnowledgeBase({
       projectId,
       collectionId,
       search,
-      archived,
       offset,
+      pageSize,
     ],
     queryFn: () =>
       knowledgeApi.papers({
         project_id: projectId,
         collection_id: collectionId,
         search,
-        include_archived: archived,
         offset,
+        limit: pageSize,
       }),
     enabled: connected,
     refetchInterval: 5000,
@@ -1446,7 +2142,7 @@ export function ResearchKnowledgeBase({
   });
   const runs = useQuery({
     queryKey: ["knowledge", "runs"],
-    queryFn: knowledgeApi.runs,
+    queryFn: () => knowledgeApi.runs(),
     enabled: connected,
     refetchInterval: 3000,
   });
@@ -1470,15 +2166,6 @@ export function ResearchKnowledgeBase({
     }) => knowledgeApi.updateReport(id, body),
     onSuccess: refresh,
   });
-  const createCollection = useMutation({
-    mutationFn: () => knowledgeApi.createCollection(collectionName.trim()),
-    onSuccess: (value) => {
-      setCollectionId(value.id);
-      setCollectionName("");
-      setCollectionOpen(false);
-      refresh();
-    },
-  });
   const exportLibrary = useMutation({
     mutationFn: knowledgeApi.export,
     onSuccess: downloadJson,
@@ -1491,19 +2178,31 @@ export function ResearchKnowledgeBase({
     },
   });
   const selectTab = (value: typeof tab) => {
+    setMapLookup(null);
+    if (tab !== value) setOffset(0);
     setTab(value);
-    localStorage.setItem("rgs.knowledge.tab", value);
+    try {
+      localStorage.setItem("rgs.knowledge.tab", value);
+    } catch {
+      // Keep the in-memory tab when local storage is unavailable.
+    }
   };
   const items = papers.data?.items ?? [];
-  const mapPapers = [
-    ...new Map(
-      [
-        ...items,
-        ...(focusedPaper.data ? [focusedPaper.data] : []),
-        ...(otherFocusedPaper.data ? [otherFocusedPaper.data] : []),
-      ].map((paper) => [paper.id, paper]),
-    ).values(),
-  ];
+  const mapLookupIds = [...new Set([mapFocus, mapOtherFocus].filter(Boolean))];
+  const mapPapers = mapLookup
+    ? mapLookupIds
+        .map(
+          (id) =>
+            items.find((paper) => paper.id === id) ??
+            [focusedPaper.data, otherFocusedPaper.data].find(
+              (paper) => paper?.id === id,
+            ),
+        )
+        .filter((paper): paper is KnowledgePaper => !!paper)
+    : items;
+  const mapViewKey = mapLookup
+    ? `locate:${mapLookupIds.join(":")}`
+    : `${projectId || "all"}:${collectionId || "all"}`;
   const allReports = reports.data?.items ?? [];
   const visibleReports = allReports
     .filter(
@@ -1526,6 +2225,11 @@ export function ResearchKnowledgeBase({
     if (!report.read)
       updateReport.mutate({ id: report.id, body: { read: true } });
   };
+  const openReportById = (id: string) => {
+    const report = allReports.find((item) => item.id === id);
+    if (report) openReport(report);
+    else setSelectedReport(id);
+  };
   const filters = (update: () => void) => {
     update();
     setOffset(0);
@@ -1538,7 +2242,6 @@ export function ResearchKnowledgeBase({
     <section className="research-knowledge-base" aria-label="研究内容知识库">
       <header className="knowledge-header">
         <div>
-          <div className="eyebrow">RESEARCH KNOWLEDGE</div>
           <h1>研究内容知识库</h1>
           <p>保存论文中的研究知识，让每次阅读与过去的积累建立联系。</p>
         </div>
@@ -1618,8 +2321,8 @@ export function ResearchKnowledgeBase({
         ).map(([value, label, Icon]) => (
           <button
             key={value}
-            className={tab === value ? "active" : ""}
-            aria-current={tab === value ? "page" : undefined}
+            className={activeTab === value ? "active" : ""}
+            aria-current={activeTab === value ? "page" : undefined}
             onClick={() => selectTab(value)}
           >
             <Icon size={16} />
@@ -1630,104 +2333,101 @@ export function ResearchKnowledgeBase({
           </button>
         ))}
       </nav>
-      <div className="knowledge-filters">
-        <label className="knowledge-search">
-          <Search size={15} />
-          <input
-            aria-label="搜索知识库"
-            value={search}
-            onChange={(event) => filters(() => setSearch(event.target.value))}
-            placeholder="搜索论文、研究问题与概念"
-          />
-        </label>
-        <label>
-          <span className="sr-only">研究项目筛选</span>
-          <select
-            aria-label="研究项目筛选"
-            value={projectId}
-            onChange={(event) =>
-              filters(() => setProjectId(event.target.value))
-            }
+      {mapLookup ? (
+        <div className="knowledge-locator-bar">
+          <span>正在定位汇报中的论文知识</span>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => {
+              setMapLookup(null);
+              setSelectedReport(mapLookup.reportId);
+            }}
           >
-            <option value="">全部研究项目</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="sr-only">专题筛选</span>
-          <select
-            aria-label="专题筛选"
-            value={collectionId}
-            onChange={(event) =>
-              filters(() => setCollectionId(event.target.value))
-            }
-          >
-            <option value="">全部专题</option>
-            {collections.data?.items.map((collection) => (
-              <option key={collection.id} value={collection.id}>
-                {collection.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="text-button"
-          onClick={() => setCollectionOpen(!collectionOpen)}
+            返回联系汇报
+          </button>
+        </div>
+      ) : (
+        <div
+          className="knowledge-filters"
+          role="group"
+          aria-label="知识库浏览筛选"
         >
-          <FolderPlus size={14} />
-          新建专题
-        </button>
-        {tab !== "reports" && (
-          <label className="knowledge-check">
+          <label className="knowledge-search">
+            <Search size={15} />
             <input
-              type="checkbox"
-              checked={archived}
-              onChange={(event) =>
-                filters(() => setArchived(event.target.checked))
+              ref={searchInput}
+              type="search"
+              aria-label="搜索知识库"
+              aria-keyshortcuts="Control+F"
+              maxLength={300}
+              value={search}
+              onChange={(event) => filters(() => setSearch(event.target.value))}
+              placeholder={
+                tab === "reports"
+                  ? "搜索汇报标题或摘要"
+                  : "搜索论文、研究问题与概念"
               }
             />
-            包括已归档
           </label>
-        )}
-      </div>
-      {collectionOpen && (
-        <form
-          className="knowledge-inline-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            createCollection.mutate();
-          }}
-        >
-          <input
-            autoFocus
-            aria-label="专题名称"
-            placeholder="专题名称"
-            maxLength={120}
-            value={collectionName}
-            onChange={(event) => setCollectionName(event.target.value)}
-          />
-          <button
-            className="button secondary"
-            disabled={!collectionName.trim() || createCollection.isPending}
-          >
-            创建专题
-          </button>
+          <label>
+            <span className="sr-only">研究项目筛选</span>
+            <select
+              aria-label="研究项目筛选"
+              value={projectId}
+              onChange={(event) =>
+                filters(() => setProjectId(event.target.value))
+              }
+            >
+              <option value="">全部研究项目</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">专题筛选</span>
+            <select
+              aria-label="专题筛选"
+              value={collectionId}
+              onChange={(event) =>
+                filters(() => setCollectionId(event.target.value))
+              }
+            >
+              <option value="">全部专题</option>
+              {collections.data?.items.map((collection) => (
+                <option key={collection.id} value={collection.id}>
+                  {collection.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             className="text-button"
-            onClick={() => setCollectionOpen(false)}
+            disabled={!connected}
+            onClick={() => setTopicDialog("create")}
           >
-            取消
+            <FolderPlus size={14} />
+            新建专题
           </button>
-        </form>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={!connected}
+            onClick={() => setTopicDialog("manage")}
+          >
+            <FolderCog size={15} />
+            专题管理
+          </button>
+        </div>
       )}
       {[
         library.error,
         papers.error,
+        !selectedPaper ? archiveKnowledge.error : null,
         collections.error,
         reports.error,
         usage.error,
@@ -1736,7 +2436,6 @@ export function ResearchKnowledgeBase({
         otherFocusedPaper.error,
         runs.error,
         updateReport.error,
-        createCollection.error,
         exportLibrary.error,
         retry.error,
       ]
@@ -1757,14 +2456,48 @@ export function ResearchKnowledgeBase({
             {running.length ? "查看正在处理的知识任务" : "最近知识任务"}
           </summary>
           {runs.data.items.slice(0, 5).map((run) => (
-            <div key={run.id}>
+            <div
+              className="knowledge-run-row"
+              id={`knowledge-run-${run.id}`}
+              key={run.id}
+            >
               <span>
                 {run.kind === "extract" ? "论文知识建模" : "论文联系分析"} ·{" "}
                 {statusLabels[run.status] ?? run.status}
                 {typeof run.request_count === "number" &&
-                  ` · 已发送 ${run.request_count} / 预算 ${run.max_requests ?? "未知"} 次请求`}
+                  ` · 已发送 ${run.request_count} / 预算 ${run.max_requests === null ? "无上限" : (run.max_requests ?? "未知")} 次请求`}
               </span>
-              {run.error && <span className="error-text">{run.error}</span>}
+              {run.error && !run.local_recovery?.available && (
+                <button className="text-button" onClick={onOpenTasks}>
+                  查看任务记录中的错误原因
+                </button>
+              )}
+              {run.error && inputBudgetExceeded(run.error) && (
+                <button
+                  className="text-button"
+                  disabled={!connected || !library.data}
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  调整知识库预算
+                </button>
+              )}
+              {run.kind === "extract" &&
+                run.status === "failed" &&
+                run.local_recovery?.available && (
+                  <button
+                    className="text-button"
+                    disabled={!connected}
+                    onClick={onOpenTasks}
+                  >
+                    查看任务记录与本机恢复
+                  </button>
+                )}
+              {run.kind === "extract" &&
+                run.local_recovery?.published_version_id && (
+                  <span className="knowledge-partial-badge">
+                    已本机恢复为部分知识
+                  </span>
+                )}
               {["failed", "interrupted", "paused"].includes(run.status) && (
                 <button
                   className="text-button"
@@ -1789,53 +2522,107 @@ export function ResearchKnowledgeBase({
         </details>
       )}
       {papers.isPending && <p role="status">正在读取本机知识库…</p>}
-      {tab === "map" ? (
+      {activeTab === "map" ? (
         <KnowledgeMap
-          key={`${projectId}:${collectionId}:${mapFocus}:${mapRelation}`}
+          key={`${mapViewKey}:${mapRelation?.id ?? ""}:${mapRelation?.reportId ?? ""}`}
           focusedPaper={mapFocus}
           focusedRelation={mapRelation}
-          onOpenReport={(id) => {
-            const report = allReports.find((item) => item.id === id);
-            if (report) openReport(report);
-            else setSelectedReport(id);
-          }}
+          onOpenReport={openReportById}
           papers={mapPapers}
           reports={allReports}
           connected={connected}
-          viewKey={`${projectId || "all"}:${collectionId || "all"}`}
+          collectionId={mapLookup ? "" : collectionId}
+          search={mapLookup ? undefined : search}
+          onSearch={(value) => filters(() => setSearch(value))}
+          viewKey={mapViewKey}
+          hiddenKinds={hiddenMapKinds}
+          onToggleKind={(kind) => {
+            setHiddenMapKinds((current) => {
+              const next = new Set(current);
+              if (next.has(kind)) next.delete(kind);
+              else next.add(kind);
+              return next;
+            });
+          }}
           onSelectPaper={setSelectedPaper}
         />
-      ) : tab === "papers" ? (
+      ) : activeTab === "papers" ? (
         <div className="knowledge-paper-list">
           {items.map((paper) => (
-            <button
-              className={`knowledge-paper-row${selectedPaper === paper.id ? " selected" : ""}`}
+            <div
+              className="knowledge-paper-entry"
               key={paper.id}
-              onClick={() => setSelectedPaper(paper.id)}
+              role="group"
+              aria-label={paper.title}
             >
-              <span className="knowledge-paper-icon">
-                <Library size={18} />
-              </span>
-              <span className="knowledge-paper-title">
-                <strong>{paper.title}</strong>
-                <small>
-                  {paper.current_version?.evidence_status === "grounded"
-                    ? "带来源知识"
-                    : "历史概览 · 尚无逐项来源"}
-                  {paper.archived ? " · 已归档" : ""}
-                  {paper.current_version
-                    ? ` · ${date(paper.current_version.created_at)}`
-                    : ""}
-                </small>
-              </span>
-              <span className="knowledge-row-count">
-                {paper.current_version?.content.graph?.nodes.filter(
-                  (node) => node.type !== "PAPER",
-                ).length ?? 0}{" "}
-                项知识
-              </span>
-              <ArrowUpRight size={15} />
-            </button>
+              <button
+                className={`knowledge-paper-row${selectedPaper === paper.id ? " selected" : ""}`}
+                {...contextMenuProps("论文知识操作", [
+                  {
+                    label: "打开论文知识",
+                    action: () => setSelectedPaper(paper.id),
+                  },
+                  {
+                    label: "管理论文专题",
+                    action: () => setTopicPaper(paper),
+                    disabled: !connected || paper.archived,
+                  },
+                  {
+                    label: "归档论文知识",
+                    action: () => stageKnowledgePaper(paper.id),
+                    disabled:
+                      !connected ||
+                      paper.archived ||
+                      archiveKnowledge.isPending,
+                  },
+                ])}
+                onClick={() => setSelectedPaper(paper.id)}
+              >
+                <span className="knowledge-paper-icon">
+                  <Library size={18} />
+                </span>
+                <span className="knowledge-paper-title">
+                  <strong>{paper.title}</strong>
+                  <small>
+                    {partialKnowledgeLabel(paper.current_version) ||
+                      (paper.current_version?.evidence_status === "grounded"
+                        ? "带来源知识"
+                        : "历史概览 · 尚无逐项来源")}
+                    {paper.archived ? " · 已归档" : ""}
+                    {paper.current_version
+                      ? ` · ${date(paper.current_version.created_at)}`
+                      : ""}
+                  </small>
+                  {!!paper.collection_ids.length && (
+                    <small className="knowledge-paper-topics">
+                      专题 ·{" "}
+                      {collections.data?.items
+                        .filter((topic) =>
+                          paper.collection_ids.includes(topic.id),
+                        )
+                        .map((topic) => topic.name)
+                        .join("、") || "—"}
+                    </small>
+                  )}
+                </span>
+                <span className="knowledge-row-count">
+                  {paper.current_version?.content.graph?.nodes.filter(
+                    (node) => node.type !== "PAPER",
+                  ).length ?? 0}{" "}
+                  项知识
+                </span>
+                <ArrowUpRight size={15} />
+              </button>
+              <button
+                type="button"
+                className="text-button knowledge-paper-assign"
+                disabled={!connected || paper.archived}
+                onClick={() => setTopicPaper(paper)}
+              >
+                <FolderCog size={15} />
+                管理专题
+              </button>
+            </div>
           ))}
         </div>
       ) : (
@@ -1851,6 +2638,27 @@ export function ResearchKnowledgeBase({
               <button
                 key={report.id}
                 className={`knowledge-report-row${report.read ? "" : " unread"}`}
+                {...contextMenuProps("联系汇报操作", [
+                  { label: "打开联系汇报", action: () => openReport(report) },
+                  {
+                    label: report.read ? "标为未读" : "标为已读",
+                    action: () =>
+                      updateReport.mutate({
+                        id: report.id,
+                        body: { read: !report.read },
+                      }),
+                    disabled: !connected || updateReport.isPending,
+                  },
+                  {
+                    label: report.pinned ? "取消置顶" : "置顶汇报",
+                    action: () =>
+                      updateReport.mutate({
+                        id: report.id,
+                        body: { pinned: !report.pinned },
+                      }),
+                    disabled: !connected || updateReport.isPending,
+                  },
+                ])}
                 onClick={() => openReport(report)}
               >
                 <span className="knowledge-report-date">
@@ -1874,7 +2682,8 @@ export function ResearchKnowledgeBase({
             ))}
         </div>
       )}
-      {!papers.isPending &&
+      {!mapLookup &&
+        !papers.isPending &&
         ((tab !== "reports" && !items.length) ||
           (tab === "reports" && !visibleReports.length)) && (
           <div className="knowledge-empty">
@@ -1897,29 +2706,32 @@ export function ResearchKnowledgeBase({
             </button>
           </div>
         )}
-      {tab !== "reports" && (papers.data?.total ?? 0) > 50 && (
-        <div className="knowledge-pagination">
-          <span>
-            显示 {offset + 1}–{Math.min(offset + 50, papers.data?.total ?? 0)} /{" "}
-            {papers.data?.total}
-          </span>
-          <button
-            className="text-button"
-            disabled={!offset}
-            onClick={() => setOffset(Math.max(0, offset - 50))}
-          >
-            上一页
-          </button>
-          <button
-            className="text-button"
-            disabled={offset + 50 >= (papers.data?.total ?? 0)}
-            onClick={() => setOffset(offset + 50)}
-          >
-            下一页
-          </button>
-        </div>
-      )}
-      {tab === "reports" && visibleReports.length > 50 && (
+      {!mapLookup &&
+        tab !== "reports" &&
+        (papers.data?.total ?? 0) > pageSize && (
+          <div className="knowledge-pagination">
+            <span>
+              显示 {offset + 1}–
+              {Math.min(offset + pageSize, papers.data?.total ?? 0)} /{" "}
+              {papers.data?.total}
+            </span>
+            <button
+              className="text-button"
+              disabled={!offset}
+              onClick={() => setOffset(Math.max(0, offset - pageSize))}
+            >
+              上一页
+            </button>
+            <button
+              className="text-button"
+              disabled={offset + pageSize >= (papers.data?.total ?? 0)}
+              onClick={() => setOffset(offset + pageSize)}
+            >
+              下一页
+            </button>
+          </div>
+        )}
+      {!mapLookup && tab === "reports" && visibleReports.length > 50 && (
         <div className="knowledge-pagination">
           <span>
             显示 {reportOffset + 1}–
@@ -1948,10 +2760,65 @@ export function ResearchKnowledgeBase({
           loading={detail.isPending}
           error={detail.error}
           collections={collections.data?.items ?? []}
+          settings={library.data?.settings}
           connected={connected}
           onClose={() => setSelectedPaper("")}
           onOpenPaper={onOpenPaper}
+          onOpenReport={(id) => {
+            setSelectedPaper("");
+            openReportById(id);
+          }}
+          onOpenTasks={onOpenTasks}
+          onAssignTopic={setTopicPaper}
           onSaved={refresh}
+          onArchive={stageKnowledgePaper}
+          archiving={archiveKnowledge.isPending}
+          archiveError={archiveKnowledge.error}
+        />
+      )}
+      {topicPaper && (
+        <PaperTopicAssignment
+          key={topicPaper.id}
+          paper={topicPaper}
+          topics={collections.data?.items ?? []}
+          selectedId={collectionId}
+          onClose={() => setTopicPaper(null)}
+          onCreate={() => {
+            setTopicPaper(null);
+            setTopicDialog("create");
+          }}
+          onSaved={(message) => {
+            setTopicPaper(null);
+            setNotice(message);
+            setOffset(0);
+            refresh();
+          }}
+        />
+      )}
+      {topicDialog && (
+        <TopicManagement
+          connected={connected}
+          selectedId={collectionId}
+          create={topicDialog === "create"}
+          onClose={() => setTopicDialog(null)}
+          onBrowse={(id) => {
+            setTopicDialog(null);
+            filters(() => {
+              setCollectionId(id);
+              setSearch("");
+            });
+          }}
+          onChanged={() => {
+            setOffset(0);
+            setReportOffset(0);
+            refresh();
+          }}
+          onArchived={(id, name) => {
+            if (collectionId === id) filters(() => setCollectionId(""));
+            setNotice(`专题「${name}」已移至归档管理。`);
+            refresh();
+            void client.invalidateQueries({ queryKey: ["archive"] });
+          }}
         />
       )}
       {selectedReport && (
@@ -1963,33 +2830,25 @@ export function ResearchKnowledgeBase({
           onClose={() => setSelectedReport("")}
           onOpenPaper={(id) => {
             setSelectedReport("");
-            setProjectId("");
-            setCollectionId("");
-            setSearch("");
-            setOffset(0);
-            setMapFocus(id);
-            setMapOtherFocus("");
-            setMapRelation("");
-            selectTab("map");
+            setMapLookup({ paperId: id, reportId: selectedReport });
           }}
           onLocateRelation={(relation) => {
             setSelectedReport("");
-            setProjectId("");
-            setCollectionId("");
-            setSearch("");
-            setOffset(0);
-            setMapFocus(reportDetail.data?.library_paper_id ?? "");
-            setMapOtherFocus(
-              relation.target_library_paper_id ??
+            setMapLookup({
+              paperId:
+                relation.source_library_paper_id ??
+                reportDetail.data?.library_paper_id ??
+                "",
+              otherPaperId:
+                relation.target_library_paper_id ??
                 items.find((paper) =>
                   paper.versions.some(
                     (version) => version.id === relation.target_version_id,
                   ),
-                )?.id ??
-                "",
-            );
-            setMapRelation(relation.id);
-            selectTab("map");
+                )?.id,
+              relation: { id: relation.id, reportId: selectedReport },
+              reportId: selectedReport,
+            });
           }}
           onUpdate={(body) => updateReport.mutate({ id: selectedReport, body })}
         />
@@ -2018,6 +2877,7 @@ export function ResearchKnowledgeBase({
           }}
         />
       )}
+      {contextMenu}
     </section>
   );
 }

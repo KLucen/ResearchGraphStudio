@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.document_batch_models import LlmDocumentBatch, LlmDocumentBatchRun
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
-from researchgraph.lite_models import LiteCacheEntry, LiteTokenUsage
+from researchgraph.lite_models import ArchivedPaperUsage, LiteCacheEntry, LiteTokenUsage
 from researchgraph.model_document_models import LlmDocumentOutput, LlmDocumentParse
 from researchgraph.models import AttachmentRevision, Job, Paper, Section, now
 from researchgraph.storage import read_session
@@ -88,6 +88,21 @@ class _Usage:
     cost_known: bool = True
     calls_known: bool = True
 
+    def merge_summary(self, other: UsageKindView) -> None:
+        self.calls += other.calls
+        self.retry_count += other.retry_count
+        self.cache_hits += other.cache_hits
+        self.input_tokens += other.input_tokens
+        self.output_tokens += other.output_tokens
+        self.total_tokens += other.total_tokens
+        self.unknown_usage_calls += other.unknown_usage_calls
+        self.unrecorded_runs += other.unrecorded_runs
+        self.unattributed_runs += other.unattributed_runs
+        self.estimated_usage_calls += other.estimated_usage_calls
+        self.calls_known = self.calls_known and other.calls_known
+        self.cost_known = self.cost_known and other.cost_known
+        self.cost_estimate = (self.cost_estimate or 0.0) + (other.cost_estimate or 0.0)
+
     def add(
         self,
         *,
@@ -129,7 +144,12 @@ class _Usage:
 
 
 def aggregate_usage(
-    session: Session, project_id: str | None, paper_id: str | None = None
+    session: Session,
+    project_id: str | None,
+    paper_id: str | None = None,
+    *,
+    include_knowledge: bool = True,
+    document_job_ids: set[str] | None = None,
 ) -> LiteUsageView:
     filters = []
     if project_id is not None:
@@ -160,8 +180,12 @@ def aggregate_usage(
     scoped_batches = [
         (batch, run, job)
         for batch, run, job in batch_rows
-        if paper_id is None
-        or (isinstance(job.payload, dict) and job.payload.get("paper_id") == paper_id)
+        if (
+            job.id in document_job_ids
+            if document_job_ids is not None
+            else paper_id is None
+            or (isinstance(job.payload, dict) and job.payload.get("paper_id") == paper_id)
+        )
     ]
     # Batch checkpoints are the authoritative ledger for this task kind. A
     # separately recorded row with the exact same run/batch/job identity must
@@ -177,6 +201,10 @@ def aggregate_usage(
     bucket: dict[str, _Usage] = {}
     totals = _Usage("all")
     for row in rows:
+        if row.status == "not_sent" and (row.extra or {}).get("generation_request_sent") is False:
+            # A deterministic ConfiguredProvider preflight can fail after the
+            # send slot was reserved. Preserve that slot, but it sent no generation.
+            continue
         if _duplicates_batch_usage(row, batch_identities) or _duplicates_output_usage(
             row, output_identities
         ):
@@ -264,7 +292,19 @@ def aggregate_usage(
         if unknown:
             for target in (item, totals):
                 target.add(unrecorded_runs=1, cost_estimate=None)
-    _add_knowledge_usage(session, bucket, totals, project_id, paper_id)
+    if paper_id is None:
+        archived = select(ArchivedPaperUsage.by_kind)
+        if project_id is not None:
+            archived = archived.where(ArchivedPaperUsage.project_id == project_id)
+        for summaries in session.scalars(archived):
+            for summary in summaries:
+                received = UsageKindView.model_validate(summary)
+                bucket.setdefault(received.task_kind, _Usage(received.task_kind)).merge_summary(
+                    received
+                )
+                totals.merge_summary(received)
+    if include_knowledge:
+        _add_knowledge_usage(session, bucket, totals, project_id, paper_id)
     values = {
         **totals.__dict__,
         "cost_estimate": totals.cost_estimate if totals.cost_known else None,
@@ -281,6 +321,25 @@ def aggregate_usage(
             for item in sorted(bucket.values(), key=lambda x: x.task_kind)
         ],
     )
+
+
+def preserve_paper_usage(session: Session, paper: Paper, document_job_ids: set[str]) -> None:
+    """Freeze deduplicated counters in the transaction that deletes their owners."""
+    view = aggregate_usage(
+        session,
+        paper.project_id,
+        paper.id,
+        include_knowledge=False,
+        document_job_ids=document_job_ids,
+    )
+    if view.by_kind:
+        session.add(
+            ArchivedPaperUsage(
+                id=str(uuid4()),
+                project_id=paper.project_id,
+                by_kind=[item.model_dump() for item in view.by_kind],
+            )
+        )
 
 
 def _add_knowledge_usage(

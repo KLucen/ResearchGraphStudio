@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
+import { archiveApi } from "./archiveApi";
 import {
   api,
   request,
@@ -24,6 +25,7 @@ import {
 } from "./api";
 import { KnowledgeReading } from "./KnowledgeReading";
 import { PaperOverview } from "./PaperOverview";
+import { syntheticCardSet } from "./paperCardSetFixtures";
 import { Papers } from "./Papers";
 import { JobHistory } from "./JobHistory";
 import { ZoteroImport } from "./ZoteroImport";
@@ -38,31 +40,10 @@ import {
   paperReadingComplete,
 } from "./paperReadingFixtures";
 
-const renderer = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
-vi.mock("./ForceGraph", () => ({
-  ForceGraph: (props: Record<string, unknown>) => {
-    renderer.props = props;
-    return (
-      <div data-testid="overview-graph">
-        <button onClick={() => (props.onSelect as (id: string) => void)("n1")}>
-          查看节点
-        </button>
-        <button onClick={() => (props.onEdge as (id: string) => void)("e1")}>
-          查看关系
-        </button>
-        <button
-          onClick={() =>
-            (props.onPositions as (p: unknown) => void)([
-              { node_id: "n1", x: 150, y: 220, pinned: true },
-            ])
-          }
-        >
-          移动节点
-        </button>
-      </div>
-    );
-  },
+vi.mock("./archiveApi", async (original) => ({
+  ...(await original<typeof import("./archiveApi")>()),
+  archiveApi: { stage: vi.fn() },
 }));
 vi.mock("./api", () => ({
   request: vi.fn(),
@@ -98,6 +79,7 @@ vi.mock("./api", () => ({
     deletePaper: vi.fn(),
     projectJobs: vi.fn(),
     jobs: vi.fn(),
+    jobsPage: vi.fn(),
     jobAction: vi.fn(),
     sections: vi.fn(),
     readingDocument: vi.fn(),
@@ -123,6 +105,7 @@ vi.mock("./api", () => ({
     expandSearchKeywords: vi.fn(),
     keyword: vi.fn(),
     overview: vi.fn(),
+    modelOverview: vi.fn(),
     overviewLayout: vi.fn(),
     generateOverview: vi.fn(),
     saveOverviewLayout: vi.fn(),
@@ -180,42 +163,15 @@ const completedOverview: OverviewView = {
   id: "overview",
   status: "COMPLETED",
   cache_hit: true,
-  paper_card: {
-    research_question: "研究问题",
-    motivation: "研究动机",
-    method_summary: "方法概述",
-    contributions: ["合成贡献"],
-    main_findings: ["合成发现"],
-    limitations: [],
-  },
-  graph: {
-    nodes: [
-      {
-        id: "n1",
-        type: "METHOD",
-        label_zh: "合成方法",
-        label_en: "Synthetic Method",
-        description_zh: "简短方法描述",
-        basis: "EXPLICIT",
-      },
-      {
-        id: "n2",
-        type: "FINDING",
-        label_zh: "合成发现",
-        label_en: null,
-        description_zh: "简短发现描述",
-        basis: "INFERRED",
-      },
-    ],
-    edges: [
-      {
-        id: "e1",
-        source: "n1",
-        target: "n2",
-        type: "YIELDS",
-        basis: "EXPLICIT",
-      },
-    ],
+  schema_version: "paper-card-set-2",
+  prompt_version: "paper-card-set-extract-1",
+  paper_card: null,
+  graph: null,
+  card_set: {
+    ...syntheticCardSet(),
+    cards: syntheticCardSet().cards.map((card) =>
+      card.kind === "key_concept" ? { ...card, id: "n1" } : card,
+    ),
   },
   usage: {
     input_tokens: 100,
@@ -278,8 +234,13 @@ beforeEach(() => {
     next_cursor: null,
   });
   vi.mocked(api.jobs).mockResolvedValue([]);
+  vi.mocked(api.jobsPage).mockImplementation(async () => ({
+    items: await api.jobs(),
+    next_cursor: null,
+  }));
   vi.mocked(api.liteUsage).mockResolvedValue(usage);
   vi.mocked(api.overview).mockResolvedValue(emptyOverview);
+  vi.mocked(api.modelOverview).mockResolvedValue(null);
   vi.mocked(api.overviewLayout).mockResolvedValue({
     overview_result_id: "overview",
     positions: [{ node_id: "n1", x: 10, y: 20, pinned: true }],
@@ -466,16 +427,16 @@ test("sidebar refreshes papers after an import worker commits the new row", asyn
     title: "Second paper",
     created_at: "2026-11-10T00:00:00Z",
   };
-  let calls = 0;
+  let published = false;
   vi.mocked(api.papers).mockImplementation(async () => ({
-    items: [first, ...(calls++ > 0 ? [second] : [])],
+    items: published ? [first, second] : [first],
     next_cursor: null,
   }));
   const mounted = mount(<App />);
-  await waitFor(() => expect(api.papers).toHaveBeenCalled());
-  expect(screen.getByTitle("First paper")).toBeVisible();
+  expect(await screen.findByTitle("First paper")).toBeVisible();
   expect(screen.queryByTitle("Second paper")).not.toBeInTheDocument();
 
+  published = true;
   await act(async () => {
     mounted.client.setQueryData(
       ["jobs", "global"],
@@ -1141,165 +1102,17 @@ test("a late ordinary search does not replace new local results or withdraw the 
   expect(api.expandSearchKeywords).not.toHaveBeenCalled();
   expect(api.search).toHaveBeenCalledTimes(2);
 });
-test("overview reads cache and saved layout without generating or rewriting it", async () => {
-  vi.mocked(api.overview).mockResolvedValue(completedOverview);
-  mount(
-    <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
-  );
-  expect(await screen.findByTestId("overview-graph")).toBeVisible();
-  expect(renderer.props.layout).toMatchObject({
-    zoom: 0.7,
-    pan_x: -70,
-    pan_y: 45,
-    positions: [{ node_id: "n1", x: 10, y: 20, pinned: true }],
-  });
-  await new Promise((resolve) => setTimeout(resolve, 650));
-  expect(api.generateOverview).not.toHaveBeenCalled();
-  expect(api.saveOverviewLayout).not.toHaveBeenCalled();
-});
-test("overview layout is isolated by paper, revision and result", async () => {
-  const user = userEvent.setup();
-  const first = { ...completedOverview, id: "overview-a", paper_id: "paper-a" };
-  const second = {
-    ...completedOverview,
-    id: "overview-b",
-    paper_id: "paper-b",
-  };
-  vi.mocked(api.overview).mockImplementation(async (paperId) =>
-    paperId === "paper-a" ? first : second,
-  );
-  vi.mocked(api.overviewLayout).mockImplementation(
-    async (paperId, resultId) => ({
-      overview_result_id: resultId,
-      positions: [
-        {
-          node_id: "n1",
-          x: paperId === "paper-a" ? 10 : 90,
-          y: 20,
-          pinned: true,
-        },
-      ],
-      viewport: { x: paperId === "paper-a" ? -10 : -90, y: 5, zoom: 0.8 },
-    }),
-  );
-  const mounted = mount(
-    <PaperOverview
-      paperId="paper-a"
-      revisionId="v-a"
-      projectId="p"
-      connected
-    />,
-  );
-  expect(await screen.findByTestId("overview-graph")).toBeVisible();
-  expect(renderer.props.layout).toMatchObject({
-    positions: [{ node_id: "n1", x: 10, y: 20, pinned: true }],
-    pan_x: -10,
-  });
-  await user.click(screen.getByRole("button", { name: "移动节点" }));
-  mounted.rerender(
-    <QueryClientProvider client={mounted.client}>
-      <PaperOverview
-        paperId="paper-b"
-        revisionId="v-b"
-        projectId="p"
-        connected
-      />
-    </QueryClientProvider>,
-  );
-  await waitFor(() =>
-    expect(api.overviewLayout).toHaveBeenLastCalledWith(
-      "paper-b",
-      "overview-b",
-    ),
-  );
-  await waitFor(() =>
-    expect(renderer.props.layout).toMatchObject({
-      positions: [{ node_id: "n1", x: 90, y: 20, pinned: true }],
-      pan_x: -90,
-    }),
-  );
-  await waitFor(() =>
-    expect(api.saveOverviewLayout).toHaveBeenCalledExactlyOnceWith("paper-a", {
-      overview_result_id: "overview-a",
-      positions: [{ node_id: "n1", x: 150, y: 220, pinned: true }],
-      viewport: { x: -10, y: 5, zoom: 0.8 },
-    }),
-  );
-});
-test("overview resets saved coordinates and camera only after successful local reset", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.overview).mockResolvedValue(completedOverview);
-  vi.mocked(api.resetOverviewLayout).mockResolvedValue({
-    overview_result_id: "overview",
-    positions: [],
-    viewport: null,
-  });
-  mount(
-    <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
-  );
-  expect(await screen.findByTestId("overview-graph")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "重置布局" }));
-  await waitFor(() =>
-    expect(renderer.props.layout).toEqual({
-      version: 0,
-      pan_x: 0,
-      pan_y: 0,
-      zoom: 1,
-      positions: [],
-    }),
-  );
-  expect(api.generateOverview).not.toHaveBeenCalled();
-  expect(api.saveOverviewLayout).not.toHaveBeenCalled();
-});
-test("a new overview result loads its own camera and flushes only the previous result draft", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.overview).mockResolvedValue(completedOverview);
-  vi.mocked(api.overviewLayout).mockImplementation(
-    async (_paperId, resultId) => ({
-      overview_result_id: resultId,
-      positions: [
-        {
-          node_id: "n1",
-          x: resultId === "overview" ? 10 : 80,
-          y: 20,
-          pinned: true,
-        },
-      ],
-      viewport: { x: resultId === "overview" ? -70 : 250, y: 45, zoom: 0.7 },
-    }),
-  );
-  const mounted = mount(
-    <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
-  );
-  await user.click(await screen.findByRole("button", { name: "移动节点" }));
-  mounted.client.setQueryData(["overview", "paper", "v"], {
-    ...completedOverview,
-    id: "overview-next",
-  });
-  await waitFor(() =>
-    expect(renderer.props.layout).toMatchObject({
-      pan_x: 250,
-      positions: [{ node_id: "n1", x: 80, y: 20, pinned: true }],
-    }),
-  );
-  await waitFor(() =>
-    expect(api.saveOverviewLayout).toHaveBeenCalledExactlyOnceWith("paper", {
-      overview_result_id: "overview",
-      positions: [{ node_id: "n1", x: 150, y: 220, pinned: true }],
-      viewport: { x: -70, y: 45, zoom: 0.7 },
-    }),
-  );
-});
 test("pending overview completion refreshes usage and jobs immediately", async () => {
   vi.mocked(api.overview).mockResolvedValue({
     ...emptyOverview,
     id: "overview",
+    schema_version: "paper-card-set-2",
     status: "PENDING",
   });
   const mounted = mount(
     <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
   );
-  await screen.findByText(/正在生成概览…/);
+  await screen.findByText("任务进行中：论文卡片集生成");
   const invalidate = vi.spyOn(mounted.client, "invalidateQueries");
   mounted.client.setQueryData(["overview", "paper", "v"], completedOverview);
   await waitFor(() =>
@@ -1313,13 +1126,14 @@ test("overview requires explicit model consent and sends one generation request"
   vi.mocked(api.generateOverview).mockResolvedValue({
     ...emptyOverview,
     id: "pending",
+    schema_version: "paper-card-set-2",
     status: "PENDING",
     job_id: "job",
   });
   mount(
     <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
   );
-  const button = await screen.findByRole("button", { name: "生成论文概览" });
+  const button = await screen.findByRole("button", { name: "生成论文卡片集" });
   expect(button).toBeDisabled();
   await user.click(screen.getByRole("checkbox"));
   await user.click(button);
@@ -1330,33 +1144,13 @@ test("overview requires explicit model consent and sends one generation request"
     false,
     false,
   );
-  expect(await screen.findByText(/正在生成概览…/)).toBeVisible();
-});
-test("overview graph exposes bilingual details, relation and debounced layout save", async () => {
-  const user = userEvent.setup();
-  vi.mocked(api.overview).mockResolvedValue(completedOverview);
-  mount(
-    <PaperOverview paperId="paper" revisionId="v" projectId="p" connected />,
-  );
-  await user.click(await screen.findByRole("button", { name: "查看节点" }));
-  const details = screen.getByLabelText("图谱详情");
-  expect(details).toHaveTextContent("合成方法");
-  expect(details).toHaveTextContent("Synthetic Method");
-  expect(details).toHaveTextContent("简短方法描述");
-  await user.click(screen.getByRole("button", { name: "查看关系" }));
-  expect(details).toHaveTextContent("YIELDS");
-  await user.click(screen.getByRole("button", { name: "移动节点" }));
-  await waitFor(() => expect(api.saveOverviewLayout).toHaveBeenCalledTimes(1));
-  expect(api.saveOverviewLayout).toHaveBeenLastCalledWith("paper", {
-    overview_result_id: "overview",
-    positions: [{ node_id: "n1", x: 150, y: 220, pinned: true }],
-    viewport: { x: -70, y: 45, zoom: 0.7 },
-  });
+  expect(await screen.findByText("任务进行中：论文卡片集生成")).toBeVisible();
 });
 test("failed overview remains visible and does not automatically retry", async () => {
   vi.mocked(api.overview).mockResolvedValue({
     ...emptyOverview,
     id: "failed",
+    schema_version: "paper-card-set-2",
     status: "FAILED",
     error: "响应未通过校验",
   });
@@ -1381,7 +1175,7 @@ test("completed overview only regenerates after consent and sends force flag", a
   );
   const invalidate = vi.spyOn(mounted.client, "invalidateQueries");
   const regenerate = await screen.findByRole("button", {
-    name: "重新生成概览",
+    name: "重新生成卡片集",
   });
   expect(regenerate).toBeDisabled();
   expect(api.generateOverview).not.toHaveBeenCalled();
@@ -1399,7 +1193,7 @@ test("completed overview only regenerates after consent and sends force flag", a
       queryKey: ["lite-usage", "p"],
     }),
   );
-  expect(await screen.findByText(/正在生成概览…/)).toBeVisible();
+  expect(await screen.findByText("任务进行中：论文卡片集生成")).toBeVisible();
 });
 test("PDF import defaults to local parsing without model consent or plan", async () => {
   const user = userEvent.setup();
@@ -1575,49 +1369,57 @@ test("paper title editing refreshes the visible paper detail", async () => {
   await user.click(screen.getByRole("button", { name: "保存论文题名" }));
 
   await waitFor(() =>
-    expect(screen.getByTitle("Revised synthetic paper")).toBeVisible(),
+    expect(
+      screen.getByRole("heading", {
+        level: 2,
+        name: "Revised synthetic paper",
+      }),
+    ).toBeVisible(),
   );
   expect(api.updatePaper).toHaveBeenCalledWith("paper", {
     title: "Revised synthetic paper",
   });
 });
 
-test("paper legacy cleanup requires confirmation and preserves the paper", async () => {
+test("paper legacy cleanup is staged in archive management and keeps the paper readable", async () => {
   const user = userEvent.setup();
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   vi.mocked(api.paper).mockResolvedValue(metadataPaper());
-  vi.mocked(api.clearPaperLegacyContent).mockResolvedValue({
-    ok: true,
-    paper_id: "paper",
-    backup_file: "backups/before-paper-legacy-content-fixture.sqlite3",
-    removed: { chunks: 2, fts_rows: 2, cache_entries: 1 },
-    retained_personal_metadata: 3,
-    retained_managed_files: 0,
+  vi.mocked(archiveApi.stage).mockResolvedValue({
+    id: "archive-parse",
+    kind: "paper_legacy_content",
+    target_id: "paper",
+    title: "Synthetic reading paper",
+    archived_at: "2026-11-22",
+    project_id: "p",
+    status: "archived",
   });
   mount(<Papers projectId="p" connected initialPaperId="paper" />);
 
-  await user.click(await screen.findByRole("button", { name: "清理旧解析" }));
+  await user.click(await screen.findByRole("button", { name: "归档旧解析" }));
 
-  expect(confirm).toHaveBeenCalledWith(
-    expect.stringContaining("已生成的概览/精读/问答"),
+  expect(await screen.findByText("旧解析清理已移至归档管理。")).toBeVisible();
+  expect(archiveApi.stage).toHaveBeenCalledExactlyOnceWith(
+    "paper_legacy_content",
+    "paper",
   );
-  expect(api.clearPaperLegacyContent).toHaveBeenCalledWith("paper");
-  expect(await screen.findByText(/已清理旧本地解析及缓存/)).toBeVisible();
-  expect(await screen.findByText("论文阅读工作区")).toBeVisible();
+  expect(api.clearPaperLegacyContent).not.toHaveBeenCalled();
+  expect(
+    await screen.findByRole("region", { name: "论文阅读工作区" }),
+  ).toBeVisible();
 });
 
-test("paper deletion returns to project paper selection after confirmation", async () => {
+test("paper archive returns to project paper selection", async () => {
   const user = userEvent.setup();
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   const onPaperDeleted = vi.fn();
   vi.mocked(api.paper).mockResolvedValue(metadataPaper());
-  vi.mocked(api.deletePaper).mockResolvedValue({
-    ok: true,
-    paper_id: "paper",
-    backup_file: "backups/before-paper-delete-fixture.sqlite3",
-    removed: { papers: 1 },
-    retained_personal_metadata: 0,
-    retained_managed_files: 0,
+  vi.mocked(archiveApi.stage).mockResolvedValue({
+    id: "archive-paper",
+    kind: "paper",
+    target_id: "paper",
+    title: "Synthetic reading paper",
+    archived_at: "2026-11-22",
+    project_id: "p",
+    status: "archived",
   });
   mount(
     <Papers
@@ -1628,11 +1430,11 @@ test("paper deletion returns to project paper selection after confirmation", asy
     />,
   );
 
-  await user.click(await screen.findByRole("button", { name: "删除论文" }));
+  await user.click(await screen.findByRole("button", { name: "归档论文" }));
 
-  expect(confirm).toHaveBeenCalledWith(expect.stringContaining("不会删除"));
   await waitFor(() => expect(onPaperDeleted).toHaveBeenCalledOnce());
-  expect(api.deletePaper).toHaveBeenCalledWith("paper");
+  expect(archiveApi.stage).toHaveBeenCalledExactlyOnceWith("paper", "paper");
+  expect(api.deletePaper).not.toHaveBeenCalled();
 });
 
 test.each([true, false])(
@@ -1708,10 +1510,13 @@ test.each([true, false])(
     ]);
     mount(<Papers projectId="p" connected initialPaperId="paper" />);
 
-    await user.click(await screen.findByText("查看旧版概览摘要"));
     expect(
-      await screen.findByText("Model-first overview content"),
+      await screen.findByRole("region", { name: "模型文档解析结果" }),
     ).toBeVisible();
+    expect(screen.queryByText("查看旧版概览摘要")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Model-first overview content"),
+    ).not.toBeInTheDocument();
     for (const name of ["论文概览", "论文精读", "论文回答"])
       expect(screen.getByRole("button", { name })).toBeEnabled();
     expect(
@@ -1756,13 +1561,15 @@ test.each([true, false])(
       expect(api.sections).not.toHaveBeenCalled();
       expect(api.qa).not.toHaveBeenCalled();
     }
-    await user.click(screen.getByRole("button", { name: "论文解析操作" }));
-    expect(
-      screen.getByRole("button", { name: "查看模型解析内容" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("button", { name: "查看本地解析内容" }),
-    ).toHaveProperty("disabled", !hasLocal);
+    const source = within(screen.getByRole("group", { name: "论文阅读来源" }));
+    if (hasLocal) {
+      expect(source.getByRole("combobox", { name: "查看来源" })).toHaveValue(
+        "model",
+      );
+    } else {
+      expect(source.getByText("模型解析", { exact: true })).toBeVisible();
+      expect(source.queryByRole("combobox")).toBeNull();
+    }
     expect(api.parsePaper).not.toHaveBeenCalled();
     expect(api.generatePaperReadingNotes).not.toHaveBeenCalled();
     expect(api.askQA).not.toHaveBeenCalled();
@@ -1829,7 +1636,10 @@ test("reading workspace starts with three reading actions and ends with collapse
       initialPaperId="paper"
     />,
   );
-  const title = await screen.findByRole("heading", { name: "论文阅读工作区" });
+  const title = await screen.findByRole("heading", {
+    level: 2,
+    name: "Synthetic reading paper",
+  });
   const reading = title.closest(".paper-reading")!;
   const header = title.closest("header")!;
   const metadata = screen
@@ -1890,8 +1700,9 @@ test("revision selection still drives reading and switching papers resets the co
       <Papers projectId="p" connected initialPaperId="second" />
     </QueryClientProvider>,
   );
-  await screen.findByText("Second reading paper", {
-    selector: ".paper-workspace-paper",
+  await screen.findByRole("heading", {
+    level: 2,
+    name: "Second reading paper",
   });
   expect(
     screen
@@ -2005,7 +1816,13 @@ test.each([
         "文献翻译功能已移除，此记录仅保留为历史，不会重新执行。",
       ),
     ).toBeVisible();
-    expect(history.queryByRole("button")).not.toBeInTheDocument();
+    if (["queued", "running"].includes(status)) {
+      expect(history.queryByRole("button")).not.toBeInTheDocument();
+    } else {
+      expect(history.getAllByRole("button")).toEqual([
+        history.getByRole("button", { name: "归档任务" }),
+      ]);
+    }
     expect(history.queryByRole("status")).not.toBeInTheDocument();
     expect(api.jobAction).not.toHaveBeenCalled();
   },
@@ -2083,7 +1900,7 @@ test("Zotero batch keeps the paper title and defaults to local import", async ()
   ).not.toBeInTheDocument();
 });
 
-test("close reading routes one paragraph to D and a concept to the existing graph without model work", async () => {
+test("close reading routes one paragraph to D and a concept to its detailed card without model work", async () => {
   const user = userEvent.setup();
   vi.mocked(api.paper).mockResolvedValue(metadataPaper());
   vi.mocked(api.overview).mockResolvedValue(completedOverview);
@@ -2125,43 +1942,19 @@ test("close reading routes one paragraph to D and a concept to the existing grap
   await user.click(
     await screen.findByRole("button", { name: "查看关联概念 1" }),
   );
-  const details = await screen.findByRole("complementary", {
-    name: "图谱详情",
+  const detail = await screen.findByRole("article", {
+    name: "关键概念卡片：共享记忆",
   });
-  expect(await within(details).findByLabelText("概念理解自评")).toHaveValue(
-    "UNSET",
-  );
-  expect(await within(details).findByText("方法条件是什么？")).toBeVisible();
-  expect(renderer.props.graph).toMatchObject({
-    nodes: [
-      expect.objectContaining({
-        id: "n1",
-        type: "METHOD",
-        reading_unresolved: true,
-      }),
-      expect.anything(),
-    ],
-  });
-  await user.selectOptions(
-    within(details).getByLabelText("概念理解自评"),
-    "PARTIAL",
-  );
-  await user.click(
-    within(details).getByRole("button", { name: "保存理解记录" }),
-  );
-  expect(api.saveConceptUnderstanding).toHaveBeenCalledWith(
-    "paper",
-    "n1",
-    expect.objectContaining({
-      self_level: "PARTIAL",
-      overview_result_id: "overview",
-    }),
-  );
+  expect(
+    within(detail).getByText("The method uses shared memory."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("complementary", { name: "图谱详情" }),
+  ).not.toBeInTheDocument();
+  expect(api.saveConceptUnderstanding).not.toHaveBeenCalled();
   expect(api.generateOverview).not.toHaveBeenCalled();
   expect(api.generateCloseReading).not.toHaveBeenCalled();
-  await user.click(
-    within(details).getByRole("button", { name: "返回对应段落" }),
-  );
+  await user.click(screen.getByRole("button", { name: "论文精读" }));
   const restored = await screen.findByRole("region", { name: "全文精读笔记" });
   expect(
     await within(restored).findByLabelText("正文第 1 段中文译文"),

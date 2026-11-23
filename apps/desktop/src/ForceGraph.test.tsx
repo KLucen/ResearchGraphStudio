@@ -2,6 +2,7 @@ import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { GraphData, GraphLayout } from "./graphTypes";
 import { ForceGraph } from "./ForceGraph";
+import type { Node } from "@xyflow/react";
 
 const renderer = vi.hoisted(() => ({ props: {} as Record<string, unknown> }));
 vi.mock("@xyflow/react", () => ({
@@ -122,4 +123,42 @@ test("explicit fit requests work without scope change and zero is not a request"
   rerender(<ForceGraph {...props("all", 0)} />);
   flushFrame();
   expect(fitView).toHaveBeenCalledTimes(1);
+});
+
+test("knowledge labels preserve the full accessible name and language switches keep node geometry", () => {
+  const knowledgeGraph: GraphData = {
+    nodes: [
+      {
+        id: "paper",
+        type: "PAPER",
+        label_zh: "完整论文题名",
+        label_en: "The full English paper title",
+      },
+    ],
+    edges: [],
+  };
+  const current = { ...props(), graph: knowledgeGraph };
+  const { rerender } = render(
+    <ForceGraph {...current} appearance="knowledge" />,
+  );
+  initialize();
+  const rendered = () => (renderer.props.nodes as Node[])[0];
+  expect(rendered()).toMatchObject({
+    width: 28,
+    height: 28,
+    position: { x: 200, y: 300 },
+    domAttributes: { title: "完整论文题名" },
+    ariaLabel: "完整论文题名，已固定",
+  });
+  rerender(<ForceGraph {...current} appearance="knowledge" language="both" />);
+  expect(rendered()).toMatchObject({
+    width: 28,
+    height: 28,
+    position: { x: 200, y: 300 },
+    ariaLabel: "完整论文题名 / The full English paper title，已固定",
+  });
+  flushFrame();
+  expect(fitView).not.toHaveBeenCalled();
+  expect(positions).not.toHaveBeenCalled();
+  expect(viewport).not.toHaveBeenCalled();
 });

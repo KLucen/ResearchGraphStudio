@@ -4,12 +4,15 @@ import asyncio
 import base64
 import binascii
 import json
+import math
 import os
 import re
 import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -17,8 +20,32 @@ import httpx
 
 from researchgraph.model_adapters import adapt_request, with_documented_limits
 from researchgraph.model_capabilities import ModelCapabilities, parse_capabilities
+from researchgraph.task_runtime import wait_for_model
+from researchgraph.token_estimates import estimate_tokens
 
 MAX_DOCUMENT_RESPONSE_BYTES = 64 * 1024 * 1024
+MAX_RETRY_AFTER_SECONDS = 86_400
+
+
+def safe_retry_after(value: Any) -> int | None:
+    return value if type(value) is int and 0 <= value <= MAX_RETRY_AFTER_SECONDS else None
+
+
+def parse_retry_after(header: str) -> int | None:
+    """Accept bounded RFC delay-seconds or HTTP-date without retaining the header."""
+    if len(header) > 128:
+        return None
+    value = header.strip()
+    if re.fullmatch(r"[0-9]{1,5}", value):
+        return safe_retry_after(int(value))
+    try:
+        deadline = parsedate_to_datetime(value)
+        if deadline.tzinfo is not None:
+            seconds = (deadline - datetime.now(UTC)).total_seconds()
+            return safe_retry_after(max(0, math.ceil(seconds)))
+    except (TypeError, ValueError, OverflowError):
+        pass
+    return None
 
 
 class Provider(Protocol):
@@ -51,8 +78,17 @@ class ProviderError(ValueError):
     ) -> None:
         super().__init__(message)
         self.category = category
-        self.retry_after = retry_after
+        self.retry_after = safe_retry_after(retry_after)
         self.timeout_phase = timeout_phase
+
+
+def _rate_limit_error(header: str, metadata: dict[str, Any]) -> ProviderError:
+    retry_after = parse_retry_after(header)
+    message = "模型请求受限（HTTP 429），未自动重发"
+    if retry_after is not None:
+        metadata["retry_after_seconds"] = retry_after
+        message += f"。服务当时建议等待 {retry_after} 秒后手动重试"
+    return ProviderError("rate_limit", message, retry_after)
 
 
 def _completion_message(envelope: Any) -> tuple[dict[str, Any], str]:
@@ -342,14 +378,16 @@ class ConfiguredProvider:
             if type(self.task_output_budget) is not int or self.task_output_budget < 128:
                 raise ProviderError("output_budget_invalid", "任务输出预算无效")
             output_limit = min(output_limit or self.task_output_budget, self.task_output_budget)
-        if output_limit and self.capabilities.context_window:
-            # Conservative estimate includes schema/instructions and non-ASCII source.
-            input_estimate = len(json.dumps(body["messages"], ensure_ascii=False).encode("utf-8"))
-            output_limit = min(
-                output_limit, self.capabilities.context_window - input_estimate - 512
-            )
-            if output_limit < 128:
+        serialized_messages = json.dumps(body["messages"], ensure_ascii=False)
+        input_estimate = estimate_tokens(serialized_messages)
+        if self.capabilities.context_window:
+            # Planning estimate includes instructions/schema; bytes are transport size,
+            # not tokens. The endpoint's tokenizer remains authoritative.
+            available_output = self.capabilities.context_window - input_estimate - 512
+            if available_output < 128:
                 raise ProviderError("context_limit", "模型上下文不足，需缩小当前批次")
+            if output_limit:
+                output_limit = min(output_limit, available_output)
         if output_limit:
             name = "max_completion_tokens" if self.name == "openai" else "max_tokens"
             body[name] = output_limit
@@ -358,7 +396,9 @@ class ConfiguredProvider:
             "limit_source": self.capabilities.source,
             "context_window": self.capabilities.context_window,
             "legacy_manual_limit_ignored": self.parameters.get("max_output_tokens"),
-            "input_bytes": len(json.dumps(body["messages"], ensure_ascii=False).encode("utf-8")),
+            "input_bytes": len(serialized_messages.encode("utf-8")),
+            "input_token_estimate": input_estimate,
+            "token_estimate_policy": "text-character-estimate-1",
             "source_characters": sum(
                 len(e.get("text", "")) for e in data.get("allowed_evidence", [])
             ),
@@ -424,13 +464,24 @@ class ConfiguredProvider:
         self.usage = {}
         self.partial_output = None
         self.request_metadata = {}
+        policy = self.parameters.get("text_timeout_policy")
+        if policy not in {None, "activity", "legacy"}:
+            raise ProviderError("structured_output_unsupported", "文字等待策略无效")
+        activity_wait = policy == "activity"
+        timeout = float(self.parameters.get("timeout_seconds", 30))
+        connect_timeout = 15.0 if activity_wait else min(timeout, 15)
         await self.prepare()
         body = self._build_body(prompt, data, schema)
         from researchgraph.chat_stream import ChatStream
 
         body.update(stream=True, stream_options={"include_usage": True})
         self.request_metadata.update(
-            transport="chat-sse-v1", total_timeout_seconds=self.total_timeout
+            transport="chat-sse-v1",
+            text_timeout_policy="activity" if activity_wait else "legacy",
+            total_timeout_seconds=None if activity_wait else self.total_timeout,
+            first_generation_timeout_seconds=timeout,
+            generation_idle_timeout_seconds=timeout,
+            connect_timeout_seconds=connect_timeout,
         )
         headers = {"Content-Type": "application/json"}
         if self.key:
@@ -439,25 +490,62 @@ class ConfiguredProvider:
         phase = "connection"
         response_bytes = 0
         stream: ChatStream | None = None
+        # HTTPX watches network silence. This separate deadline watches actual
+        # generation: SSE heartbeats/usage/empty deltas cannot keep it alive.
+        deadline = asyncio.timeout(None if activity_wait else self.total_timeout)
+        loop = asyncio.get_running_loop()
+        generation_started = False
+        first_wait_armed = False
+
+        def arm_first_generation() -> None:
+            nonlocal first_wait_armed
+            if activity_wait and not first_wait_armed:
+                first_wait_armed = True
+                deadline.reschedule(loop.time() + timeout)
+
+        def observed_generation(kind: str) -> None:
+            nonlocal generation_started
+            generation_started = True
+            elapsed = round(time.monotonic() - started, 3)
+            self.request_metadata.update(
+                last_activity_seconds=elapsed,
+                last_activity_kind=kind,
+            )
+            if kind == "response_bytes":
+                self.request_metadata.setdefault("first_response_data_seconds", elapsed)
+                self.request_metadata["last_response_data_seconds"] = elapsed
+            else:
+                self.request_metadata.setdefault("first_generation_seconds", elapsed)
+                self.request_metadata.update(
+                    last_generation_seconds=elapsed,
+                    last_generation_kind=kind,
+                )
+            if activity_wait:
+                deadline.reschedule(loop.time() + timeout)
+
+        def inactivity_phase() -> str:
+            if stream is None and "response_headers_seconds" in self.request_metadata:
+                return "response_data_idle" if generation_started else "first_response_data"
+            return "generation_idle" if generation_started else "first_generation"
 
         async def trace(event: str, _info: dict[str, Any]) -> None:
             nonlocal phase
             if "send_request_body.complete" in event:
                 phase = "response_headers"
                 self.request_metadata["request_sent_seconds"] = round(time.monotonic() - started, 3)
+                arm_first_generation()
             elif "send_request" in event:
                 phase = "request_write"
 
         try:
-            timeout = self.parameters.get("timeout_seconds", 30)
             # Async transport closes the socket on cancellation; retries cannot
             # overlap a still-running urllib thread from a previous attempt.
             async with (
-                asyncio.timeout(self.total_timeout),
+                deadline,
                 httpx.AsyncClient(
                     trust_env=False,
                     follow_redirects=False,
-                    timeout=httpx.Timeout(timeout, connect=min(timeout, 15)),
+                    timeout=httpx.Timeout(timeout, connect=connect_timeout),
                 ) as client,
             ):
                 async with client.stream(
@@ -468,20 +556,21 @@ class ConfiguredProvider:
                     extensions={"trace": trace},
                 ) as response:
                     phase = "response_body"
+                    # Fallback for transports without HTTPX tracing. Production
+                    # starts the first-generation wait when request writing ends.
+                    arm_first_generation()
                     self.request_metadata["response_headers_seconds"] = round(
                         time.monotonic() - started, 3
                     )
                     code = response.status_code
+                    self.request_metadata["http_status"] = code
                     if 300 <= code < 400:
                         raise ProviderError(
                             "client", "服务重定向被拒绝，未向其他地址发送文本或密钥"
                         )
                     if code == 429:
-                        after = response.headers.get("Retry-After", "")
-                        raise ProviderError(
-                            "rate_limit",
-                            "模型请求受限（HTTP 429）",
-                            int(after) if after.isdigit() else None,
+                        raise _rate_limit_error(
+                            response.headers.get("Retry-After", ""), self.request_metadata
                         )
                     if code >= 500:
                         raise ProviderError("server", f"模型服务暂时不可用（HTTP {code}）")
@@ -507,14 +596,28 @@ class ConfiguredProvider:
                             time.monotonic() - started, 3
                         )
                         if stream:
+                            before_content = stream.content_characters
+                            before_reasoning = stream.reasoning_characters
                             stream.feed(part)
                             self.request_metadata.update(
                                 content_characters=stream.content_characters,
                                 reasoning_characters=stream.reasoning_characters,
                             )
+                            if stream.content_characters > before_content:
+                                observed_generation("content")
+                            elif stream.reasoning_characters > before_reasoning:
+                                observed_generation("reasoning")
+                            if stream.done:
+                                # [DONE] and a valid finish reason, checked below,
+                                # end the protocol even if the server keeps HTTP alive.
+                                break
                         else:
                             # Some compatible servers ignore stream and return one JSON response.
                             raw.extend(part)
+                            if part.strip():
+                                # A non-streaming JSON body has no token events.
+                                # Track receiving its bytes without claiming a token.
+                                observed_generation("response_bytes")
             envelope = stream.envelope() if stream else json.loads(raw)
             if isinstance(envelope, dict):
                 self.usage = _completion_usage(envelope.get("usage"))
@@ -545,11 +648,22 @@ class ConfiguredProvider:
                 )
             return content
         except TimeoutError:
-            self.request_metadata["timeout_phase"] = "total"
+            timeout_phase = inactivity_phase() if activity_wait else "total"
+            self.request_metadata["timeout_phase"] = timeout_phase
             raise ProviderError(
                 "timeout",
-                f"模型生成达到总时限（{self.total_timeout:g} 秒）；已停止等待",
-                timeout_phase="total",
+                (
+                    (
+                        f"连续 {timeout:g} 秒未收到有效响应数据；已停止等待，未自动重发"
+                        if timeout_phase in {"first_response_data", "response_data_idle"}
+                        else (
+                            f"连续 {timeout:g} 秒未观察到正文或公开推理增量；已停止等待，未自动重发"
+                        )
+                    )
+                    if activity_wait
+                    else f"模型生成达到总时限（{self.total_timeout:g} 秒）；已停止等待"
+                ),
+                timeout_phase=timeout_phase,
             ) from None
         except httpx.TimeoutException as error:
             if isinstance(error, httpx.ConnectTimeout):
@@ -560,6 +674,8 @@ class ConfiguredProvider:
                 phase = "connection_pool"
             elif isinstance(error, httpx.ReadTimeout) and phase != "response_body":
                 phase = "response_headers"
+            elif isinstance(error, httpx.ReadTimeout) and activity_wait:
+                phase = inactivity_phase()
             self.request_metadata["timeout_phase"] = phase
             label = {
                 "connection": "建立连接",
@@ -567,6 +683,10 @@ class ConfiguredProvider:
                 "connection_pool": "等待连接",
                 "response_headers": "等待模型响应",
                 "response_body": "读取模型响应",
+                "first_generation": "等待首段正文或公开推理增量",
+                "generation_idle": "等待后续正文或公开推理增量",
+                "first_response_data": "等待非流式响应数据",
+                "response_data_idle": "读取非流式响应数据",
             }[phase]
             raise ProviderError(
                 "timeout", f"{label}超时（{timeout} 秒）；已保存批次保留", timeout_phase=phase
@@ -898,12 +1018,14 @@ class ConfiguredProvider:
                 }
             )
         body["messages"][1]["content"] = parts
-        return await self._document_http(
-            body,
-            started=started,
-            metadata=metadata,
-            before_send=before_send,
-            on_progress=on_progress,
+        return await wait_for_model(
+            self._document_http(
+                body,
+                started=started,
+                metadata=metadata,
+                before_send=before_send,
+                on_progress=on_progress,
+            )
         )
 
     async def repair_document_format(
@@ -955,12 +1077,14 @@ class ConfiguredProvider:
             "connect_timeout_seconds": min(self.document_timeout, 15),
             "response_bytes": 0,
         }
-        return await self._document_http(
-            body,
-            started=started,
-            metadata=metadata,
-            before_send=before_send,
-            on_progress=on_progress,
+        return await wait_for_model(
+            self._document_http(
+                body,
+                started=started,
+                metadata=metadata,
+                before_send=before_send,
+                on_progress=on_progress,
+            )
         )
 
     async def _document_http(
@@ -1041,6 +1165,10 @@ class ConfiguredProvider:
                         metadata["http_status"] = response.status_code
                         metadata["response_started_seconds"] = round(time.monotonic() - started, 3)
                         emit("document_receiving", "response_body")
+                        if response.status_code == 429:
+                            raise _rate_limit_error(
+                                response.headers.get("Retry-After", ""), metadata
+                            )
                         if response.status_code >= 400:
                             raise ProviderError(
                                 "client", f"模型文档请求被拒绝（HTTP {response.status_code}）"

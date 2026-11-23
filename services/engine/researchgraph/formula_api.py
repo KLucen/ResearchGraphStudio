@@ -487,7 +487,8 @@ def _registered_pdf(session: Session, revision: AttachmentRevision, data_dir: Pa
         if not path.is_absolute() or path.suffix.lower() != ".pdf":
             continue
         try:
-            content = path.read_bytes()
+            with path.open("rb") as source_file:
+                content = source_file.read(MAX_BYTES + 1)
         except OSError:
             continue
         if len(content) <= MAX_BYTES and hashlib.sha256(content).hexdigest() == revision.sha256:

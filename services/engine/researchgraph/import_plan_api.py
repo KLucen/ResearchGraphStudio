@@ -12,6 +12,8 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
+from researchgraph.archive_models import archived_target
 from researchgraph.document_batch_recovery import (
     authorize_publication_retry,
     compatibility_retry_available,
@@ -23,6 +25,7 @@ from researchgraph.document_format_repair import (
 )
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
 from researchgraph.models import Job, Paper, Project, now
+from researchgraph.paper_card_set_contracts import MODEL_CARD_CONTRACT_VERSION
 from researchgraph.schemas import (
     ImportPlan,
     ImportPlanItemView,
@@ -39,6 +42,42 @@ def _failure(status: int, code: str, message: str) -> HTTPException:
     return HTTPException(status, {"code": code, "message": message})
 
 
+def import_session_paper(
+    db: Session, session: ImportSession, items: list[ImportPlanItem] | None = None
+) -> Paper | None:
+    paper_id = session.source_snapshot.get("paper_id")
+    if not paper_id:
+        if items is None:
+            parse_item = db.scalar(
+                select(ImportPlanItem).where(
+                    ImportPlanItem.session_id == session.id,
+                    ImportPlanItem.item_kind == "document_parse",
+                )
+            )
+        else:
+            parse_item = next((item for item in items if item.item_kind == "document_parse"), None)
+        job = db.get(Job, parse_item.job_id) if parse_item and parse_item.job_id else None
+        payload = job.payload if job and isinstance(job.payload, dict) else {}
+        if job is None or job.project_id != session.project_id:
+            return None
+        if payload.get("import_session_id") != session.id:
+            return None
+        paper_id = payload.get("paper_id")
+    paper = db.get(Paper, paper_id) if isinstance(paper_id, str) and paper_id else None
+    return paper if paper and paper.project_id == session.project_id else None
+
+
+def require_unarchived_import_session(db: Session, session_id: str) -> ImportSession:
+    session = db.get(ImportSession, session_id)
+    if session is None:
+        raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+    # Earlier imports stored the paper only on the model-parse job.
+    paper = import_session_paper(db, session)
+    if paper is not None:
+        require_unarchived_paper(db, paper.id)
+    return session
+
+
 def _view(
     session: ImportSession, items: list[ImportPlanItem], db: Session | None = None
 ) -> ImportSessionView:
@@ -46,18 +85,7 @@ def _view(
     # Early PDF imports bound their paper only on the parse Job. Project the
     # verified ownership into the response without rewriting the frozen plan.
     if value.source_snapshot.paper_id is None and db is not None:
-        parse_item = next((item for item in items if item.item_kind == "document_parse"), None)
-        job = db.get(Job, parse_item.job_id) if parse_item and parse_item.job_id else None
-        payload = job.payload if job and isinstance(job.payload, dict) else {}
-        paper_id = payload.get("paper_id")
-        paper = db.get(Paper, paper_id) if isinstance(paper_id, str) and paper_id else None
-        if (
-            job is not None
-            and job.project_id == session.project_id
-            and payload.get("import_session_id") == session.id
-            and paper is not None
-            and paper.project_id == session.project_id
-        ):
+        if paper := import_session_paper(db, session, items):
             value.source_snapshot = value.source_snapshot.model_copy(update={"paper_id": paper.id})
     rank = {kind: index for index, kind in enumerate(ITEM_KINDS)}
     ordered = sorted(items, key=lambda item: (rank.get(item.item_kind, len(rank)), item.id))
@@ -107,6 +135,7 @@ def create_import_session_record(
 ) -> tuple[ImportSession, list[ImportPlanItem]]:
     """Create the additive plan layer inside a caller-owned transaction."""
 
+    require_unarchived_paper(db, source_snapshot.paper_id)
     timestamp = now()
     session = ImportSession(
         id=str(uuid4()),
@@ -114,7 +143,7 @@ def create_import_session_record(
         source_kind=source_kind,
         selection_id=selection_id,
         source_snapshot=source_snapshot.model_dump(exclude_none=True),
-        plan=plan.model_dump(),
+        plan={**plan.model_dump(), "overview_contract_version": MODEL_CARD_CONTRACT_VERSION},
         status="planned",
         created_at=timestamp,
         updated_at=timestamp,
@@ -158,6 +187,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
         with Session(engine()) as db, db.begin():
             if db.get(Project, project_id) is None:
                 raise _failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            require_unarchived_paper(db, body.source_snapshot.paper_id)
             previous = remembered(db, key, request)
             if previous:
                 return ImportSessionView.model_validate(previous)
@@ -176,9 +206,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
     @app.get("/api/v1/import-sessions/{session_id}", response_model=ImportSessionView)
     def get_import_session(session_id: str) -> ImportSessionView:
         with Session(engine()) as db:
-            session = db.get(ImportSession, session_id)
-            if session is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
+            session = require_unarchived_import_session(db, session_id)
             items = db.scalars(
                 select(ImportPlanItem)
                 .where(ImportPlanItem.session_id == session_id)
@@ -200,20 +228,20 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
                 .order_by(ImportSession.created_at.desc(), ImportSession.id.desc())
                 .limit(100)
             ).all()
-            return [
-                _view(
-                    session,
-                    list(
-                        db.scalars(
-                            select(ImportPlanItem)
-                            .where(ImportPlanItem.session_id == session.id)
-                            .order_by(ImportPlanItem.created_at, ImportPlanItem.id)
-                        ).all()
-                    ),
-                    db,
+            views = []
+            for session in sessions:
+                items = list(
+                    db.scalars(
+                        select(ImportPlanItem)
+                        .where(ImportPlanItem.session_id == session.id)
+                        .order_by(ImportPlanItem.created_at, ImportPlanItem.id)
+                    )
                 )
-                for session in sessions
-            ]
+                view = _view(session, items, db)
+                paper_id = view.source_snapshot.paper_id
+                if paper_id is None or not archived_target(db, "paper", paper_id):
+                    views.append(view)
+            return views
 
     @app.post(
         "/api/v1/import-sessions/{session_id}/items/{item_kind}/retry",
@@ -227,12 +255,7 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
         request = {"session_id": session_id, "item_kind": item_kind}
         key = "import-item-retry:" + idempotency_key
         with Session(engine()) as db, db.begin():
-            session = db.get(ImportSession, session_id)
-            if session is None:
-                raise _failure(404, "IMPORT_SESSION_NOT_FOUND", "导入会话不存在")
-            previous = remembered(db, key, request)
-            if previous:
-                return ImportSessionView.model_validate(previous)
+            session = require_unarchived_import_session(db, session_id)
             item = db.scalar(
                 select(ImportPlanItem).where(
                     ImportPlanItem.session_id == session_id,
@@ -241,6 +264,11 @@ def register_import_plan_api(app: FastAPI, engine: Callable[[], Engine]) -> None
             )
             if item is None:
                 raise _failure(404, "IMPORT_ITEM_NOT_FOUND", "导入计划项不存在")
+            if item.job_id and archived_target(db, "job", item.job_id):
+                raise _failure(409, "JOB_ARCHIVED", "请先在归档管理中恢复该任务")
+            previous = remembered(db, key, request)
+            if previous:
+                return ImportSessionView.model_validate(previous)
             if item.status not in {"failed", "interrupted", "paused"}:
                 raise _failure(409, "IMPORT_ITEM_STATE_CONFLICT", "当前计划项不能重试")
             item.status = "queued"

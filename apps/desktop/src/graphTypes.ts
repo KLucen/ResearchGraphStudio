@@ -11,6 +11,7 @@ export type GraphNode = {
   reading_level?: string;
   reading_check?: string;
   reading_unresolved?: boolean;
+  outside_topic?: boolean;
 };
 
 export type GraphEdge = {
@@ -21,6 +22,7 @@ export type GraphEdge = {
   relation?: string;
   label_zh?: string | null;
   is_dashed?: boolean;
+  outside_topic?: boolean;
   basis?: string;
 };
 

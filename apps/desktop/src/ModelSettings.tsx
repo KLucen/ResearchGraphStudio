@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "./api";
+import { archiveApi } from "./archiveApi";
+import { useContextMenu } from "./ContextMenu";
 
 export type ModelParameters = {
   temperature: number | null;
@@ -17,6 +19,7 @@ export type ModelParameters = {
   reasoning_effort:
     "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | null;
   timeout_seconds: number;
+  text_timeout_policy?: "activity" | "legacy" | null;
   document_timeout_seconds?: number;
   document_total_timeout_seconds?: number;
   json_mode: boolean;
@@ -139,6 +142,7 @@ const defaults: ModelParameters = {
   top_p: null,
   reasoning_effort: null,
   timeout_seconds: 90,
+  text_timeout_policy: "activity",
   document_timeout_seconds: 600,
   document_total_timeout_seconds: 1800,
   json_mode: true,
@@ -170,6 +174,11 @@ function validDocumentTimeouts(parameters?: ModelParameters): boolean {
     total <= 3600 &&
     total >= wait
   );
+}
+
+function validTextTimeout(parameters?: ModelParameters): boolean {
+  const wait = parameters?.timeout_seconds ?? defaults.timeout_seconds;
+  return Number.isInteger(wait) && wait >= 5 && wait <= 180;
 }
 
 function providerLabel(provider: ProviderKind) {
@@ -272,11 +281,9 @@ export function ModelSettings({ connected }: { connected: boolean }) {
       const nextIds = new Set(
         payload.models.filter((model) => model.id).map((model) => model.id),
       );
-      for (const profile of existing) {
-        if (!nextIds.has(profile.id)) {
-          await request("POST", route + "/models/" + profile.id + "/delete");
-        }
-      }
+      const profilesToArchive = existing.filter(
+        (profile) => !nextIds.has(profile.id),
+      );
       for (const model of payload.models) {
         const modelBody = {
           name: model.name.trim() || model.model.trim(),
@@ -294,8 +301,18 @@ export function ModelSettings({ connected }: { connected: boolean }) {
           await request("POST", route + "/models", modelBody);
         }
       }
+      for (const profile of profilesToArchive) {
+        await archiveApi.stage("model_profile", profile.id);
+      }
       await refresh();
-      setNotice(saved.name + " 已保存，模型目录已更新。");
+      if (profilesToArchive.length) {
+        void client.invalidateQueries({ queryKey: ["archive"] });
+      }
+      setNotice(
+        profilesToArchive.length
+          ? `${saved.name} 已保存。${profilesToArchive.length} 项模型配置已移至归档管理。`
+          : saved.name + " 已保存，模型目录已更新。",
+      );
       setEditorOpen(false);
       setEditingConnection(null);
     } catch (requestError) {
@@ -336,29 +353,20 @@ export function ModelSettings({ connected }: { connected: boolean }) {
     }
   }
 
-  async function deleteConnection(connection: ModelConnection) {
-    if (
-      !window.confirm(
-        "删除模型提供商“" + connection.name + "”？已有用量和历史记录会保留。",
-      )
-    ) {
-      return;
-    }
+  async function archiveConnection(connection: ModelConnection) {
     setBusy(true);
     setNotice("");
     setError("");
     try {
-      await request(
-        "POST",
-        route + "/connections/" + connection.id + "/delete",
-      );
+      await archiveApi.stage("model_connection", connection.id);
       await refresh();
-      setNotice(connection.name + " 已删除。");
+      void client.invalidateQueries({ queryKey: ["archive"] });
+      setNotice(connection.name + " 已移至归档管理。");
     } catch (requestError) {
       setError(
         requestError instanceof Error
           ? requestError.message
-          : "删除模型提供商失败",
+          : "归档模型提供商失败",
       );
     } finally {
       setBusy(false);
@@ -394,7 +402,7 @@ export function ModelSettings({ connected }: { connected: boolean }) {
                 setEditingConnection(connection);
                 setEditorOpen(true);
               }}
-              onDelete={() => void deleteConnection(connection)}
+              onArchive={() => void archiveConnection(connection)}
               onTest={(profile) => void testProfile(profile)}
             />
           );
@@ -527,7 +535,7 @@ function ProviderCard({
   preset,
   busy,
   onEdit,
-  onDelete,
+  onArchive,
   onTest,
 }: {
   connection: ModelConnection;
@@ -535,11 +543,28 @@ function ProviderCard({
   preset?: ProviderPreset;
   busy: boolean;
   onEdit: () => void;
-  onDelete: () => void;
+  onArchive: () => void;
   onTest: (profile: ModelProfile) => void;
 }) {
+  const { contextMenuProps, contextMenu } = useContextMenu();
   return (
-    <article className="provider-card">
+    <article
+      className="provider-card"
+      tabIndex={0}
+      {...contextMenuProps(`${connection.name}操作`, [
+        { label: "编辑提供商", action: onEdit, disabled: busy },
+        ...(profiles[0]
+          ? [
+              {
+                label: "测试连接",
+                action: () => onTest(profiles[0]),
+                disabled: busy,
+              },
+            ]
+          : []),
+        { label: "归档提供商", action: onArchive, disabled: busy },
+      ])}
+    >
       <div className="provider-card-main">
         <div className="provider-card-title">
           <strong>{connection.name}</strong>
@@ -594,14 +619,11 @@ function ProviderCard({
             测试连接
           </button>
         )}
-        <button
-          className="text-button danger"
-          disabled={busy}
-          onClick={onDelete}
-        >
-          删除
+        <button className="text-button" disabled={busy} onClick={onArchive}>
+          归档
         </button>
       </div>
+      {contextMenu}
     </article>
   );
 }
@@ -949,13 +971,79 @@ function ProviderEditor({
                   <button
                     type="button"
                     className="model-remove"
-                    aria-label={"删除模型 " + (index + 1)}
+                    aria-label={
+                      (model.id ? "保存时归档模型 " : "移除未保存的模型 ") +
+                      (index + 1)
+                    }
+                    title={model.id ? "保存时移至归档管理" : "移除草稿"}
                     onClick={() => removeModel(index)}
                     disabled={models.length === 1}
                   >
                     ×
                   </button>
                 </div>
+                <fieldset disabled={disabled}>
+                  <legend>{"模型 " + (index + 1) + " 文字生成等待"}</legend>
+                  <label>
+                    文字生成等待方式
+                    <select
+                      aria-label={"文字生成等待方式 " + (index + 1)}
+                      value={
+                        model.parameters?.text_timeout_policy ?? "activity"
+                      }
+                      onChange={(event) =>
+                        updateParameters(index, {
+                          text_timeout_policy: event.target.value as
+                            "activity" | "legacy",
+                        })
+                      }
+                    >
+                      <option value="activity">按生成活动等待（推荐）</option>
+                      <option value="legacy">固定总时限（兼容）</option>
+                    </select>
+                  </label>
+                  <label>
+                    {(model.parameters?.text_timeout_policy ?? "activity") ===
+                    "activity"
+                      ? "首段生成 / 无生成活动等待（秒）"
+                      : "文字请求等待超时（秒）"}
+                    <input
+                      type="number"
+                      aria-label={"文字等待超时 " + (index + 1)}
+                      min={5}
+                      max={180}
+                      step={1}
+                      value={model.parameters?.timeout_seconds ?? 90}
+                      onChange={(event) =>
+                        updateParameters(index, {
+                          timeout_seconds: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                  {!validTextTimeout(model.parameters) && (
+                    <p role="alert">文字等待须为 5–180 秒的整数。</p>
+                  )}
+                  {(model.parameters?.text_timeout_policy ?? "activity") ===
+                  "activity" ? (
+                    <small>
+                      连接单独等待最多 15
+                      秒。首段生成及后续无生成活动按此秒数等待； 收到正文或公开
+                      reasoning 增量会重新计时，持续生成不会被固定总时限切断。
+                      纯心跳不算生成；服务端隐藏的思考无法直接观测，仍可能触发无活动超时。
+                      非流式服务只能监测响应数据接收进展。
+                    </small>
+                  ) : (
+                    <small>
+                      使用固定总时限的兼容策略；即使仍在生成，达到总时限也会结束等待。
+                    </small>
+                  )}
+                  <small>
+                    单位为秒，180 表示 180 秒（3
+                    分钟）。已冻结任务的原计划保持；
+                    显式继续知识任务会使用当前设置创建后继，文档解析的等待和总时限单独设置。
+                  </small>
+                </fieldset>
                 <fieldset disabled={disabled}>
                   <legend>{"模型 " + (index + 1) + " 文档能力"}</legend>
                   <label>
@@ -1132,6 +1220,7 @@ function ProviderEditor({
               models.some(
                 (model) =>
                   !model.model.trim() ||
+                  !validTextTimeout(model.parameters) ||
                   !validDocumentTimeouts(model.parameters),
               )
             }

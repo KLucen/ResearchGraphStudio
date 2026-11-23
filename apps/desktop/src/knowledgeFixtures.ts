@@ -164,3 +164,35 @@ export function knowledgeReport(): KnowledgeReport {
     },
   };
 }
+
+export function detailedKnowledgeReport(): KnowledgeReport {
+  const report = knowledgeReport();
+  return {
+    ...report,
+    id: "report-detailed",
+    title: "合成论文 B 的详细联系汇报",
+    created_at: "2026-11-21T10:00:00Z",
+    relations: report.relations?.map((relation) => ({
+      ...relation,
+      id: "relation-detailed",
+      source_library_paper_id: "library-B",
+      source_title: "合成论文 B",
+      explanation_zh: "两篇论文采用相近的数据准备步骤。",
+      detail: {
+        source_zh: "新增论文按任务类型组织样本，并在每组内统一输入格式。",
+        target_zh: "已有论文先统一输入格式，再按来源分组保存样本。",
+        comparison_zh:
+          "两种方案都在模型运行前规范输入，分组依据与预处理顺序有差异。",
+        conditions_zh:
+          "已有摘录覆盖了准备步骤。验证集和评估指标的可比性仍需核查。",
+        follow_up_zh: "可核查两种分组在同一数据划分下能否复用。",
+      },
+    })),
+    summary: [
+      {
+        text_zh: "方法在输入规范上相近，分组规则有差异。",
+        relation_ids: ["relation-detailed"],
+      },
+    ],
+  };
+}

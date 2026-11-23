@@ -5,7 +5,9 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Eraser, Pencil, Save, Trash2, X } from "lucide-react";
+import { Archive, Eraser, Pencil, Save, X } from "lucide-react";
+import { archiveApi } from "./archiveApi";
+import { useContextMenu } from "./ContextMenu";
 import {
   api,
   defaultPostImportPlan,
@@ -21,6 +23,8 @@ import { ModelDocumentPanel } from "./ModelDocumentPanel";
 import { PaperParsing } from "./PaperParsing";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+const readingSourceKey = "rgs.paper-reading-source.v1";
+type ReadingSource = "local" | "model";
 
 export function Papers({
   projectId,
@@ -55,7 +59,8 @@ export function Papers({
     enabled: connected,
     refetchInterval: 3000,
   });
-  const items = papers.data?.pages.flatMap((page) => page.items) ?? [];
+  const firstPage = papers.data?.pages[0];
+  const total = firstPage?.total ?? firstPage?.items.length;
   return (
     <section className="paper-workbench" aria-label="论文阅读工作区">
       {papers.error && (
@@ -69,7 +74,9 @@ export function Papers({
             <div className="eyebrow">CURRENT PROJECT</div>
             <strong>{projectName ?? "研究项目"}</strong>
             <span className="project-toolbar-meta">
-              {items.length} 篇论文 · 从左侧选择文献
+              {total === undefined
+                ? "从左侧选择文献"
+                : `${total} 篇论文 · 从左侧选择文献`}
             </span>
           </div>
         </div>
@@ -278,15 +285,34 @@ function PaperText({
     detail.data?.revisions.find((revision) => revision.id === chosen)?.id ??
     detail.data?.revisions[0]?.id ??
     "";
-  const [showLocal, setShowLocal] = useState(false);
+  const [readingSource, setReadingSource] = useState<ReadingSource>(() => {
+    try {
+      return localStorage.getItem(readingSourceKey) === "local"
+        ? "local"
+        : "model";
+    } catch {
+      return "model";
+    }
+  });
   const latestModelSession = (importSessions.data ?? [])
     .filter((session) => session.source_snapshot.paper_id === paperId)
     .sort((left, right) => right.updated_at.localeCompare(left.updated_at))[0];
-  const modelSession = showLocal ? undefined : latestModelSession;
+  const modelSession =
+    readingSource === "local" && revisionId ? undefined : latestModelSession;
+
+  function rememberReadingSource(source: ReadingSource) {
+    setReadingSource(source);
+    try {
+      localStorage.setItem(readingSourceKey, source);
+    } catch {
+      /* The chosen source remains available while this workspace is open. */
+    }
+  }
   const client = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [managementMessage, setManagementMessage] = useState("");
+  const { contextMenuProps, contextMenu } = useContextMenu();
   const renamePaper = useMutation({
     mutationFn: () => api.updatePaper(paperId, { title: titleDraft.trim() }),
     onSuccess: () => {
@@ -300,22 +326,16 @@ function PaperText({
     },
   });
   const clearLegacy = useMutation({
-    mutationFn: () => api.clearPaperLegacyContent(paperId),
-    onSuccess: (result) => {
-      setChosen("");
-      setManagementMessage(
-        `已清理旧本地解析及缓存；保留个人记录 ${result.retained_personal_metadata} 项`,
-      );
-      void client.invalidateQueries({ queryKey: ["paper", paperId] });
-      void client.invalidateQueries({ queryKey: ["papers", projectId] });
-      void client.invalidateQueries({
-        queryKey: ["sidebar-papers", projectId],
-      });
+    mutationFn: () => archiveApi.stage("paper_legacy_content", paperId),
+    onSuccess: () => {
+      setManagementMessage("旧解析清理已移至归档管理。");
+      void client.invalidateQueries({ queryKey: ["archive"] });
     },
   });
   const deletePaper = useMutation({
-    mutationFn: () => api.deletePaper(paperId),
+    mutationFn: () => archiveApi.stage("paper", paperId),
     onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["archive"] });
       void client.removeQueries({ queryKey: ["paper", paperId] });
       void client.invalidateQueries({ queryKey: ["papers", projectId] });
       void client.invalidateQueries({
@@ -327,26 +347,22 @@ function PaperText({
       onPaperDeleted?.();
     },
   });
-  const confirmClearLegacy = () => {
-    if (
-      window.confirm(
-        "清理这篇论文的旧本地解析与缓存？个人笔记、已生成的概览/精读/问答、模型章节内容、论文记录及 PDF/Zotero 源文件都会保留。",
-      )
-    ) {
-      setManagementMessage("");
-      clearLegacy.mutate();
-    }
+  const prepareLegacyCleanup = () => {
+    setManagementMessage("");
+    clearLegacy.mutate();
   };
-  const confirmDeletePaper = () => {
-    if (
-      window.confirm(
-        "删除这篇论文及其本地生成内容？PDF 与 Zotero 文献库原件不会删除；已删除内容无法从应用恢复。",
-      )
-    ) {
-      setManagementMessage("");
-      deletePaper.mutate();
-    }
+  const archivePaper = () => {
+    setManagementMessage("");
+    deletePaper.mutate();
   };
+  function beginEditTitle() {
+    if (!detail.data) return;
+    setTitleDraft(detail.data.paper.title);
+    setEditingTitle(true);
+    setManagementMessage("");
+  }
+  const managementBusy =
+    !connected || clearLegacy.isPending || deletePaper.isPending;
   const visibleTabs = [
     ["overview", "论文概览"],
     ["guide", "论文精读"],
@@ -362,26 +378,40 @@ function PaperText({
       {detail.isPending && <p role="status">正在加载文献…</p>}
       {detail.data && (
         <>
-          <header className="paper-workspace-header">
+          <header
+            className="paper-workspace-header"
+            tabIndex={0}
+            {...contextMenuProps("论文操作", [
+              {
+                label: "编辑题名",
+                action: beginEditTitle,
+                disabled: managementBusy || editingTitle,
+              },
+              ...(detail.data.revisions.length
+                ? [
+                    {
+                      label: "归档旧解析",
+                      action: prepareLegacyCleanup,
+                      disabled: managementBusy,
+                    },
+                  ]
+                : []),
+              {
+                label: "归档论文",
+                action: archivePaper,
+                disabled: managementBusy,
+              },
+            ])}
+          >
             <div className="paper-workspace-context">
-              <h2>论文阅读工作区</h2>
-              <span
-                className="paper-workspace-paper"
-                title={detail.data.paper.title}
-              >
-                {detail.data.paper.title}
-              </span>
+              <h2>{detail.data.paper.title}</h2>
             </div>
             <div className="paper-management-actions" aria-label="论文管理">
               {!editingTitle ? (
                 <button
                   type="button"
                   className="button secondary compact"
-                  onClick={() => {
-                    setTitleDraft(detail.data!.paper.title);
-                    setEditingTitle(true);
-                    setManagementMessage("");
-                  }}
+                  onClick={beginEditTitle}
                 >
                   <Pencil size={14} /> 编辑题名
                 </button>
@@ -424,21 +454,21 @@ function PaperText({
                 <button
                   type="button"
                   className="button secondary compact"
-                  onClick={confirmClearLegacy}
-                  disabled={clearLegacy.isPending || deletePaper.isPending}
-                  title="清理旧本地解析及缓存，保留个人笔记与已生成内容"
+                  onClick={prepareLegacyCleanup}
+                  disabled={managementBusy}
+                  title="先将旧解析清理移入归档管理"
                 >
-                  <Eraser size={14} /> 清理旧解析
+                  <Eraser size={14} /> 归档旧解析
                 </button>
               )}
               <button
                 type="button"
-                className="button danger compact"
-                onClick={confirmDeletePaper}
-                disabled={deletePaper.isPending || clearLegacy.isPending}
-                title="删除论文和本地生成内容"
+                className="button secondary compact"
+                onClick={archivePaper}
+                disabled={managementBusy}
+                title="将论文移到归档管理"
               >
-                <Trash2 size={14} /> 删除论文
+                <Archive size={14} /> 归档论文
               </button>
             </div>
             {(managementMessage ||
@@ -476,10 +506,11 @@ function PaperText({
               connected={connected}
               hasLocal={!!revisionId}
               hasModel={!!latestModelSession}
+              modelSessionId={latestModelSession?.id}
               source={modelSession ? "model" : "local"}
-              onViewSource={(mode) => setShowLocal(mode === "local")}
+              onViewSource={rememberReadingSource}
               onQueued={(mode) => {
-                setShowLocal(mode === "local");
+                setReadingSource(mode);
                 if (activePanel !== "qa") setActivePanel("guide");
               }}
             >
@@ -510,6 +541,7 @@ function PaperText({
               paperId={paperId}
               sessionId={modelSession.id}
               connected={connected}
+              showTaskStatus={false}
               activeView={activePanel === "guide" ? "reading" : "overview"}
               sessionStatus={modelSession.status}
               sessionError={modelSession.error}
@@ -519,7 +551,7 @@ function PaperText({
             <div className="quality-note" role="status">
               <strong>正在准备论文阅读功能</strong>
               <p>
-                当前论文尚无可读的解析版本。打开“论文解析操作”，选择本地或模型解析。
+                当前论文尚无可读的解析版本。打开“更多操作”，选择本地或模型解析。
               </p>
               <p className="muted">
                 如果长时间没有变化，请打开左侧“任务记录”查看 PDF 导入是否失败。
@@ -603,7 +635,7 @@ function PaperText({
                 </>
               ) : (
                 <p className="quality-note" role="status">
-                  论文回答需要本地解析建立原文索引。打开圆形“论文解析操作”菜单，选择“本地解析
+                  论文回答需要本地解析建立原文索引。打开“更多操作”，选择“本地解析
                   / 重试”。
                 </p>
               )}
@@ -625,6 +657,7 @@ function PaperText({
               setQaParagraph(null);
             }}
           />
+          {contextMenu}
         </>
       )}
     </div>

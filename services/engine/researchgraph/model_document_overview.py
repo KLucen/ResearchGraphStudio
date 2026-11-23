@@ -1,4 +1,4 @@
-"""Project model-derived sections onto the shared PaperCard/LightGraph contract.
+"""Project model-derived sections onto the evidence-backed paper card set.
 
 The parser source and output history stay in the model-document tables.  No
 legacy PDF revision or chunk is fabricated to make an overview visible.
@@ -13,13 +13,15 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, delete, or_, select
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import StrictModel, stable_id
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
 from researchgraph.model_document_models import (
     LlmDocumentOutput,
+    LlmDocumentOutputLocalRecovery,
     LlmDocumentParse,
     LlmDocumentSegment,
 )
@@ -28,10 +30,9 @@ from researchgraph.model_document_overview_models import (
     ModelOverviewGraphViewport,
 )
 from researchgraph.models import Job, Paper, now
+from researchgraph.paper_card_set_contracts import MODEL_CARD_CONTRACT_VERSIONS
 from researchgraph.paper_overview_api import SYSTEM_PROMPT, overview_schema
 from researchgraph.paper_overview_contracts import (
-    PROMPT_VERSION,
-    SCHEMA_VERSION,
     GraphPosition,
     GraphViewport,
     LayoutInput,
@@ -174,11 +175,19 @@ def validate_model_overview(raw: str | dict[str, Any], paper_id: str) -> dict[st
 
 
 def _latest_output(db: Session, parse_id: str) -> LlmDocumentOutput | None:
+    from researchgraph.paper_card_set_contracts import SCHEMA_VERSION
+
     return db.scalar(
         select(LlmDocumentOutput)
         .where(
             LlmDocumentOutput.parse_id == parse_id,
             LlmDocumentOutput.item_kind == "paper_overview",
+            or_(
+                LlmDocumentOutput.usage["contract_version"]
+                .as_integer()
+                .in_(MODEL_CARD_CONTRACT_VERSIONS),
+                LlmDocumentOutput.output_json["schema_version"].as_string() == SCHEMA_VERSION,
+            ),
         )
         .order_by(LlmDocumentOutput.created_at.desc(), LlmDocumentOutput.id.desc())
         .limit(1)
@@ -196,24 +205,45 @@ def model_overview_view(
         or output.item_kind != "paper_overview"
     ):
         raise ValueError("概览结果与模型章节归属不匹配")
-    result: ModelOverviewResult | None = None
+    from researchgraph.paper_card_set_contracts import (
+        SCHEMA_VERSION as CARD_SCHEMA_VERSION,
+    )
+    from researchgraph.paper_card_set_contracts import (
+        model_card_prompt_version,
+        validate_saved_paper_card_set,
+    )
+    from researchgraph.paper_card_set_service import build_card_manifest
+
+    content: dict[str, Any] | None = None
+    usage = output.usage or {}
+    card_version = usage.get("contract_version")
+    recovery_view = None
+    if output.status != "succeeded" and card_version not in MODEL_CARD_CONTRACT_VERSIONS:
+        # Earlier queued/failed protocols do not become a new card-set draft.
+        return None
     if output.status == "succeeded":
         if (
             not isinstance(output.output_json, dict)
-            or output.output_json.get("schema_version") != SCHEMA_VERSION
+            or output.output_json.get("schema_version") != CARD_SCHEMA_VERSION
         ):
-            # Old summary-only outputs are history, not empty or invented graphs.
+            # Earlier graph/summary results are not shown as current card sets.
             return None
-        result = ModelOverviewResult.model_validate(
-            validate_model_overview(output.output_json, paper.id), strict=True
+        manifest = build_card_manifest(db, paper.id, "model_parse", parse.id)
+        content = validate_saved_paper_card_set(
+            output.output_json, manifest, prompt_version=model_card_prompt_version(card_version)
         )
+    elif output.status == "failed":
+        from researchgraph.model_document_api import _local_recovery_view
+
+        recovery_view = _local_recovery_view(db, output)
+        if recovery_view.status == "partial":
+            content = recovery_view.output_json
     item = db.scalar(
         select(ImportPlanItem).where(
             ImportPlanItem.session_id == parse.import_session_id,
             ImportPlanItem.item_kind == "paper_overview",
         )
     )
-    usage = output.usage or {}
     raw_receipts = usage.get("requests")
     receipts = {
         (entry["job_id"], entry["attempt"], entry["purpose"]): entry
@@ -242,20 +272,23 @@ def model_overview_view(
         # compatibility fields never serve as a source identity or prerequisite.
         pdf_hash="",
         input_hash="",
-        schema_version=SCHEMA_VERSION,
-        prompt_version=PROMPT_VERSION,
+        schema_version=CARD_SCHEMA_VERSION,
+        prompt_version=model_card_prompt_version(card_version),
         provider_id=output.provider_id or "",
         model_id=output.model_id or "",
         status=(
-            "COMPLETED"
+            "PARTIAL"
+            if recovery_view is not None and recovery_view.status == "partial"
+            else "COMPLETED"
             if output.status == "succeeded"
             else "PENDING"
             if output.status in {"pending", "running"}
             else "FAILED"
         ),
-        graph_status="READY" if result and result.graph.nodes else "NOT_ENOUGH_INFO",
-        paper_card=result.paper_card if result else None,
-        graph=result.graph if result else None,
+        graph_status="NOT_ENOUGH_INFO",
+        paper_card=None,
+        graph=None,
+        card_set=content,
         usage=OverviewUsage(
             input_tokens=inp,
             output_tokens=out,
@@ -268,53 +301,58 @@ def model_overview_view(
         ),
         generated_at=output.updated_at,
         job_id=item.job_id if item else None,
-        error_code="SOURCE_CHANGED" if output.status == "stale" else output.error_code,
+        error_code=(
+            "SOURCE_CHANGED"
+            if output.status == "stale"
+            else recovery_view.error_code
+            if recovery_view is not None
+            else output.error_code
+        ),
         error=(
             "章节内容已修改，请明确允许后重新生成概览。"
             if output.status == "stale"
+            else recovery_view.error
+            if recovery_view is not None
             else output.error
         ),
+        local_recovery_available=bool(recovery_view and recovery_view.local_recovery_available),
+        recovery_summary=recovery_view.recovery_summary if recovery_view is not None else None,
     )
 
 
 def model_overview_with_previous(
     db: Session, parse: LlmDocumentParse, output: LlmDocumentOutput
 ) -> OverviewView | None:
-    """Keep a current-source successful draft visible during a failed refresh."""
-    current = model_overview_view(db, parse, output)
-    if current is None or current.status == "COMPLETED":
-        return current
-    previous = db.scalars(
+    """After an unsuccessful retry, keep a previously verified partial result readable."""
+    view = model_overview_view(db, parse, output)
+    if view is None or view.status != "FAILED":
+        return view
+    older = db.scalars(
         select(LlmDocumentOutput)
+        .join(LlmDocumentOutputLocalRecovery)
         .where(
             LlmDocumentOutput.parse_id == parse.id,
             LlmDocumentOutput.item_kind == "paper_overview",
-            LlmDocumentOutput.status == "succeeded",
             LlmDocumentOutput.id != output.id,
         )
         .order_by(LlmDocumentOutput.created_at.desc(), LlmDocumentOutput.id.desc())
-    ).all()
-    for candidate in previous:
-        if (candidate.usage or {}).get("source_updated_at") != parse.updated_at:
-            continue
-        try:
-            valid = model_overview_view(db, parse, candidate)
-        except ValueError:
-            continue
-        if valid is not None and valid.paper_card is not None and valid.graph is not None:
-            return current.model_copy(
+    )
+    for candidate in older:
+        previous = model_overview_view(db, parse, candidate)
+        if previous is not None and previous.status == "PARTIAL":
+            return view.model_copy(
                 update={
-                    "paper_card": valid.paper_card,
-                    "graph": valid.graph,
-                    "graph_status": valid.graph_status,
-                    "display_result_id": valid.id,
+                    "card_set": previous.card_set,
+                    "display_result_id": previous.id,
+                    "display_recovery_summary": previous.recovery_summary,
                 }
             )
-    return current
+    return view
 
 
 def register_model_overview_api(app: FastAPI, engine: Callable[[], Engine]) -> None:
     def source(db: Session, paper_id: str, parse_id: str) -> LlmDocumentParse:
+        require_unarchived_paper(db, paper_id)
         parse = db.get(LlmDocumentParse, parse_id)
         paper = model_document_paper(db, parse) if parse else None
         if parse is None or paper is None or paper.id != paper_id or parse.status != "succeeded":
@@ -326,10 +364,17 @@ def register_model_overview_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         parse = source(db, paper_id, output.parse_id) if output else None
         if output is None or parse is None:
             raise HTTPException(404, "模型概览不存在")
-        view = model_overview_view(db, parse, output)
-        if view is None or view.status != "COMPLETED" or output.output_json is None:
+        if output.status != "succeeded" or output.output_json is None:
             raise HTTPException(409, "模型概览尚未完成")
-        return ModelOverviewResult.model_validate(output.output_json, strict=True)
+        # Retired layout routes only read their original legacy graph, not cards.
+        if output.output_json.get("schema_version") != "paper_overview_graph.v1":
+            raise HTTPException(409, "当前卡片集不包含单篇图谱布局")
+        try:
+            return ModelOverviewResult.model_validate(
+                validate_model_overview(output.output_json, paper_id), strict=True
+            )
+        except ValueError:
+            raise HTTPException(409, "历史图谱未通过内容或来源复验") from None
 
     def layout(db: Session, paper_id: str, result_id: str) -> LayoutView:
         result(db, paper_id, result_id)
@@ -355,7 +400,10 @@ def register_model_overview_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         with read_session(engine()) as db:
             parse = source(db, paper_id, parse_id)
             output = _latest_output(db, parse.id)
-            return model_overview_with_previous(db, parse, output) if output else None
+            try:
+                return model_overview_with_previous(db, parse, output) if output else None
+            except ValueError:
+                raise HTTPException(409, "当前卡片集未通过内容或来源复验，请重新生成") from None
 
     @app.post("/api/v1/papers/{paper_id}/model-overview/generate", response_model=OverviewView)
     def generate(paper_id: str, body: OverviewGenerate) -> OverviewView:
@@ -366,10 +414,14 @@ def register_model_overview_api(app: FastAPI, engine: Callable[[], Engine]) -> N
         with Session(engine()) as db, db.begin():
             parse = source(db, paper_id, body.document_version_id or "")
             output = _latest_output(db, parse.id)
-            view = model_overview_with_previous(db, parse, output) if output else None
+            try:
+                view = model_overview_with_previous(db, parse, output) if output else None
+            except ValueError:
+                # A source-invalid prior card set must not block explicit regeneration.
+                view = None
             if view and (
                 view.status == "PENDING"
-                or (view.status == "COMPLETED" and not body.force_regenerate)
+                or (view.status in {"COMPLETED", "PARTIAL"} and not body.force_regenerate)
                 or (view.status == "FAILED" and not body.retry_failed and not body.force_regenerate)
             ):
                 return view

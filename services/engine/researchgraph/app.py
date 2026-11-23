@@ -15,7 +15,6 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from filelock import FileLock
-from pydantic import ValidationError
 from sqlalchemy import Engine, and_, func, literal_column, or_, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -24,6 +23,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
 from researchgraph import PROTOCOL_VERSION, __version__
+from researchgraph.archive_guards import require_unarchived_paper
+from researchgraph.archive_models import active_target, archived_target
 from researchgraph.core import KnowledgeError
 from researchgraph.document_batch_recovery import (
     authorize_publication_retry,
@@ -37,10 +38,12 @@ from researchgraph.document_format_repair import (
 )
 from researchgraph.import_plan_api import (
     create_import_session_record,
+    import_session_paper,
     normalize_post_import_plan,
     register_import_plan_api,
 )
-from researchgraph.ingest import run_file_job
+from researchgraph.import_plan_models import ImportSession
+from researchgraph.knowledge_diagnostics import project_knowledge_diagnostic
 from researchgraph.models import (
     AttachmentRevision,
     Chunk,
@@ -87,6 +90,9 @@ from researchgraph.storage import (
     migrate,
     read_session,
 )
+from researchgraph.task_runtime import TaskRuntime
+from researchgraph.task_worker import claim_queued_job as claim_queued_job
+from researchgraph.task_worker import worker
 from researchgraph.workspaces import recover_workspaces
 from researchgraph.zotero_batch import register_zotero_batch_api
 
@@ -139,224 +145,6 @@ def remember(session: Session, key: str, body: dict[str, Any], response: dict[st
     )
 
 
-def claim_queued_job(engine: Engine) -> tuple[str, str] | None:
-    with read_session(engine) as session:
-        candidate = session.scalar(
-            select(Job.id).where(Job.status == "queued").order_by(Job.created_at, Job.id).limit(1)
-        )
-    if candidate is None:
-        return None
-    with Session(engine) as session, session.begin():
-        # A cancel or another claimant can win after the read-only poll.
-        job = session.get(Job, candidate)
-        if job is None or job.status != "queued":
-            return None
-        if job.kind == "pdf_translation":
-            retire_translation_jobs(session, job.id)
-            return None
-        job.status, job.updated_at = "running", now()
-        job.stage = "diagnostics" if job.kind == "diagnostics" else "starting"
-        job.attempt += 1
-        return job.id, job.kind
-
-
-def finish_diagnostic(
-    engine: Engine, job_id: str, result: dict[str, str | bool] | None, error: str | None
-) -> None:
-    with Session(engine) as session, session.begin():
-        current = session.get(Job, job_id)
-        if current and current.status == "running":
-            current.status = "failed" if error else "succeeded"
-            if result is not None:
-                current.result = result
-            current.error, current.updated_at = error, now()
-            from researchgraph.model_document_api import synchronize_import_job
-
-            synchronize_import_job(session, current)
-
-
-def after_knowledge_job(engine: Engine, job_id: str) -> None:
-    """Queue only newly completed work under the user's saved library policy."""
-    from researchgraph.knowledge_automation import dispatch_collection_events
-    from researchgraph.knowledge_connection_models import KnowledgeAnalysisEvent
-    from researchgraph.knowledge_connections import queue_auto_connections
-
-    with Session(engine) as session, session.begin():
-        job = session.get(Job, job_id)
-        if job is None or job.status != "succeeded":
-            return
-        if job.kind == "knowledge_extract":
-            version_id = (job.result or {}).get("knowledge_version_id")
-            if version_id and session.get(KnowledgeAnalysisEvent, version_id) is not None:
-                queue_auto_connections(session, version_id)
-        else:
-            dispatch_collection_events(session)
-
-
-def dispatch_pending_knowledge(engine: Engine) -> None:
-    """Avoid acquiring a writer on ordinary idle polls or disabled policies."""
-    from researchgraph.knowledge_automation import dispatch_collection_events
-    from researchgraph.knowledge_connection_models import (
-        KnowledgeAnalysisEvent,
-        KnowledgeCollectionEvent,
-    )
-    from researchgraph.knowledge_connections import dispatch_pending_analysis
-    from researchgraph.knowledge_library import PERSONAL_LIBRARY_ID, library_view
-    from researchgraph.knowledge_library_models import KnowledgeLibrary
-
-    with read_session(engine) as session:
-        settings = library_view(session.get(KnowledgeLibrary, PERSONAL_LIBRARY_ID)).settings
-        pending = session.scalar(
-            select(KnowledgeAnalysisEvent.version_id)
-            .where(KnowledgeAnalysisEvent.state == "pending")
-            .limit(1)
-        )
-        collection_pending = session.scalar(
-            select(KnowledgeCollectionEvent.job_id)
-            .where(KnowledgeCollectionEvent.state == "pending")
-            .limit(1)
-        )
-        if not settings.allow_network or not (
-            settings.auto_connect
-            and pending is not None
-            or settings.auto_collect
-            and collection_pending is not None
-        ):
-            return
-    with Session(engine) as session, session.begin():
-        dispatch_collection_events(session)
-        dispatch_pending_analysis(session)
-
-
-async def worker(engine: Engine, data_dir: Path) -> None:
-    next_knowledge_dispatch = 0.0
-    while True:
-        current_time = asyncio.get_running_loop().time()
-        if current_time >= next_knowledge_dispatch:
-            try:
-                await asyncio.to_thread(dispatch_pending_knowledge, engine)
-            except OperationalError as exc:
-                if not database_busy(exc):
-                    raise
-            next_knowledge_dispatch = current_time + 30
-        claim_task = asyncio.create_task(asyncio.to_thread(claim_queued_job, engine))
-        try:
-            claimed = await asyncio.shield(claim_task)
-        except asyncio.CancelledError:
-            # Finish a pending claim before shutdown marks running work interrupted.
-            with suppress(OperationalError):
-                await claim_task
-            raise
-        except OperationalError as exc:
-            if not database_busy(exc):
-                raise
-            # No job has been claimed or model request sent. Leave queued work intact.
-            claimed = None
-        if claimed is None:
-            await asyncio.sleep(0.15)
-            continue
-        job_id, kind = claimed
-        result: dict[str, str | bool] | None = None
-        error = None
-        try:
-            if kind == "knowledge_extract":
-                from researchgraph.knowledge_tasks import run_knowledge_extract
-
-                await run_knowledge_extract(engine, job_id, data_dir)
-                await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                continue
-            if kind == "knowledge_connect":
-                from researchgraph.knowledge_connections import run_knowledge_connect
-
-                await run_knowledge_connect(engine, job_id, data_dir)
-                continue
-            if kind == "formula_recognition":
-                from researchgraph.formula_jobs import execute_formula_recognition
-
-                await execute_formula_recognition(engine, job_id, data_dir)
-                continue
-            if kind == "llm_document_parse":
-                from researchgraph.model_document_api import execute_document_parse
-
-                await execute_document_parse(engine, job_id, data_dir)
-                await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                continue
-            if kind == "llm_document_postprocess":
-                from researchgraph.model_document_api import execute_document_postprocess
-
-                await execute_document_postprocess(engine, job_id, data_dir)
-                await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                continue
-            if kind == "paper_overview":
-                from researchgraph.paper_overview_api import execute_overview
-
-                await execute_overview(engine, job_id, data_dir)
-                await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                continue
-            if kind == "section_guide":
-                from researchgraph.section_guide_api import execute_section_guide
-
-                await execute_section_guide(engine, job_id, data_dir)
-                continue
-            if kind == "section_close_reading":
-                from researchgraph.close_reading_api import execute_close_reading
-
-                await execute_close_reading(engine, job_id, data_dir)
-                continue
-            if kind == "paper_reading_notes":
-                from researchgraph.paper_reading_api import execute_paper_reading
-
-                await execute_paper_reading(engine, job_id, data_dir)
-                continue
-            if kind == "understanding_check":
-                from researchgraph.close_reading_api import execute_understanding_check
-
-                await execute_understanding_check(engine, job_id, data_dir)
-                continue
-            if kind == "grounded_qa":
-                from researchgraph.qa_api import execute_qa
-
-                await execute_qa(engine, job_id, data_dir)
-                continue
-            if kind == "search_keywords":
-                from researchgraph.keyword_api import execute_keyword_expansion
-
-                await execute_keyword_expansion(engine, job_id, data_dir)
-                continue
-            if kind in {"pdf_import", "zotero_import"}:
-                with read_session(engine) as read_db:
-                    queued_job = read_db.get(Job, job_id)
-                    model_first = bool(queued_job and (queued_job.payload or {}).get("model_first"))
-                if model_first:
-                    # A model-first import must never enter the legacy local PDF
-                    # parser. The document worker performs capability checks and
-                    # records an explicit failure when no native file transport
-                    # or frozen provider snapshot is available.
-                    from researchgraph.model_document_api import execute_document_parse
-
-                    await execute_document_parse(engine, job_id, data_dir)
-                    await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                    continue
-                await run_file_job(engine, job_id, data_dir)
-                await asyncio.to_thread(after_knowledge_job, engine, job_id)
-                continue
-            if kind in {"source_check", "source_relocate"}:
-                await run_file_job(engine, job_id, data_dir)
-                continue
-            if kind != "diagnostics":
-                raise ValueError("任务类型不受当前 Lite 版本支持")
-            result = await asyncio.to_thread(diagnostics, engine)
-        except Exception as exc:
-            error = (
-                "模型输出未通过 Schema 校验，请查看模型运行记录"
-                if isinstance(exc, ValidationError)
-                else str(exc)
-                if kind != "diagnostics" and isinstance(exc, (ValueError, RuntimeError))
-                else f"任务失败：{type(exc).__name__}，请检查文件或数据库权限"
-            )
-        await asyncio.to_thread(finish_diagnostic, engine, job_id, result, error)
-
-
 def create_app(
     data_dir: Path,
     token: str,
@@ -374,6 +162,7 @@ def create_app(
         with lock:
             engine = make_engine(data_dir)
             app.state.engine = engine
+            app.state.task_runtime = TaskRuntime(enabled=start_worker)
             task = None
             try:
                 migrate(engine, data_dir)
@@ -411,7 +200,7 @@ def create_app(
 
                 recover_document_imports(engine)
                 if start_worker:
-                    task = asyncio.create_task(worker(engine, data_dir))
+                    task = asyncio.create_task(worker(engine, data_dir, app.state.task_runtime))
                 if ready:
                     ready()
                 yield
@@ -420,17 +209,24 @@ def create_app(
                     task.cancel()
                     with suppress(asyncio.CancelledError):
                         await task
-                with Session(engine) as session, session.begin():
-                    # Best effort during normal shutdown; restart also recovers interrupted jobs.
-                    if engine.dialect.has_table(session.connection(), "jobs"):
-                        session.execute(
-                            update(Job)
-                            .where(Job.status == "running")
-                            .values(
-                                status="interrupted", error="应用退出，任务已中断", updated_at=now()
+                try:
+                    with Session(engine) as session, session.begin():
+                        # Restart also reconciles running work if SQLite is temporarily locked.
+                        if engine.dialect.has_table(session.connection(), "jobs"):
+                            session.execute(
+                                update(Job)
+                                .where(Job.status == "running")
+                                .values(
+                                    status="interrupted",
+                                    error="应用退出，任务已中断",
+                                    updated_at=now(),
+                                )
                             )
-                        )
-                engine.dispose()
+                except OperationalError as exc:
+                    if not database_busy(exc):
+                        raise
+                finally:
+                    engine.dispose()
 
     app = FastAPI(title="ResearchGraph Engine", version=__version__, lifespan=lifespan)
     app.add_middleware(
@@ -499,6 +295,9 @@ def create_app(
             status = 404
         return error_response(request, status, exc.code, str(exc))
 
+    from researchgraph.archive_api import register_archive_api
+
+    register_archive_api(app, engine, data_dir)
     register_settings_api(app, engine, data_dir)
     from researchgraph.paper_parse_api import register_paper_parse_api
 
@@ -551,16 +350,55 @@ def create_app(
     register_chapter_reading_api(app, engine)
     register_knowledge_library_api(app, engine, data_dir)
     register_knowledge_workflow_api(app, engine, data_dir)
+    from researchgraph.workspace_search_api import register_workspace_search_api
+
+    register_workspace_search_api(app, engine)
+
+    def active_jobs() -> int:
+        with read_session(engine()) as session:
+            return (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Job)
+                    .where(Job.status.in_(("queued", "running")))
+                )
+                or 0
+            )
 
     @app.get("/api/v1/health", response_model=Health)
-    def health() -> Health:
+    async def health() -> Health:
+        runtime = cast(TaskRuntime, app.state.task_runtime)
+        try:
+            active: int | None = await asyncio.to_thread(active_jobs)
+        except OperationalError:
+            active = None
+        worker_status, worker_error = runtime.status()
         return Health(
             version=__version__,
             protocol_version=PROTOCOL_VERSION,
             schema_version=SCHEMA_HEAD,
             fts5=True,
             temporary_files=app.state.workspace_cleanup,
+            worker_status=worker_status,
+            worker_error=worker_error,
+            active_jobs=active,
         )
+
+    @app.post("/api/v1/maintenance/quiesce")
+    async def quiesce_for_workspace_backup() -> dict[str, bool]:
+        """Native-only route. The WebView IPC allow-list never forwards it."""
+        runtime = cast(TaskRuntime, app.state.task_runtime)
+        if not runtime.pause_for_offline_operation():
+            return {"quiesced": False}
+        confirmed = False
+        try:
+            confirmed = await asyncio.to_thread(active_jobs) == 0
+            return {"quiesced": confirmed}
+        except OperationalError:
+            return {"quiesced": False}
+        finally:
+            if not confirmed:
+                runtime.paused_until = 0
 
     @app.get("/api/v1/projects", response_model=ProjectList)
     def projects(cursor: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100)) -> ProjectList:
@@ -599,30 +437,40 @@ def create_app(
             remember(session, key, payload, response.model_dump())
             return response
 
+    @app.get("/api/v1/projects/{project_id}", response_model=ProjectView)
+    def get_project(project_id: str) -> ProjectView:
+        with read_session(engine()) as session:
+            project = session.get(Project, project_id)
+            if project is None:
+                raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            return ProjectView.model_validate(project)
+
     @app.get("/api/v1/jobs", response_model=list[JobView])
     def jobs() -> list[JobView]:
         with read_session(engine()) as session:
             return [
                 JobView.model_validate(j).model_copy(
-                    update={"result": project_batch_recovery(session, j)}
+                    update={
+                        "result": project_knowledge_diagnostic(
+                            session, j, project_batch_recovery(session, j)
+                        )
+                    }
                 )
-                for j in session.scalars(select(Job).order_by(Job.created_at.desc()).limit(50))
+                for j in session.scalars(
+                    select(Job)
+                    .where(active_target("job", Job.id))
+                    .order_by(Job.created_at.desc(), Job.id.desc())
+                    .limit(50)
+                )
             ]
 
-    @app.get("/api/v1/projects/{project_id}/jobs", response_model=JobList)
-    def project_jobs(
-        project_id: str,
-        cursor: str | None = Query(
-            default=None,
-            max_length=512,
-            description="不透明的历史快照游标，仅使用 next_cursor 续页",
-        ),
-        limit: int = Query(10, ge=1, le=100),
-    ) -> JobList:
+    def job_page(project_id: str | None, cursor: str | None, limit: int) -> JobList:
         with read_session(engine()) as session:
-            if not session.get(Project, project_id):
+            if project_id is not None and not session.get(Project, project_id):
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
-            statement = select(Job).where(Job.project_id == project_id)
+            statement = select(Job).where(active_target("job", Job.id))
+            if project_id is not None:
+                statement = statement.where(Job.project_id == project_id)
             snapshot: int
             if cursor is not None:
                 decoded = decode_job_cursor(cursor)
@@ -635,7 +483,7 @@ def create_app(
                 )
                 if (
                     anchor is None
-                    or anchor.project_id != project_id
+                    or (project_id is not None and anchor.project_id != project_id)
                     or anchor_row is None
                     or anchor_row > snapshot
                 ):
@@ -659,7 +507,11 @@ def create_app(
             return JobList(
                 items=[
                     JobView.model_validate(j).model_copy(
-                        update={"result": project_batch_recovery(session, j)}
+                        update={
+                            "result": project_knowledge_diagnostic(
+                                session, j, project_batch_recovery(session, j)
+                            )
+                        }
                     )
                     for j in rows[:limit]
                 ],
@@ -667,6 +519,25 @@ def create_app(
                     encode_job_cursor(rows[limit - 1].id, snapshot) if len(rows) > limit else None
                 ),
             )
+
+    @app.get("/api/v1/jobs/page", response_model=JobList)
+    def global_jobs_page(
+        cursor: str | None = Query(default=None, max_length=512),
+        limit: int = Query(10, ge=1, le=100),
+    ) -> JobList:
+        return job_page(None, cursor, limit)
+
+    @app.get("/api/v1/projects/{project_id}/jobs", response_model=JobList)
+    def project_jobs(
+        project_id: str,
+        cursor: str | None = Query(
+            default=None,
+            max_length=512,
+            description="不透明的历史快照游标，仅使用 next_cursor 续页",
+        ),
+        limit: int = Query(10, ge=1, le=100),
+    ) -> JobList:
+        return job_page(project_id, cursor, limit)
 
     @app.post("/api/v1/jobs", response_model=JobView, status_code=202)
     def create_job(body: JobCreate, idempotency_key: Key) -> JobView:
@@ -692,10 +563,14 @@ def create_app(
     def get_job(job_id: str) -> JobView:
         with read_session(engine()) as session:
             job = session.get(Job, job_id)
-            if not job:
+            if not job or archived_target(session, "job", job_id):
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
             return JobView.model_validate(job).model_copy(
-                update={"result": project_batch_recovery(session, job)}
+                update={
+                    "result": project_knowledge_diagnostic(
+                        session, job, project_batch_recovery(session, job)
+                    )
+                }
             )
 
     @app.post("/api/v1/jobs/{job_id}/{action}", response_model=JobView)
@@ -707,6 +582,17 @@ def create_app(
             job = session.get(Job, job_id)
             if not job:
                 raise failure(404, "JOB_NOT_FOUND", "任务不存在")
+            if archived_target(session, "job", job_id):
+                raise failure(409, "JOB_ARCHIVED", "请先在归档管理恢复任务记录")
+            if action == "retry":
+                job_payload = job.payload or {}
+                require_unarchived_paper(session, job_payload.get("paper_id"))
+                import_session_id = job_payload.get("import_session_id")
+                if isinstance(import_session_id, str) and import_session_id:
+                    source = session.get(ImportSession, import_session_id)
+                    paper = import_session_paper(session, source) if source is not None else None
+                    if paper is not None:
+                        require_unarchived_paper(session, paper.id)
             # Reject even a historical idempotency key that once queued a
             # translation. Removed work can never be resumed by replay.
             if action == "retry" and job.kind == "pdf_translation":
@@ -887,7 +773,10 @@ def create_app(
             synchronize_import_job(session, job)
             response = JobView.model_validate(job)
             remember(session, key, payload, response.model_dump())
-            return response
+        if action == "cancel":
+            # Notify only after the transaction committed and only for this attempt.
+            cast(TaskRuntime, app.state.task_runtime).cancel(job_id, response.attempt)
+        return response
 
     @app.post(
         "/api/v1/projects/{project_id}/papers/import/pdf", response_model=JobView, status_code=202
@@ -996,12 +885,14 @@ def create_app(
         request_body = {"source_id": source_id, "kind": kind, **body.model_dump()}
         key = f"source-action:{key}"
         with Session(engine()) as session, session.begin():
-            previous = remembered(session, key, request_body)
-            if previous:
-                return JobView.model_validate(previous)
             source = session.get(PaperSource, source_id)
             if not source:
                 raise failure(404, "SOURCE_NOT_FOUND", "来源不存在")
+            if archived_target(session, "paper", source.paper_id):
+                raise failure(409, "PAPER_ARCHIVED", "请先恢复已归档的论文")
+            previous = remembered(session, key, request_body)
+            if previous:
+                return JobView.model_validate(previous)
             if source.generation != body.expected_generation:
                 raise failure(409, "SOURCE_CHANGED", "来源已更新，请刷新后重新操作")
             paper = session.get(Paper, source.paper_id)
@@ -1048,9 +939,10 @@ def create_app(
         with read_session(engine()) as session:
             if not session.get(Project, project_id):
                 raise failure(404, "PROJECT_NOT_FOUND", "项目不存在")
+            filters = (Paper.project_id == project_id, active_target("paper", Paper.id))
             rows = session.scalars(
                 select(Paper)
-                .where(Paper.project_id == project_id)
+                .where(*filters)
                 .order_by(Paper.created_at.desc(), Paper.id)
                 .offset(cursor)
                 .limit(limit + 1)
@@ -1058,13 +950,14 @@ def create_app(
             return PaperList(
                 items=[PaperView.model_validate(p) for p in rows[:limit]],
                 next_cursor=cursor + limit if len(rows) > limit else None,
+                total=session.scalar(select(func.count()).select_from(Paper).where(*filters)) or 0,
             )
 
     @app.get("/api/v1/papers/{paper_id}", response_model=PaperDetail)
     def paper_detail(paper_id: str) -> PaperDetail:
         with read_session(engine()) as session:
             paper = session.get(Paper, paper_id)
-            if not paper:
+            if not paper or archived_target(session, "paper", paper_id):
                 raise failure(404, "PAPER_NOT_FOUND", "文献不存在")
             return PaperDetail(
                 paper=PaperView.model_validate(paper),

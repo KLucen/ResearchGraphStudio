@@ -12,8 +12,11 @@ use std::{
 };
 use tauri::{Manager, State};
 
+mod desktop_window;
+mod workspace_backup;
+
 const ENGINE_PROTOCOL_VERSION: u64 = 1;
-const ENGINE_SCHEMA_VERSION: &str = "lite0018";
+const ENGINE_SCHEMA_VERSION: &str = "lite0020";
 
 #[derive(Default)]
 struct Host {
@@ -25,10 +28,39 @@ struct Host {
     executable: PathBuf,
     error: Option<String>,
     pdf_selections: HashMap<String, PendingPdfSelection>,
+    in_flight_writes: usize,
 }
 
 #[derive(Clone)]
 struct Shared(Arc<Mutex<Host>>);
+
+struct EngineWrite {
+    shared: Shared,
+}
+
+impl Drop for EngineWrite {
+    fn drop(&mut self) {
+        if let Ok(mut host) = self.shared.0.lock() {
+            host.in_flight_writes -= 1;
+        }
+    }
+}
+
+fn request_endpoint(
+    shared: &Shared,
+    writes: bool,
+) -> Result<(u16, String, Option<EngineWrite>), String> {
+    let mut host = shared.0.lock().map_err(|_| "宿主状态不可用")?;
+    let port = host.port.ok_or("引擎尚未就绪，请稍候或重新连接")?;
+    let token = host.token.clone();
+    let write = writes.then(|| {
+        host.in_flight_writes += 1;
+        EngineWrite {
+            shared: shared.clone(),
+        }
+    });
+    Ok((port, token, write))
+}
 
 #[derive(Serialize)]
 struct HostStatus {
@@ -235,6 +267,16 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
                     && value.split(',').count() <= 100
                     && value.split(',').all(valid_id)
             }
+            "job_ids" => {
+                !value.is_empty()
+                    && value.split(',').count() <= 25
+                    && value.split(',').all(valid_id)
+            }
+            "paper_ids" => {
+                !value.is_empty()
+                    && value.split(',').count() <= 48
+                    && value.split(',').all(valid_id)
+            }
             "adaptive" | "include_text" | "include_archived" | "unread_only" => {
                 matches!(value.as_ref(), "true" | "false")
             }
@@ -249,6 +291,16 @@ fn query_allowed(query: &str, keys: &[&str]) -> bool {
             "view_key" => !value.is_empty() && value.chars().count() <= 120,
             "depth" => matches!(value.as_ref(), "quick" | "standard" | "deep"),
             "scope" => matches!(value.as_ref(), "selection" | "section" | "paper"),
+            "kind" => matches!(
+                value.as_ref(),
+                "paper"
+                    | "knowledge_paper"
+                    | "knowledge_collection"
+                    | "model_connection"
+                    | "model_profile"
+                    | "job"
+                    | "paper_legacy_content"
+            ),
             _ => false,
         }
     })
@@ -268,6 +320,9 @@ fn allowed(method: &str, path: &str) -> bool {
     let plain = query.is_empty();
     match (method, suffix) {
         ("GET", ["health"]) => plain,
+        ("GET", ["archive"]) => query_allowed(query, &["kind", "offset", "limit"]),
+        ("POST", ["archive"]) => plain,
+        ("POST", ["archive", id, "restore"]) | ("DELETE", ["archive", id]) => plain && valid_id(id),
         ("GET" | "PATCH", ["knowledge", "library"]) => plain,
         ("GET", ["knowledge", "papers"]) => query_allowed(
             query,
@@ -285,7 +340,15 @@ fn allowed(method: &str, path: &str) -> bool {
         ("GET", ["knowledge", "versions", version]) => plain && valid_id(version),
         ("POST", ["knowledge", "versions", version, "connect"]) => plain && valid_id(version),
         ("GET" | "POST", ["knowledge", "collections"]) => plain,
-        ("DELETE", ["knowledge", "collections", collection]) => plain && valid_id(collection),
+        ("PATCH" | "DELETE", ["knowledge", "collections", collection]) => {
+            plain && valid_id(collection)
+        }
+        ("POST", ["knowledge", "collections", collection, "membership"]) => {
+            plain && valid_id(collection)
+        }
+        ("GET", ["knowledge", "collections", collection, "external-papers"]) => {
+            !plain && valid_id(collection) && query_allowed(query, &["paper_ids"])
+        }
         ("PUT" | "DELETE", ["knowledge", "collections", collection, "papers", paper]) => {
             plain && valid_id(collection) && valid_id(paper)
         }
@@ -301,12 +364,18 @@ fn allowed(method: &str, path: &str) -> bool {
         ),
         ("GET" | "PATCH", ["knowledge", "reports", report]) => plain && valid_id(report),
         ("GET", ["knowledge", "runs"]) => {
-            query_allowed(query, &["library_paper_id", "limit", "offset"])
+            query_allowed(query, &["library_paper_id", "limit", "offset", "job_ids"])
         }
         ("POST", ["knowledge", "runs", run, "retry"]) => plain && valid_id(run),
+        ("GET" | "POST", ["knowledge", "runs", run, "local-recovery"]) => plain && valid_id(run),
         ("GET", ["projects"]) => query_allowed(query, &["cursor", "limit"]),
+        ("GET", ["workspace", "search"]) => {
+            !plain && query_allowed(query, &["q", "offset", "limit"])
+        }
+        ("GET", ["projects", project]) => plain && valid_id(project),
         ("POST", ["projects"] | ["jobs"]) => plain,
         ("GET", ["jobs"]) => plain,
+        ("GET", ["jobs", "page"]) => query_allowed(query, &["cursor", "limit"]),
         ("GET", ["jobs", job]) => plain && valid_id(job),
         ("POST", ["jobs", job, "cancel" | "retry"]) => plain && valid_id(job),
         ("GET", ["projects", project, "papers" | "jobs"]) => {
@@ -666,10 +735,7 @@ async fn engine_post(
     body: Value,
     idempotency_key: String,
 ) -> Result<Option<Value>, String> {
-    let (port, token) = {
-        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
-        (host.port.ok_or("引擎尚未就绪")?, host.token.clone())
-    };
+    let (port, token, _write) = request_endpoint(state.inner(), true)?;
     let response = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(15))
@@ -719,8 +785,13 @@ async fn restart_engine(state: State<'_, Shared>) -> Result<HostStatus, String> 
     .map_err(|e| e.to_string())?
 }
 
-fn request_body_limit(_method: &str, _path: &str) -> usize {
-    64 * 1024
+fn request_body_limit(method: &str, path: &str) -> usize {
+    if method == "PUT" && path == "/api/v1/knowledge/layout" {
+        // The independent layout DTO bounds the coordinate count and key length.
+        512 * 1024
+    } else {
+        64 * 1024
+    }
 }
 
 fn decode_engine_response(status: reqwest::StatusCode, body: &[u8]) -> Result<Value, String> {
@@ -774,13 +845,7 @@ async fn engine_request(
     {
         return Err("请求内容过大".into());
     }
-    let (port, token) = {
-        let host = state.0.lock().map_err(|_| "宿主状态不可用")?;
-        (
-            host.port.ok_or("引擎尚未就绪，请稍候或重新连接")?,
-            host.token.clone(),
-        )
-    };
+    let (port, token, _write) = request_endpoint(state.inner(), method != "GET")?;
     let client = reqwest::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(if path.ends_with("/test") {
@@ -819,12 +884,12 @@ async fn engine_request(
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+            desktop_window::show_main_window(app);
         }))
         .setup(|app| {
-            let data_dir = app.path().app_local_data_dir()?.join("lite");
+            let app_directory = app.path().app_local_data_dir()?;
+            desktop_window::setup(app, &app_directory);
+            let data_dir = workspace_backup::active_workspace(&app_directory);
             let executable = if cfg!(debug_assertions) {
                 PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join("binaries/researchgraph-engine-x86_64-pc-windows-msvc.exe")
@@ -844,9 +909,13 @@ fn main() {
             });
             Ok(())
         })
+        .on_window_event(desktop_window::on_window_event)
         .invoke_handler(tauri::generate_handler![
+            desktop_window::desktop_close_behavior,
+            desktop_window::set_desktop_close_behavior,
             host_status,
             restart_engine,
+            workspace_backup::workspace_backup,
             select_pdf_import,
             submit_pdf_import,
             relocate_source_file,
@@ -866,6 +935,60 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn workspace_search_and_topic_operations_use_scoped_routes() {
+        let topic = "11111111-1111-4111-8111-111111111111";
+        let paper = "22222222-2222-4222-8222-222222222222";
+        let collection = format!("/api/v1/knowledge/collections/{topic}");
+        assert!(super::allowed("PATCH", &collection));
+        assert!(super::allowed("POST", &format!("{collection}/membership")));
+        assert!(super::allowed(
+            "GET",
+            &format!("{collection}/external-papers?paper_ids={paper}")
+        ));
+        assert!(!super::allowed(
+            "GET",
+            &format!("{collection}/external-papers?paper_ids=no")
+        ));
+        assert!(!super::allowed(
+            "POST",
+            &format!("{collection}/membership?paper_ids={paper}")
+        ));
+        assert!(!super::allowed(
+            "PATCH",
+            "/api/v1/knowledge/collections/other"
+        ));
+        assert!(super::allowed(
+            "GET",
+            "/api/v1/workspace/search?q=paper&offset=24&limit=24"
+        ));
+        assert!(!super::allowed("POST", "/api/v1/workspace/search?q=paper"));
+        assert!(!super::allowed(
+            "GET",
+            "/api/v1/workspace/search?q=paper&project_id=any"
+        ));
+    }
+
+    #[test]
+    fn archive_routes_are_scoped_to_types_and_items() {
+        let id = "11111111-1111-4111-8111-111111111111";
+        assert!(super::allowed(
+            "GET",
+            "/api/v1/archive?kind=job&offset=0&limit=20"
+        ));
+        assert!(super::allowed("POST", "/api/v1/archive"));
+        assert!(super::allowed(
+            "POST",
+            &format!("/api/v1/archive/{id}/restore")
+        ));
+        assert!(super::allowed("DELETE", &format!("/api/v1/archive/{id}")));
+        assert!(!super::allowed("GET", "/api/v1/archive?kind=unknown"));
+        assert!(!super::allowed("DELETE", "/api/v1/archive/all"));
+        assert!(!super::allowed(
+            "DELETE",
+            &format!("/api/v1/archive/{id}?kind=job")
+        ));
+    }
     #[test]
     fn lite_routes_accept_actual_frontend_queries_and_reject_retired_routes() {
         let paper = "11111111-1111-4111-8111-111111111111";
@@ -1415,6 +1538,8 @@ mod tests {
             ("PATCH", format!("/api/v1/knowledge/reports/{id}")),
             ("GET", format!("/api/v1/knowledge/runs?library_paper_id={id}&limit=10&offset=0")),
             ("POST", format!("/api/v1/knowledge/runs/{id}/retry")),
+            ("GET", format!("/api/v1/knowledge/runs/{id}/local-recovery")),
+            ("POST", format!("/api/v1/knowledge/runs/{id}/local-recovery")),
         ] {
             assert!(super::allowed(method, &path), "knowledge route rejected: {method} {path}");
         }
@@ -1431,6 +1556,9 @@ mod tests {
             ("GET", "/api/v1/knowledge/reports?unread_only=1"),
             ("GET", "/api/v1/knowledge/runs?raw=true"),
             ("POST", "/api/v1/knowledge/runs/not-an-id/retry"),
+            ("GET", "/api/v1/knowledge/runs/not-an-id/local-recovery"),
+            ("GET", "/api/v1/knowledge/runs/11111111-1111-4111-8111-111111111111/local-recovery?raw=true"),
+            ("PATCH", "/api/v1/knowledge/runs/11111111-1111-4111-8111-111111111111/local-recovery"),
             (
                 "DELETE",
                 "/api/v1/knowledge/versions/11111111-1111-4111-8111-111111111111",
@@ -1451,26 +1579,26 @@ mod tests {
     fn accepts_current_schema_and_rejects_previous_schema() {
         assert!(super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0018",
+            "schema_version": "lite0020",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 1,
-            "schema_version": "lite0015",
+            "schema_version": "lite0019",
             "database": "ready",
             "fts5": true
         })));
         assert!(!super::health_compatible(&super::json!({
             "protocol_version": 2,
-            "schema_version": "lite0018",
+            "schema_version": "lite0020",
             "database": "ready",
             "fts5": true
         })));
         for invalid in [
-            super::json!({"protocol_version":1,"schema_version":"lite0018"}),
-            super::json!({"protocol_version":1,"schema_version":"lite0018","database":"failed","fts5":true}),
-            super::json!({"protocol_version":1,"schema_version":"lite0018","database":"ready","fts5":false}),
+            super::json!({"protocol_version":1,"schema_version":"lite0020"}),
+            super::json!({"protocol_version":1,"schema_version":"lite0020","database":"failed","fts5":true}),
+            super::json!({"protocol_version":1,"schema_version":"lite0020","database":"ready","fts5":false}),
         ] {
             assert!(!super::health_compatible(&invalid));
         }

@@ -261,7 +261,7 @@ def test_lite0013_upgrade_preserves_all_existing_rows_and_creates_backup(tmp_pat
     assert len(backups) == 1 and snapshot(backups[0]) == before
     assert storage.diagnostics(engine)["integrity"] == "ok"
     with sqlite3.connect(database) as db:
-        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("lite0018",)
+        assert db.execute("SELECT version_num FROM alembic_version").fetchone() == ("lite0020",)
 
 
 def test_lite0014_upgrade_failure_rolls_back_new_tables_and_schema_version(tmp_path, monkeypatch):

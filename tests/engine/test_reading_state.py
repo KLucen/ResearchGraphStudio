@@ -23,6 +23,8 @@ from researchgraph.models import (
     Section,
     now,
 )
+from researchgraph.paper_card_set_contracts import validate_paper_card_set
+from researchgraph.paper_card_set_service import build_card_manifest
 from researchgraph.paper_overview_models import PaperOverviewResult
 from researchgraph.reading_state_api import (
     apply_check_result,
@@ -39,14 +41,48 @@ from sqlalchemy.orm import Session
 
 
 def _overview(
+    session,
     paper_id,
     project_id,
     revision_id,
     *,
-    node_id="n1",
+    node_id="c1",
     label="共享记忆",
+    label_en="shared memory",
     updated="2026-11-14T00:00:00Z",
+    cards=None,
 ):
+    manifest = build_card_manifest(session, paper_id, "local_revision", revision_id)
+    source = manifest["sources"][0]
+    concept = {
+        "id": node_id,
+        "kind": "key_concept",
+        "attribution": "AUTHOR",
+        "title_zh": label,
+        "title_en": label_en,
+        "body_zh": "本节方法使用的共享记忆。",
+        "reading_guide_zh": "核对共享记忆的定义与适用条件。",
+        "evidence": [
+            {
+                "source_id": source["ref"],
+                "quote_en": source["text"],
+                "occurrence_index": 0,
+                "translation_zh": None,
+            }
+        ],
+    }
+    selected = cards or [concept]
+    content = validate_paper_card_set(
+        {
+            "schema_version": "paper-card-set-2",
+            "article_overview_zh": "本文介绍合成测试中的共享记忆。",
+            "overview_card_ids": [selected[0]["id"]],
+            "card_set_intro_zh": "合成概念卡可定位原文。",
+            "coverage_notes": ["软件回归材料。"],
+            "cards": selected,
+        },
+        manifest,
+    )
     return PaperOverviewResult(
         id=str(uuid4()),
         project_id=project_id,
@@ -55,25 +91,15 @@ def _overview(
         pdf_hash="a" * 64,
         input_hash="b" * 64,
         cache_key="c" * 64,
-        schema_version="paper_overview_graph.v1",
-        prompt_version="test",
+        schema_version="paper-card-set-2",
+        prompt_version="paper-card-set-extract-1",
         provider_id="test",
         model_id="test",
         status="COMPLETED",
+        created_at=updated,
         updated_at=updated,
-        graph_json={
-            "nodes": [
-                {
-                    "id": node_id,
-                    "type": "CONCEPT",
-                    "label_zh": label,
-                    "label_en": "shared memory",
-                    "description_zh": "本节方法使用的共享记忆。",
-                    "basis": "EXPLICIT",
-                }
-            ],
-            "edges": [],
-        },
+        paper_card_json=content,
+        graph_json=None,
     )
 
 
@@ -147,9 +173,11 @@ def fixture(tmp_path):
                 bbox_list=[[0, 0, 1, 1]],
             )
         )
-        overview = _overview(paper_id, project_id, revision_id)
+        session.flush()
+        overview = _overview(session, paper_id, project_id, revision_id)
         session.add(overview)
         overview_id = overview.id
+        node_id = overview.paper_card_json["cards"][0]["id"]
     app = FastAPI()
     register_reading_state_api(app, lambda: engine)
     register_section_guide_api(app, lambda: engine, tmp_path)
@@ -164,6 +192,7 @@ def fixture(tmp_path):
             chunk_id=chunk_id,
             span_id=span_id,
             overview_id=overview_id,
+            node_id=node_id,
             path=tmp_path,
         )
     engine.dispose()
@@ -173,7 +202,8 @@ def _state_url(f):
     return f"/api/v1/papers/{f.paper_id}/sections/{f.section_id}/reading-state"
 
 
-def _concept_url(f, node_id="n1"):
+def _concept_url(f, node_id=None):
+    node_id = node_id or f.node_id
     return f"/api/v1/papers/{f.paper_id}/concept-understanding/{node_id}"
 
 
@@ -257,7 +287,7 @@ def test_empty_get_and_state_save_are_local_and_persist(fixture):
     assert empty["progress"] == "NOT_STARTED" and empty["updated_at"] is None
     with Session(f.engine) as session:
         assert session.scalar(select(ReadingState)) is None
-        before = session.get(PaperOverviewResult, f.overview_id).graph_json
+        before = session.get(PaperOverviewResult, f.overview_id).paper_card_json
     response = f.client.put(
         _state_url(f),
         json={
@@ -265,21 +295,21 @@ def test_empty_get_and_state_save_are_local_and_persist(fixture):
             "overview_result_id": f.overview_id,
             "progress": "READING",
             "self_assessment": "PARTIAL",
-            "unresolved_concept_ids": ["n1"],
+            "unresolved_concept_ids": [f.node_id],
             "questions": [
                 {"paragraph_id": f.chunk_id, "text": "如何更新共享记忆？", "resolved": False}
             ],
         },
     )
     assert response.status_code == 200
-    assert response.json()["unresolved_concept_ids"] == ["n1"]
+    assert response.json()["unresolved_concept_ids"] == [f.node_id]
     fresh_engine = storage.make_engine(f.path)
     with Session(fresh_engine) as session:
         snapshot = get_state_snapshot(session, f.paper_id, f.revision_id, f.section_id)
         assert snapshot["self_assessment"] == "PARTIAL"
         assert snapshot["questions"][0]["text"] == "如何更新共享记忆？"
         assert session.scalar(select(LiteTokenUsage)) is None
-        assert session.get(PaperOverviewResult, f.overview_id).graph_json == before
+        assert session.get(PaperOverviewResult, f.overview_id).paper_card_json == before
         concept = list_concept_understanding(session, f.paper_id, f.revision_id)[0]
         assert concept.has_unresolved_question is True
         assert concept.related_sections[0].section_id == f.section_id
@@ -310,7 +340,7 @@ def test_concept_check_never_overwrites_user_assessment_or_note(fixture):
             session,
             f.paper_id,
             f.revision_id,
-            ["n1"],
+            [f.node_id],
             "MISCONCEPTION",
             "请核对信息与决策的区别。",
             overview_result_id=f.overview_id,
@@ -326,9 +356,9 @@ def test_concept_check_never_overwrites_user_assessment_or_note(fixture):
 @pytest.mark.parametrize(
     "node_id,label,expected",
     [
-        ("n1", "共享记忆", "CURRENT"),
-        ("n2", "共享记忆", "NEEDS_RELINK"),
-        ("n1", "不同概念", "NEEDS_RELINK"),
+        ("c1", "共享记忆", "CURRENT"),
+        ("c2", "共享记忆", "NEEDS_RELINK"),
+        ("c1", "不同概念", "NEEDS_RELINK"),
     ],
 )
 def test_graph_refresh_requires_same_stable_id_and_same_semantics(
@@ -339,6 +369,7 @@ def test_graph_refresh_requires_same_stable_id_and_same_semantics(
     with Session(f.engine) as session, session.begin():
         session.add(
             _overview(
+                session,
                 f.paper_id,
                 f.project_id,
                 f.revision_id,
@@ -375,7 +406,7 @@ def test_missing_or_pending_graph_keeps_old_state_for_relink(fixture):
                 session,
                 f.paper_id,
                 f.revision_id,
-                ["n1"],
+                [f.node_id],
                 "ADEQUATE",
                 "feedback",
                 overview_result_id=f.overview_id,
@@ -411,7 +442,8 @@ def test_adaptive_context_requires_local_related_term_and_is_bounded(fixture):
     # Unresolved concept selection also informs A01 without changing self_level.
     _put_concept(f, "UNSET")
     f.client.put(
-        _state_url(f), json={"overview_result_id": f.overview_id, "unresolved_concept_ids": ["n1"]}
+        _state_url(f),
+        json={"overview_result_id": f.overview_id, "unresolved_concept_ids": [f.node_id]},
     )
     with Session(f.engine) as session:
         assert (
@@ -533,16 +565,18 @@ def test_adaptive_context_never_sends_more_than_three_states(fixture):
     f = fixture
     with Session(f.engine) as session, session.begin():
         overview = session.get(PaperOverviewResult, f.overview_id)
-        base_node = overview.graph_json["nodes"][0]
-        overview.graph_json = {
-            "nodes": [
-                dict(base_node, id=f"n{index}", label_zh=f"概念{index}") for index in range(1, 5)
-            ],
-            "edges": [],
-        }
-    for index in range(1, 5):
+        base_card = overview.paper_card_json["wire_draft"]["cards"][0]
+        cards = [dict(base_card, id=f"c{index}", title_zh=f"概念{index}") for index in range(1, 5)]
+        replacement = _overview(session, f.paper_id, f.project_id, f.revision_id, cards=cards)
+        overview.paper_card_json = replacement.paper_card_json
+        node_ids = [card["id"] for card in overview.paper_card_json["cards"]]
+        expected_labels = [
+            card["title_zh"]
+            for card in sorted(overview.paper_card_json["cards"], key=lambda card: card["id"])[:3]
+        ]
+    for node_id in node_ids:
         response = f.client.put(
-            _concept_url(f, f"n{index}"),
+            _concept_url(f, node_id),
             json={"overview_result_id": f.overview_id, "self_level": "UNSURE"},
         )
         assert response.status_code == 200
@@ -550,7 +584,7 @@ def test_adaptive_context_never_sends_more_than_three_states(fixture):
         context = build_reader_context(
             session, f.paper_id, f.revision_id, f.section_id, "shared memory"
         )
-        assert context["unresolved_concepts"] == ["概念1", "概念2", "概念3"]
+        assert context["unresolved_concepts"] == expected_labels
 
 
 def test_related_sections_use_current_a02_links_and_drop_stale_source_links(fixture):
@@ -560,8 +594,11 @@ def test_related_sections_use_current_a02_links_and_drop_stale_source_links(fixt
     f = fixture
     with Session(f.engine) as session, session.begin():
         overview = session.get(PaperOverviewResult, f.overview_id)
-        node = dict(overview.graph_json["nodes"][0], label_en="a different indexed concept")
-        overview.graph_json = {"nodes": [node], "edges": []}
+        replacement = _overview(
+            session, f.paper_id, f.project_id, f.revision_id, label_en="a different indexed concept"
+        )
+        overview.paper_card_json = replacement.paper_card_json
+        node_id = overview.paper_card_json["cards"][0]["id"]
         paper, revision, context = build_reading_input(
             session, f.paper_id, f.revision_id, f.section_id, [f.chunk_id]
         )
@@ -579,11 +616,14 @@ def test_related_sections_use_current_a02_links_and_drop_stale_source_links(fixt
         row.status = "COMPLETED"
         row.input_hash = _hash(context)
         row.analysis_json = {
-            "paragraphs": [{"paragraph_id": f.chunk_id, "related_graph_node_ids": ["n1"]}]
+            "paragraphs": [{"paragraph_id": f.chunk_id, "related_graph_node_ids": [node_id]}]
         }
     views = f.client.get(f"/api/v1/papers/{f.paper_id}/concept-understanding").json()
     assert views[0]["related_sections"] == [{"section_id": f.section_id, "title": "Methods"}]
+    f.node_id = node_id
+    _put_concept(f)
     with Session(f.engine) as session, session.begin():
         session.get(Chunk, f.chunk_id).text = "The source has changed."
     changed = f.client.get(f"/api/v1/papers/{f.paper_id}/concept-understanding").json()
     assert changed[0]["related_sections"] == []
+    assert changed[0]["association_status"] == "NEEDS_RELINK"

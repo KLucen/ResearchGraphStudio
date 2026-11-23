@@ -1,0 +1,67 @@
+.force-graph--knowledge .react-flow__node.graph-dot {
+  padding: 0;
+  border: 1px solid var(--rgs-graph-node-ring);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px var(--rgs-shadow);
+  cursor: grab;
+}
+.force-graph--knowledge .react-flow__node.graph-dot.dragging {
+  cursor: grabbing;
+}
+.force-graph--knowledge .react-flow__node.graph-dot.outside-topic {
+  border: 2px dashed var(--rgs-focus);
+  cursor: pointer;
+}
+.force-graph--knowledge .react-flow__node.graph-dot.selected,
+.force-graph--knowledge .react-flow__node.graph-dot:focus-visible {
+  outline: 2px solid var(--rgs-focus);
+  outline-offset: 3px;
+}
+.force-graph--knowledge .react-flow__node.graph-dot.pinned {
+  box-shadow:
+    0 0 0 2px #f7faf5,
+    0 0 0 3px #526d60;
+}
+.force-graph--knowledge .knowledge-dot-label {
+  position: absolute;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  box-sizing: border-box;
+  padding-inline: 4px;
+  color: var(--rgs-text);
+  font-size: 12px;
+  font-weight: 550;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+.force-graph--knowledge .knowledge-dot-label > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.force-graph--knowledge .knowledge-dot-label-secondary {
+  color: var(--rgs-text);
+  font-size: 11px;
+  font-weight: 400;
+}
+.force-graph--knowledge .graph-dot.selected .knowledge-dot-label,
+.force-graph--knowledge .graph-dot:focus-visible .knowledge-dot-label {
+  border-radius: 4px;
+  background: var(--rgs-hover);
+  color: var(--rgs-text);
+}
+.force-graph--knowledge .react-flow__handle {
+  opacity: 0;
+  min-width: 0;
+  min-height: 0;
+  width: 1px;
+  height: 1px;
+}
+.force-graph--knowledge .react-flow__edge-text {
+  fill: var(--rgs-text);
+  font-size: 11px;
+}
+.force-graph--knowledge .react-flow__edge-textwrapper {
+  pointer-events: none;
+}

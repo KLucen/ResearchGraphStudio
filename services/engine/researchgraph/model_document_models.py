@@ -107,7 +107,7 @@ class LlmDocumentOutput(Base):
 
 
 class LlmDocumentOutputLocalRecovery(Base):
-    """User-triggered, source-versioned partial reading recovery."""
+    """User-triggered, source-versioned partial reading or card-set recovery."""
 
     __tablename__ = "llm_document_output_local_recoveries"
 

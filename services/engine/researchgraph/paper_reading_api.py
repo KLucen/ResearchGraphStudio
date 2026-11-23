@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.close_reading_api import (
     _current_graph,
     _estimate,
@@ -41,6 +42,7 @@ from researchgraph.providers import ConfiguredProvider, Provider, ProviderError
 from researchgraph.section_guide_api import _hash, _latest_revision, _provider_usage
 from researchgraph.section_guide_contracts import GuideUsage
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import wait_for_model
 
 SYSTEM_PROMPT = """你是一名帮助研究生精读科研论文的双语阅读导师。
 本次任务是一次阅读整篇论文提供的全部正文，生成连贯的全文精读笔记，不是逐段独立请求。
@@ -581,7 +583,9 @@ async def execute_paper_reading(
             row.usage_json = GuideUsage(calls=1).model_dump()
             job.status, job.stage, job.updated_at = "running", "generating", now()
         assert active is not None
-        raw = await active.complete(SYSTEM_PROMPT, _model_context(context), paper_analysis_schema())
+        raw = await wait_for_model(
+            active.complete(SYSTEM_PROMPT, _model_context(context), paper_analysis_schema())
+        )
         analysis, missing, warnings, complete = _validated(raw, context)
         with Session(engine) as session, session.begin():
             job, row = session.get(Job, job_id), session.get(PaperReadingResult, result_id)
@@ -757,6 +761,7 @@ def register_paper_reading_api(app: FastAPI, engine: Callable[[], Engine], data_
         result_id: str | None = Query(default=None),
     ) -> PaperReadingView | None:
         with read_session(engine()) as session:
+            require_unarchived_paper(session, paper_id)
             if session.get(Paper, paper_id) is None:
                 raise HTTPException(404, "论文不存在")
             if result_id:

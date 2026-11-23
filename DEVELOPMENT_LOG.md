@@ -2432,3 +2432,174 @@ GitHub Actions run43151333334（Windows build and acceptance）已启动，11:56
 
 
 **DEV-0124 最终闭环 — 2026-11-20 17:43（Asia/Shanghai）**：K1–K3应用源码完整远端构建/回归在run44704598036 Windows job成功：823后端/194React/37Edge/打包引擎与新知识库HTTP/Rust/Host/NSIS。同一CI安装器经e51d71a无BOM探针在专测44712751549最终success；artifact14618355643记录preamble0、安装16.99秒、ready1.91秒、完整24.63秒，lite0018/model0/stderr0及原全部断言通过。原失败/超时保留，不冒称该旧全run成功。PR #1已上传、main未合并；当前仅补最终验证/progress/日志并普通上传，runtime不改，本机160752786bytes包SHA b5c20fa8保持，CI包SHA b3ab665a另列。用户截图对应本轮隔离BOM复现，测试进程已全退出。K1–K3闭环及回归完成，真实模型/正式库实验0、K4未启；最新PR整合复跑状态和已完成的两份远端证据分开说明。
+
+
+## DEV-0125 — 2026-11-20 21:54（Asia/Shanghai）：知识库无上限预算、输入预检修复与DeepSeek配置核验
+
+**目标和诊断**：用户要求三项知识预算加入无上限、修复KNOWLEDGE_INPUT_BUDGET_EXCEEDED并调查DeepSeek V4.1 Flash。正式库仅SQLite mode=ro/query_only安全检查配置/任务；失败input48000/output6000/request2、request_sent=false/raw不存在。已存完整材料只在内存估算：原规划73905、新实际消息79268 Token/234400字节；未读取密钥或输出论文内容，正式库实验写入0。当前五用途为火山Agent Plan /api/plan/v3的deepseek-v4.1-flash、max/90秒、context/output未知。
+
+**改动**：knowledge_library_contracts三字段int|null（缺省48000/6000/2保持），新增token_estimates/knowledge_budgets；knowledge_tasks/connections与通用providers统一Token规划和实际消息预检，传输字节单记、null不做算术、当前/冻结策略取严。K3各发送前重验收紧预算；真实已知context/output、累计请求/候选范围、同输入最多2显式发送、来源/JSON终验和账本保留。旧未发预算失败在保存新设置后才显式后继，原失败不改。前端ResearchKnowledgeBase/knowledgeApi/CSS支持三独立无上限/恢复有限值/重载及预算错误中文入口；JobHistory不再为知识模型任务显示本地重试。导出OpenAPI/TS一致，smoke脚本加入三null和累计3/重启持久断言，无迁移lite0018。
+
+**模型调查与文档**：依据火山Agent Plan/模型/结构化/文档理解及DeepSeek官方9份公开来源，确认当前plan地址有效，不混换coding套餐。推荐独立extract none/connect high（疑难max）、JSON开、温度/top_p留空、普通等待180/总300秒；context1000000/output384000为保守用户声明，输入96000或无限/输出16000起/累计20与候选8保留。图片能力不能直接证明Chat内联PDF传输；已解析知识是文字。未新增火山专用adapter、未代改真实配置或做付费探测。新增ADR0061、预算验证及模型推荐，同步README/导航/模型说明/progress。
+
+**实际验证**：后端预算四模块76passed/24.21秒，Provider等专项86passed/8.14秒，独立预算review17passed/4.29秒，专项彼此与全量有重叠不相加。完整check-phase0通过：839passed/1符号链接权限跳过/1既有Starlette warning（284.07秒）、React202/19文件（17.70秒）、mypy111/Ruff182/锁12/依赖/契约/TS/ESLint/格式/生产构建。Edge38passed/32.3秒；已查看新控件窄屏截图。新引擎Host17/0ignored/4.31秒。打包及安装版分别通过三null的2K2+1K3 loopback闭环，每次3合成请求/192夹具Token、GET/重启0重发；真实模型0。敏感扫描479文件与diff通过，7文档206本地链接初检0缺失。Vite既有大chunk提示保留，不声称性能改进。
+
+**交付与限制**：21:50:28新未签名包.local/releases/knowledge-budget-20261120/ResearchGraph-Studio-Knowledge-Budget-0.0.1-x64-setup.exe，160716046bytes，SHA256 ac857e36cfe84bffb4dc692550229616750e4f76c586f44adf0c9ce96fd69ceb。PowerShell5.1隔离安装通过，lite0018/匿名PDF/模型材料和阅读进度/清理重建及删除/原PDF保持，模型0；187项源码配置冻结，sidecar e82784ab与334资源逐字节匹配。宿主首次直接hash比对失败已确定仅Tauri bundle标记UNK→NSS的3字节差异，其余所有字节一致，raw哈希分列保留，不误报同hash。未覆盖日常安装、未迁移或改正式库、未Commit/Push；用户安装后设置预算并显式继续。真实DeepSeek兼容性/长文科学质量、日常原生和干净机仍待独立反馈，估算不作收费usage或精确tokenizer。
+
+
+## DEV-0126 — 2026-11-20 23:49（Asia/Shanghai）：知识任务错误分类和任务记录详情
+
+**目标及事实**：用户要求修复KNOWLEDGE_RESPONSE_INVALID，并将原因直接汇报于任务记录条目，不另加知识库原因面板。正式库仅mode=ro/query_only安全元数据和安全投影：发送槽true、raw不存在/usage未知，仅预检metadata。K2/K3把继承ValueError的ProviderError误作内容格式失败，且失败路径丢实际metadata；旧原因已经丢失，不能反推为超时/拒绝或认定计费。合成本机构建和官方文档未发现当前火山max/json_object/省略max_tokens的确定冲突，不代改配置或付费探测。
+
+**改动文件与行为**：新增knowledge_diagnostics.py及KnowledgeTaskDiagnostic.tsx；knowledge_tasks/connections在失败时保存实际私有Provider metadata和固定安全diagnostic，先识别ProviderError，区分服务/网络/timeout/输出/空正文/JSON/DTO/来源/预算。providers.py只加安全HTTP状态，拒绝body不读不回显。K3片段response_complete=false，不当完整raw。app.py三个任务GET叠加knowledge-diagnostic-1，只读重建安全字段路径/规则/中文建议，未知字段_extra_field、最多8条及总数；旧有raw可本机重验，旧无raw明确无法判定/费用未知，不改历史状态/error/raw、不发布/重发。JobHistory直接展示、已标记发送不冒充已收费；知识库仅指向任务记录并保留显式继续。修改前端相关test/CSS/e2e、test_chat_stream.py，新test_knowledge_diagnostics.py及smoke-knowledge-diagnostics.py，数据库仍lite0018无迁移。新增ADR0062/验证报告并同步README/导航/progress。补充Chat API完整参考，修正前轮PDF内联规范调查不完整，未改传输实现。
+
+**实际验证**：新诊断24passed/2.20秒，联合95passed/19.12秒在补两项前；Provider流式38passed/0.36秒。前端专项51passed，Edge专项5passed/6.8秒并已看390截图。完整check-phase0通过：后端868passed/1符号链接权限跳过/1既有Starlette warning（209.86秒）、React210/19文件（16.24秒），mypy112/Ruff185/锁12/依赖/契约/TS/ESLint/格式/生产构建。Edge首轮38/1旧workspace等待页签元素为空，未猜测根因；无生产更改或放宽断言，单文件3passed/4.4秒、最终整套39passed/28.4秒。新打包引擎Host17/0ignored/3.62秒。
+
+**HTTP闭环与复核**：源码/打包引擎合成HTTP400与恶意额外key坏DTO，分类CLIENT/SCHEMA、三种GET一致、private sentinel不外露、每种1次请求/重启0额外。初次投影未接完时result=None失败记录保留，接通后通过。fixture拒绝响应后keep-alive关闭噪声仅在测试脚本处理连接关闭，原断言保持并新引擎复验通过。正常三null知识库2K2+1K3/192夹具Token/重启0额外通过；均loopback，真实模型0。独立复核发现K3孤儿Run except变量未初始化，已修并加零调用回归；不放宽验源或重试。485文件敏感扫描/diff及7文档210链接初检通过。192源码/配置冻结（smoke收尾单独验证后更新）；sidecar4efe27bc与334资源逐字节配对，应用源码未变。
+
+**交付待补**：Tauri已完成编译，NSIS正在封装；最终包hash/隔离安装与安装版诊断另补。不覆盖日常目录，正式库实验写入0/真实模型0/未Commit或Push。旧无响应的实际失败原因无法恢复，真实平台/科学质量、干净机及用户日常原生反馈仍待独立验证。
+
+
+**DEV-0126 安装交付补充 — 2026-11-20 23:52（Asia/Shanghai）**：23:50:21新未签名包.local/releases/knowledge-diagnostics-20261120/ResearchGraph-Studio-Knowledge-Diagnostics-0.0.1-x64-setup.exe，160736175bytes，SHA256 3657aef9025aeb62410782cbe93517aa260d1a11475bc08346c04b72b11ecda3。PowerShell5.1新隔离目录安装phase complete/passed，lite0018/匿名PDF/3段模型材料和阅读进度/题名修改/清理重建删除及原PDF保持，模型0。安装版再跑两种错误HTTP，CLIENT/SCHEMA分类、三GET一致与脱敏、每情景1合成请求/读取重启0重发均过。192源码配置冻结，sidecar4efe27bc与334资源逐项一致，宿主只有Tauri UNK→NSS标准3字节标记差异，其余字节一致。包/安装证据在.local/verify/knowledge-diagnostics-20261120，未上传。旧任务读取诊断无需生成；缺细因不猜测原因，不代用户收费重试。当前轮未Commit/Push或覆盖日常安装，正式库实验写入0/真实模型0。最终文档链接与安全扫描另行收尾，科学/真实平台与用户原生待独立反馈。
+
+
+## DEV-0127 — 2026-11-21 11:42（Asia/Shanghai）：文字生成活动计时与持续流验证
+
+**用户目标与诊断**：用户再次KNOWLEDGE_PROVIDER_TIMEOUT，询问是否180ms硬限和能否按连接/无生成活动来计时。正式库mode=ro/query_only安全元数据确认实际90秒普通等待、派生180秒total，HTTP200/首字节1.016秒、末网络字节179.938秒、elapsed179.985秒，77935公开推理字符/正文0。确定固定total停止，非180毫秒或连接超时；旧未记最后实际生成时间，不能凭末byte断言最后时刻仍有新推理，新版将二者分开。未读取密钥/原文或自动付费重试。
+
+**实现文件与边界**：providers.py在activity模式无固定总deadline，连接独立15秒，发送完成开始首生成等待，正文/公开reasoning字符增长续期，SSE心跳/usage/role/空delta不续期；DONE后仍完整终验并关闭，不等keep-alive EOF。非SSE非空白数据只算响应接收，不记生成，空白保活不续期。HTTPX网络/上传/池停滞、大小/协议/来源/预算保护保留；取消/超时/断线关socket，partial不发布、不重发。model_settings.py新增nullable text_timeout_policy，新snapshot null=>activity、显式legacy/已有冻结保持，文档600/1800独立，无迁移lite0018。knowledge_diagnostics.py区分first_generation/generation_idle/非SSE停滞，固定安全中文+数值。ModelSettings及测试/e2e加入活动/兼容选择、5–180秒整数和180秒=3分钟说明，知识显式继续按当前设置建后继；JobHistory补超时显示零重试测试。导出OpenAPI/TS同步。新增test_text_activity_timeout.py、扩展test_model_settings.py和smoke-knowledge-activity.py；ADR0063/验证报告、README/导航/模型建议/progress同步。
+
+**实际验证**：活动19+设置23联合42passed/6.75秒，早期Provider/诊断80专项通过；独立复核发现非SSE空白续期与连接时限耦合，已修并补测试。前端专项41、设置最后文案11与Edge设置2（3.8秒）过，最终全Edge40passed/53.0秒并看截图。完整check-phase0通过：891passed/1符号链接权限跳过/1既有Starlette warning（280.86秒）、React216/19文件（18.60秒），mypy112/Ruff187/锁12/依赖/契约/TS/ESLint/格式/生产构建；Vite大chunk提示保留。Host17/0ignored/5.86秒。源码/打包/安装版真实HTTP持续流分别12.015/12.016/12.015秒完成，idle5/旧total10、252推理/479正文字符、1合成请求/重启0额外；证明越过旧总deadline仍完整生成/发布。新引擎两种错误诊断HTTP也过，真实模型0。初次夹具SQLite只读句柄未显式关闭导致清理失败，closing修复后完整过；单独删除遗留合成temp被自动安全审查拒绝（仅blocked by policy），保留不绕过、不影响正式数据。
+
+**交付**：00:25:06已构建；用户11:39再次要求继续后完成新隔离安装和安装版持续流复验。包.local/releases/text-activity-20261121/ResearchGraph-Studio-Activity-Timeout-0.0.1-x64-setup.exe，160742972bytes，SHA256 c04f494d18b4b6979e04356befebe8bba17f90f319b763e6a12eafe5ab517f63。PowerShell5.1 phase complete/passed，lite0018/匿名PDF/模型材料与阅读状态/题名/清理重建删除及原PDF保持，模型0。193源码/配置冻结，sidecar c94b012c与334资源逐项匹配，宿主仅Tauri UNK→NSS标准3字节差异、其余字节一致。489文件敏感扫描/diff、7文档219链接初检通过，最终新增包链接再查。未覆盖日常安装、未改正式库/历史快照、未Commit/Push。用户安装后确认activity，再显式继续失败知识任务即可；原失败/发送账本保留。公开活动不能证明服务内部思考，真实科学/供应商SLA/日常原生/干净机不由合成回归替代。
+
+## DEV-0128 — 2026-11-21 15:03（Asia/Shanghai）：侧栏空间、知识关系合同与本机部分恢复
+
+**目标与诊断**：扩大个人研究空间并统一导航，修复`KNOWLEDGE_RESPONSE_SCHEMA_INVALID`导致论文知识未能发布的问题，清理开发残留并沉淀模型调用排障经验。正式失败记录的只读安全检查确认：响应完整，19个模型知识节点与20条关系；重复、字段、节点及引文/来源未发现阻断。实际失败为11条关系的端点类型/方向违反程序已有规则，另外19个节点、9条关系通过完整校验。raw只保留在本机既有失败记录，未复制进仓库；没有真实模型请求或正式库写入。
+
+**实现**：新增`paper-knowledge-extract-2`，从共享端点规则生成模型Prompt/schema说明/冻结输入，旧v1指纹和已入队合同保持。关系错误输出稳定字段路径及类型原因。知识任务行增加本机预览：显示原/保留节点和关系及逐边隔离原因；用户确认后只隔离不能通过类型/方向规则的关系，重新校验所有保留DTO、引文和当前来源，再发布明确标注partial的知识版本。原run仍failed，错误/raw/请求账本不改；不调用Provider或自动触发联系分析。读取恢复版本会从raw和来源重建复验。`GET /runs`只为当前页失败抽取计算昂贵预览，避免分页外失败任务逐条重验。Tauri Host仅允许对应恢复路由。侧栏弹性空间、主导航视觉与窄屏展开操作一并优化。
+
+**错误经验**：此次根因是字段Schema虽有关系类型枚举，却漏掉端点类型与有向组合；通用Schema错误掩盖了关系级原因。固定教训为：从真实失败证据分层诊断；让Prompt、Schema和本机校验共享规则源；交给程序生成身份/槽位；逐字段核验来源；只能恢复可确定隔离的内容并标partial；不通过放宽Schema、静默删未知字段或收费重试隐藏错误。详见[大模型调用故障与修复经验](docs/llm-integration-lessons.md)及[ADR0064](docs/adr/0064-knowledge-relation-contract-and-local-recovery.md)。
+
+**验证**：完整后端906passed/1skipped/1既有Starlette warning（190.23秒）；React221/20文件；知识恢复与侧栏Edge9通过；Rust Host17通过。Ruff、mypy112、运行依赖锁/依赖、OpenAPI/TS契约、TypeScript/ESLint/Prettier与Web生产构建通过。NSIS安装器本轮实建并以PowerShell5.1在新隔离目录验收；schema lite0018、模型调用0，匿名PDF、本地模型文档材料、章末状态、旧内容清理与源文件保留均通过。已安装sidecar的K1–K3回环合成闭环通过，3次合成请求、重启额外请求0，不代表真实模型质量。报告见[本轮验证](docs/sidebar-knowledge-recovery-verification-20261121.md)。
+
+**清理与边界**：盘点列出61个纯二进制展开目录，170,962文件、18,925,580,649逻辑字节。删除前重新核对所有路径在`.local`边界内、根内容白名单一致、无重解析点且大小/文件数符合快照；新安装器和新installed copy排除。递归删除命令遭自动安全审查`blocked by policy`，没有删除任何候选或尝试绕过；历史安装器和报告保持。正式数据库实验写入0、真实模型/外部HTTP请求0，未Commit/Push、未覆盖日常安装。真实供应商关系质量及用户原生桌面反馈仍待验收。
+
+**DEV-0128 最终入口与安装收尾 — 2026-11-21 15:29（Asia/Shanghai）**：再次核对用户先前要求，错误原因仅在任务记录，不在知识库重复；恢复预览/显式确认一并移到JobHistory的对应失败条目，新KnowledgeLocalRecoveryDialog共用本机API，知识库仅提供任务跳转和partial版本标记。恢复资格按可见失败任务变化读取，避免每2秒进度轮询触发全量验源；打开预览与提交仍分别终验。新增JobHistory31项中的恢复闭环和知识库不重复原因断言，最终完整React222/20文件（15.55秒）、Edge44（27.6秒）、TS/ESLint/Prettier通过。后端最后完整906/1skip/1warning（159.81秒），运行后端源码此后未改。
+
+新脚本`smoke-knowledge-local-recovery.py`仅匿名临时数据，经源码/打包/最终安装版实际HTTP证明19/20→19/9、11隔离、未审指纹409、确认前GET0发布、唯一partial、原failed/raw/usage/job保持、同key POST/重启幂等、Provider/模型/自动分析0。最终包.local/releases/knowledge-relations-recovery-20261121-final/ResearchGraph-Studio-Knowledge-Relations-Recovery-0.0.1-x64-setup.exe，160737754bytes，15:26:08构建，SHA256 `84C4980EE3772CCAC65D50E4FD4C1DE6F5A49E51D8F641D87ABDD2761E4E4A36`。PowerShell5.1新install-final隔离验收通过；安装版Host17/0ignored（3.35秒）。166项运行源/配置构建后稳定，sidecar029fafbb与334内部资源逐文件一致。中间14:56包及其隔离副本保留，只作为历史验证，不是最终交付。清理61候选仍全在、未释放空间；日常目录/正式库未写，无Commit/Push或真实模型费用。
+
+**DEV-0128 安全/格式收尾**：Gitleaks与私人路径500文件、`git diff --check`通过。最后Prettier发现JobHistory的链式调用排版，修正后重新构建Web并逐文件核对62项产物，全部字节相同；只这一个源码文件有排版差异，已保存前后指纹，最终安装包和功能逻辑不变。文档本地链接、最终格式及新烟测Ruff已检查；不把先前清理候选当成已释放空间。
+
+
+## DEV-0129 — 2026-11-21 18:28（Asia/Shanghai）：逐条有据的分类卡片集与单篇图谱退出
+
+**目标**：按用户明确范围移除论文概览可见LightGraph与旧概览展示，保留研究内容知识库独立图谱/联系汇报；按模板生成文章总览、卡片集介绍和丰富的分类知识卡片，并完成回归和Windows交付，不新增模型费用或Commit/Push。
+
+**合同与来源**：新增paper_card_set_contracts.py（paper-card-set-2 / paper-card-set-extract-1）、paper_card_set_service.py；实际严格DTO生成Schema。10类卡片明确AUTHOR/ANALYSIS，优点/不足为分析、作者局限须明确陈述；每卡精确引文/重现次数/辅助译文/导引，总览引用须属本集。程序绑定UUID及真实章节/单元/段落/可靠页码，不能精确重建的原始偏移降级、不猜模型页码。拒重复键/非有限数/extra/冲突/篡改；保存读取从wire_draft及当前完整来源重建比较，semantic_accuracy保持unverified。
+
+**实现**：PaperOverview改为PaperCardSet/types/CSS，共用两解析来源，提供总览/介绍、分类搜索、逐条依据、本地unit_id跳转与本机收藏/已读/隐藏/备注，偏好按来源/论文/结果版本隔离。ModelDocumentPanel隐藏旧摘要及旧概览修复入口，共享ForceGraph继续用于独立知识库。paper_overview_api移除死legacy_generate，新HTTP仅新卡；旧冻结execute保留。模型model_document_api/overview/import_plan新v5冻结完整来源与Prompt/Schema，发送/收到/发布终验，旧v1–v4不改；自动概览无可引用材料时仅概览失败，不回滚成功parse。knowledge_library/workflow旧收藏仅legacy schema；reading_state/close_reading只借当前验证的key_concept卡导航，历史个人理解保留NEEDS_RELINK，来源过期不阻塞个人进度读取。无迁移，head lite0018。
+
+**独立复核与经验**：发现并修复新卡误入legacy收藏、按updated旧图遮盖新卡、过期来源阻断个人记录、精读定位错用chunk而非unit、旧模型摘要/旧修复按钮漏显示及本机保存失败误报成功。最后审查实证CancelledError不属Exception，已专门保存partial/usage/中断并re-raise、尊重用户cancelled；真实_build_body前置预检，metadata后确定生成POST前失败保留not_sent槽+显式false，aggregate只排除精确status+布尔标记，未知网络/旧槽仍保守计1。没有放宽Schema或自动收费重试。新增ADR0065/验证报告，更新README/导航/AB+D与LightGraph历史标记、progress、LLM故障经验。
+
+**实际回归**：完整check-phase0先975后端通过（182.93秒），中间最终化976（183.43秒）单列；全部上述修复稳定后最终**989passed/1符号链接权限skip/1既有Starlette warning，279.68秒**。React**228/22文件，13.44秒**，Edge**48/29.7秒**，Ruff/196文件格式、mypy114、12依赖锁覆盖/pip、OpenAPI/TS导出、TS/ESLint/Prettier与Web build均通过。合同43、本地服务14、模型新卡16及用量联合91（10.56秒）、服务/usage27（6.68秒）、模型旧新联合131（24.58秒）和边界55存在重叠，不相加。已查看1440/390截图，0横溢；浏览0模型/0布局。Vite既有大chunk提示保持，非性能改进声明。
+
+**交付**：最终包.local/releases/paper-card-set-20261121/ResearchGraph-Studio-Paper-Card-Set-0.0.1-x64-setup.exe，160737316bytes，18:24:22构建，SHA256 7A77110A5B8F06AAD1EADD3BA6DB0723523B159AB6989D1698CC4233EFDACCCF。PowerShell5.1新隔离安装phase complete/passed，lite0018/匿名PDF/模型材料与章末状态/题名/清理删除及原PDF保持，模型0。源码/打包/安装版新卡HTTP各local+model两次合成请求/128夹具Token、读取缓存重启0新增、旧不回退、KB快照不变/布局0。安装版K1–K3再过2K2+1K3/192夹具Token、带来源图/双向联系与汇报/三null和累计3预算/重启0新增。打包Host17（4.21秒）、安装版Host17（4.38秒）均0ignored。168运行源指纹稳定、sidecar1e25d0ed及334内部资源逐项配对；Host仅标准UNK→NSS3字节差异，其余全同。初查Gitleaks/私人路径518文件及diff通过，9文档237链接无缺失，新增包链接和本条最终再查。
+
+**限制与下一步**：真实模型0、正式库实验写入0、未覆盖日常安装或Commit/Push。安装器未签名，真实Provider/长文科学语义/译文、干净机及用户日常原生体验不由合成回归替代。用户可在已有本地或模型解析上明确生成新版卡片，不重传PDF；不自动迁移旧概览、继承收费/上传授权或改旧raw/任务账本。
+
+**DEV-0129最终收尾**：安装版新卡片/独立知识库HTTP及Host均完成后，最终安全扫描518文件、diff检查与9文档239本地链接通过，168运行源再次指纹一致；没有新增收费、数据库实验或上传动作。
+
+## DEV-0130 — 2026-11-21 19:20（Asia/Shanghai）· 论文卡片集恢复与桌面阅读反馈
+
+正式库通过只读连接核对用户报告的模型后处理 v5 失败。保留响应完整，JSON 和 DTO 校验通过，冻结来源指纹匹配。27 张卡片的 110 条引文中有 17 条无法定位到任何冻结来源，涉及 9 张卡片。本机将含未匹配引文的卡片整张排除，按现有来源门槛复验后可恢复 18 张。部分恢复替换未验证的原总览、介绍与覆盖说明，原任务、原始响应和请求槽保留，用户明确点击后才写独立恢复记录。后续失败重试可显示此前通过重验的部分结果。真实模型请求 0，正式库写入 0。
+
+`paper_card_set_contracts.py`、模型后处理/导入计划和概览服务新增 v6 原文摘录编号。新任务冻结 Prompt、Schema 和来源，程序从编号恢复原文、重现次数和位置。历史 v5 保留原合同，现有编辑、授权重生成、格式修复和零模型恢复均走对应版本终验。观察任务类型的有限枚举进入 JobView 和 OpenAPI/TypeScript 契约。前端 `JobHistory`、`ReadingTaskStatus`、`PaperParsing` 和 `ModelDocumentPanel` 在任务记录保留细节，在阅读工作区仅汇总进行中的名称。`Papers` 记住最近明确选择的阅读来源，`PaperOverview` 展示来源失败范围与部分恢复操作。Alembic head 保持 `lite0018`。
+
+Tauri `desktop_window.rs`、Rust 主入口及 `WindowCloseSettings` 接入关闭偏好。首次关闭提供托盘、退出、取消。选择持久化，设置可以修改。托盘保持宿主与 Sidecar，恢复同一窗口，正式退出关闭引擎。隔离原生测试实际验证首次取消、隐藏、Explorer 托盘注册与回调恢复、单实例拉起、WebView Settings 设置与重启应用偏好，以及首次直接退出。原生测试使用独立应用标识和数据目录。
+
+TypeScript、ESLint、Prettier、Ruff 及 197 文件格式、mypy 114 源文件、依赖锁覆盖/依赖、OpenAPI/TS 导出通过。最终 React 240（23 文件）、Edge 50、Rust Host 18（含解包引擎连接及重启）通过。源码、打包引擎和安装包内引擎的实际回环 HTTP 均通过。每轮 1 次本地来源与 2 次模型来源合成请求，共 192 夹具 Token，读取、恢复及重启新增 0 请求，原失败记录保留。后端整套首轮的 1 条旧 v5 断言按 v6 新任务合同更新，专项 71 项通过，完整复跑结果另记。
+
+安装包 `.local/releases/card-workspace-fixes-20261121/ResearchGraph-Studio-Card-Workspace-Fixes-0.0.1-x64-setup.exe` 于 19:16:13 构建，160,871,612 bytes，SHA-256 `fd24a392a091264e781e019062b7fca60fefcdc82dbd3210559645397088df4b`。由归档解包核对安装包内引擎及 334 项资源逐文件一致，宿主仅 Tauri 标准 `UNK` → `NSS` 的 3 字节标记差异，后来重建的 62 项 Web 产物逐项一致。Windows PowerShell 5.1 加载脚本时被系统执行策略拒绝，在 PowerShell Core 用同一验收脚本验证解包引擎，通过匿名 PDF、模型文档、阅读状态、题名、清理和删除检查。解包验收避免执行 NSIS 对日常安装注册表和快捷方式的更新。真实供应商调用、用户日常覆盖安装和干净机仍待实际验证。未 Commit/Push。用户可在原论文的模型解析来源下打开“论文概览”，点击“本机恢复已校验卡片”。见 [ADR0066](docs/adr/0066-card-source-recovery-and-desktop-preferences.md) 和 [进度](docs/progress.md)。
+
+最终引擎全量将 68 个测试文件分四组互不重复运行，分别通过 233、205、281、275 项，合计 994 通过、1 跳过。各组均产生同一既有 Starlette 弃用警告。修复旧断言只改测试，205 运行/构建文件指纹与包复验时一致，源内容与 Gitleaks 524 文件、当前文档链接及 `git diff --check` 通过。
+
+## DEV-0131 — 2026-11-21 23:35（Asia/Shanghai）· 知识地图节点与全屏
+
+用户截图出现竖向长标签和文字重叠。旧图谱 CSS 的 `.projection-canvas` 作用域与知识地图画布结构不匹配，知识地图呈现 React Flow 默认方形。`ForceGraph` 增加知识地图样式配置，`forceGraph.css` 定义类型圆点与横排省略标签，`knowledgeGraphLabels.ts` 计算可见标签位置，密集或低缩放时收起部分标签。悬停、选中及论文节点优先，完整名称可从节点提示和详情读取。`ResearchKnowledgeBase` 提供中文、英文、中英双语及本机记忆，默认中文，单语数据回退到已有名称，论文根使用原题名。详情与画布共用语言选择逻辑。
+
+`useGraphFullscreen`、`graphFullscreen.css` 和主窗口 capability 支持 Windows 原生全屏、浏览器元素全屏及受限环境的视口回退。画布、图例、详情与工具栏在同一实例中显示。方向、缩放、位置和固定状态复用当前画布，Esc、退出按钮及返回论文阅读触发恢复，论文详情可先处理 Esc。使用既有布局键和资料，语言或全屏切换产生 0 次布局写入，真实模型请求与正式库实验写入均为 0。
+
+实际回归覆盖 26 节点密集夹具、圆点、横排、无可见标签碰撞、三种语言与重载记忆、相机和固定节点保持。首次全屏 E2E 对“打开论文知识与阅读入口”误作路由跳转，按实际“先开详情、再返回论文阅读”的流程修订。下一次 Edge 跑出旧精读夹具缺少元素的 1 项失败，之后整套重跑 54 项通过（36.6 秒）。最终 React 244 项（24 文件），TypeScript、ESLint、Prettier 和生产 Web 构建通过。隔离 Windows/WebView2 实测窗口全屏状态、Esc 和按钮退出、焦点、保留画布与固定节点、详情关闭与跳转清理。Rust Host 18 项通过（3.63 秒），包含打包引擎启动和重启。
+
+最终未签名安装包 `.local/releases/knowledge-map-display-20261121/ResearchGraph-Studio-Knowledge-Map-0.0.1-x64-setup.exe`，23:34:02 构建，160,915,933 bytes，SHA-256 `9a0e4b5c2c79890e388dff3564105c86daa2e259623ec30a42644d7a7a3a1d51`。继续使用经验证的 Sidecar `82c5a799…`，包内引擎及 334 项资源逐文件核对，Host 仅 NSIS 标记有 3 字节差别。92 项桌面源码和配置指纹保持。前端检查与安装包解包完成，日常升级未执行。新决策和入口见 [ADR0067](docs/adr/0067-knowledge-map-display-and-fullscreen.md) 与 [进度](docs/progress.md)。
+
+## DEV-0132 — 2026-11-22 00:10（Asia/Shanghai）· 联系汇报详细总结
+
+旧 Prompt 只有中文解释、双侧证据、差异与摘要约束。新版 `knowledge-connections-2` 在一次响应中生成图谱简述和逐条详细对照。详细对照用实际两篇论文标题、对应知识点和双侧引文展示材料、联系依据、适用条件和可选核查问题。前端为当前带来源版本提供联网同意后的明确重新分析入口。既有汇报、旧合同指纹及零请求缓存复用保持，混合缓存的发布和回读使用相同顺序，图谱保留一条同端点同类型边并按汇报定位精确选取。见 [ADR0068](docs/adr/0068-detailed-connection-reports.md)。
+
+引擎四组 240、205、281、275 项通过，合计 1,001 通过、1 跳过，各组为同一既有 Starlette 弃用告警。Ruff、mypy 114、TypeScript、ESLint、Prettier 和生产构建通过。React 全量 246，最后汇报定位改动专项 22，最终 Edge 55。匿名源码、打包及包内回环 HTTP 分别 2 次合成建模和 1 次合成联系，详细汇报跨重启逐项一致，读取/重启零请求。真实模型及正式库写入均为 0，head `lite0018`。
+
+最终包 `.local/releases/knowledge-detailed-report-20261122/ResearchGraph-Studio-Detailed-Reports-0.0.1-x64-setup.exe` 于 00:08:49 构建，160,889,732 bytes，SHA-256 `add2d9255bfe9ae0df890544e7976c46c54faccbee0ee656a0ba0f8890d4fddc`。334 项包内资源与打包引擎逐文件匹配，宿主仅标准 NSIS 标记 3 字节有差异。安装包解包验证，未运行日常覆盖安装。详细汇报阶段交付完成后开始用户追加的地图筛选、归档和右键需求。
+
+## DEV-0133 — 2026-11-22 16:45（Asia/Shanghai）· 归档管理、地图展开与场景右键
+
+`ResearchKnowledgeBase` 和 `ForceGraph` 默认展开地图当前页的论文及其知识节点，每页 12 篇。研究问题、概念、方法、贡献和结果独立显示，短时过滤保留节点坐标、固定状态和视角。`ContextMenu` 提供鼠标和键盘入口，复用于图谱节点、关系和背景、项目、论文、联系汇报、任务、归档条目和模型提供商。新导航加入后调整短窗口的侧栏内距，保留独立滚动的论文树。
+
+`ArchiveWorkspace`、`archiveApi`、引擎 `archive_api.py` 和迁移 `lite0019` 接入统一归档。终态任务以及原有项目论文、论文知识、知识专题、模型提供商、模型配置、旧解析清理均可进入归档。归档论文挡住旧阅读与生成入口，恢复后可继续读取保存的内容。模型目录编辑时移除已保存的模型在提交后归档。旧解析归档登记待清理，彻底清除前仍可读。清除以明确确认触发，按引用保留外部 PDF、已发布结果、必要任务身份和计量。清除受管文件或凭据时保留重试状态。见 [ADR0069](docs/adr/0069-archive-workspace-and-context-actions.md)。
+
+最终引擎 70 个文件分四组分别通过 283、277、241、206 项，合计 1,007 通过、1 跳过，均有既有 Starlette 弃用告警。React 254 项、Edge 59 项、Rust Host 19 项通过。TypeScript、ESLint、Prettier、Ruff、mypy（118 个文件）、pip 依赖校验、OpenAPI/TypeScript 导出及生产构建通过。首次引擎回归的两项旧即时删除断言按两阶段入口修订，并补上章节进度归档门槛。隔离包内引擎用于运行旧库迁移、备份、归档恢复与彻底清除，并复验详细汇报保存和重启。真实模型调用及正式库实验写入均为 0。
+
+最终包 `.local/releases/archive-workspace-20261122/ResearchGraph-Studio-Archive-Workspace-0.0.1-x64-setup.exe` 于 16:44:36 构建，160,892,756 bytes，SHA-256 `ea9f3de0b719940d22ca59f0744b38e3ab4d81c34762a89bd0c4de0a6f01c9f8`。218 项构建输入稳定，解包后引擎及 336 项资源逐文件一致，宿主仅标准 NSIS 标记 3 字节差异。安装器未签名，采用解包引擎验收。用户日常覆盖安装及新包原生界面操作仍待实测。未 Commit/Push。见 [进度](docs/progress.md)。
+
+## DEV-0134 — 2026-11-22 17:46（Asia/Shanghai）· 知识引文定位与本机恢复
+
+针对 `KNOWLEDGE_QUOTE_MISMATCH`，用 SQLite 只读模式核实正式库中一条 v2 完整失败响应。冻结来源和当前解析一致，严格结构与关系规则通过。47 条引文中 46 条精确定位，1 条无法在所选或其他冻结来源中找到。该引文是一个节点的唯一依据，1 条关系依赖它。新版只读预览实际返回 17 个保留节点和 17 条保留关系。正式库未发布。
+
+`knowledge_quote_recovery.py` 与 `knowledge_tasks.py` 在已有本机恢复流程内隔离有问题的知识对象及依赖边，严格复验保留内容。`knowledge-local-recovery-2` 冻结隔离索引、原始响应、来源和内容指纹。自由摘要不随图谱恢复。老关系恢复原审计不变。现有完整带来源的当前版本保留显示优先级。`KnowledgeLocalRecoveryDialog` 展示两类隔离项和原因，复用预览确认操作。`paper_knowledge.py`、`source_excerpts.py` 为新 v3 请求绑定编号摘录，程序恢复准确引文、来源和出现次序。v1/v2 的 Prompt、Schema、请求输入指纹及可复用缓存保持，已用请求仍计入同一来源预算。无迁移，head `lite0019`。见 [ADR0070](docs/adr/0070-knowledge-excerpt-references-and-quote-recovery.md)。
+
+引擎 71 个测试文件按四组通过 202、256、303、258 项，合计 1,019 通过、1 项因文件符号链接不可用跳过，附既有 Starlette 弃用提醒。React 256、Edge 59、Rust Host 19 项通过。Ruff、mypy（120 个源码）、TypeScript、ESLint、Prettier、pip 依赖及生产构建通过，导出公共契约指纹保持，555 文件 Gitleaks 内容检查通过。五项源码 HTTP 烟测通过，包内复验旧引文失败恢复、新 v3 与详细联系汇报、Windows 本机导入和归档流程。恢复确认保留原失败响应和用量，重启及幂等复验通过，恢复与重启新增请求 0，真实模型及正式库写入均为 0。
+
+未签名修复包 `.local/releases/knowledge-quote-recovery-20261122/ResearchGraph-Studio-Knowledge-Quote-Recovery-0.0.1-x64-setup.exe` 于 17:45:31 构建，160,903,380 bytes，SHA-256 `6d1f1ab1a3012dcb12c0bd82efda568f76dbbd3936d8c3160271c32928f103e0`。220 项构建输入保持，包内引擎及 336 项资源逐文件匹配，宿主仅标准 NSIS 标记 3 字节差异。日常覆盖安装和新包原生弹窗待实测。未 Commit/Push。见 [进度](docs/progress.md)。
+
+## DEV-0135 — 2026-11-22 18:02（Asia/Shanghai）· 界面优化开发方案
+
+根据已有软件审查和用户补充方向，核对 Designeer 中文首页的搜索、分类、卡片预览及三档主题。使用 Edge 截图和主题切换探针复核参考站，检查本地工作区、图谱、弹层、主题色与既有回归入口，计算候选配色对比。新增 [界面优化开发方案](docs/ui-optimization-development-plan-20261122.md)，并加入 [文档导航](docs/README.md) 和 [进度](docs/progress.md)。交付为设计与阶段计划，运行源码、产品行为及安装包保持现状。下一阶段使用匿名夹具建立浅色和交互基线。
+
+## DEV-0136 — 2026-11-22 23:58（Asia/Shanghai）· 工作区界面优化和明暗模式
+
+按方案调整 `Papers`、`PaperParsing`、`PaperOverview`、`PaperCardSet`、`PaperCloseReading` 和 `ReadingContent`。论文来源独立可见，生成与维护放到次级入口，卡片分类统计使用当前条件，精读引文和分析双向高亮。`ResearchKnowledgeBase`、`ForceGraph` 将类型开关移到画布上方，增加键盘和鼠标的关系反馈。联系汇报按论文呈现证据，定位地图后还原原来的浏览范围。`JobHistory`、`KnowledgeTaskDiagnostic`、`DocumentRequestStatus` 将技术字段置于诊断详情。`ArchiveWorkspace` 明示项目归属、恢复及二次确认，保留续清状态。
+
+`appearance-init.js`、`appearance.ts`、`appearance.css` 与 `AppearanceSettings` 提供前置主题解析、浅深配色、跟随系统和 WebView 本机记忆。复用 React Flow 同一主题与现有模型授权、来源终验和归档接口。引擎源码与引文修复版逐项一致，无新迁移，head `lite0019`。真实模型请求、正式库实验写入均为 0。见 [ADR0071](docs/adr/0071-workspace-appearance-and-quick-actions.md)。
+
+保留 43 张变更前匿名夹具截图。`pnpm check`、`pnpm format:check`、`pnpm test`（256 项）、`pnpm --dir apps/desktop test:browser`（61 项）及生产构建通过。补充深色回归 20 项通过，一次过程中本地阅读夹具未在限时内挂载，重跑 20 项和后续 3 轮共 15 项均通过。引文与归档引擎专项 29 项、Rust Host 19 项通过。564 项源码的路径和 Gitleaks 内容检查通过。隔离 WebView2 验证主题记忆、系统配色模拟变更、深色项目对话框、Esc、模拟 125% 像素比及强制颜色键盘焦点。
+
+最终未签名包 `.local/releases/ui-workspace-20261122/ResearchGraph-Studio-Workspace-UI-0.0.1-x64-setup.exe` 于 23:58:00 构建，160,924,532 bytes，SHA-256 `29266e55f71f456147394834f4ba18831a662fba2618bf2602c3eecd8dd2fd92`。227 项构建输入指纹稳定，包内引擎和 336 项资源逐文件匹配，宿主仅标准 NSIS 标记 3 字节不同。包内引擎通过 Windows 本机使用及引文恢复烟测。日常覆盖安装、真实 Windows 缩放、标题栏和冷启动屏幕观察仍待实测。未 Commit/Push。见 [进度](docs/progress.md)。
+
+## DEV-0137 — 2026-11-23 00:23（Asia/Shanghai）· 独立软件质量审计
+
+审计当前工作区的功能、并发、架构、存储、模型调用、交互、性能和安全。核对 227 项安装包源码指纹、静态边界和多组隔离验证。确认自动联系撤回缺口、执行器写锁后失活、取消不释放队列、第 51 条可达性和完整工作区恢复缺口，同时记录汇报、用量、布局大小和长期增长问题。
+
+本轮独立重跑 1,019 后端通过、1 符号链接权限跳过，256 React、19 Rust Host 通过。Edge 首轮 60 通过、1 个夹具加载超时，完整重跑 61 通过。Ruff、mypy、前端类型、ESLint、Prettier、111 条 OpenAPI 路由快照和隔离 WebView2 检查通过。Gitleaks 564 文件与 55 提交未发现匹配泄漏。依赖公告记录按生产可达性区分。报告列出发布门槛和未验事项。没有修复代码、正式库写入或真实模型调用，未安装、提交或推送。见 [独立软件质量审计](docs/independent-quality-audit-20261123.md)。
+
+## DEV-0138 — 2026-11-23 16:54（Asia/Shanghai）· 审计七项修复
+
+修复论文和全局任务分页、活动计数、旧任务恢复、知识搜索、来源跳转、侧栏错误和图谱布局缓存。新增任务执行与取消模块，诊断分队列，保留已发送请求与用量。自动联网撤回覆盖旧排队任务，发送前再查授权。新联系协议检查引文数字，HTTP 429 记录等待建议。原手动授权和历史合同保持。
+
+增加工作区备份恢复、中文及深路径处理、休止检查和恢复失败回退。恢复输入验数据库、文件指纹及引用，在独立工作区关闭自动联网。统一自动 SQLite 备份发布，`lite0020` 保留论文清除前的去身份分类用量。限制公式预览读取大小，更新 Pillow/OpenTelemetry API/Rust `url`，增加发行 SBOM、依赖公告、证书与时间戳验证。见 [ADR0072](docs/adr/0072-task-workspace-and-release-reliability.md)。
+
+最终后端 1,035 通过、1 符号链接环境跳过，React 260、Edge 61、Rust Host 21、深路径存储与任务专项 65 通过。Ruff、mypy、前端类型、ESLint、Prettier、Clippy、生产构建及合同重导出通过。OSV 289 个 Windows 运行依赖版本无匹配。匿名包内迁移保留旧身份、来源 PDF、65 张既有数据表的 42 行数据及 46 个合成 Token，迁移前备份逐表一致。Rust Host 使用包内引擎验证中文路径备份与独立工作区恢复。包内本机和引文恢复烟测通过。正式库写入及真实模型请求均为 0。
+
+本地测试包 `.local/releases/quality-remediation-20261123/ResearchGraph-Studio-Quality-0.0.2-x64-setup.exe` 于 12:34:19 构建，161,027,170 bytes，SHA-256 `dd5a95efff93af9e422d1204fd856c628f564b459e40231e323c96dfc053b5a0`。209 项构建输入和 338 项包内资源通过配对。安装包未签名，发行模式拒绝无证书输入。干净机和日常覆盖升级、真实供应商和科学验收仍待实测。第 7 项整体性能暂留后续。未替用户安装，未 Commit/Push。见 [进度](docs/progress.md)。
+
+## DEV-0139 — 2026-11-23 17:19（Asia/Shanghai）· 专题组织与工作区搜索
+
+新增 `TopicManagement` 与批量专题接口。论文知识多归属，定向移动只改指定来源及目标成员关系，原有科学联系和汇报保持。专题归档进入统一入口。地图默认保留专题内联系，显式显示专题外关系时只读取当前范围的直接候选，保留原关系身份，外部预览无需基础布局写入。`WorkspaceSearchDialog` 与本地查询支持个人空间跨页搜索，知识库接入普通及全屏 `Ctrl+F`。无迁移，head `lite0020`。见 [ADR0073](docs/adr/0073-topic-workspace-and-search.md)。
+
+后端 1,039 通过、1 个符号链接环境跳过，React 260、Edge 66、Rust Host 22 通过。类型检查、格式、Rust Clippy、契约与生产构建通过。隔离 Windows WebView2 实测快捷键和专题弹窗。匿名包内验证专题改名、跨专题定向移动、归档恢复与精确搜索，关系和引文保持。包内 Windows 本地操作烟测通过。真实模型调用及正式库写入为 0。
+
+测试包 `.local/releases/topic-workspace-20261123/ResearchGraph-Studio-Topics-Search-0.0.3-x64-setup.exe` 于 17:18:20 构建，161,056,788 bytes，SHA-256 `e873679be2af4a0dfa9076c66394a6a619564792f091503fd4b7072fbae23802`。220 项构建输入和 338 项包内资源配对。未签名，日常覆盖安装待实测。未替用户安装，未 Commit/Push。见 [进度](docs/progress.md)。
+
+## DEV-0140 — 2026-11-23（Asia/Shanghai）· 1.0.0 版本准备
+
+同步桌面、宿主、引擎和生成契约版本，重写根 README，把面向用户的入口和操作放在发布与开发说明前。以远端主分支接收 K1–K3 的合并提交为基线，纳入专题、全局搜索、工作区备份及审计修复源码。沿用 `lite0020`。公开制品和本版验收记录维护在 [GitHub v1.0.0](https://github.com/KLucen/ResearchGraphStudio/releases/tag/v1.0.0)。

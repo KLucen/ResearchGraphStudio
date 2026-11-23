@@ -1,6 +1,14 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 
 class InputModel(BaseModel):
@@ -35,6 +43,27 @@ class ProjectList(BaseModel):
 
 class JobCreate(InputModel):
     kind: Literal["diagnostics"] = "diagnostics"
+
+
+ReadingTask = Literal["paper_card_set", "paper_overview", "paper_reading", "translation"]
+
+
+def reading_task_for(kind: str, payload: dict[str, Any]) -> ReadingTask | None:
+    if kind == "paper_overview" and payload.get("overview_contract_version") == 2:
+        return "paper_card_set"
+    if kind == "llm_document_postprocess":
+        item = payload.get("item_kind")
+        if item == "paper_overview":
+            return (
+                "paper_card_set"
+                if payload.get("postprocess_contract_version") in (5, 6)
+                else "paper_overview"
+            )
+        if item == "paper_reading":
+            return "paper_reading"
+        if item == "translation":
+            return "translation"
+    return None
 
 
 class JobView(BaseModel):
@@ -78,9 +107,23 @@ class JobView(BaseModel):
     attempt: int
     error: str | None
     result: dict[str, Any] | None
+    reading_task: ReadingTask | None = None
     resume_adapter_available: bool = False
     created_at: str
     updated_at: str
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def classify_reading_task(
+        cls, value: Any, handler: ModelWrapValidatorHandler["JobView"]
+    ) -> "JobView":
+        view = handler(value)
+        # Only publish an allowlisted task subtype. The frozen payload contains
+        # model configuration and inputs that do not belong in task history.
+        payload = getattr(value, "payload", None)
+        if isinstance(payload, dict):
+            view.reading_task = reading_task_for(view.kind, payload)
+        return view
 
     @field_validator("stage", mode="before")
     @classmethod
@@ -124,6 +167,9 @@ class Health(BaseModel):
     database: Literal["ready"] = "ready"
     fts5: bool
     temporary_files: WorkspaceCleanup | None = None
+    worker_status: Literal["idle", "running", "recovering", "stopped", "disabled"] = "disabled"
+    worker_error: str | None = None
+    active_jobs: int | None = None
 
 
 class PdfImport(InputModel):
@@ -145,6 +191,7 @@ class SourceSnapshot(InputModel):
 
 class ImportPlan(InputModel):
     postprocess_contract_version: Literal[2, 3, 4] = 4
+    overview_contract_version: Literal[5, 6] | None = None
     overview: bool = False
     reading: bool = False
     translation_mode: Literal["full", "none"] = "none"
@@ -262,6 +309,7 @@ class PaperView(BaseModel):
 class PaperList(BaseModel):
     items: list[PaperView]
     next_cursor: int | None
+    total: int
 
 
 class RevisionView(BaseModel):

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { api, defaultPostImportPlan } from "../src/api";
 import { ImportPostProcessingPlan } from "../src/ImportPostProcessingPlan";
+import { JobHistory } from "../src/JobHistory";
 import { PaperParsing } from "../src/PaperParsing";
 import "../src/style.css";
 declare global {
@@ -45,12 +46,19 @@ api.parsePaper = async (_paperId, body) => {
   window.__parseCalls.push(body);
   return { id: "synthetic-job", status: "queued" } as never;
 };
+const batchFixture = new URLSearchParams(window.location.search).has("batch");
 api.job = async () => {
-  const batchFixture = new URLSearchParams(window.location.search).has("batch");
+  const timestamp = "2026-11-21T00:00:00Z";
   return {
     id: "synthetic-job",
-    status: "failed",
-    error: "Synthetic local read failure",
+    kind: batchFixture ? "llm_document_parse" : "pdf_import",
+    project_id: "p",
+    status: batchFixture ? "running" : "failed",
+    stage: batchFixture ? "document_waiting" : "failed",
+    attempt: 1,
+    error: batchFixture ? null : "Synthetic local read failure",
+    created_at: timestamp,
+    updated_at: timestamp,
     result: batchFixture
       ? {
           document_batches: {
@@ -83,8 +91,12 @@ api.job = async () => {
             read_timeout_seconds: 90,
           },
         },
-  } as never;
+  };
 };
+api.projectJobs = async () => ({
+  items: [await api.job("synthetic-job")],
+  next_cursor: null,
+});
 function Fixture() {
   const [plan, setPlan] = useState(defaultPostImportPlan);
   const [source, setSource] = useState<"local" | "model">("local");
@@ -105,6 +117,7 @@ function Fixture() {
         onViewSource={setSource}
         onQueued={() => {}}
       />
+      {batchFixture && <JobHistory projectId="p" connected title="任务记录" />}
     </main>
   );
 }

@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import KnowledgeError
 from researchgraph.document_structure import (
     section_model_spans,
@@ -43,6 +44,7 @@ from researchgraph.section_guide_contracts import (
 )
 from researchgraph.section_guide_models import SectionGuideResult
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import wait_for_model
 
 SYSTEM_PROMPT = """You are a concise reading guide for a Chinese graduate student.
 Help the reader understand only the selected paper section. Use only the supplied
@@ -553,10 +555,12 @@ async def execute_section_guide(
                 "config_fingerprint": identity["config_fingerprint"],
             }
             job.status, job.stage, job.updated_at = "running", "generating", now()
-        raw = await active_provider.complete(
-            _prompt(context),
-            _model_context(context),
-            guide_schema(),
+        raw = await wait_for_model(
+            active_provider.complete(
+                _prompt(context),
+                _model_context(context),
+                guide_schema(),
+            )
         )
         guide = validate_response(
             raw,
@@ -762,6 +766,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         depth: str | None = Query(default=None, pattern="^(quick|standard|deep)$"),
     ) -> list[GuideView]:
         with read_session(engine()) as session:
+            require_unarchived_paper(session, paper_id)
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")
@@ -798,6 +803,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         adaptive: bool = Query(False),
     ) -> GuideView | None:
         with read_session(engine()) as session:
+            require_unarchived_paper(session, paper_id)
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")
@@ -853,6 +859,7 @@ def register_section_guide_api(app: FastAPI, engine: Callable[[], Engine], data_
         if not body.allow_network:
             raise HTTPException(409, "生成章节导读前请明确允许一次模型调用")
         with Session(engine()) as session, session.begin():
+            require_unarchived_paper(session, paper_id)
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")

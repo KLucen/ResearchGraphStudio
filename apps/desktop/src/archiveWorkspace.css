@@ -1,0 +1,118 @@
+.archive-workspace {
+  max-width: 1060px;
+  margin-inline: auto;
+  min-width: 0;
+}
+.archive-workspace > header {
+  margin-block: 8px 24px;
+}
+.archive-workspace > header p {
+  color: var(--rgs-muted, #54645c);
+}
+.archive-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 16px;
+}
+.archive-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.archive-toolbar select {
+  padding: 7px 12px;
+  border: 1px solid var(--rgs-border, #dce2d9);
+  border-radius: 7px;
+  background: var(--rgs-surface, #fcfdf9);
+  color: var(--rgs-text, #415346);
+  font: inherit;
+}
+.archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block: 1px solid var(--rgs-border, #e0e7db);
+}
+.archive-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--rgs-border, #e0e7db);
+}
+.archive-row:focus-within {
+  background: var(--rgs-hover, #edf4ef);
+}
+.archive-row:focus-visible {
+  outline: 2px solid var(--rgs-focus, #176c58);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .archive-row:hover {
+    background: var(--rgs-hover, #edf4ef);
+  }
+}
+.archive-row:last-child {
+  border-bottom: 0;
+}
+.archive-row > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.archive-row small {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 2px;
+  margin-top: 4px;
+  color: var(--rgs-muted, #54645c);
+}
+.archive-row small > :not(:first-child)::before {
+  content: "·";
+  margin-inline-end: 8px;
+}
+.archive-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.archive-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 100px;
+  color: var(--rgs-muted, #54645c);
+  padding: 10px 12px;
+  border-block: 1px solid var(--rgs-border, #e0e7db);
+}
+.archive-pager {
+  justify-content: flex-end;
+}
+.dialog.archive-purge-dialog {
+  color: var(--rgs-text, #243e38);
+  background: var(--rgs-surface, #fff);
+  border-color: var(--rgs-border, #d9deda);
+}
+.archive-purge-dialog h2 {
+  margin: 0 0 16px;
+}
+.archive-purge-target {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin-block: 16px;
+}
+.archive-purge-target dt {
+  color: var(--rgs-muted, #54645c);
+}
+.archive-purge-target dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.archive-purge-dialog .dialog-actions {
+  flex-wrap: wrap;
+}

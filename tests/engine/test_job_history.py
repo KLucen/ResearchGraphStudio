@@ -3,10 +3,47 @@ import time
 from uuid import UUID, uuid4
 
 from researchgraph import ingest
-from researchgraph.models import Job
+from researchgraph.models import Job, Paper
 from sqlalchemy.orm import Session
 from test_engine import client, post
 from test_ingest import FIXTURES, queue
+
+
+def test_workspace_lists_reach_records_before_the_legacy_window(tmp_path):
+    with client(tmp_path) as api:
+        project = post(api, "/projects", {"name": "Workspace History"}).json()
+        project_id = project["id"]
+        assert api.get(f"/api/v1/projects/{project_id}").json() == project
+        ids = [str(UUID(int=i)) for i in range(1, 52)]
+        with Session(api.app.state.engine) as session, session.begin():
+            for index, item_id in enumerate(ids):
+                timestamp = f"2026-10-30T00:00:{index:02d}Z"
+                session.add(
+                    Paper(id=item_id, project_id=project_id, title=item_id, created_at=timestamp)
+                )
+                session.add(
+                    Job(
+                        id=item_id,
+                        project_id=project_id,
+                        kind="diagnostics",
+                        status="running" if index == 0 else "succeeded",
+                        attempt=1,
+                        created_at=timestamp,
+                        updated_at=timestamp,
+                    )
+                )
+        assert len(api.get("/api/v1/jobs").json()) == 50
+        first = api.get("/api/v1/jobs/page?limit=50").json()
+        assert [job["id"] for job in first["items"]] == ids[:0:-1]
+        last = api.get("/api/v1/jobs/page", params={"cursor": first["next_cursor"]}).json()
+        assert last["next_cursor"] is None
+        assert [(job["id"], job["status"]) for job in last["items"]] == [(ids[0], "running")]
+        path = f"/api/v1/projects/{project_id}/papers"
+        first_papers = api.get(path).json()
+        assert first_papers["total"] == 51 and first_papers["next_cursor"] == 50
+        last_papers = api.get(path, params={"cursor": first_papers["next_cursor"]}).json()
+        assert last_papers["total"] == 51 and last_papers["next_cursor"] is None
+        assert [paper["id"] for paper in last_papers["items"]] == ids[:1]
 
 
 def test_keyset_history_keeps_order_across_new_jobs_and_retry(tmp_path):

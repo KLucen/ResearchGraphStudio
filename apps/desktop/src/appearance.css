@@ -1,0 +1,157 @@
+:root {
+  color-scheme: light;
+  --rgs-canvas: #f7f7f3;
+  --rgs-sidebar: #efefe8;
+  --rgs-surface: #ffffff;
+  --rgs-raised: #fafbf8;
+  --rgs-subtle: #f0f4ed;
+  --rgs-hover: #edf4ef;
+  --rgs-selected: #dfe9dc;
+  --rgs-text: #243e38;
+  --rgs-muted: #54645c;
+  --rgs-border: #d9deda;
+  --rgs-divider: #dfe5dc;
+  --rgs-control-border: #738579;
+  --rgs-focus: #176c58;
+  --rgs-accent-text: #1d5040;
+  --rgs-action: #315e47;
+  --rgs-action-hover: #254e3a;
+  --rgs-on-action: #ffffff;
+  --rgs-danger: #9b3b36;
+  --rgs-danger-surface: #fff3ed;
+  --rgs-danger-border: #ebcfc0;
+  --rgs-warning: #765819;
+  --rgs-warning-surface: #fbf5e8;
+  --rgs-warning-border: #bc8843;
+  --rgs-success: #29714b;
+  --rgs-success-mark: #1b995c;
+  --rgs-overlay: #1b302e55;
+  --rgs-scrim: #162b224f;
+  --rgs-shadow: #24362426;
+  --rgs-reading-banner: #203958;
+  --rgs-reading-thesis: #987000;
+  --rgs-reading-concept: #b52d2d;
+  --rgs-reading-evidence: #2559c7;
+  --rgs-reading-counterargument: #267047;
+  --rgs-reading-method: #7936bf;
+  --rgs-graph-research-question: #ad7c91;
+  --rgs-graph-concept: #927fba;
+  --rgs-graph-method: #508e80;
+  --rgs-graph-contribution: #b38e54;
+  --rgs-graph-finding: #ba8265;
+  --rgs-graph-unknown: #74847b;
+  --rgs-graph-paper: #365e70;
+  --rgs-graph-edge: #647970;
+  --rgs-graph-edge-active: #285e4f;
+  --rgs-graph-node-ring: #ffffffa6;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --rgs-canvas: #171d1a;
+  --rgs-sidebar: #1c2420;
+  --rgs-surface: #212925;
+  --rgs-raised: #27312b;
+  --rgs-subtle: #26312b;
+  --rgs-hover: #2a3831;
+  --rgs-selected: #34463c;
+  --rgs-text: #e6efe9;
+  --rgs-muted: #aabbb1;
+  --rgs-border: #48594f;
+  --rgs-divider: #3b4a41;
+  --rgs-control-border: #85988b;
+  --rgs-focus: #6fcda7;
+  --rgs-accent-text: #93dcb4;
+  --rgs-action: #a0d7b4;
+  --rgs-action-hover: #bce8cc;
+  --rgs-on-action: #162a20;
+  --rgs-danger: #ffaea7;
+  --rgs-danger-surface: #422926;
+  --rgs-danger-border: #9f645b;
+  --rgs-warning: #ebc480;
+  --rgs-warning-surface: #3b3221;
+  --rgs-warning-border: #a7834d;
+  --rgs-success: #a1ddb7;
+  --rgs-success-mark: #81cd9f;
+  --rgs-overlay: #080e0bc2;
+  --rgs-scrim: #080e0b9c;
+  --rgs-shadow: #00000066;
+  --rgs-reading-banner: #b6cde9;
+  --rgs-reading-thesis: #edc94d;
+  --rgs-reading-concept: #ff9b93;
+  --rgs-reading-evidence: #95b6ff;
+  --rgs-reading-counterargument: #79d89c;
+  --rgs-reading-method: #d1a1ff;
+  --rgs-graph-research-question: #dba5bd;
+  --rgs-graph-concept: #b7a3ed;
+  --rgs-graph-method: #7fc4ad;
+  --rgs-graph-contribution: #dcb976;
+  --rgs-graph-finding: #d89b7d;
+  --rgs-graph-unknown: #a2afa6;
+  --rgs-graph-paper: #83b6cd;
+  --rgs-graph-edge: #8da699;
+  --rgs-graph-edge-active: #b6e2cd;
+  --rgs-graph-node-ring: #171d1ad9;
+}
+
+:where(button, input, textarea, select, a, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--rgs-focus);
+  outline-offset: 2px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--rgs-muted);
+  opacity: 1;
+}
+
+.appearance-card h2 {
+  margin: 0 0 12px;
+}
+.appearance-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.appearance-options legend {
+  color: var(--rgs-muted);
+  margin-bottom: 6px;
+}
+.appearance-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--rgs-control-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.appearance-options label:has(:checked) {
+  background: var(--rgs-selected);
+  border-color: var(--rgs-focus);
+}
+.appearance-options label:has(:focus-visible) {
+  outline: 2px solid var(--rgs-focus);
+  outline-offset: 2px;
+}
+.appearance-options input {
+  accent-color: var(--rgs-focus);
+  margin: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .appearance-options label:not(:has(:checked)):hover {
+    background: var(--rgs-hover);
+  }
+}
+
+@media (forced-colors: active) {
+  :where(button, input, textarea, select, a, summary, [tabindex]):focus-visible,
+  .appearance-options label:has(:focus-visible) {
+    outline-color: Highlight;
+  }
+}

@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import KnowledgeError
 from researchgraph.keyword_contracts import (
     PROMPT_VERSION,
@@ -36,6 +37,7 @@ from researchgraph.lite_usage import cache_key, read_cache, record_usage, write_
 from researchgraph.models import AttachmentRevision, Job, Paper, Section, now
 from researchgraph.providers import Provider
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import wait_for_model
 
 SYSTEM_PROMPT = """You are a bilingual scientific search-keyword converter.
 Return only JSON matching the output schema. Read the question, paper title,
@@ -392,7 +394,9 @@ async def execute_keyword_expansion(
         provider_context = {
             key: context[key] for key in ("question", "paper_title", "section_heading")
         }
-        raw = await active_provider.complete(SYSTEM_PROMPT, provider_context, keyword_schema())
+        raw = await wait_for_model(
+            active_provider.complete(SYSTEM_PROMPT, provider_context, keyword_schema())
+        )
         keywords = validate_response(raw)
         input_tokens, output_tokens, total_tokens, usage_source = _provider_usage(active_provider)
         with Session(engine) as session, session.begin():
@@ -507,7 +511,10 @@ async def execute_keyword_expansion(
             if usage_id is not None:
                 usage = session.get(LiteTokenUsage, usage_id)
                 if usage is not None:
-                    usage.status, usage.reason_code = "failed", code
+                    if failed_job is not None and failed_job.status == "cancelled":
+                        usage.status, usage.reason_code = "cancelled", "CANCELLED"
+                    else:
+                        usage.status, usage.reason_code = "failed", code
                     if active_provider is not None:
                         inp, out, total, source = _provider_usage(active_provider)
                         (
@@ -559,6 +566,7 @@ def register_keyword_api(app: FastAPI, engine: Callable[[], Engine], data_dir: P
         section_id: str | None = Query(default=None),
     ) -> list[KeywordView]:
         with read_session(engine()) as session:
+            require_unarchived_paper(session, paper_id)
             if session.get(Paper, paper_id) is None:
                 raise HTTPException(404, "论文不存在")
             statement = select(LiteKeywordRecord).where(LiteKeywordRecord.paper_id == paper_id)
@@ -579,6 +587,7 @@ def register_keyword_api(app: FastAPI, engine: Callable[[], Engine], data_dir: P
     @app.get("/api/v1/papers/{paper_id}/qa/keywords/{keyword_id}", response_model=KeywordView)
     def get_keywords(paper_id: str, keyword_id: str) -> KeywordView:
         with read_session(engine()) as session:
+            require_unarchived_paper(session, paper_id)
             row = session.get(LiteKeywordRecord, keyword_id)
             if row is None or row.paper_id != paper_id:
                 raise HTTPException(404, "关键词记录不存在")
@@ -592,6 +601,7 @@ def register_keyword_api(app: FastAPI, engine: Callable[[], Engine], data_dir: P
         from researchgraph.model_settings import snapshot_for
 
         with Session(engine()) as session, session.begin():
+            require_unarchived_paper(session, paper_id)
             paper = session.get(Paper, paper_id)
             if paper is None:
                 raise HTTPException(404, "论文不存在")

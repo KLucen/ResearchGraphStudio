@@ -19,7 +19,9 @@ test("LightGraph types have distinct visible colors and Chinese labels", () => {
   ).toBe(5);
   kinds.forEach((kind) => {
     expect(getGraphAppearance(kind).label).toBeTruthy();
-    expect(getGraphAppearance(kind).color).toMatch(/^#[0-9a-f]{6}$/);
+    expect(getGraphAppearance(kind).color).toMatch(
+      /^var\(--rgs-graph-[a-z-]+\)$/,
+    );
   });
 });
 test.each(["UnsupportedKind", "", "__proto__", "constructor"])(
@@ -27,7 +29,7 @@ test.each(["UnsupportedKind", "", "__proto__", "constructor"])(
   (kind) => {
     expect(getGraphAppearance(kind)).toEqual({
       label: "其他",
-      color: "#74847b",
+      color: "var(--rgs-graph-unknown)",
     });
   },
 );

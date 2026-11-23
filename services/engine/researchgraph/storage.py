@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing, suppress
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -10,7 +11,9 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
-SCHEMA_HEAD = "lite0018"
+from researchgraph.workspaces import native_file_path
+
+SCHEMA_HEAD = "lite0020"
 DATABASE_NAME = "researchgraph-lite.sqlite3"
 
 
@@ -65,6 +68,30 @@ def database_busy(exc: OperationalError) -> bool:
     return isinstance(code, int) and code & 0xFF in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}
 
 
+def backup_database(database: Path, destination: Path) -> None:
+    """Publish a verified SQLite snapshot atomically for migrations and purge."""
+    source = native_file_path(database)
+    final = native_file_path(destination)
+    if not source.is_file():
+        raise FileNotFoundError("database missing")
+    final.parent.mkdir(parents=True, exist_ok=True)
+    temporary = final.with_suffix(".sqlite3.tmp")
+    try:
+        with (
+            closing(sqlite3.connect(source, timeout=5)) as app_db,
+            closing(sqlite3.connect(temporary, timeout=5)) as snapshot,
+        ):
+            app_db.execute("PRAGMA query_only=ON")
+            app_db.backup(snapshot, pages=128)
+            if snapshot.execute("PRAGMA integrity_check").fetchone() != ("ok",):
+                raise sqlite3.DatabaseError("backup integrity check failed")
+        temporary.replace(final)
+    except (OSError, sqlite3.Error):
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)
+        raise
+
+
 def migrate(engine: Engine, data_dir: Path, script_location: Path | None = None) -> None:
     database = data_dir / DATABASE_NAME
     # This is a separate database family. Never stamp/upgrade a full-system
@@ -86,13 +113,7 @@ def migrate(engine: Engine, data_dir: Path, script_location: Path | None = None)
                 raise RuntimeError(
                     "该数据库不是 Lite 数据库；请使用新的 Lite 数据目录，旧数据不会迁移"
                 )
-        backups = data_dir / "backups"
-        backups.mkdir(exist_ok=True)
-        with (
-            sqlite3.connect(database) as source,
-            sqlite3.connect(backups / f"before-migration-{uuid4()}.sqlite3") as target,
-        ):
-            source.backup(target)
+        backup_database(database, data_dir / "backups" / f"before-migration-{uuid4()}.sqlite3")
     config = Config()
     config.set_main_option(
         "script_location", str(script_location or Path(__file__).parent / "migrations")

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Callable, Iterable
-from contextlib import closing
 from pathlib import Path
+from stat import S_ISREG
 from typing import Any, cast
 from uuid import uuid4
 
@@ -15,6 +15,7 @@ from sqlalchemy import Engine, bindparam, delete, func, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_models import archived_target
 from researchgraph.chapter_reading_models import ModelChapterReadingState
 from researchgraph.close_reading_models import (
     SectionCloseReadingResult,
@@ -25,6 +26,7 @@ from researchgraph.document_batch_models import LlmDocumentBatch, LlmDocumentBat
 from researchgraph.import_plan_models import ImportPlanItem, ImportSession
 from researchgraph.keyword_models import LiteKeywordRecord
 from researchgraph.lite_models import LiteCacheEntry, LiteTokenUsage
+from researchgraph.lite_usage import preserve_paper_usage
 from researchgraph.model_document_models import (
     LlmDocumentOutput,
     LlmDocumentParse,
@@ -52,7 +54,7 @@ from researchgraph.qa_models import LiteQARecord
 from researchgraph.reading_document_models import ReadingDocumentProjection
 from researchgraph.reading_state_models import ConceptUnderstanding, ReadingState
 from researchgraph.section_guide_models import SectionGuideResult
-from researchgraph.storage import read_session
+from researchgraph.storage import backup_database
 from researchgraph.structure_models import DocumentParse
 from researchgraph.structure_upgrade import mark_local_content_cleared
 from researchgraph.translation_models import PDFTranslation
@@ -65,6 +67,7 @@ class PaperTitleUpdate(StrictModel):
 class PaperManagementResult(StrictModel):
     ok: bool = True
     paper_id: str
+    archive_item_id: str | None = None
     backup_file: str | None = None
     removed: dict[str, int] = Field(default_factory=dict)
     retained_personal_metadata: int = 0
@@ -193,22 +196,11 @@ def _backup_database(engine: Engine, data_dir: Path, paper_id: str, action: str)
     if not source_path.is_file():
         raise _failure(500, "PAPER_BACKUP_FAILED", "未能定位本地数据库，删除操作已取消")
     backup_dir = data_dir / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
     filename = f"before-paper-{action}-{paper_id}-{uuid4()}.sqlite3"
     destination = backup_dir / filename
-    temporary = destination.with_suffix(".sqlite3.tmp")
     try:
-        with closing(sqlite3.connect(source_path, timeout=5)) as source:
-            source.execute("PRAGMA query_only=ON")
-            with closing(sqlite3.connect(temporary, timeout=5)) as target:
-                source.backup(target)
-                integrity = target.execute("PRAGMA integrity_check").fetchone()
-                target.commit()
-                if integrity is None or integrity[0] != "ok":
-                    raise sqlite3.DatabaseError("backup integrity check failed")
-        temporary.replace(destination)
+        backup_database(source_path, destination)
     except (OSError, sqlite3.Error):
-        temporary.unlink(missing_ok=True)
         raise _failure(500, "PAPER_BACKUP_FAILED", "数据库备份失败，删除操作已取消") from None
     return destination.relative_to(data_dir).as_posix()
 
@@ -247,10 +239,13 @@ def _managed_file_candidate(path_value: str | None, data_dir: Path) -> Path | No
         candidate = original.resolve(strict=False)
         if candidate.parent != root or candidate.suffix.lower() != ".pdf":
             return None
-        if not candidate.is_relative_to(root) or not candidate.is_file():
+        if not candidate.is_relative_to(root):
             return None
-        return candidate
-    except (OSError, RuntimeError, ValueError):
+        try:
+            return candidate if S_ISREG(candidate.stat().st_mode) else None
+        except FileNotFoundError:
+            return candidate
+    except (FileNotFoundError, RuntimeError, ValueError):
         return None
 
 
@@ -326,6 +321,7 @@ def _delete_paper_data(db: Session, context: dict[str, Any]) -> tuple[dict[str, 
     managed_paths = {source.managed_path for source in context["sources"] if source.managed_path}
     managed_candidates = [path for value in managed_paths if (path := value)]
     counts: dict[str, int] = {}
+    preserve_paper_usage(db, context["paper"], job_ids)
 
     # Respect FK order. Keep global Provider configuration and the parent Project.
     paper_deletions: tuple[tuple[Any, Any], ...] = (
@@ -440,24 +436,28 @@ def _delete_paper_data(db: Session, context: dict[str, Any]) -> tuple[dict[str, 
 
 
 def _purge_unreferenced_managed_files(
-    engine: Engine, data_dir: Path, candidates: Iterable[str]
-) -> int:
-    removed = 0
-    for raw_path in set(candidates):
-        path = _managed_file_candidate(raw_path, data_dir)
-        if path is None:
-            continue
-        with read_session(engine) as db:
-            if db.scalar(
-                select(PaperSource.id).where(PaperSource.managed_path == raw_path).limit(1)
-            ):
-                continue
+    db: Session, data_dir: Path, candidates: Iterable[str]
+) -> tuple[int, list[str]]:
+    referenced: set[Path] = set()
+    for row in db.execute(select(PaperSource.path, PaperSource.managed_path)):
+        for raw_source in row:
+            if raw_source:
+                try:
+                    referenced.add(Path(raw_source).resolve())
+                except (OSError, RuntimeError, ValueError):
+                    referenced.add(Path(raw_source))
+    retained = 0
+    pending: list[str] = []
+    for raw_path in sorted(set(candidates)):
         try:
+            path = _managed_file_candidate(raw_path, data_dir)
+            if path is None or path in referenced:
+                retained += 1
+                continue
             path.unlink(missing_ok=True)
-            removed += 1
         except OSError:
-            continue
-    return removed
+            pending.append(raw_path)
+    return retained, pending
 
 
 def register_paper_management_api(
@@ -470,46 +470,23 @@ def register_paper_management_api(
             raise _failure(422, "INVALID_PAPER_TITLE", "论文标题不能为空")
         with Session(get_engine()) as db, db.begin():
             paper = db.get(Paper, paper_id)
-            if paper is None:
+            if paper is None or archived_target(db, "paper", paper.id):
                 raise _failure(404, "PAPER_NOT_FOUND", "论文不存在")
             paper.title = title
         return PaperManagementResult(ok=True, paper_id=paper_id)
 
     @app.delete("/api/v1/papers/{paper_id}/legacy-content", response_model=PaperManagementResult)
     def clear_legacy_content(paper_id: str) -> PaperManagementResult:
-        with Session(get_engine()) as db:
-            context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(context, preserve_model_first=True, reject_queued_legacy=True)
-        backup_file = _backup_database(get_engine(), data_dir, paper_id, "legacy-content")
+        from researchgraph.archive_api import archive_target
+
         with Session(get_engine()) as db, db.begin():
-            context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(context, preserve_model_first=True, reject_queued_legacy=True)
-            counts = _remove_legacy_content(db, context)
-        return PaperManagementResult(
-            ok=True,
-            paper_id=paper_id,
-            backup_file=backup_file,
-            removed=counts,
-            retained_personal_metadata=counts.get("personal_metadata_retained", 0),
-        )
+            item = archive_target(db, "paper_legacy_content", paper_id)
+            return PaperManagementResult(paper_id=paper_id, archive_item_id=item.id)
 
     @app.delete("/api/v1/papers/{paper_id}", response_model=PaperManagementResult)
     def delete_paper(paper_id: str) -> PaperManagementResult:
-        with Session(get_engine()) as db:
-            context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(context)
-        backup_file = _backup_database(get_engine(), data_dir, paper_id, "delete")
+        from researchgraph.archive_api import archive_target
+
         with Session(get_engine()) as db, db.begin():
-            context = _paper_context(db, paper_id)
-            _ensure_no_running_jobs(context)
-            counts, managed_candidates = _delete_paper_data(db, context)
-        removed_files = _purge_unreferenced_managed_files(
-            get_engine(), data_dir, managed_candidates
-        )
-        return PaperManagementResult(
-            ok=True,
-            paper_id=paper_id,
-            backup_file=backup_file,
-            removed=counts,
-            retained_managed_files=max(0, len(set(managed_candidates)) - removed_files),
-        )
+            item = archive_target(db, "paper", paper_id)
+            return PaperManagementResult(paper_id=paper_id, archive_item_id=item.id)

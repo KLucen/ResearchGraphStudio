@@ -9,9 +9,9 @@ export type KnowledgeSettings = {
   scope: "project" | "all" | "collection";
   collection_id: string | null;
   max_candidates: number;
-  max_requests_per_run: number;
-  max_input_tokens: number;
-  max_output_tokens: number;
+  max_requests_per_run: number | null;
+  max_input_tokens: number | null;
+  max_output_tokens: number | null;
   total_request_limit: number;
 };
 export type KnowledgeLibrary = {
@@ -26,6 +26,17 @@ export type KnowledgeCollection = {
   name: string;
   description: string;
   created_at: string;
+};
+export type TopicMembership = {
+  paper_ids: string[];
+} & (
+  | { action: "add" | "remove" }
+  | { action: "move"; source_collection_ids: string[] }
+);
+export type TopicMembershipResult = {
+  ok: boolean;
+  added: number;
+  removed: number;
 };
 export type KnowledgeSourceRef = {
   id?: string;
@@ -107,12 +118,21 @@ export type KnowledgeRelation = {
   target_version_id?: string;
   source_node_id?: string;
   target_node_id?: string;
+  source_library_paper_id?: string;
   target_library_paper_id?: string;
+  source_title?: string;
   target_title?: string;
   explanation_zh?: string;
   explanation?: string;
   limitations?: string;
   limitations_zh?: string;
+  detail?: {
+    source_zh: string;
+    target_zh: string;
+    comparison_zh: string;
+    conditions_zh: string;
+    follow_up_zh: string | null;
+  };
   source_refs?: KnowledgeSourceRef[];
   target_refs?: KnowledgeSourceRef[];
   [key: string]: unknown;
@@ -135,6 +155,37 @@ export type KnowledgeReport = {
   stale?: boolean;
   [key: string]: unknown;
 };
+export type KnowledgeLocalRecovery = {
+  version: "knowledge-local-recovery-1" | "knowledge-local-recovery-2";
+  available: boolean;
+  preview_fingerprint?: string | null;
+  original_nodes: number;
+  original_edges: number;
+  kept_nodes: number;
+  kept_edges: number;
+  excluded_nodes?: {
+    index: number;
+    path: string;
+    code: string;
+    node_type: string;
+    reason: string;
+  }[];
+  excluded_edges: {
+    index: number;
+    path: string;
+    code: string;
+    reason: string;
+    relation_type?: string;
+    source_type?: string;
+    target_type?: string;
+  }[];
+  blocking_diagnostic?: {
+    code: string;
+    summary: string;
+    action?: string;
+  } | null;
+  published_version_id?: string | null;
+};
 export type KnowledgeRun = {
   id: string;
   kind?: string;
@@ -142,8 +193,18 @@ export type KnowledgeRun = {
   error?: string | null;
   job_id?: string | null;
   library_paper_id?: string;
+  request_count?: number;
+  max_requests?: number | null;
+  local_recovery?: KnowledgeLocalRecovery | null;
   created_at: string;
   [key: string]: unknown;
+};
+export const knowledgeErrorMessage = (error: string) => {
+  if (error.includes("KNOWLEDGE_INPUT_BUDGET_EXCEEDED"))
+    return "完整输入超过当前单次输入 Token 预算。请在“自动分析设置”调高预算或设为无上限，保存后对失败任务点击“确认继续知识任务”重试。本次预算检查未发送模型请求。";
+  if (error.includes("KNOWLEDGE_RESPONSE_INVALID"))
+    return "知识任务未完成。错误详情见任务记录；可在此显式继续，系统不会自动重发。";
+  return error;
 };
 export type KnowledgeLayout = {
   view_key: string;
@@ -248,12 +309,38 @@ export const knowledgeApi = {
     ),
   collections: () =>
     request<{ items: KnowledgeCollection[] }>("GET", `${base}/collections`),
-  createCollection: (name: string) =>
+  createCollection: (
+    name: string,
+    description = "",
+    key: string = crypto.randomUUID(),
+  ) =>
     request<KnowledgeCollection>(
       "POST",
       `${base}/collections`,
-      { name, description: "" },
-      crypto.randomUUID(),
+      { name, description },
+      key,
+    ),
+  updateCollection: (
+    id: string,
+    body: Pick<KnowledgeCollection, "name" | "description">,
+    key: string = crypto.randomUUID(),
+  ) =>
+    request<KnowledgeCollection>(
+      "PATCH",
+      `${base}/collections/${identity(id)}`,
+      body,
+      key,
+    ),
+  changeCollectionMembership: (
+    id: string,
+    body: TopicMembership,
+    key: string = crypto.randomUUID(),
+  ) =>
+    request<TopicMembershipResult>(
+      "POST",
+      `${base}/collections/${identity(id)}/membership`,
+      body,
+      key,
     ),
   setCollection: (collectionId: string, paperId: string, included: boolean) =>
     request<unknown>(
@@ -291,8 +378,28 @@ export const knowledgeApi = {
       body,
       crypto.randomUUID(),
     ),
-  runs: () =>
-    request<{ items: KnowledgeRun[]; total: number }>("GET", `${base}/runs`),
+  runs: (limit = 50, offset = 0, jobIds?: readonly string[]) =>
+    request<{ items: KnowledgeRun[]; total: number }>(
+      "GET",
+      `${base}/runs?limit=${limit}&offset=${offset}${jobIds?.length ? `&job_ids=${encodeURIComponent(jobIds.join(","))}` : ""}`,
+    ),
+  localRecovery: (runId: string) =>
+    request<KnowledgeLocalRecovery>(
+      "GET",
+      `${base}/runs/${identity(runId)}/local-recovery`,
+    ),
+  recoverLocal: (runId: string, previewFingerprint: string) =>
+    request<{
+      version_id: string;
+      library_paper_id: string;
+      status: "partial";
+      local_recovery: KnowledgeLocalRecovery;
+    }>(
+      "POST",
+      `${base}/runs/${identity(runId)}/local-recovery`,
+      { preview_fingerprint: previewFingerprint },
+      crypto.randomUUID(),
+    ),
   retryRun: (id: string) =>
     request<KnowledgeRun>(
       "POST",

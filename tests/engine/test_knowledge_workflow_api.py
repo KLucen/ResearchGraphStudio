@@ -11,10 +11,11 @@ from researchgraph.knowledge_library_api import register_knowledge_library_api
 from researchgraph.knowledge_tasks import run_knowledge_extract
 from researchgraph.knowledge_workflow_api import register_knowledge_workflow_api
 from researchgraph.models import Job
+from researchgraph.paper_knowledge import knowledge_model_input
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from test_knowledge_connections import ConnectionProvider, built_papers, queue_connection
-from test_knowledge_extraction import SNAPSHOT, FixtureProvider, draft, model_fixture
+from test_knowledge_extraction import SNAPSHOT, FixtureProvider, model_fixture, wire_draft
 
 
 def client_for(engine, tmp_path, monkeypatch):
@@ -148,7 +149,7 @@ def test_received_extraction_retry_api_uses_valid_job_stage_and_zero_network(tmp
         )
         run_id = run.id
         run.request_sent, run.status = True, "received"
-        run.raw_response = json.dumps(draft(run.source_manifest))
+        run.raw_response = json.dumps(wire_draft(knowledge_model_input(run.source_manifest)))
         db.get(Job, first.json()["id"]).status = "interrupted"
     response = client.post(
         f"/api/v1/knowledge/runs/{run_id}/retry",

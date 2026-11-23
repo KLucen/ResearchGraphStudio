@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from researchgraph.chapter_reading_models import ModelChapterReadingState
 from researchgraph.core import StrictModel
-from researchgraph.import_plan_models import ImportSession
+from researchgraph.import_plan_api import require_unarchived_import_session
 from researchgraph.model_document_models import LlmDocumentParse, LlmDocumentSegment
 from researchgraph.models import now
 from researchgraph.storage import read_session
@@ -35,8 +35,7 @@ class ChapterReadingList(StrictModel):
 
 
 def _current_parse(db: Session, session_id: str) -> LlmDocumentParse:
-    if db.get(ImportSession, session_id) is None:
-        raise HTTPException(404, {"code": "IMPORT_SESSION_NOT_FOUND", "message": "导入会话不存在"})
+    require_unarchived_import_session(db, session_id)
     parse = db.scalar(
         select(LlmDocumentParse)
         .where(LlmDocumentParse.import_session_id == session_id)

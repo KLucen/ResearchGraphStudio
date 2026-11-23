@@ -1,10 +1,12 @@
 import asyncio
 import json
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 
 import httpx
 import pytest
 from researchgraph.model_adapters import new_task_parameters
-from researchgraph.providers import ConfiguredProvider, ProviderError
+from researchgraph.providers import ConfiguredProvider, ProviderError, parse_retry_after
 
 
 def event(delta=None, finish=None, usage=None):
@@ -43,6 +45,64 @@ def provider_with_stream(monkeypatch, parts, *, key=""):
     provider = ConfiguredProvider(base_url="https://model.example/v1", model="test", key=key)
     provider.capabilities_checked = True
     return provider, stream, requests
+
+
+@pytest.mark.parametrize(
+    "status,category",
+    [(400, "client"), (401, "client"), (403, "client"), (429, "rate_limit"), (503, "server")],
+)
+def test_rejected_request_retains_safe_http_status_without_error_body(
+    monkeypatch, status, category
+):
+    private = "synthetic-private-response-and-credential"
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(status, json={"error": {"message": private}})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: original(**kw, transport=httpx.MockTransport(respond))
+    )
+    provider = ConfiguredProvider(base_url="https://model.example/v1", model="test")
+    provider.capabilities_checked = True
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(provider.complete("Return JSON", {}, {}))
+    assert caught.value.category == category
+    assert provider.request_metadata["http_status"] == status
+    assert provider.request_metadata["response_bytes"] == 0
+    assert len(requests) == 1 and provider.partial_output is None
+    assert private not in str(provider.request_metadata) + str(caught.value)
+
+
+def test_rate_limit_only_keeps_bounded_server_delay_and_does_not_resend(monkeypatch):
+    private = "anonymous-provider-body-must-not-be-retained"
+    attempts = []
+
+    def respond(request):
+        attempts.append(request.method)
+        return httpx.Response(429, headers={"Retry-After": "93"}, text=private)
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: original(**kw, transport=httpx.MockTransport(respond))
+    )
+    provider = ConfiguredProvider(base_url="https://model.example/v1", model="test")
+    provider.capabilities_checked = True
+    with pytest.raises(ProviderError) as caught:
+        asyncio.run(provider.complete("JSON", {}, {}))
+    assert attempts == ["POST"]
+    assert caught.value.retry_after == provider.request_metadata["retry_after_seconds"] == 93
+    assert "93 秒" in str(caught.value) and private not in str(caught.value)
+
+
+def test_retry_after_accepts_standard_dates_and_ignores_untrusted_values():
+    deadline = datetime.now(UTC) + timedelta(seconds=120)
+    delay = parse_retry_after(format_datetime(deadline, usegmt=True))
+    assert delay is not None and 118 <= delay <= 120
+    for value in ("3600000", "1" * 5000, "９９", "secret=http", "-1", ""):
+        assert parse_retry_after(value) is None
 
 
 def test_sse_utf8_chunks_reasoning_and_last_content_usage(monkeypatch):

@@ -1,0 +1,229 @@
+.topic-management {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.4fr) minmax(0, 1fr);
+  margin-top: 16px;
+  gap: 22px;
+}
+
+.topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-inline-end: 1px solid var(--rgs-divider);
+  padding-inline-end: 14px;
+}
+
+.topic-list ul,
+.topic-paper-choices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topic-list ul {
+  display: grid;
+  gap: 4px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 3px;
+}
+
+.topic-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 9px 8px;
+  background: transparent;
+  color: var(--rgs-text);
+  text-align: left;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.topic-list-item svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.topic-list-item[aria-pressed="true"],
+.topic-mode [aria-pressed="true"] {
+  border-color: var(--rgs-control-border);
+  background: var(--rgs-selected);
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .topic-list-item:not([aria-pressed="true"]):hover {
+    border-color: var(--rgs-divider);
+    background: var(--rgs-raised);
+  }
+}
+
+.topic-content,
+.topic-paper-assignment {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 13px;
+}
+
+.topic-content h4 {
+  margin: 10px 0;
+}
+
+.topic-heading p {
+  margin: 4px 0 0;
+  color: var(--rgs-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.topic-actions,
+.topic-mode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topic-archive-confirm {
+  padding: 12px;
+  border: 1px solid var(--rgs-control-border);
+  border-radius: 8px;
+  background: var(--rgs-raised);
+}
+
+.topic-archive-confirm p {
+  margin: 0 0 10px;
+}
+
+.topic-paper-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.topic-paper-picker .topic-paper-search {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--rgs-muted);
+}
+
+.topic-paper-search input {
+  flex: 1;
+}
+
+.topic-paper-choices {
+  max-height: 292px;
+  overflow-y: auto;
+  border: 1px solid var(--rgs-divider);
+  border-radius: 8px;
+}
+
+.topic-paper-choices li + li {
+  border-top: 1px solid var(--rgs-divider);
+}
+
+.topic-paper-choices label {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: row;
+  margin: 0;
+  padding: 9px 10px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.topic-paper-choices label:has(:checked) {
+  background: var(--rgs-selected);
+}
+
+.topic-paper-choices label:has(:disabled) {
+  color: var(--rgs-muted);
+  cursor: default;
+}
+
+.topic-paper-choices label > input {
+  flex: none;
+  margin-top: 3px;
+  accent-color: var(--rgs-focus);
+}
+
+.topic-paper-choices label > small {
+  margin-inline-start: auto;
+  color: var(--rgs-muted);
+  white-space: nowrap;
+}
+
+.topic-page {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--rgs-muted);
+  font-size: 12px;
+}
+
+.topic-status,
+.topic-paper-picker .error-text {
+  margin: 0;
+}
+
+.topic-mode + .topic-status,
+.topic-mode + label + .topic-status {
+  margin: 10px 0;
+}
+
+.knowledge-paper-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  border-bottom: 1px solid var(--rgs-divider);
+}
+
+.knowledge-paper-entry .knowledge-paper-row {
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.knowledge-paper-assign {
+  align-self: center;
+  margin: 0 6px 0 4px;
+  white-space: nowrap;
+}
+
+.knowledge-paper-topics {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .topic-management {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .topic-list {
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--rgs-divider);
+    padding-inline-end: 0;
+    padding-bottom: 10px;
+  }
+
+  .topic-list ul {
+    max-height: 138px;
+  }
+
+  .knowledge-paper-entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .knowledge-paper-assign {
+    justify-self: end;
+    margin-bottom: 6px;
+  }
+}

@@ -21,27 +21,24 @@ for (const mode of ["local", "dual", "model-only"]) {
       "论文精读",
       "论文回答",
     ]);
-    const trigger = page.getByRole("button", { name: "论文解析操作" });
+    const trigger = page.getByRole("button", { name: "更多解析操作" });
     await trigger.click();
     const menu = page.locator(".paper-parsing-options");
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("button")).toHaveCount(4);
-    if (mode === "model-only")
+    await expect(menu.getByRole("button")).toHaveCount(2);
+    const source = page.getByRole("group", { name: "论文阅读来源" });
+    if (mode === "dual") {
       await expect(
-        menu.getByRole("button", { name: "查看本地解析内容" }),
-      ).toBeDisabled();
-    else
+        source.getByRole("combobox", { name: "查看来源" }),
+      ).toHaveValue("model");
+    } else {
       await expect(
-        menu.getByRole("button", { name: "查看本地解析内容" }),
-      ).toBeEnabled();
-    if (mode === "local")
-      await expect(
-        menu.getByRole("button", { name: "查看模型解析内容" }),
-      ).toBeDisabled();
-    else
-      await expect(
-        menu.getByRole("button", { name: "查看模型解析内容" }),
-      ).toBeEnabled();
+        source.getByText(mode === "local" ? "本地解析" : "模型解析", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(source.getByRole("combobox")).toHaveCount(0);
+    }
     await page.screenshot({
       path: testInfo.outputPath(`workspace-${mode}.png`),
     });
@@ -71,8 +68,7 @@ for (const mode of ["local", "dual", "model-only"]) {
         ).toBeVisible();
     }
     if (mode === "dual") {
-      await trigger.click();
-      await menu.getByRole("button", { name: "查看本地解析内容" }).click();
+      await source.getByRole("combobox").selectOption("local");
       await tabs.getByRole("button", { name: "论文精读" }).click();
       await expect(
         page.getByRole("heading", { name: "全文精读", exact: true }),
@@ -80,8 +76,7 @@ for (const mode of ["local", "dual", "model-only"]) {
       await expect(page.getByText("查看/编辑本次模型解析章节材料")).toHaveCount(
         0,
       );
-      await trigger.click();
-      await menu.getByRole("button", { name: "查看模型解析内容" }).click();
+      await source.getByRole("combobox").selectOption("model");
       await expect(
         page.getByText("查看/编辑本次模型解析章节材料"),
       ).toBeVisible();
@@ -93,3 +88,35 @@ for (const mode of ["local", "dual", "model-only"]) {
     expect(externalRequests).toEqual([]);
   });
 }
+
+test("the last explicit reading source survives reload and unavailable sources", async ({
+  page,
+}) => {
+  const openWorkspace = (mode: "dual" | "model-only") =>
+    page.goto(`/e2e/model-document.html?workspace=${mode}&mode=unselected`);
+  const source = page.getByRole("combobox", { name: "查看来源" });
+
+  await openWorkspace("dual");
+  await expect(source).toHaveValue("model");
+  await source.selectOption("local");
+
+  await page.reload();
+  await expect(source).toHaveValue("local");
+
+  await openWorkspace("model-only");
+  await expect(
+    page
+      .getByRole("group", { name: "论文阅读来源" })
+      .getByText("模型解析", { exact: true }),
+  ).toBeVisible();
+  await expect(source).toHaveCount(0);
+
+  await openWorkspace("dual");
+  await expect(source).toHaveValue("local");
+  await source.selectOption("model");
+  await page.reload();
+  await expect(source).toHaveValue("model");
+  expect(
+    await page.evaluate(() => window.__modelDocumentGenerationRequests),
+  ).toEqual([]);
+});

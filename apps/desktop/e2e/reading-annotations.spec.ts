@@ -105,6 +105,14 @@ test("source marks and compact analysis references navigate in both directions w
   );
   await expect(mark).toHaveAttribute("role", "button");
   await expect(mark).toHaveAttribute("data-note-number", "1.3");
+  await reference.hover();
+  await expect(mark).toHaveAttribute("data-preview", "true");
+  await expect(mark).toHaveAttribute("data-active", "false");
+  await page.mouse.move(0, 0);
+  await expect(mark).toHaveAttribute("data-preview", "false");
+  await mark.focus();
+  await expect(reference).toHaveAttribute("data-preview", "true");
+  await expect(reference).toHaveAttribute("data-active", "false");
   await mark.click();
   await expect(reference).toHaveAttribute("data-active", "true");
   await expect(reference).toBeFocused();

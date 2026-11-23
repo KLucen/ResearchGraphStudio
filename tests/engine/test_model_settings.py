@@ -6,9 +6,10 @@ from uuid import uuid4
 import httpx
 import pytest
 from pydantic import ValidationError
-from researchgraph.credentials import SecretStore
+from researchgraph.credentials import CredentialError, SecretStore
 from researchgraph.model_capabilities import ModelCapabilities, parse_capabilities
 from researchgraph.model_settings import ModelParameters, ModelProfile, from_snapshot, snapshot_for
+from researchgraph.models import Job, now
 from researchgraph.providers import ConfiguredProvider, ProviderError, require_document_capability
 from sqlalchemy.orm import Session
 from test_engine import client, post
@@ -31,6 +32,59 @@ def profile_body(**changes):
         "model": "test-model",
         **changes,
     }
+
+
+@pytest.mark.parametrize("stored_policy", [None, "legacy", "activity"])
+def test_new_task_timeout_policy_is_frozen_without_rewriting_old_profile(
+    tmp_path, vault, stored_policy
+):
+    with client(tmp_path) as api:
+        project = post(api, "/projects", {"name": "Activity timeout"}).json()["id"]
+        saved = post(api, "/settings/models", profile_body())
+        assert saved.status_code == 200, saved.text
+        profile_id = saved.json()["id"]
+        assert (
+            post(
+                api,
+                "/settings/model-roles",
+                {
+                    "extraction": profile_id,
+                    "knowledge_extract": profile_id,
+                    "knowledge_connect": profile_id,
+                    "document_parse": profile_id,
+                },
+            ).status_code
+            == 200
+        )
+        with Session(api.app.state.engine) as session, session.begin():
+            profile = session.get(ModelProfile, profile_id)
+            original = {
+                key: value
+                for key, value in profile.parameters.items()
+                if key != "text_timeout_policy"
+            }
+            if stored_policy is not None:
+                original["text_timeout_policy"] = stored_policy
+            profile.parameters = original
+        with Session(api.app.state.engine) as session:
+            for role in ("extraction", "knowledge_extract", "knowledge_connect", "document_parse"):
+                frozen = snapshot_for(session, project, role)
+                assert frozen["parameters"]["text_timeout_policy"] == (stored_policy or "activity")
+                if role == "document_parse":
+                    active = from_snapshot(frozen, tmp_path, True)
+                    assert active.document_timeout == 600 and active.document_total_timeout == 1800
+            assert session.get(ModelProfile, profile_id).parameters == original
+        # A historical snapshot is consumed as saved, independently of new defaults.
+        frozen["parameters"] = {**original}
+        frozen["parameters"].pop("text_timeout_policy", None)
+        historical = from_snapshot(frozen, tmp_path, True)
+        assert "text_timeout_policy" not in historical.parameters
+        assert historical.total_timeout == 180
+
+
+def test_timeout_policy_rejects_unknown_values():
+    with pytest.raises(ValidationError):
+        ModelParameters(text_timeout_policy="unknown")
 
 
 def test_profile_secrets_roles_snapshots_and_delete(tmp_path, vault):
@@ -58,10 +112,78 @@ def test_profile_secrets_roles_snapshots_and_delete(tmp_path, vault):
         assert from_snapshot(snapshot, tmp_path, True).key == secret
         assert secret.encode() not in (tmp_path / "researchgraph-lite.sqlite3").read_bytes()
         assert post(api, route + f"/models/{p['id']}/delete").status_code == 200
+        assert secret in vault.values()
+        archived = api.get("/api/v1/archive?kind=model_connection").json()["items"][0]
+        profile = api.get("/api/v1/archive?kind=model_profile").json()["items"][0]
+        assert api.delete(f"/api/v1/archive/{profile['id']}").status_code == 200
+        assert secret in vault.values()
+        assert api.delete(f"/api/v1/archive/{archived['id']}").status_code == 200
         assert not vault
         assert api.get("/api/v1" + route + "/models").json()["roles"]["extraction"] is None
     with client(tmp_path) as reopened:
         assert reopened.get("/api/v1" + route + "/models").json()["profiles"] == []
+
+
+def test_provider_purge_checks_active_snapshots_and_can_retry_vault_failure(
+    tmp_path, vault, monkeypatch
+):
+    with client(tmp_path) as api:
+        saved = post(api, "/settings/models", profile_body(api_key="synthetic-vault-value"))
+        assert saved.status_code == 200, saved.text
+        profile = saved.json()
+        post(api, "/settings/model-roles", {"extraction": profile["id"]})
+        job_id = str(uuid4())
+        with Session(api.app.state.engine) as db, db.begin():
+            db.add(
+                Job(
+                    id=job_id,
+                    kind="llm_document_postprocess",
+                    status="queued",
+                    payload={"provider_snapshot": snapshot_for(db, None, "extraction")},
+                    created_at=now(),
+                    updated_at=now(),
+                )
+            )
+        staged = post(
+            api, "/archive", {"kind": "model_connection", "target_id": profile["connection_id"]}
+        )
+        assert staged.status_code == 200 and "synthetic-vault-value" not in staged.text
+        item_id = staged.json()["id"]
+        path = f"/api/v1/archive/{item_id}"
+        failed = api.delete(path)
+        assert (
+            failed.status_code == 409
+            and failed.json()["error"]["code"] == "ARCHIVE_MODEL_TASK_ACTIVE"
+        )
+        assert post(api, f"/archive/{item_id}/restore").status_code == 200
+        assert api.get("/api/v1/settings/models").json()["roles"]["extraction"] == profile["id"]
+
+        with Session(api.app.state.engine) as db, db.begin():
+            db.get(Job, job_id).status = "succeeded"
+        staged = post(
+            api,
+            "/archive",
+            {"kind": "model_connection", "target_id": profile["connection_id"]},
+            "restage-model",
+        )
+        item_id = staged.json()["id"]
+        path = f"/api/v1/archive/{item_id}"
+        with monkeypatch.context() as patch:
+
+            def fail_vault_delete(_store, _reference):
+                raise CredentialError("synthetic vault failure")
+
+            patch.setattr(SecretStore, "delete", fail_vault_delete)
+            failed = api.delete(path)
+        assert failed.status_code == 409
+        assert failed.json()["error"]["code"] == "ARCHIVE_CREDENTIAL_PURGE_FAILED"
+        assert api.get("/api/v1/archive").json()["items"][0]["status"] == "purging"
+        assert (
+            post(api, f"/archive/{item_id}/restore", key="after-vault-failure").status_code == 409
+        )
+        assert vault
+        assert api.delete(path).json()["status"] == "purged" and not vault
+        assert api.get(f"/api/v1/jobs/{job_id}").json()["status"] == "succeeded"
 
 
 def test_profile_validation_and_global_sharing(tmp_path, vault):
@@ -542,6 +664,13 @@ def test_global_connection_is_reused_by_profiles_and_snapshots_are_immutable(tmp
         assert (
             post(api, f"/projects/{project}/models/{second.json()['id']}/delete").status_code == 200
         )
+        for archived in api.get("/api/v1/archive?kind=model_profile").json()["items"]:
+            assert api.delete(f"/api/v1/archive/{archived['id']}").status_code == 200
+        assert set(vault.values()) == {old_secret, new_secret}
+        staged = post(api, f"/settings/connections/{connection_view['id']}/delete")
+        assert staged.status_code == 200, staged.text
+        archived = api.get("/api/v1/archive?kind=model_connection").json()["items"][0]
+        assert api.delete(f"/api/v1/archive/{archived['id']}").status_code == 200
         assert not vault
 
 

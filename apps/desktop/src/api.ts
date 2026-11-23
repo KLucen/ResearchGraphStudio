@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ReadingHighlight } from "./readingHighlights";
+import type { PaperCardSet } from "./paperCardSetTypes";
 
 export type Project = {
   id: string;
@@ -9,6 +10,17 @@ export type Project = {
   created_at: string;
 };
 export type ProjectList = { items: Project[]; next_cursor: number | null };
+export type WorkspaceSearchHit = {
+  kind: "project" | "paper";
+  id: string;
+  title: string;
+  project: Project;
+};
+type WorkspaceSearchPage = {
+  items: WorkspaceSearchHit[];
+  total: number;
+  next_offset: number | null;
+};
 export type Paper = {
   id: string;
   project_id: string;
@@ -23,7 +35,11 @@ export type PaperManagementResult = {
   retained_personal_metadata: number;
   retained_managed_files: number;
 };
-export type PaperList = { items: Paper[]; next_cursor: number | null };
+export type PaperList = {
+  items: Paper[];
+  next_cursor: number | null;
+  total?: number;
+};
 export type PostImportPlan = {
   parse: boolean;
   overview: boolean;
@@ -682,6 +698,12 @@ export type Job = {
   attempt: number;
   error: string | null;
   result: Record<string, unknown> | null;
+  reading_task?:
+    | "paper_card_set"
+    | "paper_overview"
+    | "paper_reading"
+    | "translation"
+    | null;
   created_at: string;
   updated_at: string;
 };
@@ -693,6 +715,9 @@ export type Health = {
   schema_version: string;
   database: "ready";
   fts5: boolean;
+  active_jobs?: number | null;
+  worker_status?: "idle" | "running" | "recovering" | "stopped" | "disabled";
+  worker_error?: string | null;
 };
 export type LiteUsage = {
   project_id: string;
@@ -766,12 +791,22 @@ export type PaperOverview = {
   };
   graph: { nodes: OverviewNode[]; edges: OverviewEdge[] };
 };
+type PaperCardRecoverySummary = {
+  original_cards: number;
+  retained_cards: number;
+  excluded_cards: number;
+  invalid_evidence: number;
+};
 export type OverviewView = {
+  card_set?: PaperCardSet | null;
+  local_recovery_available?: boolean;
+  recovery_summary?: PaperCardRecoverySummary | null;
+  display_recovery_summary?: PaperCardRecoverySummary | null;
   id: string | null;
   display_result_id?: string | null;
   paper_id: string;
   document_version_id: string;
-  status: "PENDING" | "COMPLETED" | "FAILED" | null;
+  status: "PENDING" | "COMPLETED" | "FAILED" | "PARTIAL" | null;
   pdf_hash: string | null;
   input_hash: string | null;
   schema_version: string | null;
@@ -825,6 +860,11 @@ export async function request<T>(
 }
 
 export const api = {
+  searchWorkspace: (q: string, offset = 0) =>
+    request<WorkspaceSearchPage>(
+      "GET",
+      `/api/v1/workspace/search?${new URLSearchParams({ q, offset: String(offset) })}`,
+    ),
   readingDocument: (paperId: string, revisionId: string) =>
     request<DocumentReadingView>(
       "GET",
@@ -1400,6 +1440,11 @@ export const api = {
   health: () => request<Health>("GET", "/api/v1/health"),
   projects: (cursor = 0) =>
     request<ProjectList>("GET", `/api/v1/projects?cursor=${cursor}&limit=50`),
+  project: (projectId: string) =>
+    request<Project>(
+      "GET",
+      `/api/v1/projects/${encodeURIComponent(projectId)}`,
+    ),
   createProject: (body: { name: string; description: string }, key: string) =>
     request<Project>(
       "POST",
@@ -1408,6 +1453,11 @@ export const api = {
       key,
     ),
   jobs: () => request<Job[]>("GET", "/api/v1/jobs"),
+  jobsPage: (cursor: string | null = null) =>
+    request<JobList>(
+      "GET",
+      `/api/v1/jobs/page?limit=10${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+    ),
   job: (id: string) => request<Job>("GET", `/api/v1/jobs/${id}`),
   diagnose: (key: string) =>
     request<Job>("POST", "/api/v1/jobs", { kind: "diagnostics" }, key),

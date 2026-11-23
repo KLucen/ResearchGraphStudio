@@ -274,10 +274,10 @@ test("model reading without selected translation retains translation slots and v
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto("/e2e/model-document.html?mode=no-translation");
-  await expect(page.getByLabel("当次导入选择")).toContainText("中文翻译未选");
+  await expect(page.getByLabel("当次导入选择")).toHaveCount(0);
   await expect(page.locator(".paper-paragraph-translation")).toHaveCount(8);
   await expect(page.getByLabel("正文第 1 段中文译文")).toContainText(
-    "本次未选择中文翻译",
+    "尚无本段译文",
   );
   await expect(page.getByLabel("正文第 1 段论证批注")).toContainText(
     "说明作者主张的支撑关系",
@@ -296,13 +296,15 @@ test("model reading without selected translation retains translation slots and v
     name: "仅补生成中文译文",
     exact: true,
   });
+  await expect(translate).toBeHidden();
+  await page.getByText("更多精读操作", { exact: true }).click();
   await expect(translate).toBeDisabled();
   await page
     .getByRole("checkbox", { name: /允许本次发送模型提取内容/ })
     .check();
   await translate.click();
   await expect(
-    page.getByText("中文翻译任务已加入任务记录；已有精读笔记保留。", {
+    page.getByText("任务进行中：逐段中文翻译", {
       exact: true,
     }),
   ).toBeVisible();
@@ -319,7 +321,7 @@ test("an import without reading generation shows common placeholders and generat
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto("/e2e/model-document.html?mode=unselected");
   await expect(
-    page.getByText(/当次导入没有选择生成全文精读笔记/),
+    page.getByText("尚无全文精读笔记，可在下方选择生成。"),
   ).toBeVisible();
   await expect(page.locator(".paper-paragraph-translation")).toHaveCount(8);
   await expect(page.getByLabel("正文第 1 段论证批注")).toContainText(
@@ -346,10 +348,25 @@ test("an import without reading generation shows common placeholders and generat
   await page.getByRole("checkbox", { name: "同时生成逐段中文翻译" }).check();
   await generate.click();
   await expect(
-    page.getByText("全文精读任务已加入任务记录。", { exact: true }),
+    page.getByText("任务进行中：全文精读笔记生成、逐段中文翻译", {
+      exact: true,
+    }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => window.__modelDocumentGenerationRequests),
   ).toEqual([{ item_kind: "paper_reading", translation_mode: "full" }]);
   expect(pageErrors).toEqual([]);
+});
+
+test("active model card status stays visible while switching to local reading and QA", async ({
+  page,
+}) => {
+  await page.goto("/e2e/model-document.html?workspace=dual&mode=active");
+  const status = page.getByText("任务进行中：论文卡片集生成", { exact: true });
+  await expect(status).toHaveCount(1);
+  await page.getByRole("combobox", { name: "查看来源" }).selectOption("local");
+  await expect(status).toHaveCount(1);
+  await page.getByRole("button", { name: "论文回答" }).click();
+  await expect(status).toHaveCount(1);
+  await expect(page.getByLabel("当次导入选择")).toHaveCount(0);
 });

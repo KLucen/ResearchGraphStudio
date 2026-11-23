@@ -22,6 +22,7 @@ import {
 import { ReadingOutline, type OutlineEntry } from "./ReadingOutline";
 import { ChapterProgressControls } from "./ChapterProgress";
 import "./paperCloseReading.css";
+import "./paperWorkspace.css";
 
 const statusLabels = {
   PENDING: "正在生成全文笔记",
@@ -200,6 +201,42 @@ export function PaperCloseReading(props: Props) {
       paragraph,
     ]),
   );
+  const generationControls = (
+    <div className="paper-reading-actions">
+      <label className="consent-inline">
+        <input
+          type="checkbox"
+          checked={allowNetwork}
+          disabled={pending || refresh.isPending || recognizeFormulas.isPending}
+          onChange={(event) => setAllowNetwork(event.target.checked)}
+        />
+        允许本次发送整篇正文，生成全文精读笔记
+      </label>
+      <button
+        className="button primary"
+        disabled={
+          !props.connected ||
+          !allowNetwork ||
+          !paragraphs.length ||
+          local.isPending ||
+          notes.isPending ||
+          pending ||
+          refresh.isPending ||
+          recognizeFormulas.isPending
+        }
+        onClick={() => generate.mutate()}
+      >
+        {pending
+          ? "正在生成全文笔记…"
+          : notes.data
+            ? "重新生成全文笔记"
+            : "生成全文精读笔记"}
+      </button>
+      <p className="paper-reading-action-note muted">
+        仅发送正文，可能产生模型费用。容量不足时会在调用前提示，实际用量以模型返回为准。
+      </p>
+    </div>
+  );
   return (
     <section className="paper-close-reading" aria-label="全文精读笔记">
       <header className="paper-reading-header">
@@ -219,83 +256,68 @@ export function PaperCloseReading(props: Props) {
                 : "本地阅读 · 模型调用 0"}
         </span>
       </header>
-      <div className="paper-reading-actions">
-        <label className="consent-inline">
-          <input
-            type="checkbox"
-            checked={allowNetwork}
-            disabled={
-              pending || refresh.isPending || recognizeFormulas.isPending
-            }
-            onChange={(event) => setAllowNetwork(event.target.checked)}
-          />
-          允许本次发送整篇正文，生成全文精读笔记
-        </label>
-        <button
-          className="button primary"
-          disabled={
-            !props.connected ||
-            !allowNetwork ||
-            !paragraphs.length ||
-            local.isPending ||
-            notes.isPending ||
-            pending ||
-            refresh.isPending ||
-            recognizeFormulas.isPending
-          }
-          onClick={() => generate.mutate()}
+      {current && notes.data?.status !== "FAILED" ? (
+        <details
+          className="reading-secondary-actions"
+          onToggle={(event) => {
+            if (!event.currentTarget.open) setAllowNetwork(false);
+          }}
         >
-          {pending
-            ? "正在生成全文笔记…"
-            : notes.data
-              ? "重新生成全文笔记"
-              : "生成全文精读笔记"}
+          <summary>更多精读操作</summary>
+          {generationControls}
+        </details>
+      ) : (
+        generationControls
+      )}
+      {pending && notes.data?.job_id && (
+        <button
+          className="text-button"
+          disabled={cancel.isPending}
+          onClick={() => cancel.mutate()}
+        >
+          取消任务
         </button>
-        {pending && notes.data?.job_id && (
+      )}
+      <details className="reading-secondary-actions">
+        <summary>本地阅读维护</summary>
+        <div className="paper-reading-actions">
           <button
-            className="text-button"
-            disabled={cancel.isPending}
-            onClick={() => cancel.mutate()}
+            className="button secondary"
+            disabled={
+              !props.connected ||
+              pending ||
+              refresh.isPending ||
+              recognizeFormulas.isPending
+            }
+            onClick={() => refresh.mutate()}
           >
-            取消任务
+            {refresh.isPending ? "正在整理本地版面…" : "重新整理本地阅读版面"}
           </button>
-        )}
-        <button
-          className="button secondary"
-          disabled={
-            !props.connected ||
-            pending ||
-            refresh.isPending ||
-            recognizeFormulas.isPending
-          }
-          onClick={() => refresh.mutate()}
-        >
-          {refresh.isPending ? "正在整理本地版面…" : "重新整理本地阅读版面"}
-        </button>
-        <button
-          className="button secondary"
-          disabled={
-            !props.connected ||
-            pending ||
-            refresh.isPending ||
-            recognizeFormulas.isPending ||
-            !(
-              local.data?.units.some(
-                (unit) => unit.material_type === "formula",
-              ) ?? false
-            )
-          }
-          onClick={() => recognizeFormulas.mutate()}
-        >
-          {recognizeFormulas.isPending ? "正在识别公式…" : "自动识别公式并刷新"}
-        </button>
-        <p className="paper-reading-action-note muted">
-          全文笔记只发送正文，不发送图表材料；单次容量不足会在调用前提示。重新整理只处理本地
-          PDF，模型调用为 0。公式识别只使用已配置的本地 OCR，不发送 PDF 或公式到
-          LLM。
-          模型容量未知时只能按当前配置估算，不能保证一次完成；实际用量以模型返回为准。
-        </p>
-      </div>
+          <button
+            className="button secondary"
+            disabled={
+              !props.connected ||
+              pending ||
+              refresh.isPending ||
+              recognizeFormulas.isPending ||
+              !(
+                local.data?.units.some(
+                  (unit) => unit.material_type === "formula",
+                ) ?? false
+              )
+            }
+            onClick={() => recognizeFormulas.mutate()}
+          >
+            {recognizeFormulas.isPending
+              ? "正在识别公式…"
+              : "自动识别公式并刷新"}
+          </button>
+          <p className="paper-reading-action-note muted">
+            重新整理使用本机 PDF。公式识别使用本机 OCR。两项操作的模型调用均为
+            0。
+          </p>
+        </div>
+      </details>
       {(local.error ||
         notes.error ||
         generate.error ||

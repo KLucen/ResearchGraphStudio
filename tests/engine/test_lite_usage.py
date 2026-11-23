@@ -95,6 +95,50 @@ def test_lite_usage_zero_calls_is_explicit(tmp_path):
         }
 
 
+@pytest.mark.parametrize(
+    ("status", "extra", "expected_calls"),
+    [
+        ("not_sent", {"generation_request_sent": False}, 0),
+        ("not_sent", {}, 1),
+        ("failed", {"generation_request_sent": False}, 1),
+        ("not_sent", {"generation_request_sent": None}, 1),
+        ("not_sent", {"generation_request_sent": 0}, 1),
+        ("failed", {}, 1),
+        ("interrupted", {}, 1),
+    ],
+)
+def test_usage_excludes_only_an_explicitly_verified_unsent_generation_slot(
+    tmp_path, status, extra, expected_calls
+):
+    with client(tmp_path) as api:
+        project = api.post(
+            "/api/v1/projects",
+            json={"name": "Synthetic send status"},
+            headers={"Idempotency-Key": "usage-send-status"},
+        ).json()
+        with Session(api.app.state.engine) as session, session.begin():
+            seed_source(session, project["id"])
+            row = record_usage(
+                session,
+                project_id=project["id"],
+                paper_id="paper-1",
+                document_version_id="version-1",
+                task_kind="paper_overview",
+                status=status,
+                extra=extra,
+            )
+            session.flush()
+            row_id = row.id
+        value = api.get(f"/api/v1/projects/{project['id']}/lite/usage").json()
+        assert value["calls"] == expected_calls
+        assert value["unknown_usage_calls"] == expected_calls
+        with Session(api.app.state.engine) as session:
+            from researchgraph.lite_models import LiteTokenUsage
+
+            retained = session.get(LiteTokenUsage, row_id)
+            assert retained.status == status and retained.extra == extra
+
+
 def test_usage_rows_and_cache_are_additive(tmp_path):
     with client(tmp_path) as api:
         project = api.post(

@@ -47,6 +47,7 @@ from researchgraph.model_document_contracts import ModelDocumentParseInput
 from researchgraph.models import Job, now
 from researchgraph.providers import ConfiguredProvider, DocumentRequestCancelled, ProviderError
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import ModelWaitCancelled, wait_for_model
 
 
 def _rows(db: Session, run_id: str) -> list[LlmDocumentBatch]:
@@ -544,13 +545,17 @@ async def _request(
             method = getattr(provider, "repair_document_format", None)
             if method is None:
                 raise ProviderError("batch_repair", "当前模型接口不支持本批格式修复")
-            raw = await method(
+            operation = method(
                 repair[0], schema, repair[1], before_send=dispatch.before_send, on_progress=dispatch
             )
         else:
-            raw = await provider.complete_document(
+            operation = provider.complete_document(
                 payload, schema, before_send=dispatch.before_send, on_progress=dispatch
             )
+        # The configured transport wraps HTTP only, after any local page rendering.
+        raw = await (
+            operation if isinstance(provider, ConfiguredProvider) else wait_for_model(operation)
+        )
         if not dispatch.before_send():
             raise DocumentRequestCancelled
         dispatch.finish(provider, "received")
@@ -1117,7 +1122,7 @@ async def execute_document_batches(engine: Engine, job_id: str, provider: Any) -
                 model_id=model_id,
             )
             raise
-    except DocumentRequestCancelled:
+    except (DocumentRequestCancelled, ModelWaitCancelled):
         return
     except (BatchValidationError, ProviderError, DocumentRenderError) as exc:
         if run_id:

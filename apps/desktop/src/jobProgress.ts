@@ -1,5 +1,40 @@
 import type { Job } from "./api";
 
+const jobKinds: Record<string, string> = {
+  pdf_import: "PDF 导入",
+  zotero_import: "Zotero 导入",
+  llm_document_parse: "模型章节解析",
+  llm_document_postprocess: "阅读内容生成",
+  source_check: "检查来源文件",
+  source_relocate: "重新定位文件",
+  diagnostics: "存储诊断",
+  paper_overview: "论文概览",
+  section_guide: "章节导读",
+  section_close_reading: "双栏精读",
+  paper_reading_notes: "全文精读笔记",
+  understanding_check: "理解检查",
+  grounded_qa: "局部证据问答",
+  search_keywords: "英文关键词辅助",
+  knowledge_extract: "论文知识建模",
+  knowledge_connect: "跨论文联系分析",
+  pdf_translation: "文献翻译（已停用）",
+};
+
+export const readingTaskLabels = {
+  document_parse: "模型章节解析",
+  paper_card_set: "论文卡片集生成",
+  paper_overview: "论文概览生成",
+  paper_reading: "全文精读笔记生成",
+  translation: "逐段中文翻译",
+} as const;
+
+export function jobKindLabel(job: Job): string {
+  if (job.reading_task && Object.hasOwn(readingTaskLabels, job.reading_task)) {
+    return readingTaskLabels[job.reading_task];
+  }
+  return Object.hasOwn(jobKinds, job.kind) ? jobKinds[job.kind] : "本地任务";
+}
+
 const stages: Record<string, string> = {
   starting: "准备任务",
   reading: "读取 PDF",
@@ -35,9 +70,25 @@ const generation: Record<string, string> = {
   llm_document_postprocess: "根据模型章节生成所选阅读内容",
 };
 
-export function jobStageLabel(job: Pick<Job, "kind" | "stage">): string {
-  if (job.stage === "generating" && Object.hasOwn(generation, job.kind))
-    return generation[job.kind];
+const readingGeneration: Record<NonNullable<Job["reading_task"]>, string> = {
+  paper_card_set: "正在生成论文卡片集",
+  paper_overview: "正在生成论文概览",
+  paper_reading: "正在生成全文精读笔记",
+  translation: "正在逐段翻译为中文",
+};
+
+export function jobStageLabel(
+  job: Pick<Job, "kind" | "stage" | "reading_task">,
+): string {
+  if (job.stage === "generating") {
+    if (
+      job.reading_task &&
+      Object.hasOwn(readingGeneration, job.reading_task)
+    ) {
+      return readingGeneration[job.reading_task];
+    }
+    if (Object.hasOwn(generation, job.kind)) return generation[job.kind];
+  }
   return job.stage && Object.hasOwn(stages, job.stage)
     ? stages[job.stage]
     : "正在处理";

@@ -1,0 +1,110 @@
+.paper-workspace-header .paper-workspace-context h2 {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--rgs-text, #243e38);
+  font-size: clamp(20px, 2.5vw, 27px);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.paper-parsing-controls .paper-parsing-action-row {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px 12px;
+}
+
+.paper-parsing-controls .paper-workspace-tabs {
+  flex: 1 0 auto;
+  max-width: 100%;
+}
+
+.paper-reading-source,
+.paper-reading-source label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+
+.paper-reading-source {
+  color: var(--rgs-muted, #54645c);
+}
+
+.paper-reading-source strong,
+.paper-reading-source select {
+  color: var(--rgs-text, #243e38);
+}
+
+.paper-reading-source select {
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--border, #d9deda);
+  border-radius: 8px;
+  background: var(--rgs-surface, #fff);
+  font: inherit;
+}
+
+.paper-parsing-controls .paper-parsing-toggle {
+  display: inline-flex;
+  gap: 6px;
+  width: auto;
+  height: 36px;
+  padding-inline: 9px 12px;
+  border: 1px solid var(--border, #d9deda);
+  border-radius: 8px;
+  background: var(--rgs-surface, #fff);
+  color: var(--rgs-text, #243e38);
+  white-space: nowrap;
+}
+
+.paper-parsing-controls .paper-parsing-toggle[aria-expanded="true"] {
+  background: var(--rgs-selected, #edf4ef);
+}
+
+.paper-parsing-controls .paper-parsing-options {
+  width: min(232px, calc(100vw - 40px));
+  border-color: var(--border, #d9deda);
+  background: var(--rgs-surface, #fff);
+}
+
+.paper-parsing-controls .paper-parsing-options > button {
+  color: var(--rgs-text, #243e38);
+}
+
+.paper-parsing-controls :is(button, select):focus-visible {
+  outline: 2px solid var(--rgs-focus, #176c58);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .paper-parsing-controls .paper-parsing-toggle:hover,
+  .paper-parsing-controls .paper-parsing-options > button:not(:disabled):hover {
+    background: var(--rgs-hover, #eef4ef);
+  }
+}
+
+.reading-secondary-actions {
+  margin-block: 12px;
+  color: var(--rgs-text, #243e38);
+}
+
+.reading-secondary-actions > summary {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.reading-secondary-actions > summary:focus-visible {
+  outline: 2px solid var(--rgs-focus, #176c58);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reading-secondary-actions > summary:hover {
+    background: var(--rgs-hover, #eef4ef);
+  }
+}

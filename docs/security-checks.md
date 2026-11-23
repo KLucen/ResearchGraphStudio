@@ -11,3 +11,7 @@ git diff --cached --check
 工具路径可以放在项目外。扫描会拒绝 `.env`、数据库、日志、安装器、私人 PDF、凭据和运行目录；不要仅依赖 `.gitignore`。本轮使用项目外的 Gitleaks 8.24.3（官方发布压缩包 SHA-256 已核对）完成了暂存内容、工作区目录和完整 Git 历史扫描，均未发现泄露。用户 Zotero 数据、私人 PDF、批注、模型 Key 和正式数据库不在工程清理范围。
 
 Lite 数据库使用新的本地目录和空 Schema 初始化，不读取旧项目数据库。错误响应只返回稳定错误码和用户可理解的消息，不回显 SQL、路径、论文正文、模型原始响应或凭据。
+
+## Windows 发行验证
+
+普通本机构建生成未签名的隔离测试包。正式发行模式需要先在构建机配置发布证书，再将证书指纹传给 `scripts/build-windows.ps1 -Release -PublisherThumbprint`。该模式写入 Windows 运行依赖物料清单及 OSV 结果，再构建签名安装器。最后核对预期发布者、有效签名和时间戳，并保存安装器 SHA-256。当前 0.0.2 提供本地测试包。真实签名和干净机安装结果按实际验收记录。 [发行决策](adr/0072-task-workspace-and-release-reliability.md)

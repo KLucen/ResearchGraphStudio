@@ -16,7 +16,7 @@
   border-radius: 2px;
 }
 .reading-legend small {
-  color: #7e867b;
+  color: var(--rgs-muted);
 }
 .argument-mark {
   padding: 1px 0;
@@ -24,24 +24,21 @@
   color: inherit;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  background: color-mix(in srgb, var(--mark-color) 17%, transparent);
+  border-bottom: 2px solid var(--mark-color);
 }
 .mark-thesis {
-  background: #eab30829;
-  border-bottom: 2px solid #eab308;
+  --mark-color: var(--rgs-reading-thesis);
 }
 .mark-concept {
-  background: #dc26261a;
-  border-bottom: 2px solid #dc2626;
+  --mark-color: var(--rgs-reading-concept);
 }
 .mark-evidence {
-  background: #2563eb1a;
-  border-bottom: 2px solid #2563eb;
+  --mark-color: var(--rgs-reading-evidence);
 }
 .mark-counterargument {
-  background: #16a34a1a;
-  border-bottom: 2px solid #16a34a;
+  --mark-color: var(--rgs-reading-counterargument);
 }
 .mark-method {
-  background: #9333ea1a;
-  border-bottom: 2px solid #9333ea;
+  --mark-color: var(--rgs-reading-method);
 }

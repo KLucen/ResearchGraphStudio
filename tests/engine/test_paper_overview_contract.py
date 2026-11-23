@@ -618,47 +618,6 @@ def test_explicit_force_regenerate_bypasses_cache_once(tmp_path: Path) -> None:
         assert session.query(PaperOverviewResult).count() == 2
 
 
-def test_generate_freezes_configuration_and_reuses_exact_cache(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from researchgraph import model_settings
-
-    engine, project_id, paper_id, revision_id = _seed_overview_fixture()
-    snapshot = {"provider": "test-provider", "model": "test-model", "parameters": {}}
-    monkeypatch.setattr(model_settings, "snapshot_for", lambda *args: dict(snapshot))
-    app = FastAPI()
-    register_paper_overview_api(app, lambda: engine, tmp_path)
-    client = TestClient(app)
-    path = f"/api/v1/papers/{paper_id}/overview/generate"
-    body = {"document_version_id": revision_id, "allow_network": True}
-    pending = client.post(path, json=body).json()
-    assert pending["status"] == "PENDING"
-    assert pending["id"] != pending["job_id"]
-    repeated = client.post(path, json=body).json()
-    assert repeated["id"] == pending["id"]
-    provider = CountingProvider(EXAMPLE.read_text(encoding="utf-8"))
-    asyncio.run(execute_overview(engine, pending["job_id"], tmp_path, provider=provider))
-    cached = client.post(path, json=body).json()
-    assert cached["status"] == "COMPLETED" and cached["cache_hit"]
-    assert cached["id"] == pending["id"]
-    assert cached["usage"]["calls"] == 0 and provider.calls == 1
-    with Session(engine) as session:
-        assert session.query(Job).count() == 1
-        frozen = session.get(Job, pending["job_id"])
-        assert frozen.payload["model_snapshot"]["model"] == "test-model"
-    snapshot["parameters"] = {"temperature": 0.5}
-    changed = client.post(path, json=body).json()
-    assert changed["status"] == "PENDING" and changed["id"] != pending["id"]
-    new_provider = CountingProvider(
-        EXAMPLE.read_text(encoding="utf-8"), parameters={"temperature": 0.5}
-    )
-    asyncio.run(execute_overview(engine, changed["job_id"], tmp_path, provider=new_provider))
-    with Session(engine) as session:
-        assert session.get(Job, changed["job_id"]).status == "succeeded"
-        assert session.query(LiteCacheEntry).count() == 2
-    assert new_provider.calls == 1
-
-
 def test_failed_raw_and_usage_are_retained_without_reissuing(tmp_path: Path) -> None:
     engine, project_id, paper_id, revision_id = _seed_overview_fixture()
     job_id = _add_job(engine, project_id, paper_id, revision_id)

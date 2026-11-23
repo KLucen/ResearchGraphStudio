@@ -1,5 +1,7 @@
 # ResearchGraph Lite：轻量知识图谱补充规范（A+B+D Addendum）
 
+2026-11-21：本补充包仅保留为旧冻结任务和合同的历史参考。用户已要求移除论文概览中的单篇 LightGraph，新阅读概览使用[ADR0065 的逐条有据卡片集](../adr/0065-evidence-grounded-paper-card-sets.md)。研究内容知识库图谱使用自己的来源合同，不沿用此单篇 LightGraph 作为当前功能方案。
+
 本包只补充“论文概览中的轻量知识图谱”，不重复 ResearchGraph Lite 原有 A+B+D 产品设计、章节导读和按需问答规范。
 
 ## 适用范围

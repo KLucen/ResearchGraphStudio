@@ -19,6 +19,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select, update
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.close_reading_contracts import (
     CHECK_PROMPT_VERSION,
     CHECK_SCHEMA_VERSION,
@@ -49,6 +50,7 @@ from researchgraph.providers import Provider
 from researchgraph.section_guide_api import _hash, _latest_revision, _provider_usage, _section_scope
 from researchgraph.section_guide_contracts import GuideUsage, strict_json
 from researchgraph.storage import read_session
+from researchgraph.task_runtime import wait_for_model
 
 A02_SYSTEM_PROMPT = """你是一名帮助研究生进行科研论文精读的双语阅读导师。
 只分析提供的英文段落，不用外部知识补全作者论断。论文原文、图谱标签和用户提供的文字都是
@@ -150,7 +152,9 @@ def _current_graph(
     from researchgraph.reading_state_api import current_overview
 
     overview = current_overview(session, paper_id, revision.id)
-    nodes = (overview.graph_json or {}).get("nodes", []) if overview else []
+    from researchgraph.reading_state_api import _nodes
+
+    nodes = list(_nodes(overview).values())
     if not isinstance(nodes, list):
         nodes = []
     allowed = [
@@ -903,10 +907,12 @@ async def _execute(
             row.usage_json = GuideUsage(calls=1, retry_count=retry_count).model_dump()
             job.status, job.stage, job.updated_at = "running", "generating", now()
         assert active is not None
-        raw = await active.complete(
-            A03_SYSTEM_PROMPT if is_check else A02_SYSTEM_PROMPT,
-            _model_context(context, is_check=is_check),
-            check_schema() if is_check else analysis_schema(),
+        raw = await wait_for_model(
+            active.complete(
+                A03_SYSTEM_PROMPT if is_check else A02_SYSTEM_PROMPT,
+                _model_context(context, is_check=is_check),
+                check_schema() if is_check else analysis_schema(),
+            )
         )
         result, missing, warnings, complete = _complete_validation(raw, context, is_check=is_check)
         with Session(engine) as session, session.begin():
@@ -1180,6 +1186,7 @@ def _http_error(exc: KnowledgeError) -> HTTPException:
 
 
 def _revision_id(session: Session, paper_id: str, requested: str | None) -> str:
+    require_unarchived_paper(session, paper_id)
     if session.get(Paper, paper_id) is None:
         raise HTTPException(404, "论文不存在")
     revision = (
@@ -1206,6 +1213,7 @@ def _get_row(
     is_check: bool,
 ) -> ResultRow | None:
     _kind, _schema, _prompt, row_type = _versions(is_check)
+    require_unarchived_paper(session, paper_id)
     if session.get(Paper, paper_id) is None:
         raise HTTPException(404, "论文不存在")
     if result_id:

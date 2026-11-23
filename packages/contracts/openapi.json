@@ -2,9 +2,227 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ResearchGraph Engine",
-    "version": "0.0.1"
+    "version": "1.0.0"
   },
   "paths": {
+    "/api/v1/archive": {
+      "get": {
+        "summary": "List Archive",
+        "operationId": "list_archive_api_v1_archive_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "paper",
+                    "knowledge_paper",
+                    "knowledge_collection",
+                    "model_connection",
+                    "job",
+                    "paper_legacy_content",
+                    "model_profile"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Archive",
+        "operationId": "archive_api_v1_archive_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/archive/{item_id}/restore": {
+      "post": {
+        "summary": "Restore",
+        "operationId": "restore_api_v1_archive__item_id__restore_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveAction"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/archive/{item_id}": {
+      "delete": {
+        "summary": "Purge",
+        "operationId": "purge_api_v1_archive__item_id__delete",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchivePurgeResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/models": {
       "get": {
         "summary": "Settings",
@@ -5788,6 +6006,65 @@
       }
     },
     "/api/v1/knowledge/collections/{collection_id}": {
+      "patch": {
+        "summary": "Update Collection",
+        "operationId": "update_collection_api_v1_knowledge_collections__collection_id__patch",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "summary": "Delete Collection",
         "operationId": "delete_collection_api_v1_knowledge_collections__collection_id__delete",
@@ -5820,6 +6097,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryActionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/collections/{collection_id}/membership": {
+      "post": {
+        "summary": "Update Membership",
+        "operationId": "update_membership_api_v1_knowledge_collections__collection_id__membership_post",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionMembershipUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionMembershipResult"
                 }
               }
             }
@@ -6055,6 +6393,58 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LibraryExport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/collections/{collection_id}/external-papers": {
+      "get": {
+        "summary": "External Topic Papers",
+        "description": "Read only the titles/current versions of explicitly requested context nodes.",
+        "operationId": "external_topic_papers_api_v1_knowledge_collections__collection_id__external_papers_get",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Collection Id"
+            }
+          },
+          {
+            "name": "paper_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 36,
+              "maxLength": 1775,
+              "title": "Paper Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalTopicPapers"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -6462,6 +6852,23 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "job_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 924
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Ids"
+            }
           }
         ],
         "responses": {
@@ -6570,6 +6977,172 @@
         }
       }
     },
+    "/api/v1/knowledge/runs/{run_id}/local-recovery": {
+      "get": {
+        "summary": "Preview Local Recovery",
+        "operationId": "preview_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Preview Local Recovery Api V1 Knowledge Runs  Run Id  Local Recovery Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Publish Local Recovery",
+        "operationId": "publish_local_recovery_api_v1_knowledge_runs__run_id__local_recovery_post",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 120,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KnowledgeLocalRecoveryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Publish Local Recovery Api V1 Knowledge Runs  Run Id  Local Recovery Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspace/search": {
+      "get": {
+        "summary": "Search Workspace",
+        "operationId": "search_workspace_api_v1_workspace_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2147483647,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 24,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSearchPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "summary": "Health",
@@ -6581,6 +7154,29 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance/quiesce": {
+      "post": {
+        "summary": "Quiesce For Workspace Backup",
+        "description": "Native-only route. The WebView IPC allow-list never forwards it.",
+        "operationId": "quiesce_for_workspace_backup_api_v1_maintenance_quiesce_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "type": "object",
+                  "title": "Response Quiesce For Workspace Backup Api V1 Maintenance Quiesce Post"
                 }
               }
             }
@@ -6690,6 +7286,45 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "summary": "Get Project",
+        "operationId": "get_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "summary": "Jobs",
@@ -6744,6 +7379,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/page": {
+      "get": {
+        "summary": "Global Jobs Page",
+        "operationId": "global_jobs_page_api_v1_jobs_page_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobList"
                 }
               }
             }
@@ -7236,6 +7930,187 @@
   },
   "components": {
     "schemas": {
+      "ArchiveAction": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ArchiveAction"
+      },
+      "ArchiveCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paper",
+              "knowledge_paper",
+              "knowledge_collection",
+              "model_connection",
+              "job",
+              "paper_legacy_content",
+              "model_profile"
+            ],
+            "title": "Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Target Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "target_id"
+        ],
+        "title": "ArchiveCreate"
+      },
+      "ArchiveItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paper",
+              "knowledge_paper",
+              "knowledge_collection",
+              "model_connection",
+              "job",
+              "paper_legacy_content",
+              "model_profile"
+            ],
+            "title": "Kind"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "archived_at": {
+            "type": "string",
+            "title": "Archived At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "archived",
+              "purging"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "target_id",
+          "title",
+          "project_id",
+          "archived_at",
+          "status"
+        ],
+        "title": "ArchiveItem"
+      },
+      "ArchiveList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArchiveItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "ArchiveList"
+      },
+      "ArchivePurgeResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "default": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "purged",
+              "purging"
+            ],
+            "title": "Status",
+            "default": "purged"
+          },
+          "backup_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup File"
+          },
+          "removed": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Removed"
+          },
+          "retained_personal_metadata": {
+            "type": "integer",
+            "title": "Retained Personal Metadata",
+            "default": 0
+          },
+          "retained_managed_files": {
+            "type": "integer",
+            "title": "Retained Managed Files",
+            "default": 0
+          },
+          "pending_managed_files": {
+            "type": "integer",
+            "title": "Pending Managed Files",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ArchivePurgeResult"
+      },
       "ArgumentHighlight": {
         "properties": {
           "type": {
@@ -7873,6 +8748,72 @@
         ],
         "title": "CollectionList"
       },
+      "CollectionMembershipResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "title": "Ok",
+            "default": true
+          },
+          "added": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Added"
+          },
+          "removed": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Removed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "added",
+          "removed"
+        ],
+        "title": "CollectionMembershipResult"
+      },
+      "CollectionMembershipUpdate": {
+        "properties": {
+          "paper_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Paper Ids"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove",
+              "move"
+            ],
+            "title": "Action"
+          },
+          "source_collection_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Source Collection Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "paper_ids",
+          "action"
+        ],
+        "title": "CollectionMembershipUpdate"
+      },
       "CollectionPage": {
         "properties": {
           "items": {
@@ -7901,6 +8842,28 @@
           "next_start"
         ],
         "title": "CollectionPage"
+      },
+      "CollectionUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "CollectionUpdate"
       },
       "CollectionView": {
         "properties": {
@@ -8585,6 +9548,52 @@
           "bbox_list"
         ],
         "title": "EvidenceView"
+      },
+      "ExternalTopicPaper": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "version_id"
+        ],
+        "title": "ExternalTopicPaper"
+      },
+      "ExternalTopicPapers": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalTopicPaper"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "has_more"
+        ],
+        "title": "ExternalTopicPapers"
       },
       "FileCheck": {
         "properties": {
@@ -9476,6 +10485,40 @@
                 "type": "null"
               }
             ]
+          },
+          "worker_status": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "running",
+              "recovering",
+              "stopped",
+              "disabled"
+            ],
+            "title": "Worker Status",
+            "default": "disabled"
+          },
+          "worker_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker Error"
+          },
+          "active_jobs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Jobs"
           }
         },
         "type": "object",
@@ -9498,6 +10541,21 @@
             ],
             "title": "Postprocess Contract Version",
             "default": 4
+          },
+          "overview_contract_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  5,
+                  6
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overview Contract Version"
           },
           "overview": {
             "type": "boolean",
@@ -9963,6 +11021,23 @@
             ],
             "title": "Result"
           },
+          "reading_task": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "paper_card_set",
+                  "paper_overview",
+                  "paper_reading",
+                  "translation"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading Task"
+          },
           "resume_adapter_available": {
             "type": "boolean",
             "title": "Resume Adapter Available",
@@ -10344,6 +11419,21 @@
           "source_id"
         ],
         "title": "KnowledgeExtractInput"
+      },
+      "KnowledgeLocalRecoveryInput": {
+        "properties": {
+          "preview_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Preview Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "preview_fingerprint"
+        ],
+        "title": "KnowledgeLocalRecoveryInput"
       },
       "KnowledgeReportEdit": {
         "properties": {
@@ -10932,23 +12022,44 @@
             "default": 8
           },
           "max_requests_per_run": {
-            "type": "integer",
-            "maximum": 8.0,
-            "minimum": 1.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 8.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Max Requests Per Run",
             "default": 2
           },
           "max_input_tokens": {
-            "type": "integer",
-            "maximum": 2000000.0,
-            "minimum": 1024.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000000.0,
+                "minimum": 1024.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Max Input Tokens",
             "default": 48000
           },
           "max_output_tokens": {
-            "type": "integer",
-            "maximum": 200000.0,
-            "minimum": 256.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 200000.0,
+                "minimum": 256.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Max Output Tokens",
             "default": 6000
           },
@@ -12148,6 +13259,21 @@
             "title": "Timeout Seconds",
             "default": 90
           },
+          "text_timeout_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "activity",
+                  "legacy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Timeout Policy"
+          },
           "document_timeout_seconds": {
             "type": "integer",
             "maximum": 1800.0,
@@ -12395,7 +13521,8 @@
             "enum": [
               "PENDING",
               "COMPLETED",
-              "FAILED"
+              "FAILED",
+              "PARTIAL"
             ],
             "title": "Status"
           },
@@ -12426,6 +13553,18 @@
                 "type": "null"
               }
             ]
+          },
+          "card_set": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Set"
           },
           "usage": {
             "$ref": "#/components/schemas/OverviewUsage"
@@ -12482,6 +13621,39 @@
               }
             ],
             "title": "Display Result Id"
+          },
+          "local_recovery_available": {
+            "type": "boolean",
+            "title": "Local Recovery Available",
+            "default": false
+          },
+          "recovery_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Summary"
+          },
+          "display_recovery_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Recovery Summary"
           }
         },
         "additionalProperties": false,
@@ -12618,12 +13790,17 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "next_cursor"
+          "next_cursor",
+          "total"
         ],
         "title": "PaperList"
       },
@@ -12637,6 +13814,17 @@
           "paper_id": {
             "type": "string",
             "title": "Paper Id"
+          },
+          "archive_item_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archive Item Id"
           },
           "backup_file": {
             "anyOf": [
@@ -15850,6 +17038,72 @@
         },
         "type": "object",
         "title": "WorkspaceCleanup"
+      },
+      "WorkspaceSearchHit": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "paper"
+            ],
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ProjectView"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "project"
+        ],
+        "title": "WorkspaceSearchHit"
+      },
+      "WorkspaceSearchPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceSearchHit"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "next_offset"
+        ],
+        "title": "WorkspaceSearchPage"
       },
       "ZoteroPaper": {
         "properties": {

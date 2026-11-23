@@ -1,1 +1,15 @@
-{"identifier":"main-window","description":"Local main window only; no shell or arbitrary file access.","windows":["main"],"permissions":["core:default"]}
+{
+  "identifier": "main-window",
+  "description": "Local main window only; the host manages the tray.",
+  "windows": ["main"],
+  "permissions": [
+    "core:path:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-set-fullscreen",
+    "core:webview:default",
+    "core:app:default",
+    "core:image:default",
+    "core:menu:default"
+  ]
+}

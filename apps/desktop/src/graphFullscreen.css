@@ -1,0 +1,39 @@
+.knowledge-map[data-fullscreen] {
+  border: 0;
+  border-radius: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.knowledge-map[data-fullscreen]:not([data-fullscreen="element"]) {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+}
+
+.knowledge-map[data-fullscreen] > .knowledge-map-canvas {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.knowledge-map[data-fullscreen] .knowledge-graph-view {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.knowledge-map[data-fullscreen] > .knowledge-map-detail {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 760px) {
+  .knowledge-map[data-fullscreen] {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .knowledge-map[data-fullscreen] > .knowledge-map-detail {
+    max-height: 25dvh;
+  }
+}

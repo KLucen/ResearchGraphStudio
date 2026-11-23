@@ -2,38 +2,44 @@ import { useEffect, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
-  useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  Archive,
   ArrowDown,
   ArrowRight,
   ClipboardList,
   CircleDot,
-  FileText,
   FolderOpen,
   Layers3,
   Library,
   LoaderCircle,
-  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
   RefreshCw,
   Search,
   Settings2,
-  ShieldCheck,
   Upload,
   X,
 } from "lucide-react";
-import { api, type Project } from "./api";
+import { api, type Health, type Project } from "./api";
 import { ModelSettings } from "./ModelSettings";
+import { WindowCloseSettings } from "./WindowCloseSettings";
+import { AppearanceSettings } from "./AppearanceSettings";
+import { WorkspaceBackupSettings } from "./WorkspaceBackupSettings";
+import { bindAppearance } from "./appearance";
 import { PaperImport, Papers } from "./Papers";
 import { JobHistory } from "./JobHistory";
 import { LiteUsageSummary } from "./LiteUsageSummary";
 import { ResearchKnowledgeBase } from "./ResearchKnowledgeBase";
+import { ArchiveWorkspace } from "./ArchiveWorkspace";
 import { knowledgeApi } from "./knowledgeApi";
+import { useContextMenu } from "./ContextMenu";
+import { ProjectSidebar } from "./ProjectSidebar";
+import { WorkspaceSearchDialog } from "./WorkspaceSearchDialog";
+import { handleWorkspaceFind } from "./workspaceSearchShortcut";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -42,20 +48,82 @@ function date(value: string): string {
   return new Date(value).toLocaleDateString("zh-CN");
 }
 
+function workerWarning(health: Health | undefined): string | null {
+  if (health?.worker_status === "recovering") {
+    return health.worker_error === "DATABASE_BUSY"
+      ? "本机数据库繁忙，任务队列正在恢复。"
+      : "任务队列正在恢复，请稍候。";
+  }
+  if (health?.worker_status === "stopped") {
+    return "任务队列已停止。请在设置与诊断中重新连接引擎。";
+  }
+  return null;
+}
+
 export default function App() {
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem("rgs.sidebar.collapsed") === "true",
-  );
+  useEffect(bindAppearance, []);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem("rgs.sidebar.collapsed");
+      if (stored === "true" || stored === "false") return stored === "true";
+    } catch {
+      // Keep the workbench available without stored preferences.
+    }
+    return window.matchMedia?.("(max-width: 760px)").matches ?? false;
+  });
+  const sidebarToggle = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 760px)");
+    if (!media) return;
+    const compactOnResize = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setCollapsed(true);
+        const toggle = sidebarToggle.current;
+        if (toggle?.closest(".sidebar")?.contains(document.activeElement))
+          toggle.focus();
+      }
+    };
+    media.addEventListener?.("change", compactOnResize);
+    return () => media.removeEventListener?.("change", compactOnResize);
+  }, []);
+  function setSidebarCollapsed(next: boolean) {
+    setCollapsed(next);
+    try {
+      localStorage.setItem("rgs.sidebar.collapsed", String(next));
+    } catch {
+      // In-memory sidebar state is still usable.
+    }
+    if (next) sidebarToggle.current?.focus();
+  }
+  function closeNarrowSidebar() {
+    if (window.matchMedia?.("(max-width: 760px)").matches)
+      setSidebarCollapsed(true);
+  }
   const [page, setPage] = useState<
-    "projects" | "knowledge" | "tasks" | "settings"
+    "projects" | "knowledge" | "tasks" | "archive" | "settings"
   >("projects");
   const [creating, setCreating] = useState(false);
   const [importProjectId, setImportProjectId] = useState<string | null>(null);
   const importDialogRef = useRef<HTMLDialogElement>(null);
   const [selected, setSelected] = useState<Project | null>(null);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [workspaceSearchOpen, setWorkspaceSearchOpen] = useState(false);
+  useEffect(() => {
+    if (page === "knowledge") return;
+    const onKey = (event: KeyboardEvent) => {
+      handleWorkspaceFind(event, () => setWorkspaceSearchOpen(true));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [page]);
   const client = useQueryClient();
+  const knowledgeNavigation = useRef(0);
+  useEffect(
+    () => () => {
+      knowledgeNavigation.current += 1;
+    },
+    [page],
+  );
   useEffect(() => {
     const dialog = importDialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
@@ -78,9 +146,10 @@ export default function App() {
     enabled: health.isSuccess,
   });
   const allProjects = projects.data?.pages.flatMap((p) => p.items) ?? [];
-  const visible = allProjects.filter((p) =>
-    `${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const sidebarProjects =
+    selected && !allProjects.some((project) => project.id === selected.id)
+      ? [...allProjects, selected]
+      : allProjects;
   const connected = health.isSuccess && !health.isError;
   const globalJobs = useQuery({
     queryKey: ["jobs", "global"],
@@ -88,9 +157,7 @@ export default function App() {
     enabled: connected,
     refetchInterval: 3000,
   });
-  const activeTaskCount =
-    globalJobs.data?.filter((job) => ["queued", "running"].includes(job.status))
-      .length ?? 0;
+  const activeTaskCount = connected ? (health.data?.active_jobs ?? null) : null;
   const knowledgeReports = useQuery({
     queryKey: ["knowledge", "reports"],
     queryFn: knowledgeApi.reports,
@@ -137,34 +204,28 @@ export default function App() {
 
   return (
     <div className={`app-shell${collapsed ? " sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <button
-          className="sidebar-toggle"
-          aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
-          title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
-          aria-expanded={!collapsed}
-          onClick={() => {
-            const next = !collapsed;
-            setCollapsed(next);
-            localStorage.setItem("rgs.sidebar.collapsed", String(next));
-          }}
-        >
-          {collapsed ? (
-            <PanelLeftOpen size={19} />
-          ) : (
-            <PanelLeftClose size={19} />
-          )}
-        </button>
-        <div className="brand">
-          <div className="brand-symbol">
-            <Network size={24} />
-          </div>
-          <div className="brand-title">
-            ResearchGraph<span>LITE</span>
-          </div>
-        </div>
+      <aside
+        className="sidebar"
+        aria-label="工作空间侧边栏"
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !collapsed) {
+            event.preventDefault();
+            setSidebarCollapsed(true);
+          }
+        }}
+      >
         <div className="workspace-heading">
           <div className="workspace-label">个人研究空间</div>
+          <button
+            type="button"
+            className="sidebar-add"
+            aria-label="搜索个人研究空间"
+            aria-keyshortcuts="Control+F"
+            title="搜索个人研究空间 (Ctrl+F)"
+            onClick={() => setWorkspaceSearchOpen(true)}
+          >
+            <Search size={16} />
+          </button>
           <button
             type="button"
             className="sidebar-add"
@@ -175,10 +236,24 @@ export default function App() {
           >
             <Plus size={15} />
           </button>
+          <button
+            ref={sidebarToggle}
+            className="sidebar-toggle"
+            aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+            title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
+            aria-expanded={!collapsed}
+            onClick={() => setSidebarCollapsed(!collapsed)}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={18} />
+            ) : (
+              <PanelLeftClose size={18} />
+            )}
+          </button>
         </div>
         <ProjectSidebar
           connected={connected}
-          projects={allProjects}
+          projects={sidebarProjects}
           selectedProjectId={selected?.id ?? null}
           selectedPaperId={selectedPaperId}
           onCreate={() => setCreating(true)}
@@ -187,101 +262,130 @@ export default function App() {
             setPage("projects");
             setSelected(project);
             setSelectedPaperId(paperId);
+            closeNarrowSidebar();
           }}
         />
-        <div className="sidebar-project-actions">
-          <button
-            type="button"
-            className="sidebar-action"
-            disabled={!connected || !selected}
-            onClick={() => selected && setImportProjectId(selected.id)}
-            title={
-              selected ? `向${selected.name}导入论文` : "先选择一个研究项目"
-            }
-          >
-            <Upload size={14} />
-            <span>导入论文</span>
-          </button>
-          {!selected && <small>选择项目后导入 PDF 或 Zotero</small>}
-        </div>
-        <nav aria-label="主导航">
-          <button
-            aria-label="研究项目"
-            title="研究项目"
-            className={page === "projects" ? "nav active" : "nav"}
-            onClick={() => {
-              setPage("projects");
-              setSelected(null);
-              setSelectedPaperId(null);
-            }}
-          >
-            <Layers3 size={18} />
-            <span className="nav-label">研究项目</span>
-            <span className="nav-count">{allProjects.length}</span>
-          </button>
-          <button
-            aria-label="研究内容知识库"
-            title="研究内容知识库"
-            className={page === "knowledge" ? "nav active" : "nav"}
-            onClick={() => setPage("knowledge")}
-          >
-            <Library size={18} />
-            <span className="nav-label">研究内容知识库</span>
-            {unreadKnowledgeReports > 0 && (
-              <span
-                className="nav-count"
-                aria-label={`${unreadKnowledgeReports} 份未读联系汇报`}
-              >
-                {unreadKnowledgeReports}
+        <div className="sidebar-footer">
+          <div className="sidebar-project-actions">
+            <button
+              type="button"
+              className="sidebar-action"
+              disabled={!connected || !selected}
+              onClick={() => selected && setImportProjectId(selected.id)}
+              title={
+                selected ? `向${selected.name}导入论文` : "先选择一个研究项目"
+              }
+            >
+              <Upload size={14} />
+              <span>导入论文</span>
+            </button>
+          </div>
+          <nav aria-label="主导航">
+            <button
+              aria-label="研究项目"
+              title="研究项目"
+              aria-current={page === "projects" ? "page" : undefined}
+              className={page === "projects" ? "nav active" : "nav"}
+              onClick={() => {
+                setPage("projects");
+                setSelected(null);
+                setSelectedPaperId(null);
+                closeNarrowSidebar();
+              }}
+            >
+              <Layers3 size={18} />
+              <span className="nav-label">研究项目</span>
+              <span className="nav-count">{allProjects.length}</span>
+            </button>
+            <button
+              aria-label="研究内容知识库"
+              title="研究内容知识库"
+              aria-current={page === "knowledge" ? "page" : undefined}
+              className={page === "knowledge" ? "nav active" : "nav"}
+              onClick={() => {
+                setPage("knowledge");
+                closeNarrowSidebar();
+              }}
+            >
+              <Library size={18} />
+              <span className="nav-label">研究内容知识库</span>
+              {unreadKnowledgeReports > 0 && (
+                <span
+                  className="nav-count"
+                  aria-label={`${unreadKnowledgeReports} 份未读联系汇报`}
+                >
+                  {unreadKnowledgeReports}
+                </span>
+              )}
+            </button>
+            <button
+              aria-label="任务记录"
+              title="任务记录"
+              aria-current={page === "tasks" ? "page" : undefined}
+              className={page === "tasks" ? "nav active" : "nav"}
+              onClick={() => {
+                setPage("tasks");
+                closeNarrowSidebar();
+              }}
+            >
+              <ClipboardList size={18} />
+              <span className="nav-label">任务记录</span>
+              {activeTaskCount !== null && activeTaskCount > 0 && (
+                <span className="nav-count">{activeTaskCount}</span>
+              )}
+            </button>
+            <button
+              aria-label="归档管理"
+              title="归档管理"
+              aria-current={page === "archive" ? "page" : undefined}
+              className={page === "archive" ? "nav active" : "nav"}
+              onClick={() => {
+                setPage("archive");
+                closeNarrowSidebar();
+              }}
+            >
+              <Archive size={18} />
+              <span className="nav-label">归档管理</span>
+            </button>
+          </nav>
+          <div className="sidebar-tools">
+            <button
+              aria-label="设置与诊断"
+              title="设置与诊断"
+              aria-current={page === "settings" ? "page" : undefined}
+              className={page === "settings" ? "nav active" : "nav"}
+              onClick={() => {
+                setPage("settings");
+                closeNarrowSidebar();
+              }}
+            >
+              <Settings2 size={18} />
+              <span className="nav-label">设置与诊断</span>
+            </button>
+            <div
+              className="connection"
+              title={connected ? "本地引擎已连接" : "本地引擎未连接"}
+            >
+              <i className={connected ? "online" : ""} />
+              <span>
+                {connected
+                  ? "本地引擎已连接"
+                  : health.isPending
+                    ? "正在连接本地引擎"
+                    : "引擎未连接"}
               </span>
-            )}
-          </button>
-          <button
-            aria-label="任务记录"
-            title="任务记录"
-            className={page === "tasks" ? "nav active" : "nav"}
-            onClick={() => setPage("tasks")}
-          >
-            <ClipboardList size={18} />
-            <span className="nav-label">任务记录</span>
-            {activeTaskCount > 0 && (
-              <span className="nav-count">{activeTaskCount}</span>
-            )}
-          </button>
-        </nav>
-        <div className="sidebar-spacer" />
-        <div className="sidebar-note">
-          <ShieldCheck size={20} />
-          <strong>知识，留在本地</strong>
-          <p>
-            项目保存在这台电脑上。
-            <br />
-            默认本地处理，模型传输需确认。
-          </p>
-        </div>
-        <div className="connection">
-          <i className={connected ? "online" : ""} />
-          <span>
-            {connected
-              ? "本地引擎已连接"
-              : health.isPending
-                ? "正在连接本地引擎"
-                : "引擎未连接"}
-          </span>
-        </div>
-        <button
-          aria-label="设置与诊断"
-          title="设置与诊断"
-          className={page === "settings" ? "nav active" : "nav"}
-          onClick={() => setPage("settings")}
-        >
-          <Settings2 size={18} />
-          <span className="nav-label">设置与诊断</span>
-        </button>
-        <div className="version">
-          LITE <span>0.1.0</span>
+            </div>
+          </div>
         </div>
       </aside>
+      {!collapsed && (
+        <button
+          className="sidebar-scrim"
+          aria-label="收起侧边栏"
+          onClick={() => setSidebarCollapsed(true)}
+          tabIndex={-1}
+        />
+      )}
       <main>
         <header className="topbar">
           <span>
@@ -290,11 +394,13 @@ export default function App() {
               ? "设置与诊断"
               : page === "tasks"
                 ? "任务记录"
-                : page === "knowledge"
-                  ? "研究内容知识库"
-                  : selected
-                    ? selected.name
-                    : "研究项目"}
+                : page === "archive"
+                  ? "归档管理"
+                  : page === "knowledge"
+                    ? "研究内容知识库"
+                    : selected
+                      ? selected.name
+                      : "研究项目"}
           </span>
           <span className="local-tag">
             <CircleDot size={13} /> LOCAL WORKSPACE
@@ -327,21 +433,31 @@ export default function App() {
               connected={connected}
               projects={projectNames}
               activeCount={activeTaskCount}
+              warning={workerWarning(health.data)}
+            />
+          ) : page === "archive" ? (
+            <ArchiveWorkspace
+              connected={connected}
+              projectNames={projectNames}
             />
           ) : page === "knowledge" ? (
             <ResearchKnowledgeBase
               connected={connected}
               projects={allProjects}
               onOpenTasks={() => setPage("tasks")}
-              onOpenPaper={(projectId, paperId) => {
-                const project = allProjects.find(
-                  (item) => item.id === projectId,
-                );
-                if (project) {
-                  setSelected(project);
-                  setSelectedPaperId(paperId);
-                  setPage("projects");
-                }
+              onOpenPaper={async (projectId, paperId) => {
+                const navigation = ++knowledgeNavigation.current;
+                const project =
+                  allProjects.find((item) => item.id === projectId) ??
+                  (await client.fetchQuery<Project>({
+                    queryKey: ["project", projectId],
+                    queryFn: () => api.project(projectId),
+                  }));
+                if (navigation !== knowledgeNavigation.current) return;
+                setSelected(project);
+                setSelectedPaperId(paperId);
+                setPage("projects");
+                closeNarrowSidebar();
               }}
             />
           ) : selected ? (
@@ -360,15 +476,28 @@ export default function App() {
             <Projects
               connected={connected}
               projects={projects}
-              visible={visible}
-              search={search}
-              setSearch={setSearch}
+              items={allProjects}
+              onSearch={() => setWorkspaceSearchOpen(true)}
               onSelect={setSelected}
+              onImport={setImportProjectId}
               onCreate={() => setCreating(true)}
             />
           )}
         </div>
       </main>
+      {workspaceSearchOpen && (
+        <WorkspaceSearchDialog
+          connected={connected}
+          onClose={() => setWorkspaceSearchOpen(false)}
+          onOpen={(hit) => {
+            setWorkspaceSearchOpen(false);
+            setPage("projects");
+            setSelected(hit.project);
+            setSelectedPaperId(hit.kind === "paper" ? hit.id : null);
+            closeNarrowSidebar();
+          }}
+        />
+      )}
       {creating && (
         <CreateProject
           connected={connected}
@@ -376,7 +505,10 @@ export default function App() {
           onCreated={(project) => {
             setCreating(false);
             void client.invalidateQueries({ queryKey: ["projects"] });
+            setPage("projects");
             setSelected(project);
+            setSelectedPaperId(null);
+            closeNarrowSidebar();
           }}
         />
       )}
@@ -412,153 +544,16 @@ export default function App() {
   );
 }
 
-function ProjectSidebar({
-  connected,
-  projects,
-  selectedProjectId,
-  selectedPaperId,
-  onCreate,
-  onImport,
-  onSelect,
-}: {
-  connected: boolean;
-  projects: Project[];
-  selectedProjectId: string | null;
-  selectedPaperId: string | null;
-  onCreate: () => void;
-  onImport: (projectId: string) => void;
-  onSelect: (project: Project, paperId: string | null) => void;
-}) {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("rgs.sidebar.projects") ?? "{}");
-    } catch {
-      return {};
-    }
-  });
-  const paperQueries = useQueries({
-    queries: projects.map((project) => ({
-      queryKey: ["sidebar-papers", project.id],
-      queryFn: () => api.papers(project.id),
-      enabled: connected,
-      refetchOnMount: "always",
-      // PDF/Zotero imports are durable jobs.  The first invalidation can
-      // happen before the worker has committed the Paper row, so keep the
-      // sidebar in the same eventual-consistency loop as the project view.
-      refetchInterval: connected ? 3000 : false,
-    })),
-  });
-
-  useEffect(() => {
-    localStorage.setItem("rgs.sidebar.projects", JSON.stringify(expanded));
-  }, [expanded]);
-
-  return (
-    <div className="project-tree" aria-label="个人研究项目">
-      {projects.length === 0 ? (
-        <button
-          type="button"
-          className="project-tree-empty"
-          disabled={!connected}
-          onClick={onCreate}
-        >
-          <Plus size={14} />
-          新建研究项目
-        </button>
-      ) : (
-        projects.map((project, index) => {
-          const query = paperQueries[index];
-          const papers = query.data?.items ?? [];
-          const isOpen = expanded[project.id] ?? index === 0;
-          const isSelected = selectedProjectId === project.id;
-          return (
-            <div className="project-tree-group" key={project.id}>
-              <div
-                className={
-                  isSelected ? "project-tree-row selected" : "project-tree-row"
-                }
-              >
-                <button
-                  type="button"
-                  className="project-tree-toggle"
-                  aria-label={
-                    isOpen ? `收起${project.name}` : `展开${project.name}`
-                  }
-                  aria-expanded={isOpen}
-                  onClick={() =>
-                    setExpanded((current) => ({
-                      ...current,
-                      [project.id]: !isOpen,
-                    }))
-                  }
-                >
-                  {isOpen ? <ArrowDown size={13} /> : <ArrowRight size={13} />}
-                </button>
-                <button
-                  type="button"
-                  className="project-tree-project"
-                  title={project.name}
-                  onClick={() => onSelect(project, null)}
-                >
-                  <FolderOpen size={14} />
-                  <span>{project.name}</span>
-                </button>
-                {selectedProjectId === project.id && (
-                  <button
-                    type="button"
-                    className="project-tree-import"
-                    aria-label={`向${project.name}导入论文`}
-                    title={`向${project.name}导入论文`}
-                    onClick={() => onImport(project.id)}
-                  >
-                    <Upload size={12} />
-                  </button>
-                )}
-                <span className="project-tree-count">{papers.length}</span>
-              </div>
-              {isOpen && (
-                <div className="project-tree-papers">
-                  {query.isPending && (
-                    <span className="project-tree-muted">读取论文…</span>
-                  )}
-                  {!query.isPending && !papers.length && (
-                    <span className="project-tree-muted">暂无论文</span>
-                  )}
-                  {papers.map((paper) => (
-                    <button
-                      type="button"
-                      className={
-                        selectedProjectId === project.id &&
-                        selectedPaperId === paper.id
-                          ? "project-tree-paper selected"
-                          : "project-tree-paper"
-                      }
-                      key={paper.id}
-                      title={paper.title}
-                      onClick={() => onSelect(project, paper.id)}
-                    >
-                      <FileText size={13} />
-                      <span>{paper.title}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
-}
-
 function TaskCenter({
   connected,
   projects,
   activeCount,
+  warning,
 }: {
   connected: boolean;
   projects: Record<string, string>;
-  activeCount: number;
+  activeCount: number | null;
+  warning: string | null;
 }) {
   return (
     <>
@@ -571,9 +566,18 @@ function TaskCenter({
           </p>
         </div>
         <span className="task-status-pill">
-          {activeCount ? `${activeCount} 项正在处理` : "当前没有进行中的任务"}
+          {activeCount === null
+            ? "任务状态暂不可用"
+            : activeCount > 0
+              ? `${activeCount} 项正在处理`
+              : "当前没有进行中的任务"}
         </span>
       </div>
+      {warning && (
+        <p role="status" className="error-text">
+          {warning}
+        </p>
+      )}
       <section className="settings-card task-center-card">
         <JobHistory
           connected={connected}
@@ -588,10 +592,10 @@ function TaskCenter({
 function Projects({
   connected,
   projects,
-  visible,
-  search,
-  setSearch,
+  items,
+  onSearch,
   onSelect,
+  onImport,
   onCreate,
 }: {
   connected: boolean;
@@ -604,12 +608,13 @@ function Projects({
     isFetchingNextPage: boolean;
     fetchNextPage: () => Promise<unknown>;
   };
-  visible: Project[];
-  search: string;
-  setSearch: (value: string) => void;
+  items: Project[];
+  onSearch: () => void;
   onSelect: (project: Project) => void;
+  onImport: (projectId: string) => void;
   onCreate: () => void;
 }) {
+  const { contextMenuProps, contextMenu } = useContextMenu();
   return (
     <>
       <div className="heading-row">
@@ -627,17 +632,11 @@ function Projects({
       </div>
       <div className="section-toolbar">
         <h2>
-          我的项目 <span>{visible.length}</span>
+          我的项目 <span>{items.length}</span>
         </h2>
-        <label className="search">
-          <Search size={16} />
-          <input
-            aria-label="搜索已加载的项目"
-            placeholder="搜索已加载的项目"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </label>
+        <button type="button" className="button secondary" onClick={onSearch}>
+          <Search size={16} /> 搜索项目与论文
+        </button>
       </div>
       {projects.isError ? (
         <div role="alert" className="error-banner">
@@ -654,12 +653,20 @@ function Projects({
           <LoaderCircle className="spin" />
           <p>{connected ? "正在读取项目…" : "等待本地引擎就绪…"}</p>
         </div>
-      ) : visible.length ? (
+      ) : items.length ? (
         <div className="project-grid">
-          {visible.map((p) => (
+          {items.map((p) => (
             <button
               className="project-card"
               key={p.id}
+              {...contextMenuProps("研究项目操作", [
+                { label: "打开项目", action: () => onSelect(p) },
+                {
+                  label: "导入论文",
+                  disabled: !connected,
+                  action: () => onImport(p.id),
+                },
+              ])}
               onClick={() => onSelect(p)}
             >
               <div className="card-top">
@@ -683,16 +690,14 @@ function Projects({
               <Plus size={12} />
             </span>
           </div>
-          <h3>{search ? "没有找到匹配的项目" : "你的第一个研究项目"}</h3>
-          {!search && (
-            <button
-              className="button secondary"
-              disabled={!connected}
-              onClick={onCreate}
-            >
-              创建项目 <ArrowRight size={16} />
-            </button>
-          )}
+          <h3>你的第一个研究项目</h3>
+          <button
+            className="button secondary"
+            disabled={!connected}
+            onClick={onCreate}
+          >
+            创建项目 <ArrowRight size={16} />
+          </button>
         </div>
       )}
       {projects.hasNextPage && (
@@ -704,6 +709,7 @@ function Projects({
           <ArrowDown size={16} /> 加载更多
         </button>
       )}
+      {contextMenu}
     </>
   );
 }
@@ -837,6 +843,8 @@ function Settings({
       <div className="eyebrow">LOCAL ENVIRONMENT</div>
       <h1>设置与诊断</h1>
       <p className="lead">管理本地数据、模型配置和连接状态。</p>
+      <AppearanceSettings />
+      <WorkspaceBackupSettings />
       <section className="settings-card">
         <div className="settings-title">
           <h2>本地引擎</h2>
@@ -847,11 +855,32 @@ function Settings({
           <dd>{health?.version ?? "等待连接"}</dd>
           <dt>数据库版本</dt>
           <dd>{health?.schema_version ?? "等待检查"}</dd>
+          {health?.worker_status && (
+            <>
+              <dt>任务队列</dt>
+              <dd>
+                {
+                  {
+                    idle: "待命",
+                    running: "执行任务中",
+                    recovering: "正在恢复",
+                    stopped: "已停止",
+                    disabled: "已停用",
+                  }[health.worker_status]
+                }
+              </dd>
+            </>
+          )}
           <dt>全文检索</dt>
           <dd>{health?.fts5 ? "FTS5 可用" : "等待检查"}</dd>
           <dt>项目数据位置</dt>
           <dd className="mono">{directory ?? "等待宿主信息"}</dd>
         </dl>
+        {workerWarning(health) && (
+          <p role="status" className="error-text">
+            {workerWarning(health)}
+          </p>
+        )}
         <button
           className="button secondary"
           disabled={restart.isPending}
@@ -867,6 +896,7 @@ function Settings({
         )}
       </section>
       <LiteUsageSummary connected={connected} />
+      <WindowCloseSettings />
       <ModelSettings connected={connected} />
       <section className="settings-card">
         <div className="settings-title">

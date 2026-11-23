@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
+from researchgraph.archive_guards import require_unarchived_paper
 from researchgraph.core import KnowledgeError
 from researchgraph.document_structure import active_section_rows, section_spans
 from researchgraph.models import AttachmentRevision, Chunk, Paper, Section, now
@@ -41,6 +42,7 @@ def node_fingerprint(node: dict[str, Any]) -> str:
 
 
 def _revision(session: Session, paper_id: str, revision_id: str | None) -> AttachmentRevision:
+    require_unarchived_paper(session, paper_id)
     if session.get(Paper, paper_id) is None:
         raise KnowledgeError("PAPER_NOT_FOUND", "论文不存在")
     revision = (
@@ -91,25 +93,52 @@ def current_overview(
         .where(
             PaperOverviewResult.paper_id == paper_id,
             PaperOverviewResult.document_version_id == revision_id,
+            PaperOverviewResult.schema_version == "paper-card-set-2",
         )
-        .order_by(PaperOverviewResult.updated_at.desc(), PaperOverviewResult.id.desc())
+        .order_by(PaperOverviewResult.created_at.desc(), PaperOverviewResult.id.desc())
         .limit(1)
     )
     revision = session.get(AttachmentRevision, revision_id)
     if (
         row is None
         or row.status != "COMPLETED"
-        or not isinstance(row.graph_json, dict)
         or revision is None
         or row.pdf_hash != revision.sha256
     ):
         return None
+    if row.schema_version == "paper-card-set-2":
+        from researchgraph.paper_card_set_contracts import validate_saved_paper_card_set
+        from researchgraph.paper_card_set_service import build_card_manifest
+
+        try:
+            validate_saved_paper_card_set(
+                row.paper_card_json or {},
+                build_card_manifest(session, paper_id, "local_revision", revision_id),
+            )
+        except (KnowledgeError, ValueError):
+            # Personal reading history remains readable without lending stale card IDs.
+            return None
     return row
 
 
 def _nodes(overview: PaperOverviewResult | None) -> dict[str, dict[str, Any]]:
     if overview is None:
         return {}
+    if overview.schema_version == "paper-card-set-2":
+        # Compatibility field names identify concept cards, not a hidden generated graph.
+        return {
+            card["id"]: {
+                "id": card["id"],
+                "type": "CONCEPT",
+                "label_zh": card["title_zh"],
+                "label_en": card["title_en"],
+                "description_zh": card["body_zh"],
+                "basis": "EXPLICIT" if card["attribution"] == "AUTHOR" else "INFERRED",
+                "card_set_hash": (overview.paper_card_json or {}).get("content_hash"),
+            }
+            for card in (overview.paper_card_json or {}).get("cards", [])
+            if card["kind"] == "key_concept"
+        }
     return {
         str(node["id"]): node
         for node in (overview.graph_json or {}).get("nodes", [])

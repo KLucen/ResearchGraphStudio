@@ -198,6 +198,24 @@ def test_total_deadline_is_separate_and_stops_without_retry(monkeypatch):
     assert provider.request_metadata["timeout_type"] == "TotalTimeout"
 
 
+def test_document_rate_limit_keeps_only_safe_delay_without_a_second_attempt(monkeypatch):
+    calls = []
+    private = "upstream-private-error-contents"
+
+    def limited(request):
+        calls.append(request.method)
+        return httpx.Response(429, headers={"Retry-After": "64"}, text=private)
+
+    _mock_client(monkeypatch, limited)
+    provider = _provider()
+    with pytest.raises(ProviderError) as error:
+        asyncio.run(provider.complete_document(_payload()))
+    assert calls == ["POST"] and error.value.category == "rate_limit"
+    assert error.value.retry_after == provider.request_metadata["retry_after_seconds"] == 64
+    assert provider.request_metadata["http_status"] == 429
+    assert private not in str(error.value) + json.dumps(provider.request_metadata)
+
+
 def test_rendering_time_counts_toward_total_deadline_before_network(monkeypatch):
     calls = []
     _mock_client(monkeypatch, lambda req: calls.append(req) or _response())

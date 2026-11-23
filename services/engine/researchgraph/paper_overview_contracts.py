@@ -194,10 +194,11 @@ class OverviewView(StrictModel):
     prompt_version: str
     provider_id: str
     model_id: str
-    status: Literal["PENDING", "COMPLETED", "FAILED"]
+    status: Literal["PENDING", "COMPLETED", "FAILED", "PARTIAL"]
     graph_status: Literal["READY", "NOT_ENOUGH_INFO"]
     paper_card: PaperCard | None = None
     graph: LightGraph | None = None
+    card_set: dict[str, Any] | None = None
     usage: OverviewUsage
     generated_at: str
     cache_hit: bool = False
@@ -205,6 +206,9 @@ class OverviewView(StrictModel):
     error_code: str | None = None
     error: str | None = None
     display_result_id: str | None = None
+    local_recovery_available: bool = False
+    recovery_summary: dict[str, int] | None = None
+    display_recovery_summary: dict[str, int] | None = None
 
 
 class GraphPosition(StrictModel):

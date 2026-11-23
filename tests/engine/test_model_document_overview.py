@@ -27,10 +27,16 @@ from researchgraph.model_document_overview_models import (
     ModelOverviewGraphViewport,
 )
 from researchgraph.models import AttachmentRevision, Base, Chunk, Job, Paper, Project, now
+from researchgraph.paper_card_set_contracts import (
+    MODEL_CARD_CONTRACT_VERSION,
+    model_card_prompt,
+    model_card_schema,
+)
 from researchgraph.paper_overview_api import SYSTEM_PROMPT, overview_schema
 from researchgraph.storage import make_engine
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
+from test_model_card_set import response as card_response
 
 EXAMPLE = Path(
     "docs/ResearchGraph_Lite_LightGraph_Addendum/examples/paper_overview_graph.example.json"
@@ -186,20 +192,15 @@ def test_unselected_or_legacy_summary_overview_is_not_generated_on_get(tmp_path)
         assert db.query(LlmDocumentOutput).one().output_json["summary"] == "Legacy summary"
 
 
-def test_projected_overview_and_layout_enforce_source_scope_and_keep_semantics_unchanged(tmp_path):
+def test_retired_legacy_layout_preserves_scope_without_displaying_old_overview(tmp_path):
     engine, client, paper_id, parse_id, _session_id = _fixture(tmp_path, output=True)
     with Session(engine) as db:
-        normalized = db.query(LlmDocumentOutput).one().output_json
+        output = db.query(LlmDocumentOutput).one()
+        normalized, output_id = output.output_json, output.id
     base = f"/api/v1/papers/{paper_id}/model-overview"
     response = client.get(base, params={"parse_id": parse_id})
     assert response.status_code == 200, response.text
-    view = response.json()
-    assert view["status"] == "COMPLETED"
-    assert view["document_version_id"] == parse_id
-    assert view["paper_card"] == normalized["paper_card"]
-    assert view["graph"] == normalized["graph"]
-    assert view["usage"]["total_tokens"] == 45
-    output_id = view["id"]
+    assert response.json() is None
     node_id = normalized["graph"]["nodes"][0]["id"]
     layout = {
         "overview_result_id": output_id,
@@ -257,11 +258,13 @@ def test_projection_rejects_wrong_parse_and_invalid_stored_semantics(tmp_path):
             model_overview_view(db, parse, output)
         output.item_kind = "paper_overview"
         output.output_json = {"schema_version": "paper_overview_graph.v1", "paper_card": {}}
+        assert model_overview_view(db, parse, output) is None
+        output.output_json = {"schema_version": "paper-card-set-2", "cards": []}
         with pytest.raises(ValueError):
             model_overview_view(db, parse, output)
 
 
-def test_explicit_generate_creates_one_pending_output_and_shared_contract_result(
+def test_explicit_generate_creates_one_pending_output_and_new_card_set_result(
     tmp_path, monkeypatch
 ):
     from researchgraph import model_settings
@@ -287,7 +290,7 @@ def test_explicit_generate_creates_one_pending_output_and_shared_contract_result
         assert db.query(LlmDocumentOutput).count() == 1
         job = db.query(Job).one()
         job_id = job.id
-        assert job.payload["postprocess_contract_version"] == 2
+        assert job.payload["postprocess_contract_version"] == MODEL_CARD_CONTRACT_VERSION
         assert db.get(ImportSession, session_id).plan["overview"] is False
 
     class Provider:
@@ -298,10 +301,10 @@ def test_explicit_generate_creates_one_pending_output_and_shared_contract_result
 
         async def complete(self, prompt, data, schema):
             self.calls += 1
-            assert prompt == SYSTEM_PROMPT
-            assert schema == overview_schema()
+            assert prompt == model_card_prompt(MODEL_CARD_CONTRACT_VERSION)
+            assert schema == model_card_schema(MODEL_CARD_CONTRACT_VERSION)
             assert data["document_version_id"] == parse_id
-            return EXAMPLE.read_text(encoding="utf-8")
+            return json.dumps(card_response(data))
 
     provider = Provider()
     asyncio.run(execute_document_postprocess(engine, job_id, tmp_path, provider=provider))
@@ -310,7 +313,8 @@ def test_explicit_generate_creates_one_pending_output_and_shared_contract_result
     )
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "COMPLETED"
-    assert response.json()["paper_card"] and response.json()["graph"]["nodes"]
+    assert response.json()["card_set"]["cards"]
+    assert response.json()["paper_card"] is None and response.json()["graph"] is None
     assert client.post(endpoint, json=body).json() == response.json()
     assert provider.calls == 1
     with Session(engine) as db:
@@ -322,8 +326,8 @@ def test_explicit_generate_creates_one_pending_output_and_shared_contract_result
     assert regenerated.status_code == 200, regenerated.text
     assert regenerated.json()["status"] == "PENDING"
     assert regenerated.json()["id"] != first.json()["id"]
-    assert regenerated.json()["display_result_id"] == first.json()["id"]
-    assert regenerated.json()["paper_card"] == response.json()["paper_card"]
+    assert regenerated.json()["display_result_id"] is None
+    assert regenerated.json()["card_set"] is None
     with Session(engine) as db:
         assert db.query(Job).count() == 2
         assert db.query(LlmDocumentOutput).count() == 2
@@ -332,7 +336,7 @@ def test_explicit_generate_creates_one_pending_output_and_shared_contract_result
     assert provider.calls == 1
 
 
-def test_failed_or_running_regeneration_keeps_prior_valid_graph_until_source_changes(tmp_path):
+def test_failed_or_running_new_generation_does_not_fall_back_to_legacy_graph(tmp_path):
     engine, client, paper_id, parse_id, session_id = _fixture(tmp_path, output=True)
     with Session(engine) as db, db.begin():
         prior = db.query(LlmDocumentOutput).one()
@@ -349,7 +353,7 @@ def test_failed_or_running_regeneration_keeps_prior_valid_graph_until_source_cha
                 status="failed",
                 error_code="MODEL_DOCUMENT_POSTPROCESS_CONTRACT_FAILED",
                 error="Failed current draft",
-                usage={"source_updated_at": parse.updated_at},
+                usage={"contract_version": 5, "source_updated_at": parse.updated_at},
                 created_at="2099-01-01T00:00:00Z",
                 updated_at="2099-01-01T00:00:00Z",
             )
@@ -358,19 +362,20 @@ def test_failed_or_running_regeneration_keeps_prior_valid_graph_until_source_cha
     failed = client.get(endpoint).json()
     assert failed["id"] == current_id and failed["status"] == "FAILED"
     assert failed["error"] == "Failed current draft"
-    assert failed["display_result_id"] == prior_id
-    assert failed["paper_card"] and failed["graph"]["nodes"]
+    assert failed["display_result_id"] is None
+    assert failed["paper_card"] is None and failed["graph"] is None
+    assert failed["card_set"] is None
     assert (
         client.get(
             f"/api/v1/papers/{paper_id}/model-overview/graph/layout",
-            params={"overview_result_id": failed["display_result_id"]},
+            params={"overview_result_id": prior_id},
         ).status_code
         == 200
     )
     with Session(engine) as db, db.begin():
         db.get(LlmDocumentOutput, current_id).status = "running"
     running = client.get(endpoint).json()
-    assert running["status"] == "PENDING" and running["display_result_id"] == prior_id
+    assert running["status"] == "PENDING" and running["display_result_id"] is None
     with Session(engine) as db, db.begin():
         db.get(LlmDocumentParse, parse_id).updated_at = "2099-01-02T00:00:00Z"
         db.get(LlmDocumentOutput, prior_id).status = "stale"

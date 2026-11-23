@@ -1,67 +1,68 @@
-# ResearchGraph Studio Lite
+# ResearchGraph Studio
 
-ResearchGraph Studio Lite 是一个论文阅读辅助工具。导入默认在本机解析 Zotero 或 PDF，建立正文、章节和检索库；也可明确选择模型解析并授权发送 PDF，按章节保存正文、公式和表格，再按选择生成概览、全文精读及可选中文翻译。已有论文支持本地解析重试和后续模型重新解析；没有明确请求时不会调用模型。
+ResearchGraph Studio 是一款 Windows 桌面论文阅读工具。你可以导入本地 PDF 或 Zotero 附件，按章节阅读原文，在需要时生成带引文的知识卡片、精读笔记和译文，再把多篇论文整理成专题与可回查证据的知识地图。
 
-当前工作区已经切换到 Lite 基础工程：
+## 下载与安装
 
-2026-11-20 研究内容知识库：新增独立“知识地图 / 论文知识 / 联系汇报”工作空间，位于研究项目和任务记录之间。已有概览可零模型收藏；新`paper-knowledge-1`按本地或模型解析材料生成带来源的五类知识，程序绑定论文题名根、身份和真实引文。配置`knowledge_extract`、`knowledge_connect`模型用途及范围/预算后，可对后续解析自动建模、分析联系并保存未读汇报。K1–K3运行代码与专项回归已落地，整体回归、安装交付和GitHub状态以[本轮验证](docs/knowledge-library-verification-20261120.md)为准；合成Provider结果不代表真实科学质量验收。实现边界见[ADR0060](docs/adr/0060-durable-research-knowledge-library.md)和[实施方案](docs/research-knowledge-base-plan-20261120.md)。
+从 [v1.0.0 发布页](https://github.com/KLucen/ResearchGraphStudio/releases/tag/v1.0.0) 下载 Windows x64 安装包并运行。安装包包含本地引擎，界面使用 Microsoft Edge WebView2。发布页注明安装包签名状态并附有 SHA-256 校验值。
 
-2026-11-20最新调整：精读去掉重复英文摘录卡，分析从原文右侧起点直接显示，紧凑类型/编号支持双向定位；本地与模型稿每章的阅读状态放到全部小节和材料后的章末。已有合法笔记无需重新生成。见[ADR0059](docs/adr/0059-reading-analysis-and-chapter-end-progress.md)和[验证报告](docs/reading-sidebar-footer-verification-20261120.md)。原摘录卡方案保留于[ADR0058](docs/adr/0058-anchored-reading-annotations.md)。
+启动后，左侧是个人研究空间和各工作区入口。已有 Lite 用户可在升级前通过「设置与诊断 → 工作区备份与恢复」创建备份。
 
-2026-11-19 后续修复：精读新任务使用固定编号槽位并区分传输、空响应与格式失败；论文回答先读目录、按需读取章节。两种来源统一“论文概览 / 论文精读 / 论文回答”，圆形“论文解析操作”展开四项解析/查看操作。精读标记可在用户明确操作后做无模型的部分恢复，head为`lite0015`，见[ADR0057](docs/adr/0057-reading-output-and-workspace-recovery.md)及[本轮验证](docs/workspace-fixes-verification-20261119.md)。
+## 导入第一篇论文
 
-2026-11-19：本地与模型材料共用 PaperCard + LightGraph 概览及双栏精读组件，公式使用安全 KaTeX 预览，译文位置与论证批注保持一致。概览、精读默认不生成，须明确选择；已有模型提取稿可补生成或仅补译文。旧摘要保留，不能直接转成图谱或高亮。契约失败有本机响应材料时可显式授权一次格式修复，费用另计，不重传 PDF。该轮加性迁移 head 为 `lite0015`，见 [ADR0056](docs/adr/0056-unified-reading-from-parser-sources.md) 和[验证报告](docs/unified-reading-verification-20261119.md)。
+1. 点击「新建研究项目」，创建并选中项目。
+2. 点击「导入论文」，选择「本地 PDF」或「Zotero」。从 Zotero 导入时，保持 Zotero 桌面版运行并启用本地 API，再在应用里连接、选择条目与 PDF 附件。
+3. 导入本地 PDF 时可选保存方式。**引用原文件**保留外部路径，**复制到项目存储**会保存应用受管副本，也便于随工作区备份迁移。Zotero 原件保持引用。
+4. 默认使用本地解析建立章节目录和原文索引。可在「任务记录」看进度，完成后在左侧选中论文。需要模型解析时，在导入时选中它并授权发送 PDF，可按需追加概览、精读或中文译文。
 
-- **论文导入**：连接 Zotero 或选择本地 PDF，默认本地解析并建立 FTS5 索引；可显式选择模型章节解析、配置独立论文解析模型及真实文件输入能力，显示实际阶段。已有论文可在本地和模型解析之间选择查看或重新生成。
-- **论文概览**：PaperCard 与 LightGraph 使用一次联合模型调用生成；缓存命中不重复调用。图谱是单篇论文的概念组织，不是独立证据验证。
-- **全文精读**：章节正文和公式表格结合已选精读/翻译结果显示；大章节下可标记“未开始 / 阅读中 / 已读完”，目录显示完成状态并提供继续阅读。小节导读与独立理解状态入口已移除，旧笔记、自评和问题保留。旧本地论文仍可读取全文笔记和使用局部证据问答。切换论文、章节或阅读板块不自动请求模型。
-- **模型与用量**：设置与诊断中分开管理全局 Provider/Base URL/API Key 连接和模型参数配置；凭据保留在本机凭据存储中，统一记录输入/输出/总 Token、调用、重试、缓存命中和费用未知状态。
-- **数据边界**：Lite 数据库从空库初始化，不迁移旧版完整图谱、Query、Lint、Wiki 或历史任务。旧工程回退点保存在 `backup/pre-lite-refactor`。
-- **长期知识库**：收藏快照、带来源知识版本、专题、独立布局和双侧依据的联系汇报持久保存。归档不删除成果；从研究项目移除论文保留独立知识，永久移除知识需单独明确操作。浏览、筛选、拖动及打开报告不调用模型；生成与自动策略另有授权和累计预算。
+## 阅读论文
 
-阅读工作区位于论文页面上方，论文信息收纳到下方默认折叠区域。整篇 PDF 翻译服务器和 PDF 导出流水线仍已撤下；精读译文属于阅读笔记。当前数据库迁移 head 为 `lite0018`：`lite0016`–`lite0018`加性增加独立知识库、来源建模、关联请求槽及持久汇报，保留旧阅读数据、模型文档、生成内容与大章节阅读进度，升级前自动备份。论文工作区可编辑题名、模型章节材料和生成内容，也可逐篇清理旧本地解析/缓存或删除论文；清理与删除前均备份数据库，清理保留个人笔记、模型结果及源文件，删除只清除受控目录内的托管副本。详见 [ADR0040](docs/adr/0040-remove-pdf-translation.md)、[ADR0041](docs/adr/0041-section-bilingual-close-reading.md)、[ADR0042](docs/adr/0042-paper-reading-document-and-notes.md)、[ADR0047](docs/adr/0047-import-time-post-processing-plan.md) 和 [ADR0048](docs/adr/0048-paper-content-management-and-legacy-cleanup.md) 和 [ADR0049](docs/adr/0049-import-recovery-and-chapter-reading-progress.md)。
+| 入口 | 用途 |
+| --- | --- |
+| **论文概览** | 查看文章总览与分类知识卡片，例如研究问题、方法、作者贡献、结果和局限。打开卡片的引用可回到原文片段。 |
+| **论文精读** | 沿章节目录阅读原文、公式和表格。生成后可以对照逐段中文译文及论证批注。可标记章节进度并续读。 |
+| **论文回答** | 在已有本地原文索引的论文内检索材料，按需提问并查看回答使用的原文依据。 |
 
-论文精读与论文问答使用可展开/收起的文章目录侧栏。全文目录随滚动标记当前章节；问答目录同步实际选中章节，不由滚动改变检索范围。公式目前按 PDF 版面保守定位，支持同 SHA 来源的局部 PNG 原图预览；已接入可选的本地 Pix2Text MFR 识别流程，未配置权重时保留原图和 `latex_unavailable`，不会从线性文本猜补。问题定位与后续方案见 [公式解析评估](docs/formula-parsing-assessment.md)，可选运行时见 [公式 OCR 运行说明](docs/formula-ocr-setup.md)，导航边界见 [ADR0043](docs/adr/0043-reading-outline-and-formula-source-boundary.md)。
+论文页可以在已有的本地解析和模型解析之间切换。「更多操作」提供重新解析入口。
 
-目录支持一级、二级、三级标题的独立展开与收起。新版解析修复小型大写标题漏检、退化表格误吞小节和印刷目录重复标题。已有论文可在全文精读中点击“重新整理本地阅读版面”，只读同 SHA 来源并增量保存新章节树；旧段落、历史结果与 Zotero PDF 保留，不触发模型。新旧边界与同块跨小节的范围限制见 [ADR0044](docs/adr/0044-versioned-pdf-chapter-tree.md)。
+## 整理论文知识与跨论文联系
 
-新模型解析默认按页顺序分批，每批最多5页（可选2–8页，含相邻前1页共享），根据已知容量只缩小范围；保存原始页码和已校验检查点，失败后明确继续仅处理未成功批次。支持直接PDF文件或页面转图片，两者都需要明确联网授权和端点实际能力。格式修复默认关闭，单独授权后每失败抽取批次最多额外1次文本请求，不重传PDF；边界按需最多B−1次检查，无法确认或复杂表格保留needs_review，不宣称全文无缝。预算是B次抽取＋授权边界最多B−1次＋授权修复最多B次，显式重试可能再次收费；概览/精读/翻译另计。默认600/1800秒均为单请求时限，不是整篇SLA。公式表格始终请求提取，无法识别页显式保留缺口，模型结果不混写旧本地Chunk/Section。旧任务未开批次沿用原路径。见 [ADR0052](docs/adr/0052-resumable-document-batches.md)、[本轮验证](docs/document-batches-verification-20261118.md)、[模型配置](docs/model-configuration.md) 和 [当前进度](docs/progress.md)。
+1. 在「研究内容知识库」点击「加入论文知识」，选定论文与解析来源。可直接收藏已有概览，也可明确授权生成带来源的知识版本。
+2. 用「专题管理」新建、改名或归档专题，为一篇或多篇论文归类。论文可加入多个专题。定向移动只调整所选来源和目标的归属，已有联系和汇报保留。
+3. 在论文知识详情选择「分析论文联系」。完成后可以在「联系汇报」回查双方的陈述与引文，也可从知识地图打开对应的联系。按专题筛选时可选择「显示专题外联系」。
 
-## 文档
+在个人研究空间按 `Ctrl+F` 可搜索项目名称、项目说明和论文题名。在知识库按 `Ctrl+F` 可聚焦当前板块搜索，图谱全屏时也可使用。
 
-阅读内容整理后保存在本机。普通打开校验并读取本地存档，首次或旧存档升级只使用已存原文；只有“重新整理本地阅读版面”才再次读取 PDF。遇到读取错误可点击“重新读取本地存档”，不会触发模型生成。存档与并发读取边界见 [ADR0045](docs/adr/0045-persisted-reading-archive-and-read-transactions.md)。
+## 配置模型、查看用量与处理任务
 
-- [Lite A+B+D 规范](docs/researchgraph_lite_ABD/README.md)
-- [LightGraph 补充规范](docs/ResearchGraph_Lite_LightGraph_Addendum/README_ADDENDUM.md)
-- [章节双栏精读规范](docs/researchgraph_lite_ABD/ResearchGraph_Lite_Section_CloseReading_Bilingual_Annotation.md)
-- [当前项目基线](docs/current_project_baseline.md)
-- [清理盘点与保留范围](docs/lite_cleanup_inventory.md)
-- [开发进度](docs/progress.md)
-- [模型配置](docs/model-configuration.md)
-- [文献翻译撤下说明](docs/pdf-translation.md)
-- [安全检查](docs/security-checks.md)
+在「设置与诊断 → 模型」点击「添加模型提供商」，填写服务地址、API Key 和模型 ID，再选择各用途所用的模型。当前支持 OpenAI Chat Completions 兼容服务。模型解析还需服务端支持所选的 PDF 或页面图片输入方式。凭据保存在 Windows 凭据管理器。 [模型配置说明](docs/model-configuration.md)
 
-当前活跃迁移 head、已完成阶段和未完成范围以 [docs/progress.md](docs/progress.md) 为准。
+本地解析、搜索和浏览已有成果无需模型请求。模型任务按手动授权或已启用的自动策略发送所选材料。费用取决于服务商。「设置与诊断」可查看本地用量统计，服务商未提供的信息会保留为未知。
 
-## 开发环境
+在「任务记录」查看批次、等待状态和失败原因。按任务提供的入口继续未完成批次、重试或预览本机恢复。符合条件的本机恢复会复验已收到的响应，保留能校验来源的部分内容，无需再次请求模型。取消等待或重试时，已经发送的请求仍可能产生费用。
 
-Windows 环境使用 Conda 环境 `researchgraph-studio`、Node 24、pnpm 12 和 Rust 工具链。依赖由 `environment.yml`、`conda-win-64.lock`、`requirements-win-64.lock`、`pnpm-lock.yaml` 和 `Cargo.lock` 固定。
+## 归档与备份
+
+- 在「归档管理」恢复已归档的论文、知识、专题或任务，也可在此执行彻底清除。关联对象和文件的处理范围以清除确认提示为准。
+- 待任务结束后，在「设置与诊断 → 工作区备份与恢复」选择「创建完整备份」。导出文件夹包含 SQLite 数据库、受管 PDF 和校验清单，可以保存已经写入数据库的解析及模型内容。通过外部引用导入的 PDF 与 Zotero 原件保留路径或链接。备份包含本地研究数据，请存放在你控制的位置。
+- 恢复时，在同一设置页选择「从备份恢复」，选中整个备份文件夹。应用校验成功后打开独立工作区，原工作区保留。新工作区默认关闭自动联网，API Key 需要重新绑定。
+
+模型生成的卡片、解释与联系用于辅助阅读。需要引用研究结果时，请回查原文和上下文。
+
+<details>
+<summary>开发与构建</summary>
+
+桌面端使用 Tauri、React 和 TypeScript，本地引擎使用 Python、FastAPI、SQLite 与 FTS5。Windows 开发环境使用 Conda、Node 24、pnpm 12 和 Rust。
 
 ```powershell
 conda create --name researchgraph-studio --file .\conda-win-64.lock
 conda run -n researchgraph-studio python -m pip install --require-hashes -r requirements-win-64.lock
 pnpm install --frozen-lockfile
-pwsh -File .\scripts\check-phase0.ps1
-```
-
-启动桌面开发环境：
-
-```powershell
 pwsh -File .\scripts\dev.ps1
 ```
 
-应用数据写入用户本地的 Lite 数据目录。Zotero 原始附件和私人笔记仍由用户的本机应用管理，不进入 Git。
+运行 `pwsh -File .\scripts\check-phase0.ps1` 执行基础检查，运行 `pwsh -File .\scripts\build-windows.ps1` 构建安装包。签名发布所需配置见 [安全检查](docs/security-checks.md)。
 
-## 约束
+</details>
 
-`unknown` 表示信息缺口，不据此推断实验条件、矛盾或数字。模型只能返回受 Schema 约束的内容；正式 ID、来源定位、文件路径、数据库写入和缓存键由本地程序生成和校验。
+[文档索引](docs/README.md) · [开发进度](docs/progress.md) · [备份与恢复设计](docs/adr/0072-task-workspace-and-release-reliability.md) · [专题与搜索设计](docs/adr/0073-topic-workspace-and-search.md)
